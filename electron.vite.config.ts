@@ -8,8 +8,16 @@ export default defineConfig({
     resolve: { alias: { '@shared': resolve('src/shared') } }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
-    resolve: { alias: { '@shared': resolve('src/shared') } }
+    resolve: { alias: { '@shared': resolve('src/shared') } },
+    build: {
+      externalizeDeps: { exclude: ['zod'] },
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.cjs'
+        }
+      }
+    }
   },
   renderer: {
     root: resolve('src/renderer'),

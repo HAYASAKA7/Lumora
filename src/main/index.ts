@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   app,
@@ -9,6 +9,7 @@ import {
 } from 'electron';
 
 import { registerSystemIpc } from './ipc/register-system-ipc';
+import { getRuntimePaths } from './runtime-paths';
 import {
   createSecureWindowOptions,
   installWindowGuards,
@@ -16,8 +17,7 @@ import {
 } from './security-policy';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const preloadPath = join(currentDirectory, '../preload/index.js');
-const rendererRoot = join(currentDirectory, '../renderer');
+const { preloadPath, rendererRoot } = getRuntimePaths(currentDirectory);
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
 
 let mainWindow: BrowserWindow | null = null;
