@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+coverage/
+.npm-cache/
+.worktrees/
+.gax/
+*.log
+.DS_Store
+Thumbs.db
