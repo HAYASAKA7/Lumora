@@ -15,6 +15,7 @@ const launchSpec: LaunchSpec = {
   workspaceId: 'a'.repeat(64),
   executablePath: '/usr/local/bin/codex',
   args: [],
+  command: null,
   workingDirectory: '/work/lumora',
   environment: { PATH: '/usr/local/bin', SHELL: '/bin/bash' },
   terminalProfile: {
@@ -72,7 +73,11 @@ class FakePty implements PtyProcess {
   }
 }
 
-function harness(options: { spawnError?: Error } = {}) {
+function harness(options: {
+  spawnError?: Error;
+  launch?: LaunchSpec & { command?: string | null };
+  platform?: 'win32' | 'darwin' | 'linux';
+} = {}) {
   const pty = new FakePty();
   const stored: RuntimeSummary[] = [];
   const repository = {
@@ -89,9 +94,9 @@ function harness(options: { spawnError?: Error } = {}) {
   });
   const host = new RuntimeHost({
     repository,
-    consumeLaunch: vi.fn(async () => launchSpec),
+    consumeLaunch: vi.fn(async () => options.launch ?? launchSpec),
     spawn,
-    platform: 'linux',
+    platform: options.platform ?? 'linux',
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc',
     wait: vi.fn(async () => undefined)
@@ -139,6 +144,32 @@ describe('RuntimeHost', () => {
     expect(outputEvents.length).toBeGreaterThan(1);
     expect(outputEvents.every((event) => event.data.length <= 65_536)).toBe(true);
     expect(host.attach(runtime.id).snapshot).toHaveLength(1_048_576);
+  });
+
+  it('forwards the captured provider command to the shell adapter', async () => {
+    const customLaunch = {
+      ...launchSpec,
+      command: 'codexp',
+      terminalProfile: {
+        ...launchSpec.terminalProfile,
+        name: 'PowerShell 7',
+        shellFamily: 'pwsh' as const,
+        executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+      }
+    };
+    const { host, spawn } = harness({
+      launch: customLaunch,
+      platform: 'win32'
+    });
+
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+        env: expect.objectContaining({ LUMORA_PROVIDER_COMMAND: 'codexp' })
+      })
+    );
   });
 
   it('records normal and failed exits without retaining live handles', async () => {

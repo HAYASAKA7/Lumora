@@ -267,6 +267,7 @@ export const LaunchPreviewSchema = z.strictObject({
   provider: ProviderIdSchema,
   executablePath: z.string().min(1).max(32_768),
   args: z.array(TerminalArgumentSchema).max(64),
+  command: ProviderLaunchConfigSchema.shape.command.default(null),
   workingDirectory: z.string().min(1).max(32_768),
   environmentNames: z.array(z.string().min(1).max(256)).max(256),
   terminalProfile: TerminalProfileSchema,

@@ -128,6 +128,7 @@ export class RuntimeHost {
         platform: this.dependencies.platform,
         executablePath: spec.executablePath,
         args: spec.args,
+        command: spec.command,
         env: spec.environment,
         terminalProfile: spec.terminalProfile
       });

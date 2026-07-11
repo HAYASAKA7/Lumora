@@ -8,6 +8,7 @@ interface ResolvePtyInvocationInput {
   platform: SystemInfo['platform'];
   executablePath: string;
   args: readonly string[];
+  command: string | null;
   env: Environment;
   terminalProfile: TerminalProfile;
 }
@@ -32,11 +33,62 @@ export function resolvePtyInvocation({
   platform,
   executablePath,
   args,
+  command,
   env,
   terminalProfile
 }: ResolvePtyInvocationInput): PtyInvocation {
   if (args.length !== 0) {
     throw new Error('The managed-shell adapter does not accept provider arguments.');
+  }
+
+  if (command !== null) {
+    if (terminalProfile.shellFamily === 'other') {
+      throw new Error(
+        'The selected terminal profile does not support custom provider commands.'
+      );
+    }
+    const commandEnvironment = {
+      ...env,
+      LUMORA_PROVIDER_COMMAND: command
+    };
+    if (
+      terminalProfile.shellFamily === 'pwsh' ||
+      terminalProfile.shellFamily === 'powershell'
+    ) {
+      return {
+        executablePath: terminalProfile.executablePath,
+        args: [
+          ...terminalProfile.args,
+          '-NoLogo',
+          '-Command',
+          '& ([scriptblock]::Create($env:LUMORA_PROVIDER_COMMAND)); exit $LASTEXITCODE'
+        ],
+        env: commandEnvironment
+      };
+    }
+    if (terminalProfile.shellFamily === 'cmd') {
+      return {
+        executablePath: terminalProfile.executablePath,
+        args: [
+          ...terminalProfile.args,
+          '/d',
+          '/s',
+          '/c',
+          'call %LUMORA_PROVIDER_COMMAND%'
+        ],
+        env: commandEnvironment
+      };
+    }
+    return {
+      executablePath: terminalProfile.executablePath,
+      args: [
+        ...terminalProfile.args,
+        '-i',
+        '-c',
+        'eval "exec $LUMORA_PROVIDER_COMMAND"'
+      ],
+      env: commandEnvironment
+    };
   }
 
   const providerEnvironment = {

@@ -43,6 +43,7 @@ function harness(overrides: {
   scan?: ProviderScanResult;
   now?: Date;
   env?: Readonly<Record<string, string | undefined>>;
+  command?: string | null;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   const repository = {
@@ -58,7 +59,8 @@ function harness(overrides: {
     ),
     getProfile: vi.fn(() =>
       overrides.profile === undefined ? profile : overrides.profile
-    )
+    ),
+    getProviderLaunchCommand: vi.fn(() => overrides.command ?? null)
   };
   const service = new LaunchService({
     repository,
@@ -125,6 +127,26 @@ describe('LaunchService', () => {
     expect(preview.environmentNames).toHaveLength(87);
     expect(preview.environmentNames).toContain('LUMORA_TEST_85');
     expect(preview.environmentNames).toContain('SHELL');
+  });
+
+  it('captures a provider command in the immutable preview and launch hash', async () => {
+    const nativePreview = await harness().service.prepare({
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    const commandPreview = await harness({ command: 'codexp' }).service.prepare({
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(commandPreview).toMatchObject({ command: 'codexp' });
+    expect(commandPreview.launchHash).not.toBe(nativePreview.launchHash);
   });
 
   it('consumes a launch token exactly once', async () => {
