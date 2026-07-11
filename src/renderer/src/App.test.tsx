@@ -393,4 +393,35 @@ describe('App', () => {
     expect(screen.getByText('Second result')).toBeInTheDocument();
     expect(screen.queryByText('Stale first result')).not.toBeInTheDocument();
   });
+
+  it('clears obsolete refresh activity when a newer search takes ownership', async () => {
+    const getCatalog = vi
+      .fn()
+      .mockResolvedValueOnce(readyCatalog)
+      .mockResolvedValue({ ...readyCatalog, sessions: [] });
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog,
+      refreshCatalog: vi.fn(() => new Promise<CatalogSnapshot>(() => {}))
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Refreshing catalog' })
+    ).toBeDisabled();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
+      target: { value: 'new query' }
+    });
+    await waitFor(() =>
+      expect(getCatalog).toHaveBeenCalledWith({
+        text: 'new query',
+        provider: null
+      })
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Refresh catalog' })
+    ).toBeEnabled();
+  });
 });

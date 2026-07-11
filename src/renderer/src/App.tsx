@@ -344,6 +344,7 @@ export default function App(): ReactNode {
 
     const requestId = catalogRequestId.current + 1;
     catalogRequestId.current = requestId;
+    setIsCatalogRefreshing(false);
     const query: CatalogQuery = {
       text: debouncedSessionSearch,
       provider: sessionProvider
