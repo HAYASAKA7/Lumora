@@ -89,6 +89,9 @@ const preview: LaunchPreview = {
 };
 const runtime: RuntimeSummary = {
   id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+  strategy: 'resume',
+  sessionId: session.id,
+  nativeSessionId: session.nativeId,
   provider: 'codex',
   workspaceId: workspace.id,
   terminalProfileId: profile.id,
