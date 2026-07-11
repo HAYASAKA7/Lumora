@@ -46,6 +46,9 @@ interface SessionLaunchRow {
 
 interface RuntimeRow {
   id: string;
+  strategy: RuntimeSummary['strategy'];
+  session_id: string | null;
+  native_session_id: string | null;
   provider: RuntimeSummary['provider'];
   workspace_id: string;
   terminal_profile_id: string;
@@ -94,6 +97,9 @@ function rowToProfile(row: TerminalProfileRow): TerminalProfile {
 function rowToRuntime(row: RuntimeRow): RuntimeSummary {
   return RuntimeSummarySchema.parse({
     id: row.id,
+    strategy: row.strategy,
+    sessionId: row.session_id,
+    nativeSessionId: row.native_session_id,
     provider: row.provider,
     workspaceId: row.workspace_id,
     terminalProfileId: row.terminal_profile_id,
@@ -320,9 +326,10 @@ export class TerminalRepository {
     this.database
       .prepare(
         `INSERT INTO runtime_instance (
-          id, provider, workspace_id, terminal_profile_id, launch_hash,
-          state, pid, created_at, started_at, ended_at, exit_code, error_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, strategy, session_id, native_session_id, provider, workspace_id,
+          terminal_profile_id, launch_hash, state, pid, created_at, started_at,
+          ended_at, exit_code, error_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           state = excluded.state,
           pid = excluded.pid,
@@ -333,6 +340,9 @@ export class TerminalRepository {
       )
       .run(
         runtime.id,
+        runtime.strategy,
+        runtime.sessionId,
+        runtime.nativeSessionId,
         runtime.provider,
         runtime.workspaceId,
         runtime.terminalProfileId,
@@ -350,8 +360,9 @@ export class TerminalRepository {
   listRuntimes(): RuntimeSummary[] {
     const rows = this.database
       .prepare(
-        `SELECT id, provider, workspace_id, terminal_profile_id, launch_hash,
-          state, pid, created_at, started_at, ended_at, exit_code, error_code
+        `SELECT id, strategy, session_id, native_session_id, provider,
+          workspace_id, terminal_profile_id, launch_hash, state, pid,
+          created_at, started_at, ended_at, exit_code, error_code
          FROM runtime_instance ORDER BY created_at DESC, id`
       )
       .all() as unknown as RuntimeRow[];

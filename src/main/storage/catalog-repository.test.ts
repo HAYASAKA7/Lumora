@@ -102,7 +102,12 @@ describe('catalog migrations', () => {
     const rows = database
       .prepare('SELECT version FROM schema_migration ORDER BY version')
       .all();
-    expect(rows).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    expect(rows).toEqual([
+      { version: 1 },
+      { version: 2 },
+      { version: 3 },
+      { version: 4 }
+    ]);
     expect(
       database
         .prepare(
@@ -120,6 +125,64 @@ describe('catalog migrations', () => {
         'workspace'
       ])
     );
+
+    const runtimeColumns = database
+      .prepare('PRAGMA table_info(runtime_instance)')
+      .all()
+      .map((row) => row.name);
+    expect(runtimeColumns).toEqual(expect.arrayContaining([
+      'strategy',
+      'session_id',
+      'native_session_id'
+    ]));
+
+    const timestamp = '2026-07-11T04:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const profileId = 'b'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, 'Lumora', 1, 'manual', ?, ?)`
+    ).run(
+      workspaceId,
+      'path:/work/lumora',
+      '/work/lumora',
+      timestamp,
+      timestamp
+    );
+    database.prepare(
+      `INSERT INTO terminal_profile (
+        id, kind, name, shell_family, executable_path, args_json,
+        available, recommended, created_at, updated_at
+      ) VALUES (?, 'detected', 'Bash', 'bash', '/bin/bash', '[]', 1, 1, ?, ?)`
+    ).run(profileId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO runtime_instance (
+        id, provider, workspace_id, terminal_profile_id, launch_hash, state,
+        pid, created_at, started_at, ended_at, exit_code, error_code
+      ) VALUES (?, 'codex', ?, ?, ?, 'completed', NULL, ?, ?, ?, 0, NULL)`
+    ).run(
+      runtimeId,
+      workspaceId,
+      profileId,
+      'c'.repeat(64),
+      timestamp,
+      timestamp,
+      timestamp
+    );
+
+    expect(
+      database.prepare(
+        `SELECT strategy, session_id, native_session_id
+         FROM runtime_instance WHERE id = ?`
+      ).get(runtimeId)
+    ).toEqual({
+      strategy: 'new',
+      session_id: null,
+      native_session_id: null
+    });
   });
 
   it('rolls back every statement and migration record on failure', () => {

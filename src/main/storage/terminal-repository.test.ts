@@ -173,6 +173,9 @@ describe('TerminalRepository', () => {
     repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
     const runtime: RuntimeSummary = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
       provider: 'codex',
       workspaceId,
       terminalProfileId: profileId,
@@ -198,6 +201,63 @@ describe('TerminalRepository', () => {
         endedAt: '2026-07-11T05:00:00.000Z',
         errorCode: 'PTY_RUNTIME_LOST'
       }
+    ]);
+  });
+
+  it('retains resume identity through lifecycle updates and catalog unlink', () => {
+    const profileId = 'b'.repeat(64);
+    const sessionId = 'c'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', ?, ?, 'Resume me', 'resume me', ?, ?,
+        'saved', 'current')`
+    ).run(sessionId, 'native-thread', workspaceId, timestamp, timestamp);
+    const runtime: RuntimeSummary = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      strategy: 'resume',
+      sessionId,
+      nativeSessionId: 'native-thread',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running',
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+
+    repository.saveRuntime(runtime);
+    repository.saveRuntime({
+      ...runtime,
+      state: 'completed',
+      pid: null,
+      endedAt: '2026-07-11T05:00:00.000Z',
+      exitCode: 0
+    });
+
+    expect(repository.listRuntimes()).toEqual([
+      expect.objectContaining({
+        strategy: 'resume',
+        sessionId,
+        nativeSessionId: 'native-thread',
+        state: 'completed'
+      })
+    ]);
+
+    database.prepare('DELETE FROM session WHERE id = ?').run(sessionId);
+    expect(repository.listRuntimes()).toEqual([
+      expect.objectContaining({
+        strategy: 'resume',
+        sessionId: null,
+        nativeSessionId: 'native-thread'
+      })
     ]);
   });
 });
