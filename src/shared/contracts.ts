@@ -305,10 +305,14 @@ export const RuntimeErrorCodeSchema = z.enum([
   'PTY_RUNTIME_FAILED',
   'PTY_RUNTIME_LOST'
 ]);
+export const RuntimeStrategySchema = z.enum(['new', 'resume']);
 const RuntimeIdSchema = z.uuid();
 
 export const RuntimeSummarySchema = z.strictObject({
   id: RuntimeIdSchema,
+  strategy: RuntimeStrategySchema,
+  sessionId: StableIdSchema.nullable(),
+  nativeSessionId: z.string().trim().min(1).max(256).nullable(),
   provider: ProviderIdSchema,
   workspaceId: StableIdSchema,
   terminalProfileId: StableIdSchema,
@@ -320,6 +324,21 @@ export const RuntimeSummarySchema = z.strictObject({
   endedAt: z.iso.datetime().nullable(),
   exitCode: z.number().int().nullable(),
   errorCode: RuntimeErrorCodeSchema.nullable()
+}).superRefine((runtime, context) => {
+  if (runtime.sessionId !== null && runtime.nativeSessionId === null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['nativeSessionId'],
+      message: 'A linked runtime requires its native session identity.'
+    });
+  }
+  if (runtime.strategy === 'resume' && runtime.nativeSessionId === null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['nativeSessionId'],
+      message: 'A resume runtime requires its native session identity.'
+    });
+  }
 });
 
 export const RuntimeListSchema = z.array(RuntimeSummarySchema).max(1_000);
@@ -360,6 +379,7 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
 
 export type RuntimeState = z.infer<typeof RuntimeStateSchema>;
 export type RuntimeErrorCode = z.infer<typeof RuntimeErrorCodeSchema>;
+export type RuntimeStrategy = z.infer<typeof RuntimeStrategySchema>;
 export type RuntimeSummary = z.infer<typeof RuntimeSummarySchema>;
 export type RuntimeIdRequest = z.infer<typeof RuntimeIdRequestSchema>;
 export type RuntimeStartRequest = z.infer<typeof RuntimeStartRequestSchema>;

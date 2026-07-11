@@ -112,6 +112,17 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         updated_at TEXT NOT NULL
       ) STRICT`
     ]
+  },
+  {
+    version: 4,
+    statements: [
+      `ALTER TABLE runtime_instance ADD COLUMN strategy TEXT NOT NULL
+        DEFAULT 'new' CHECK (strategy IN ('new', 'resume'))`,
+      `ALTER TABLE runtime_instance ADD COLUMN session_id TEXT
+        REFERENCES session(id) ON DELETE SET NULL`,
+      'ALTER TABLE runtime_instance ADD COLUMN native_session_id TEXT',
+      'CREATE INDEX runtime_instance_session_idx ON runtime_instance (session_id)'
+    ]
   }
 ];
 

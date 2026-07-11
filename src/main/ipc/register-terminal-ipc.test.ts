@@ -11,6 +11,9 @@ type Handler = (
 const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
 const runtime = {
   id: runtimeId,
+  strategy: 'new' as const,
+  sessionId: null,
+  nativeSessionId: null,
   provider: 'codex' as const,
   workspaceId: 'a'.repeat(64),
   terminalProfileId: 'b'.repeat(64),
