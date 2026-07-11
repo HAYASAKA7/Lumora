@@ -10,6 +10,7 @@ import {
   ProviderInstallationSchema,
   ProviderScanResultSchema,
   RuntimeEventSchema,
+  RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   SystemInfoSchema
 } from './contracts';
@@ -433,6 +434,54 @@ describe('managed terminal contracts', () => {
         data: 'x'.repeat(65_537)
       }).success
     ).toBe(false);
+  });
+
+  it('validates durable runtime launch identity combinations', () => {
+    const runtimeBase = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      provider: 'codex',
+      workspaceId: 'a'.repeat(64),
+      terminalProfileId: 'b'.repeat(64),
+      launchHash: 'c'.repeat(64),
+      state: 'completed',
+      pid: null,
+      createdAt: '2026-07-11T04:00:00.000Z',
+      startedAt: '2026-07-11T04:00:01.000Z',
+      endedAt: '2026-07-11T04:05:00.000Z',
+      exitCode: 0,
+      errorCode: null
+    } as const;
+
+    expect(RuntimeSummarySchema.parse({
+      ...runtimeBase,
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null
+    })).toMatchObject({ strategy: 'new', sessionId: null });
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'resume',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1'
+    }).success).toBe(true);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'resume',
+      sessionId: null,
+      nativeSessionId: 'native-thread-1'
+    }).success).toBe(true);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'resume',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: null
+    }).success).toBe(false);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'new',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: null
+    }).success).toBe(false);
   });
 
   it('defines only namespaced terminal channels', () => {
