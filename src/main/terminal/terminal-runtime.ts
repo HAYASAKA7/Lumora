@@ -10,6 +10,8 @@ import {
   type CustomTerminalProfileInput,
   type LaunchPrepareRequest,
   type LaunchPreview,
+  type ProviderLaunchConfig,
+  type ProviderLaunchConfigInput,
   type ProviderScanResult,
   type RuntimeAttachment,
   type RuntimeEvent,
@@ -43,6 +45,10 @@ export interface TerminalRuntime {
   getProfiles(): TerminalProfile[];
   saveProfile(input: CustomTerminalProfileInput): Promise<TerminalProfile[]>;
   deleteProfile(profileId: string): TerminalProfile[];
+  getProviderLaunchConfigs(): ProviderLaunchConfig[];
+  saveProviderLaunchConfig(
+    input: ProviderLaunchConfigInput
+  ): ProviderLaunchConfig[];
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): RuntimeSummary[];
@@ -127,6 +133,12 @@ export async function createTerminalRuntime({
     deleteProfile(profileId) {
       repository.deleteCustomProfile(TerminalProfileIdSchema.parse(profileId));
       return TerminalProfileListSchema.parse(repository.listProfiles());
+    },
+    getProviderLaunchConfigs() {
+      return repository.listProviderLaunchConfigs();
+    },
+    saveProviderLaunchConfig(input) {
+      return repository.saveProviderLaunchConfig(input, clock().toISOString());
     },
     prepareLaunch(input) {
       return launchService.prepare(input);

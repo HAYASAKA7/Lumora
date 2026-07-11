@@ -363,6 +363,8 @@ export const IPC_CHANNELS = {
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
+  providerLaunchConfigsGet: 'lumora:terminal:provider-launch-configs:get',
+  providerLaunchConfigSave: 'lumora:terminal:provider-launch-configs:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
   runtimeStart: 'lumora:terminal:runtime:start',
   runtimeList: 'lumora:terminal:runtime:list',
@@ -384,6 +386,10 @@ export interface LumoraApi {
     input: CustomTerminalProfileInput
   ): Promise<TerminalProfile[]>;
   deleteTerminalProfile(profileId: string): Promise<TerminalProfile[]>;
+  getProviderLaunchConfigs(): Promise<ProviderLaunchConfig[]>;
+  saveProviderLaunchConfig(
+    input: ProviderLaunchConfigInput
+  ): Promise<ProviderLaunchConfig[]>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): Promise<RuntimeSummary[]>;

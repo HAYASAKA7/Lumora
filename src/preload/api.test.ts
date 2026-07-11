@@ -198,6 +198,40 @@ describe('createLumoraApi', () => {
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
+  it('uses narrow channels for provider launch configuration', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
+      providerLaunchConfigsGet: string;
+      providerLaunchConfigSave: string;
+    };
+    const configs = [
+      { provider: 'codex' as const, command: 'codexp' },
+      { provider: 'claude' as const, command: null }
+    ];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return configs;
+    }) as ReturnType<typeof createLumoraApi> & {
+      getProviderLaunchConfigs(): Promise<typeof configs>;
+      saveProviderLaunchConfig(input: {
+        provider: 'codex' | 'claude';
+        command: string | null;
+      }): Promise<typeof configs>;
+    };
+
+    await expect(api.getProviderLaunchConfigs()).resolves.toEqual(configs);
+    await expect(
+      api.saveProviderLaunchConfig({ provider: 'codex', command: 'codexp' })
+    ).resolves.toEqual(configs);
+    expect(invocations).toEqual([
+      { channel: channels.providerLaunchConfigsGet, args: [] },
+      {
+        channel: channels.providerLaunchConfigSave,
+        args: [{ provider: 'codex', command: 'codexp' }]
+      }
+    ]);
+  });
+
   it('rejects oversized terminal data before invoking IPC', async () => {
     const invoke = vi.fn();
     const api = createLumoraApi(invoke);

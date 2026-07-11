@@ -3,6 +3,8 @@ import {
   IPC_CHANNELS,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  ProviderLaunchConfigInputSchema,
+  ProviderLaunchConfigListSchema,
   RuntimeAttachmentSchema,
   RuntimeCommandResultSchema,
   RuntimeEventSchema,
@@ -38,6 +40,8 @@ type TerminalIpcRuntime = Pick<
   | 'getProfiles'
   | 'saveProfile'
   | 'deleteProfile'
+  | 'getProviderLaunchConfigs'
+  | 'saveProviderLaunchConfig'
   | 'prepareLaunch'
   | 'startRuntime'
   | 'listRuntimes'
@@ -117,6 +121,21 @@ export function registerTerminalIpc({
     const request = TerminalProfileIdSchema.parse(profileId);
     return privileged(() =>
       TerminalProfileListSchema.parse(runtime.deleteProfile(request))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.providerLaunchConfigsGet, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() =>
+      ProviderLaunchConfigListSchema.parse(runtime.getProviderLaunchConfigs())
+    );
+  });
+  ipc.handle(IPC_CHANNELS.providerLaunchConfigSave, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = ProviderLaunchConfigInputSchema.parse(input);
+    return privileged(() =>
+      ProviderLaunchConfigListSchema.parse(
+        runtime.saveProviderLaunchConfig(request)
+      )
     );
   });
   ipc.handle(IPC_CHANNELS.launchPrepare, async (event, input) => {
