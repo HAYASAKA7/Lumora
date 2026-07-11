@@ -148,6 +148,9 @@ export function NewSessionDialog({
           </div>
         ) : (
           <dl className="launch-preview">
+            {preview.command === null ? null : (
+              <div><dt>Start command</dt><dd>{preview.command}</dd></div>
+            )}
             <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
             <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
             <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
