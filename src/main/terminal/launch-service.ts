@@ -11,12 +11,15 @@ import {
   type TerminalProfile
 } from '../../shared/contracts';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
+import type { SessionLaunchInfo } from '../storage/terminal-repository';
+import { buildResumeArguments } from '../providers/launch-command';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
 interface LaunchRepository {
   getWorkspace(workspaceId: string): WorkspaceLaunchInfo | null;
   getProfile(profileId: string): TerminalProfile | null;
+  getSession(sessionId: string): SessionLaunchInfo | null;
 }
 
 interface LaunchServiceDependencies {
@@ -30,7 +33,9 @@ interface LaunchServiceDependencies {
 }
 
 export interface LaunchSpec {
-  strategy: 'new';
+  strategy: 'new' | 'resume';
+  sessionId: string | null;
+  nativeSessionId: string | null;
   provider: ProviderId;
   workspaceId: string;
   executablePath: string;
@@ -51,6 +56,7 @@ interface PreparedLaunch {
 
 export type TerminalLaunchErrorCode =
   | 'WORKSPACE_UNAVAILABLE'
+  | 'SESSION_UNAVAILABLE'
   | 'TERMINAL_PROFILE_UNAVAILABLE'
   | 'PROVIDER_UNAVAILABLE'
   | 'LAUNCH_TOKEN_INVALID'
@@ -58,6 +64,7 @@ export type TerminalLaunchErrorCode =
 
 const ERROR_MESSAGES: Record<TerminalLaunchErrorCode, string> = {
   WORKSPACE_UNAVAILABLE: 'The selected workspace is unavailable.',
+  SESSION_UNAVAILABLE: 'The selected session is unavailable.',
   TERMINAL_PROFILE_UNAVAILABLE: 'The selected terminal profile is unavailable.',
   PROVIDER_UNAVAILABLE: 'The selected provider is unavailable.',
   LAUNCH_TOKEN_INVALID: 'The launch preview is no longer valid.',
@@ -85,6 +92,8 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
         strategy: value.strategy,
         provider: value.provider,
         workspaceId: value.workspaceId,
+        sessionId: value.sessionId,
+        nativeSessionId: value.nativeSessionId,
         executablePath: value.executablePath,
         args: value.args,
         workingDirectory: value.workingDirectory,
@@ -110,11 +119,30 @@ export class LaunchService {
 
   async prepare(value: LaunchPrepareRequest): Promise<LaunchPreview> {
     const request = LaunchPrepareRequestSchema.parse(value);
-    if (request.strategy !== 'new') {
-      throw new Error('Resume launches are not implemented.');
+    let provider: ProviderId;
+    let workspaceId: string;
+    let sessionId: string | null;
+    let nativeSessionId: string | null;
+    let args: string[];
+    if (request.strategy === 'new') {
+      provider = request.provider;
+      workspaceId = request.workspaceId;
+      sessionId = null;
+      nativeSessionId = null;
+      args = [];
+    } else {
+      const session = this.dependencies.repository.getSession(request.sessionId);
+      if (session === null || session.sourceFreshness !== 'current') {
+        throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+      }
+      provider = session.provider;
+      workspaceId = session.workspaceId;
+      sessionId = session.id;
+      nativeSessionId = session.nativeId;
+      args = buildResumeArguments(provider, nativeSessionId);
     }
     const workspace = this.dependencies.repository.getWorkspace(
-      request.workspaceId
+      workspaceId
     );
     if (workspace === null || !workspace.available) {
       throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
@@ -129,7 +157,7 @@ export class LaunchService {
 
     const scan = await this.dependencies.scanProviders();
     const installation = scan.providers.find(
-      (candidate) => candidate.provider === request.provider
+      (candidate) => candidate.provider === provider
     );
     if (
       installation?.state !== 'ready' ||
@@ -141,11 +169,13 @@ export class LaunchService {
     const environment = environmentWithProfile(this.dependencies.env, profile);
     const createdAt = this.clock();
     const partial = {
-      strategy: 'new' as const,
-      provider: request.provider,
+      strategy: request.strategy,
+      sessionId,
+      nativeSessionId,
+      provider,
       workspaceId: workspace.id,
       executablePath: installation.executablePath,
-      args: [],
+      args,
       workingDirectory: workspace.canonicalPath,
       environment,
       terminalProfile: profile,
@@ -165,7 +195,7 @@ export class LaunchService {
       launchToken: token,
       launchHash: spec.launchHash,
       strategy: spec.strategy,
-      sessionId: null,
+      sessionId: spec.sessionId,
       provider: spec.provider,
       executablePath: spec.executablePath,
       args: spec.args,
@@ -197,6 +227,21 @@ export class LaunchService {
       workspace.canonicalPath !== prepared.spec.workingDirectory
     ) {
       throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
+    }
+    if (prepared.spec.strategy === 'resume') {
+      const session = this.dependencies.repository.getSession(
+        prepared.spec.sessionId as string
+      );
+      if (
+        session === null ||
+        session.sourceFreshness !== 'current' ||
+        session.id !== prepared.spec.sessionId ||
+        session.nativeId !== prepared.spec.nativeSessionId ||
+        session.provider !== prepared.spec.provider ||
+        session.workspaceId !== prepared.spec.workspaceId
+      ) {
+        throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+      }
     }
     const profile = this.dependencies.repository.getProfile(
       prepared.spec.terminalProfile.id

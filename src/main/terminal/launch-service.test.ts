@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProviderScanResult, TerminalProfile } from '../../shared/contracts';
+import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { LaunchService, TerminalLaunchError } from './launch-service';
 
 const workspaceId = 'a'.repeat(64);
 const profileId = 'b'.repeat(64);
+const sessionId = 'c'.repeat(64);
+const nativeId = 'native-session-123';
+const session: SessionLaunchInfo = {
+  id: sessionId,
+  nativeId,
+  provider: 'codex',
+  workspaceId,
+  sourceFreshness: 'current'
+};
 const profile: TerminalProfile = {
   id: profileId,
   kind: 'detected',
@@ -40,10 +50,12 @@ const scan: ProviderScanResult = {
 function harness(overrides: {
   workspace?: { id: string; canonicalPath: string; displayName: string; available: boolean } | null;
   profile?: TerminalProfile | null;
+  session?: SessionLaunchInfo | null;
   scan?: ProviderScanResult;
   now?: Date;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
+  let currentSession = overrides.session === undefined ? session : overrides.session;
   const repository = {
     getWorkspace: vi.fn(() =>
       overrides.workspace === undefined
@@ -57,7 +69,8 @@ function harness(overrides: {
     ),
     getProfile: vi.fn(() =>
       overrides.profile === undefined ? profile : overrides.profile
-    )
+    ),
+    getSession: vi.fn(() => currentSession)
   };
   const service = new LaunchService({
     repository,
@@ -72,11 +85,76 @@ function harness(overrides: {
     service,
     setNow(value: string) {
       now = new Date(value);
+    },
+    setSession(value: SessionLaunchInfo | null) {
+      currentSession = value;
     }
   };
 }
 
 describe('LaunchService', () => {
+  it.each([
+    ['codex', ['resume', nativeId]],
+    ['claude', ['--resume', nativeId]]
+  ] as const)('prepares a native %s resume', async (provider, args) => {
+    const { service } = harness({ session: { ...session, provider } });
+
+    await expect(
+      service.prepare({
+        strategy: 'resume',
+        sessionId,
+        terminalProfileId: profileId,
+        cols: 100,
+        rows: 30
+      })
+    ).resolves.toMatchObject({
+      strategy: 'resume',
+      sessionId,
+      provider,
+      args
+    });
+  });
+
+  it('rejects missing and stale sessions', async () => {
+    await expect(
+      harness({ session: null }).service.prepare({
+        strategy: 'resume',
+        sessionId,
+        terminalProfileId: profileId,
+        cols: 100,
+        rows: 30
+      })
+    ).rejects.toMatchObject({ code: 'SESSION_UNAVAILABLE' });
+
+    await expect(
+      harness({
+        session: { ...session, sourceFreshness: 'stale' }
+      }).service.prepare({
+        strategy: 'resume',
+        sessionId,
+        terminalProfileId: profileId,
+        cols: 100,
+        rows: 30
+      })
+    ).rejects.toMatchObject({ code: 'SESSION_UNAVAILABLE' });
+  });
+
+  it('rejects resume identity drift when consuming a token', async () => {
+    const { service, setSession } = harness();
+    const preview = await service.prepare({
+      strategy: 'resume',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    setSession({ ...session, nativeId: 'replacement-native-id' });
+
+    await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
+      code: 'SESSION_UNAVAILABLE'
+    });
+  });
+
   it.each(['codex', 'claude'] as const)(
     'prepares a typed, secret-free %s launch preview',
     async (provider) => {

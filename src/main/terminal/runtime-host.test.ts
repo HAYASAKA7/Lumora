@@ -11,6 +11,8 @@ import {
 
 const launchSpec: LaunchSpec = {
   strategy: 'new',
+  sessionId: null,
+  nativeSessionId: null,
   provider: 'codex',
   workspaceId: 'a'.repeat(64),
   executablePath: '/usr/local/bin/codex',
