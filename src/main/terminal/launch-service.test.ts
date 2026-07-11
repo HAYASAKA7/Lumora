@@ -42,6 +42,7 @@ function harness(overrides: {
   profile?: TerminalProfile | null;
   scan?: ProviderScanResult;
   now?: Date;
+  env?: Readonly<Record<string, string | undefined>>;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   const repository = {
@@ -64,7 +65,7 @@ function harness(overrides: {
     scanProviders: vi.fn(async () => overrides.scan ?? scan),
     isExecutablePath: vi.fn(async () => true),
     platform: 'linux',
-    env: { PATH: '/usr/local/bin:/usr/bin' },
+    env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
     clock: () => now,
     createToken: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc'
   });
@@ -103,6 +104,28 @@ describe('LaunchService', () => {
       expect(JSON.stringify(preview)).not.toContain('/secret');
     }
   );
+
+  it('prepares a launch preview with a realistic large environment', async () => {
+    const env = Object.fromEntries(
+      Array.from({ length: 86 }, (_, index) => [
+        `LUMORA_TEST_${index}`,
+        `value-${index}`
+      ])
+    );
+    const { service } = harness({ env });
+
+    const preview = await service.prepare({
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview.environmentNames).toHaveLength(87);
+    expect(preview.environmentNames).toContain('LUMORA_TEST_85');
+    expect(preview.environmentNames).toContain('SHELL');
+  });
 
   it('consumes a launch token exactly once', async () => {
     const { service } = harness();

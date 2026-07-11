@@ -242,7 +242,7 @@ export const LaunchPreviewSchema = z.strictObject({
   executablePath: z.string().min(1).max(32_768),
   args: z.array(TerminalArgumentSchema).max(64),
   workingDirectory: z.string().min(1).max(32_768),
-  environmentNames: z.array(z.string().min(1).max(256)).max(64),
+  environmentNames: z.array(z.string().min(1).max(256)).max(256),
   terminalProfile: TerminalProfileSchema,
   warnings: z.array(z.string().trim().min(1).max(512)).max(10),
   createdAt: z.iso.datetime(),
