@@ -134,6 +134,37 @@ describe('RuntimeHost', () => {
     expect(events.filter((event) => event.type === 'state')).toHaveLength(2);
   });
 
+  it('copies resume identity into every runtime transition', async () => {
+    const resumeLaunch: LaunchSpec = {
+      ...launchSpec,
+      strategy: 'resume',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      args: ['resume', 'native-thread-1']
+    };
+    const { host, repository } = harness({ launch: resumeLaunch });
+
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(repository.saveRuntime).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        strategy: 'resume',
+        sessionId: 'd'.repeat(64),
+        nativeSessionId: 'native-thread-1',
+        state: 'launching'
+      })
+    );
+    expect(repository.saveRuntime).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        strategy: 'resume',
+        sessionId: 'd'.repeat(64),
+        nativeSessionId: 'native-thread-1',
+        state: 'running'
+      })
+    );
+  });
+
   it('bounds output events and the attach snapshot', async () => {
     const { host, pty } = harness();
     const events: RuntimeEvent[] = [];
@@ -190,13 +221,25 @@ describe('RuntimeHost', () => {
   });
 
   it('normalizes spawn failures as launch_failed', async () => {
-    const { host } = harness({ spawnError: new Error('/secret/native failure') });
+    const { host } = harness({
+      spawnError: new Error('/secret/native failure'),
+      launch: {
+        ...launchSpec,
+        strategy: 'resume',
+        sessionId: 'd'.repeat(64),
+        nativeSessionId: 'native-thread-1',
+        args: ['resume', 'native-thread-1']
+      }
+    });
 
     await expect(
       host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc')
     ).rejects.toMatchObject({ code: 'PTY_SPAWN_FAILED' });
     expect(host.list()).toEqual([
       expect.objectContaining({
+        strategy: 'resume',
+        sessionId: 'd'.repeat(64),
+        nativeSessionId: 'native-thread-1',
         state: 'launch_failed',
         errorCode: 'PTY_SPAWN_FAILED'
       })
