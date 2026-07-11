@@ -5,6 +5,8 @@ import {
   IPC_CHANNELS,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  ProviderLaunchConfigInputSchema,
+  ProviderLaunchConfigListSchema,
   ProviderScanResultSchema,
   RuntimeAttachmentSchema,
   RuntimeCommandResultSchema,
@@ -70,6 +72,18 @@ export function createLumoraApi(
       const request = TerminalProfileIdSchema.parse(profileId);
       const value = await invoke(IPC_CHANNELS.terminalProfileDelete, request);
       return TerminalProfileListSchema.parse(value);
+    },
+    async getProviderLaunchConfigs() {
+      const value = await invoke(IPC_CHANNELS.providerLaunchConfigsGet);
+      return ProviderLaunchConfigListSchema.parse(value);
+    },
+    async saveProviderLaunchConfig(input) {
+      const request = ProviderLaunchConfigInputSchema.parse(input);
+      const value = await invoke(
+        IPC_CHANNELS.providerLaunchConfigSave,
+        request
+      );
+      return ProviderLaunchConfigListSchema.parse(value);
     },
     async prepareLaunch(input) {
       const request = LaunchPrepareRequestSchema.parse(input);

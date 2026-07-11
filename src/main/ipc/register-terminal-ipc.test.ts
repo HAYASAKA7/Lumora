@@ -31,6 +31,14 @@ function createHarness() {
     getProfiles: vi.fn(() => []),
     saveProfile: vi.fn(async () => []),
     deleteProfile: vi.fn(() => []),
+    getProviderLaunchConfigs: vi.fn(() => [
+      { provider: 'codex' as const, command: null },
+      { provider: 'claude' as const, command: null }
+    ]),
+    saveProviderLaunchConfig: vi.fn(() => [
+      { provider: 'codex' as const, command: 'codexp' },
+      { provider: 'claude' as const, command: null }
+    ]),
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
     startRuntime: vi.fn(async () => runtime),
     listRuntimes: vi.fn(() => [runtime]),
@@ -60,12 +68,18 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the ten explicit terminal operations', () => {
+  it('registers the twelve explicit terminal operations', () => {
     const { handlers } = createHarness();
+    const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
+      providerLaunchConfigsGet: string;
+      providerLaunchConfigSave: string;
+    };
     expect([...handlers.keys()]).toEqual([
       IPC_CHANNELS.terminalProfilesGet,
       IPC_CHANNELS.terminalProfileSave,
       IPC_CHANNELS.terminalProfileDelete,
+      channels.providerLaunchConfigsGet,
+      channels.providerLaunchConfigSave,
       IPC_CHANNELS.launchPrepare,
       IPC_CHANNELS.runtimeStart,
       IPC_CHANNELS.runtimeList,
@@ -74,6 +88,34 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.runtimeResize,
       IPC_CHANNELS.runtimeTerminate
     ]);
+  });
+
+  it('validates and forwards provider launch configuration', async () => {
+    const { handlers, runtimeService } = createHarness();
+    const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
+      providerLaunchConfigsGet: string;
+      providerLaunchConfigSave: string;
+    };
+
+    await expect(
+      handlers.get(channels.providerLaunchConfigsGet)!(trustedEvent)
+    ).resolves.toEqual([
+      { provider: 'codex', command: null },
+      { provider: 'claude', command: null }
+    ]);
+    await expect(
+      handlers.get(channels.providerLaunchConfigSave)!(trustedEvent, {
+        provider: 'codex',
+        command: 'codexp'
+      })
+    ).resolves.toEqual([
+      { provider: 'codex', command: 'codexp' },
+      { provider: 'claude', command: null }
+    ]);
+    expect(runtimeService.saveProviderLaunchConfig).toHaveBeenCalledWith({
+      provider: 'codex',
+      command: 'codexp'
+    });
   });
 
   it('validates runtime commands before forwarding them', async () => {

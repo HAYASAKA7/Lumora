@@ -51,6 +51,7 @@ const preview: LaunchPreview = {
   provider: 'codex',
   executablePath: 'C:\\tools\\codex.exe',
   args: [],
+  command: 'codexp',
   workingDirectory: workspace.canonicalPath,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,
@@ -91,6 +92,7 @@ describe('NewSessionDialog', () => {
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
+    expect(screen.getByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'new',
       workspaceId: workspace.id,

@@ -80,6 +80,9 @@ export function TerminalWorkspace({
           <dl>
             <div><dt>Provider</dt><dd>{runtime.provider}</dd></div>
             <div><dt>Process</dt><dd>{runtime.pid ?? 'Not live'}</dd></div>
+            {preview?.command == null ? null : (
+              <div><dt>Start command</dt><dd>{preview.command}</dd></div>
+            )}
             <div><dt>Executable</dt><dd>{preview?.executablePath ?? 'Saved runtime'}</dd></div>
             <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
             <div><dt>Profile</dt><dd>{preview?.terminalProfile.name ?? runtime.terminalProfileId.slice(0, 12)}</dd></div>

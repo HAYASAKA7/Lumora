@@ -13,6 +13,7 @@ import {
   RuntimeWriteRequestSchema,
   SystemInfoSchema
 } from './contracts';
+import * as contracts from './contracts';
 
 const readyCodex = {
   provider: 'codex',
@@ -295,6 +296,30 @@ describe('managed terminal contracts', () => {
     recommended: true
   } as const;
 
+  it('accepts single-line provider commands and rejects multiline input', () => {
+    const schema = (
+      contracts as unknown as {
+        ProviderLaunchConfigInputSchema: {
+          parse(value: unknown): unknown;
+          safeParse(value: unknown): { success: boolean };
+        };
+      }
+    ).ProviderLaunchConfigInputSchema;
+
+    expect(schema.parse({ provider: 'codex', command: 'codexp' })).toEqual({
+      provider: 'codex',
+      command: 'codexp'
+    });
+    expect(
+      schema.safeParse({ provider: 'codex', command: "codex\n--dangerous" })
+        .success
+    ).toBe(false);
+    expect(schema.parse({ provider: 'claude', command: null })).toEqual({
+      provider: 'claude',
+      command: null
+    });
+  });
+
   it('accepts bounded custom terminal profile input', () => {
     expect(
       CustomTerminalProfileInputSchema.parse({
@@ -336,6 +361,7 @@ describe('managed terminal contracts', () => {
       sessionId: null,
       provider: 'claude',
       executablePath: 'C:\\Users\\dev\\bin\\claude.exe',
+      command: null,
       args: [],
       workingDirectory: 'D:\\Projects\\Lumora',
       environmentNames: ['SHELL'],

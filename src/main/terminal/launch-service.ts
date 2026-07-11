@@ -20,6 +20,7 @@ interface LaunchRepository {
   getWorkspace(workspaceId: string): WorkspaceLaunchInfo | null;
   getProfile(profileId: string): TerminalProfile | null;
   getSession(sessionId: string): SessionLaunchInfo | null;
+  getProviderLaunchCommand(provider: ProviderId): string | null;
 }
 
 interface LaunchServiceDependencies {
@@ -40,6 +41,7 @@ export interface LaunchSpec {
   workspaceId: string;
   executablePath: string;
   args: string[];
+  command: string | null;
   workingDirectory: string;
   environment: Record<string, string | undefined>;
   terminalProfile: TerminalProfile;
@@ -96,6 +98,7 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
         nativeSessionId: value.nativeSessionId,
         executablePath: value.executablePath,
         args: value.args,
+        command: value.command,
         workingDirectory: value.workingDirectory,
         terminalProfileId: value.terminalProfile.id,
         terminalProfilePath: value.terminalProfile.executablePath,
@@ -167,6 +170,9 @@ export class LaunchService {
     }
 
     const environment = environmentWithProfile(this.dependencies.env, profile);
+    const command = this.dependencies.repository.getProviderLaunchCommand(
+      provider
+    );
     const createdAt = this.clock();
     const partial = {
       strategy: request.strategy,
@@ -176,6 +182,7 @@ export class LaunchService {
       workspaceId: workspace.id,
       executablePath: installation.executablePath,
       args,
+      command,
       workingDirectory: workspace.canonicalPath,
       environment,
       terminalProfile: profile,
@@ -199,6 +206,7 @@ export class LaunchService {
       provider: spec.provider,
       executablePath: spec.executablePath,
       args: spec.args,
+      command: spec.command,
       workingDirectory: spec.workingDirectory,
       environmentNames: Object.keys(spec.environment).sort(),
       terminalProfile: spec.terminalProfile,

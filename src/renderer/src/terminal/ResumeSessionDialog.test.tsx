@@ -79,6 +79,7 @@ const preview: LaunchPreview = {
   provider: 'codex',
   executablePath: 'C:\\tools\\codex.exe',
   args: ['resume', session.nativeId],
+  command: null,
   workingDirectory: workspace.canonicalPath,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,

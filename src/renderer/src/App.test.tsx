@@ -171,6 +171,14 @@ function setSystemInfoResult(
         catalogApi.getTerminalProfiles ?? vi.fn().mockResolvedValue([]),
       saveTerminalProfile: vi.fn().mockResolvedValue([]),
       deleteTerminalProfile: vi.fn().mockResolvedValue([]),
+      getProviderLaunchConfigs: vi.fn().mockResolvedValue([
+        { provider: 'codex', command: null },
+        { provider: 'claude', command: null }
+      ]),
+      saveProviderLaunchConfig: vi.fn().mockResolvedValue([
+        { provider: 'codex', command: null },
+        { provider: 'claude', command: null }
+      ]),
       prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
       startRuntime: catalogApi.startRuntime ?? vi.fn(),
       listRuntimes: vi.fn().mockResolvedValue([]),
@@ -238,6 +246,7 @@ describe('App', () => {
       provider: 'codex',
       executablePath: 'C:\\tools\\codex.exe',
       args: ['resume', session.nativeId],
+      command: null,
       workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
       environmentNames: ['PATH', 'SHELL'],
       terminalProfile: profile,

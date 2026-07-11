@@ -135,6 +135,39 @@ describe('TerminalRepository', () => {
     expect(repository.getSession('f'.repeat(64))).toBeNull();
   });
 
+  it('stores provider launch commands and clears overrides', () => {
+    const configurable = repository as unknown as {
+      listProviderLaunchConfigs(): unknown;
+      saveProviderLaunchConfig(
+        input: { provider: 'codex' | 'claude'; command: string | null },
+        timestamp: string
+      ): unknown;
+      getProviderLaunchCommand(provider: 'codex' | 'claude'): string | null;
+    };
+
+    expect(configurable.listProviderLaunchConfigs()).toEqual([
+      { provider: 'codex', command: null },
+      { provider: 'claude', command: null }
+    ]);
+
+    expect(
+      configurable.saveProviderLaunchConfig(
+        { provider: 'codex', command: 'codexp' },
+        timestamp
+      )
+    ).toEqual([
+      { provider: 'codex', command: 'codexp' },
+      { provider: 'claude', command: null }
+    ]);
+    expect(configurable.getProviderLaunchCommand('codex')).toBe('codexp');
+
+    configurable.saveProviderLaunchConfig(
+      { provider: 'codex', command: null },
+      '2026-07-11T05:00:00.000Z'
+    );
+    expect(configurable.getProviderLaunchCommand('codex')).toBeNull();
+  });
+
   it('persists runtime lifecycle and marks interrupted live rows lost', () => {
     const profileId = 'b'.repeat(64);
     repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
