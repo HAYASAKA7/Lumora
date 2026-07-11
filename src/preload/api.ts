@@ -1,5 +1,6 @@
 import {
   IPC_CHANNELS,
+  ProviderScanResultSchema,
   SystemInfoSchema,
   type LumoraApi
 } from '../shared/contracts';
@@ -11,6 +12,10 @@ export function createLumoraApi(invoke: Invoke): LumoraApi {
     async getSystemInfo() {
       const value = await invoke(IPC_CHANNELS.systemInfo);
       return SystemInfoSchema.parse(value);
+    },
+    async scanProviders() {
+      const value = await invoke(IPC_CHANNELS.providerScan);
+      return ProviderScanResultSchema.parse(value);
     }
   });
 }

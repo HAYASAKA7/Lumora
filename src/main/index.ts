@@ -8,7 +8,14 @@ import {
   protocol
 } from 'electron';
 
+import { PlatformSchema } from '../shared/contracts';
+import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
+import { findExecutable } from './platform/executable-locator';
+import { probeVersion } from './platform/version-probe';
+import { createClaudeAdapter } from './providers/claude-adapter';
+import { createCodexAdapter } from './providers/codex-adapter';
+import { ProviderRegistry } from './providers/provider-registry';
 import { getRuntimePaths } from './runtime-paths';
 import {
   createSecureWindowOptions,
@@ -19,6 +26,17 @@ import {
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const { preloadPath, rendererRoot } = getRuntimePaths(currentDirectory);
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
+const platform = PlatformSchema.parse(process.platform);
+const providerDependencies = {
+  findExecutable: (command: string) =>
+    findExecutable(command, { platform, env: process.env }),
+  probeVersion: (executablePath: string) =>
+    probeVersion(executablePath, { platform, env: process.env })
+};
+const providerRegistry = new ProviderRegistry({
+  codex: createCodexAdapter(providerDependencies),
+  claude: createClaudeAdapter(providerDependencies)
+});
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -75,6 +93,11 @@ void app.whenReady().then(async () => {
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerProviderIpc({
+    ipc: ipcMain,
+    registry: providerRegistry,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
