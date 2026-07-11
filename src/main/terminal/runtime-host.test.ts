@@ -182,6 +182,10 @@ describe('RuntimeHost', () => {
   it('forwards the captured provider command to the shell adapter', async () => {
     const customLaunch = {
       ...launchSpec,
+      strategy: 'resume' as const,
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      args: ['resume', 'native-thread-1'],
       command: 'codexp',
       terminalProfile: {
         ...launchSpec.terminalProfile,
@@ -200,7 +204,10 @@ describe('RuntimeHost', () => {
     expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-        env: expect.objectContaining({ LUMORA_PROVIDER_COMMAND: 'codexp' })
+        env: expect.objectContaining({
+          LUMORA_PROVIDER_COMMAND: 'codexp',
+          LUMORA_PROVIDER_ARGUMENTS: '["resume","native-thread-1"]'
+        })
       })
     );
   });

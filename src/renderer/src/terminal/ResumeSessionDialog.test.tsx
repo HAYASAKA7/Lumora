@@ -79,7 +79,7 @@ const preview: LaunchPreview = {
   provider: 'codex',
   executablePath: 'C:\\tools\\codex.exe',
   args: ['resume', session.nativeId],
-  command: null,
+  command: 'codexp',
   workingDirectory: workspace.canonicalPath,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,
@@ -142,6 +142,7 @@ describe('ResumeSessionDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
+    expect(screen.getByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,

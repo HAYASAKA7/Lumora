@@ -158,6 +158,22 @@ describe('LaunchService', () => {
     });
   });
 
+  it('captures the configured provider command for a resume launch', async () => {
+    const preview = await harness({ command: 'codexp' }).service.prepare({
+      strategy: 'resume',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview).toMatchObject({
+      strategy: 'resume',
+      command: 'codexp',
+      args: ['resume', nativeId]
+    });
+  });
+
   it.each(['codex', 'claude'] as const)(
     'prepares a typed, secret-free %s launch preview',
     async (provider) => {

@@ -167,6 +167,12 @@ export function ResumeSessionDialog({
           </div>
         ) : (
           <dl className="launch-preview">
+            {preview.command === null ? null : (
+              <div>
+                <dt>Start command</dt>
+                <dd>{preview.command}</dd>
+              </div>
+            )}
             <div>
               <dt>Executable</dt>
               <dd>{preview.executablePath}</dd>
