@@ -1,0 +1,174 @@
+import {
+  CustomTerminalProfileInputSchema,
+  IPC_CHANNELS,
+  LaunchPrepareRequestSchema,
+  LaunchPreviewSchema,
+  RuntimeAttachmentSchema,
+  RuntimeCommandResultSchema,
+  RuntimeEventSchema,
+  RuntimeIdRequestSchema,
+  RuntimeListSchema,
+  RuntimeResizeRequestSchema,
+  RuntimeStartRequestSchema,
+  RuntimeSummarySchema,
+  RuntimeWriteRequestSchema,
+  TerminalProfileIdSchema,
+  TerminalProfileListSchema,
+  type RuntimeEvent
+} from '../../shared/contracts';
+import { isTrustedRendererUrl } from '../security-policy';
+import type { TerminalRuntime } from '../terminal/terminal-runtime';
+
+interface IpcInvokeEventLike {
+  senderFrame: { url: string } | null;
+}
+
+interface IpcRegistrar {
+  handle(
+    channel: string,
+    handler: (
+      event: IpcInvokeEventLike,
+      ...args: readonly unknown[]
+    ) => Promise<unknown> | unknown
+  ): void;
+}
+
+type TerminalIpcRuntime = Pick<
+  TerminalRuntime,
+  | 'getProfiles'
+  | 'saveProfile'
+  | 'deleteProfile'
+  | 'prepareLaunch'
+  | 'startRuntime'
+  | 'listRuntimes'
+  | 'attachRuntime'
+  | 'writeRuntime'
+  | 'resizeRuntime'
+  | 'terminateRuntime'
+  | 'subscribe'
+>;
+
+interface RegisterTerminalIpcDependencies {
+  ipc: IpcRegistrar;
+  runtime: TerminalIpcRuntime;
+  sendRuntimeEvent(event: RuntimeEvent): void;
+  developmentOrigin?: string;
+}
+
+class IpcAccessError extends Error {
+  readonly code = 'IPC_UNTRUSTED_SENDER';
+
+  constructor() {
+    super('The IPC request did not originate from the Lumora renderer.');
+    this.name = 'IpcAccessError';
+  }
+}
+
+class TerminalIpcError extends Error {
+  readonly code = 'TERMINAL_OPERATION_FAILED';
+
+  constructor() {
+    super('Lumora could not complete the terminal operation.');
+    this.name = 'TerminalIpcError';
+  }
+}
+
+async function privileged<T>(operation: () => Promise<T> | T): Promise<T> {
+  try {
+    return await operation();
+  } catch {
+    throw new TerminalIpcError();
+  }
+}
+
+function assertTrusted(
+  event: IpcInvokeEventLike,
+  developmentOrigin?: string
+): void {
+  if (
+    event.senderFrame === null ||
+    !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
+  ) {
+    throw new IpcAccessError();
+  }
+}
+
+export function registerTerminalIpc({
+  ipc,
+  runtime,
+  sendRuntimeEvent,
+  developmentOrigin
+}: RegisterTerminalIpcDependencies): () => void {
+  ipc.handle(IPC_CHANNELS.terminalProfilesGet, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() =>
+      TerminalProfileListSchema.parse(runtime.getProfiles())
+    );
+  });
+  ipc.handle(IPC_CHANNELS.terminalProfileSave, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = CustomTerminalProfileInputSchema.parse(input);
+    return privileged(async () =>
+      TerminalProfileListSchema.parse(await runtime.saveProfile(request))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.terminalProfileDelete, async (event, profileId) => {
+    assertTrusted(event, developmentOrigin);
+    const request = TerminalProfileIdSchema.parse(profileId);
+    return privileged(() =>
+      TerminalProfileListSchema.parse(runtime.deleteProfile(request))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.launchPrepare, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = LaunchPrepareRequestSchema.parse(input);
+    return privileged(async () =>
+      LaunchPreviewSchema.parse(await runtime.prepareLaunch(request))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.runtimeStart, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = RuntimeStartRequestSchema.parse(input);
+    return privileged(async () =>
+      RuntimeSummarySchema.parse(await runtime.startRuntime(request.launchToken))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.runtimeList, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() => RuntimeListSchema.parse(runtime.listRuntimes()));
+  });
+  ipc.handle(IPC_CHANNELS.runtimeAttach, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = RuntimeIdRequestSchema.parse(input);
+    return privileged(() =>
+      RuntimeAttachmentSchema.parse(runtime.attachRuntime(request.runtimeId))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.runtimeWrite, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = RuntimeWriteRequestSchema.parse(input);
+    return privileged(() => {
+      runtime.writeRuntime(request);
+      return RuntimeCommandResultSchema.parse({ accepted: true });
+    });
+  });
+  ipc.handle(IPC_CHANNELS.runtimeResize, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = RuntimeResizeRequestSchema.parse(input);
+    return privileged(() => {
+      runtime.resizeRuntime(request);
+      return RuntimeCommandResultSchema.parse({ accepted: true });
+    });
+  });
+  ipc.handle(IPC_CHANNELS.runtimeTerminate, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = RuntimeIdRequestSchema.parse(input);
+    return privileged(async () =>
+      RuntimeSummarySchema.parse(await runtime.terminateRuntime(request.runtimeId))
+    );
+  });
+
+  return runtime.subscribe((value) => {
+    sendRuntimeEvent(RuntimeEventSchema.parse(value));
+  });
+}

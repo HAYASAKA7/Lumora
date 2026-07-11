@@ -1,0 +1,208 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  CatalogSnapshotSchema,
+  IPC_CHANNELS,
+  type CatalogQuery,
+  type CatalogSnapshot
+} from '../../shared/contracts';
+import { registerCatalogIpc } from './register-catalog-ipc';
+
+interface InvokeEventStub {
+  senderFrame: { url: string } | null;
+}
+
+type InvokeHandler = (
+  event: InvokeEventStub,
+  ...args: readonly unknown[]
+) => Promise<unknown> | unknown;
+
+const validSnapshot: CatalogSnapshot = {
+  refreshedAt: '2026-07-11T03:00:00.000Z',
+  workspaces: [],
+  sessions: [],
+  providerStatus: [
+    {
+      provider: 'codex',
+      state: 'ready',
+      discoveredCount: 0,
+      unchangedCount: 0,
+      invalidCount: 0
+    },
+    {
+      provider: 'claude',
+      state: 'ready',
+      discoveredCount: 0,
+      unchangedCount: 0,
+      invalidCount: 0
+    }
+  ],
+  diagnostics: []
+};
+
+function createHarness(options: {
+  developmentOrigin?: string;
+  dialogResult?: { canceled: boolean; filePaths: string[] };
+  getCatalog?: (query: CatalogQuery) => unknown;
+  refreshCatalog?: (query: CatalogQuery) => Promise<unknown>;
+  registerWorkspace?: (path: string) => Promise<unknown>;
+} = {}) {
+  const handlers = new Map<string, InvokeHandler>();
+  const ipc = {
+    handle(channel: string, handler: InvokeHandler) {
+      handlers.set(channel, handler);
+    }
+  };
+  const service = {
+    getCatalog: vi.fn(options.getCatalog ?? (() => validSnapshot)),
+    refreshCatalog: vi.fn(
+      options.refreshCatalog ?? (async () => validSnapshot)
+    ),
+    registerWorkspace: vi.fn(
+      options.registerWorkspace ?? (async () => validSnapshot)
+    )
+  };
+  const showOpenDialog = vi.fn(async () =>
+    Promise.resolve(
+      options.dialogResult ?? {
+        canceled: false,
+        filePaths: ['D:\\Projects\\Lumora']
+      }
+    )
+  );
+
+  registerCatalogIpc({
+    ipc,
+    service,
+    showOpenDialog,
+    ...(options.developmentOrigin === undefined
+      ? {}
+      : { developmentOrigin: options.developmentOrigin })
+  });
+
+  return { handlers, service, showOpenDialog };
+}
+
+function trustedEvent(): InvokeEventStub {
+  return { senderFrame: { url: 'app://lumora/index.html' } };
+}
+
+describe('registerCatalogIpc', () => {
+  it('registers only the three narrowed catalog operations', () => {
+    const { handlers } = createHarness();
+
+    expect([...handlers.keys()]).toEqual([
+      IPC_CHANNELS.catalogGet,
+      IPC_CHANNELS.catalogRefresh,
+      IPC_CHANNELS.workspaceChoose
+    ]);
+  });
+
+  it('validates and forwards normalized get and refresh queries', async () => {
+    const { handlers, service } = createHarness();
+    const get = handlers.get(IPC_CHANNELS.catalogGet)!;
+    const refresh = handlers.get(IPC_CHANNELS.catalogRefresh)!;
+
+    await expect(
+      get(trustedEvent(), { text: '  storage  ', provider: 'claude' })
+    ).resolves.toEqual(validSnapshot);
+    await expect(
+      refresh(trustedEvent(), { text: '', provider: null })
+    ).resolves.toEqual(validSnapshot);
+
+    expect(service.getCatalog).toHaveBeenCalledWith({
+      text: 'storage',
+      provider: 'claude'
+    });
+    expect(service.refreshCatalog).toHaveBeenCalledWith({
+      text: '',
+      provider: null
+    });
+  });
+
+  it('uses a directory-only native picker and ignores arbitrary renderer paths', async () => {
+    const { handlers, service, showOpenDialog } = createHarness();
+    const choose = handlers.get(IPC_CHANNELS.workspaceChoose)!;
+
+    const result = await choose(trustedEvent(), 'C:\\untrusted\\renderer-path');
+
+    expect(CatalogSnapshotSchema.parse(result)).toEqual(validSnapshot);
+    expect(showOpenDialog).toHaveBeenCalledWith({
+      properties: ['openDirectory']
+    });
+    expect(service.registerWorkspace).toHaveBeenCalledWith(
+      'D:\\Projects\\Lumora'
+    );
+  });
+
+  it('returns null on folder-picker cancellation without registering', async () => {
+    const { handlers, service } = createHarness({
+      dialogResult: { canceled: true, filePaths: [] }
+    });
+    const choose = handlers.get(IPC_CHANNELS.workspaceChoose)!;
+
+    await expect(choose(trustedEvent())).resolves.toBeNull();
+    expect(service.registerWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('accepts only the packaged renderer or exact development origin', async () => {
+    const { handlers, service, showOpenDialog } = createHarness({
+      developmentOrigin: 'http://localhost:5173'
+    });
+    const get = handlers.get(IPC_CHANNELS.catalogGet)!;
+    const choose = handlers.get(IPC_CHANNELS.workspaceChoose)!;
+
+    await expect(
+      get(
+        { senderFrame: { url: 'http://localhost:5173/src/main.tsx' } },
+        { text: '', provider: null }
+      )
+    ).resolves.toEqual(validSnapshot);
+    await expect(
+      get(
+        { senderFrame: { url: 'https://example.com/index.html' } },
+        { text: '', provider: null }
+      )
+    ).rejects.toMatchObject({ code: 'IPC_UNTRUSTED_SENDER' });
+    await expect(choose({ senderFrame: null })).rejects.toMatchObject({
+      code: 'IPC_UNTRUSTED_SENDER'
+    });
+    expect(service.registerWorkspace).not.toHaveBeenCalled();
+    expect(showOpenDialog).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed queries and catalog responses', async () => {
+    const invalidQueryHarness = createHarness();
+    const get = invalidQueryHarness.handlers.get(IPC_CHANNELS.catalogGet)!;
+    await expect(
+      get(trustedEvent(), { text: 'x'.repeat(121), provider: null })
+    ).rejects.toBeDefined();
+    expect(invalidQueryHarness.service.getCatalog).not.toHaveBeenCalled();
+
+    const invalidResponseHarness = createHarness({
+      getCatalog: () => ({ ...validSnapshot, transcript: ['private'] })
+    });
+    await expect(
+      invalidResponseHarness.handlers.get(IPC_CHANNELS.catalogGet)!(
+        trustedEvent(),
+        { text: '', provider: null }
+      )
+    ).rejects.toMatchObject({ code: 'CATALOG_DATABASE_FAILED' });
+  });
+
+  it('normalizes privileged failures without exposing raw details', async () => {
+    const { handlers } = createHarness({
+      refreshCatalog: async () => {
+        throw new Error('SQL and local path details');
+      }
+    });
+    const refresh = handlers.get(IPC_CHANNELS.catalogRefresh)!;
+
+    await expect(
+      refresh(trustedEvent(), { text: '', provider: null })
+    ).rejects.toMatchObject({
+      code: 'CATALOG_DATABASE_FAILED',
+      message: 'Lumora could not complete the catalog operation.'
+    });
+  });
+});
