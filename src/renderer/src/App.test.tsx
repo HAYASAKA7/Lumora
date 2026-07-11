@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -180,23 +187,25 @@ describe('App', () => {
     );
   });
 
-  it('shows New session only on Home and Workspaces', async () => {
+  it('shows New session in the top command bar only on Home and Workspaces', async () => {
     render(<App />);
 
+    const sessionActions = screen.getByRole('group', { name: 'Session actions' });
     expect(
-      await screen.findByRole('button', { name: 'New session' })
+      await within(sessionActions).findByRole('button', { name: 'New session' })
     ).toBeInTheDocument();
+    expect(document.querySelector('.page-primary-action')).not.toBeInTheDocument();
 
     for (const destination of ['All sessions', 'Terminal profiles', 'Settings']) {
       fireEvent.click(screen.getByRole('button', { name: destination }));
       expect(
-        screen.queryByRole('button', { name: 'New session' })
+        within(sessionActions).queryByRole('button', { name: 'New session' })
       ).not.toBeInTheDocument();
     }
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     expect(
-      screen.getByRole('button', { name: 'New session' })
+      within(sessionActions).getByRole('button', { name: 'New session' })
     ).toBeInTheDocument();
   });
 

@@ -569,10 +569,29 @@ export default function App(): ReactNode {
             <p className="topbar-kicker">Local control plane</p>
             <p className="topbar-context">Private by default · Native provider sessions</p>
           </div>
-          <span className="release-badge">
-            <span aria-hidden="true" />
-            Provider discovery
-          </span>
+          <div aria-label="Session actions" className="topbar-actions" role="group">
+            <span className="release-badge">
+              <span aria-hidden="true" />
+              Provider discovery
+            </span>
+            {activeRuntimeId === null && liveRuntimes.length > 0 ? (
+              <button className="secondary-button" onClick={openLiveTerminals} type="button">
+                Open terminals
+              </button>
+            ) : null}
+            {activeRuntimeId === null &&
+            (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
+            catalogStatus.state === 'ready' &&
+            catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
+              <button
+                className="refresh-button"
+                onClick={() => setNewSessionOpen(true)}
+                type="button"
+              >
+                New session
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <main className="main-content" id="main-content" tabIndex={-1}>
@@ -580,25 +599,6 @@ export default function App(): ReactNode {
             <p className="eyebrow">{activeRoute.eyebrow}</p>
             <h1>{activeRoute.label}</h1>
             <p className="page-description">{activeRoute.description}</p>
-            <div className="page-primary-action">
-              {activeRuntimeId === null && liveRuntimes.length > 0 ? (
-                <button className="secondary-button" onClick={openLiveTerminals} type="button">
-                  Open terminals
-                </button>
-              ) : null}
-              {activeRuntimeId === null &&
-              (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
-              catalogStatus.state === 'ready' &&
-              catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
-                <button
-                  className="refresh-button"
-                  onClick={() => setNewSessionOpen(true)}
-                  type="button"
-                >
-                  New session
-                </button>
-              ) : null}
-            </div>
           </header>
 
           {catalogOperationError === null ? null : (

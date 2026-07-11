@@ -291,6 +291,15 @@ button {
   border-bottom: 1px solid var(--line);
 }
 
+.topbar-actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .topbar-kicker {
   color: #334158;
 }
@@ -1371,18 +1380,6 @@ button {
   }
 }
 
-.page-header {
-  position: relative;
-}
-
-.page-primary-action {
-  position: absolute;
-  display: flex;
-  gap: 8px;
-  top: 0;
-  right: 0;
-}
-
 .terminal-profile-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.7fr);
@@ -1656,9 +1653,23 @@ button {
 }
 
 @media (max-width: 680px) {
-  .page-primary-action {
-    position: static;
-    margin-top: 14px;
+  .workspace-frame {
+    grid-template-rows: auto minmax(0, 1fr) 35px;
+  }
+
+  .topbar {
+    min-height: 64px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 18px;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions .refresh-button {
+    width: auto;
   }
 
   .launch-fields {
