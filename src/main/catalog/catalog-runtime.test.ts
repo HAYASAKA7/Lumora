@@ -35,12 +35,19 @@ const unavailableProviders: ProviderScanResult = {
   ]
 };
 
+const testPlatform =
+  process.platform === 'win32'
+    ? 'win32'
+    : process.platform === 'darwin'
+      ? 'darwin'
+      : 'linux';
+
 describe('createCatalogRuntime', () => {
   it('composes a migrated catalog and closes its database idempotently', async () => {
     const runtime = createCatalogRuntime({
       databasePath: ':memory:',
       homeDirectory: process.cwd(),
-      platform: 'win32',
+      platform: testPlatform,
       env: {},
       scanProviders: async () => unavailableProviders,
       clock: () => new Date('2026-07-11T03:00:00.000Z'),
