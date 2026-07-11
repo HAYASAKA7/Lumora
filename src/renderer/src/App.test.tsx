@@ -129,7 +129,18 @@ function setSystemInfoResult(
       refreshCatalog:
         catalogApi.refreshCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
       chooseWorkspace:
-        catalogApi.chooseWorkspace ?? vi.fn().mockResolvedValue(null)
+        catalogApi.chooseWorkspace ?? vi.fn().mockResolvedValue(null),
+      getTerminalProfiles: vi.fn().mockResolvedValue([]),
+      saveTerminalProfile: vi.fn().mockResolvedValue([]),
+      deleteTerminalProfile: vi.fn().mockResolvedValue([]),
+      prepareLaunch: vi.fn(),
+      startRuntime: vi.fn(),
+      listRuntimes: vi.fn().mockResolvedValue([]),
+      attachRuntime: vi.fn(),
+      writeRuntime: vi.fn().mockResolvedValue(undefined),
+      resizeRuntime: vi.fn().mockResolvedValue(undefined),
+      terminateRuntime: vi.fn(),
+      onRuntimeEvent: vi.fn(() => () => undefined)
     }
   });
 }

@@ -59,6 +59,49 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       'CREATE INDEX session_title_idx ON session (normalized_title)',
       'CREATE INDEX session_source_session_idx ON session_source (session_id)'
     ]
+  },
+  {
+    version: 2,
+    statements: [
+      `CREATE TABLE terminal_profile (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('detected', 'custom')),
+        name TEXT NOT NULL,
+        shell_family TEXT NOT NULL CHECK (
+          shell_family IN ('pwsh', 'powershell', 'cmd', 'zsh', 'bash', 'fish', 'other')
+        ),
+        executable_path TEXT NOT NULL,
+        args_json TEXT NOT NULL,
+        available INTEGER NOT NULL CHECK (available IN (0, 1)),
+        recommended INTEGER NOT NULL CHECK (recommended IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TABLE runtime_instance (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL CHECK (provider IN ('codex', 'claude')),
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        terminal_profile_id TEXT NOT NULL REFERENCES terminal_profile(id),
+        launch_hash TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (
+          state IN ('launching', 'running', 'completed', 'failed', 'runtime_lost', 'launch_failed')
+        ),
+        pid INTEGER,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        ended_at TEXT,
+        exit_code INTEGER,
+        error_code TEXT CHECK (
+          error_code IS NULL OR error_code IN (
+            'PTY_SPAWN_FAILED', 'PTY_RUNTIME_FAILED', 'PTY_RUNTIME_LOST'
+          )
+        )
+      ) STRICT`,
+      'CREATE INDEX terminal_profile_kind_idx ON terminal_profile (kind)',
+      'CREATE INDEX runtime_instance_state_idx ON runtime_instance (state)',
+      'CREATE INDEX runtime_instance_workspace_idx ON runtime_instance (workspace_id)',
+      'CREATE INDEX runtime_instance_created_idx ON runtime_instance (created_at DESC)'
+    ]
   }
 ];
 

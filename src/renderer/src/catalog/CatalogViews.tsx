@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 
 import type {
   CatalogSnapshot,
-  ProviderId
+  ProviderId,
+  RuntimeSummary
 } from '../../../shared/contracts';
 
 export type CatalogViewStatus =
@@ -297,10 +298,12 @@ export function SessionsView({
 
 export function CatalogHomeSummary({
   status,
-  providerSummary
+  providerSummary,
+  runtimes = []
 }: {
   status: CatalogViewStatus;
   providerSummary?: string;
+  runtimes?: readonly RuntimeSummary[];
 }): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -321,14 +324,21 @@ export function CatalogHomeSummary({
 
   const { snapshot } = status;
   const recentSessions = snapshot.sessions.slice(0, 3);
+  const liveRuntimes = runtimes.filter(
+    (runtime) => runtime.state === 'launching' || runtime.state === 'running'
+  );
   return (
     <div className="dashboard-grid" aria-label="Workspace overview">
       <article className="dashboard-card catalog-metric-card">
         <p className="card-label">Runtime view</p>
         <h2>Running agents</h2>
-        <strong className="metric-value">No managed processes</strong>
+        <strong className="metric-value">
+          {liveRuntimes.length === 0
+            ? 'No managed processes'
+            : `${liveRuntimes.length} running ${liveRuntimes.length === 1 ? 'agent' : 'agents'}`}
+        </strong>
         <p className="card-description">
-          Managed terminals arrive in the next slice
+          Native Codex and Claude Code terminals owned by Lumora
         </p>
       </article>
 

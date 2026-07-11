@@ -102,7 +102,7 @@ describe('catalog migrations', () => {
     const rows = database
       .prepare('SELECT version FROM schema_migration ORDER BY version')
       .all();
-    expect(rows).toEqual([{ version: 1 }]);
+    expect(rows).toEqual([{ version: 1 }, { version: 2 }]);
     expect(
       database
         .prepare(

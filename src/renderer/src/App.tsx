@@ -9,7 +9,9 @@ import {
 
 import type {
   CatalogQuery,
+  LaunchPreview,
   ProviderId,
+  RuntimeSummary,
   SystemInfo
 } from '../../shared/contracts';
 import {
@@ -22,6 +24,9 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from './providers/ProviderSettings';
+import { NewSessionDialog } from './terminal/NewSessionDialog';
+import { TerminalProfiles } from './terminal/TerminalProfiles';
+import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 
 type RouteId =
   | 'home'
@@ -226,6 +231,16 @@ export default function App(): ReactNode {
   const [sessionSearch, setSessionSearch] = useState('');
   const [debouncedSessionSearch, setDebouncedSessionSearch] = useState('');
   const [sessionProvider, setSessionProvider] = useState<ProviderId | null>(null);
+  const [terminalProfiles, setTerminalProfiles] = useState<
+    Awaited<ReturnType<typeof window.lumora.getTerminalProfiles>>
+  >([]);
+  const [runtimes, setRuntimes] = useState<RuntimeSummary[]>([]);
+  const [openRuntimeIds, setOpenRuntimeIds] = useState<string[]>([]);
+  const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+  const [launchPreviews, setLaunchPreviews] = useState(
+    () => new Map<string, LaunchPreview>()
+  );
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
   const providerRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
@@ -282,6 +297,45 @@ export default function App(): ReactNode {
       providerRequestId.current += 1;
     };
   }, [refreshProviders]);
+
+  const updateRuntime = useCallback((runtime: RuntimeSummary) => {
+    setRuntimes((current) => {
+      const existing = current.findIndex((item) => item.id === runtime.id);
+      if (existing === -1) return [runtime, ...current];
+      const next = [...current];
+      next[existing] = runtime;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    void window.lumora.getTerminalProfiles().then(
+      (profiles) => { if (current) setTerminalProfiles(profiles); },
+      () => undefined
+    );
+    void window.lumora.listRuntimes().then(
+      (values) => {
+        if (!current) return;
+        setRuntimes(values);
+        setOpenRuntimeIds(
+          values
+            .filter((runtime) =>
+              runtime.state === 'launching' || runtime.state === 'running'
+            )
+            .map((runtime) => runtime.id)
+        );
+      },
+      () => undefined
+    );
+    const unsubscribe = window.lumora.onRuntimeEvent((event) => {
+      if (event.type === 'state') updateRuntime(event.runtime);
+    });
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, [updateRuntime]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -421,6 +475,49 @@ export default function App(): ReactNode {
     );
   }, []);
 
+  const handleRuntimeStarted = useCallback(
+    (runtime: RuntimeSummary, preview: LaunchPreview) => {
+      updateRuntime(runtime);
+      setOpenRuntimeIds((current) =>
+        current.includes(runtime.id) ? current : [...current, runtime.id]
+      );
+      setLaunchPreviews((current) => {
+        const next = new Map(current);
+        next.set(runtime.id, preview);
+        return next;
+      });
+      setActiveRuntimeId(runtime.id);
+      setNewSessionOpen(false);
+    },
+    [updateRuntime]
+  );
+
+  const closeRuntimeTab = useCallback((runtimeId: string) => {
+    setOpenRuntimeIds((current) => {
+      const next = current.filter((id) => id !== runtimeId);
+      setActiveRuntimeId((active) =>
+        active === runtimeId ? (next[0] ?? null) : active
+      );
+      return next;
+    });
+  }, []);
+
+  const openRuntimes = openRuntimeIds
+    .map((id) => runtimes.find((runtime) => runtime.id === id))
+    .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
+  const liveRuntimes = runtimes.filter(
+    (runtime) => runtime.state === 'launching' || runtime.state === 'running'
+  );
+
+  const openLiveTerminals = useCallback(() => {
+    const liveIds = liveRuntimes.map((runtime) => runtime.id);
+    setOpenRuntimeIds((current) => [
+      ...current,
+      ...liveIds.filter((id) => !current.includes(id))
+    ]);
+    setActiveRuntimeId(liveIds[0] ?? null);
+  }, [liveRuntimes]);
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -445,7 +542,10 @@ export default function App(): ReactNode {
               aria-current={activeRouteId === route.id ? 'page' : undefined}
               className="nav-item"
               key={route.id}
-              onClick={() => setActiveRouteId(route.id)}
+              onClick={() => {
+                setActiveRouteId(route.id);
+                setActiveRuntimeId(null);
+              }}
               type="button"
             >
               <Icon name={route.icon} />
@@ -480,6 +580,23 @@ export default function App(): ReactNode {
             <p className="eyebrow">{activeRoute.eyebrow}</p>
             <h1>{activeRoute.label}</h1>
             <p className="page-description">{activeRoute.description}</p>
+            <div className="page-primary-action">
+              {activeRuntimeId === null && liveRuntimes.length > 0 ? (
+                <button className="secondary-button" onClick={openLiveTerminals} type="button">
+                  Open terminals
+                </button>
+              ) : null}
+              {catalogStatus.state === 'ready' &&
+              catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
+                <button
+                  className="refresh-button"
+                  onClick={() => setNewSessionOpen(true)}
+                  type="button"
+                >
+                  New session
+                </button>
+              ) : null}
+            </div>
           </header>
 
           {catalogOperationError === null ? null : (
@@ -488,9 +605,24 @@ export default function App(): ReactNode {
             </div>
           )}
 
-          {activeRoute.id === 'home' ? (
+          {activeRuntimeId !== null && openRuntimes.length > 0 ? (
+            <TerminalWorkspace
+              activeRuntimeId={activeRuntimeId}
+              onActivate={setActiveRuntimeId}
+              onClose={closeRuntimeTab}
+              onRuntimeChange={updateRuntime}
+              previews={launchPreviews}
+              runtimes={openRuntimes}
+              workspaces={
+                catalogStatus.state === 'ready'
+                  ? catalogStatus.snapshot.workspaces
+                  : []
+              }
+            />
+          ) : activeRoute.id === 'home' ? (
             <CatalogHomeSummary
               providerSummary={providerSummary(providerStatus)}
+              runtimes={runtimes}
               status={catalogStatus}
             />
           ) : activeRoute.id === 'workspaces' ? (
@@ -515,6 +647,8 @@ export default function App(): ReactNode {
               onRefresh={refreshProviders}
               status={providerStatus}
             />
+          ) : activeRoute.id === 'profiles' ? (
+            <TerminalProfiles onProfilesChange={setTerminalProfiles} />
           ) : (
             <DestinationPlaceholder route={activeRoute} />
           )}
@@ -522,6 +656,16 @@ export default function App(): ReactNode {
 
         <SystemStatusBar status={systemStatus} />
       </div>
+
+      {newSessionOpen && catalogStatus.state === 'ready' ? (
+        <NewSessionDialog
+          onClose={() => setNewSessionOpen(false)}
+          onStarted={handleRuntimeStarted}
+          profiles={terminalProfiles}
+          providerScan={providerStatus.state === 'ready' ? providerStatus.scan : null}
+          workspaces={catalogStatus.snapshot.workspaces}
+        />
+      ) : null}
     </div>
   );
 }

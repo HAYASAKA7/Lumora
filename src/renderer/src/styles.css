@@ -1370,3 +1370,306 @@ button {
     animation-iteration-count: 1 !important;
   }
 }
+
+.page-header {
+  position: relative;
+}
+
+.page-primary-action {
+  position: absolute;
+  display: flex;
+  gap: 8px;
+  top: 0;
+  right: 0;
+}
+
+.terminal-profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.7fr);
+  gap: 18px;
+}
+
+.profile-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.profile-card {
+  padding: 16px;
+  background: #fbfcfe;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.profile-card header,
+.new-session-dialog > header,
+.terminal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-card h3,
+.profile-form h2,
+.new-session-dialog h2,
+.terminal-header h2 {
+  margin: 4px 0 8px;
+}
+
+.profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.profile-arguments {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.profile-form {
+  align-self: start;
+}
+
+.profile-form label,
+.launch-fields label {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.profile-form input,
+.profile-form select,
+.profile-form textarea,
+.launch-fields select {
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.text-button {
+  padding: 4px;
+  color: var(--blue);
+  background: transparent;
+  cursor: pointer;
+}
+
+.danger-text {
+  color: #a33b3b;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  padding: 28px;
+  background: rgba(3, 9, 18, 0.72);
+  inset: 0;
+  place-items: center;
+}
+
+.new-session-dialog {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 56px);
+  padding: 24px;
+  overflow: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.launch-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.launch-empty {
+  padding: 18px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+}
+
+.launch-preview,
+.terminal-inspector dl {
+  display: grid;
+  gap: 0;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.launch-preview div,
+.terminal-inspector dl div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.launch-preview div:last-child,
+.terminal-inspector dl div:last-child {
+  border-bottom: 0;
+}
+
+.launch-preview dt,
+.terminal-inspector dt {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.launch-preview dd,
+.terminal-inspector dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.new-session-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.terminal-workspace {
+  min-height: 520px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.terminal-tabbar {
+  display: flex;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 8px 0;
+  overflow-x: auto;
+  background: var(--navy-850);
+}
+
+.terminal-tab {
+  display: grid;
+  min-width: 130px;
+  padding: 7px 12px;
+  color: #8ea0b8;
+  text-align: left;
+  background: transparent;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+}
+
+.terminal-tab[aria-selected="true"] {
+  color: #fff;
+  background: var(--navy-950);
+}
+
+.terminal-tab small {
+  font-size: 0.65rem;
+  text-transform: capitalize;
+}
+
+.terminal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.runtime-state {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.runtime-running,
+.runtime-launching {
+  color: var(--success);
+}
+
+.runtime-failed,
+.runtime-launch_failed {
+  color: #a33b3b;
+}
+
+.terminal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  min-height: 440px;
+}
+
+.managed-terminal-shell,
+.managed-terminal {
+  min-width: 0;
+  min-height: 440px;
+  background: var(--navy-950);
+}
+
+.managed-terminal {
+  padding: 10px;
+}
+
+.terminal-error {
+  padding: 8px 12px;
+  color: #ffd7d7;
+  background: #5b2028;
+}
+
+.terminal-inspector {
+  padding: 18px;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+}
+
+.terminal-inspector dl div {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+@media (max-width: 900px) {
+  .terminal-profile-layout,
+  .terminal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-inspector {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .page-primary-action {
+    position: static;
+    margin-top: 14px;
+  }
+
+  .launch-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-backdrop {
+    padding: 10px;
+  }
+
+  .new-session-dialog footer {
+    flex-direction: column;
+  }
+}

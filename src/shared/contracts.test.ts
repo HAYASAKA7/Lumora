@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   CatalogQuerySchema,
   CatalogSnapshotSchema,
+  CustomTerminalProfileInputSchema,
   IPC_CHANNELS,
+  LaunchPrepareRequestSchema,
+  LaunchPreviewSchema,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
+  RuntimeEventSchema,
+  RuntimeWriteRequestSchema,
   SystemInfoSchema
 } from './contracts';
 
@@ -275,5 +280,109 @@ describe('catalog contracts', () => {
     expect(IPC_CHANNELS.catalogGet).toBe('lumora:catalog:get');
     expect(IPC_CHANNELS.catalogRefresh).toBe('lumora:catalog:refresh');
     expect(IPC_CHANNELS.workspaceChoose).toBe('lumora:workspace:choose');
+  });
+});
+
+describe('managed terminal contracts', () => {
+  const profile = {
+    id: 'c'.repeat(64),
+    kind: 'detected',
+    name: 'PowerShell 7',
+    shellFamily: 'pwsh',
+    executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    args: ['-NoLogo'],
+    available: true,
+    recommended: true
+  } as const;
+
+  it('accepts bounded custom terminal profile input', () => {
+    expect(
+      CustomTerminalProfileInputSchema.parse({
+        name: 'Development shell',
+        shellFamily: 'zsh',
+        executablePath: '/bin/zsh',
+        args: ['-l']
+      })
+    ).toEqual({
+      name: 'Development shell',
+      shellFamily: 'zsh',
+      executablePath: '/bin/zsh',
+      args: ['-l']
+    });
+
+    expect(
+      CustomTerminalProfileInputSchema.safeParse({
+        name: 'Too many arguments',
+        shellFamily: 'other',
+        executablePath: '/bin/custom',
+        args: Array.from({ length: 17 }, () => 'x')
+      }).success
+    ).toBe(false);
+  });
+
+  it('accepts typed launch preparation and preview payloads', () => {
+    const request = {
+      workspaceId: 'a'.repeat(64),
+      provider: 'claude',
+      terminalProfileId: profile.id,
+      cols: 120,
+      rows: 36
+    } as const;
+    const preview = {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      launchHash: 'd'.repeat(64),
+      strategy: 'new',
+      provider: 'claude',
+      executablePath: 'C:\\Users\\dev\\bin\\claude.exe',
+      args: [],
+      workingDirectory: 'D:\\Projects\\Lumora',
+      environmentNames: ['SHELL'],
+      terminalProfile: profile,
+      warnings: [],
+      createdAt: '2026-07-11T04:00:00.000Z',
+      expiresAt: '2026-07-11T04:05:00.000Z'
+    } as const;
+
+    expect(LaunchPrepareRequestSchema.parse(request)).toEqual(request);
+    expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
+    expect(
+      LaunchPrepareRequestSchema.safeParse({ ...request, cols: 5 }).success
+    ).toBe(false);
+    expect(
+      LaunchPreviewSchema.safeParse({
+        ...preview,
+        environment: { API_KEY: 'secret' }
+      }).success
+    ).toBe(false);
+  });
+
+  it('bounds runtime input and output events', () => {
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    expect(
+      RuntimeWriteRequestSchema.parse({ runtimeId, data: '\u0003' })
+    ).toEqual({ runtimeId, data: '\u0003' });
+    expect(
+      RuntimeWriteRequestSchema.safeParse({
+        runtimeId,
+        data: 'x'.repeat(65_537)
+      }).success
+    ).toBe(false);
+    expect(
+      RuntimeEventSchema.parse({ type: 'output', runtimeId, data: 'ready' })
+    ).toEqual({ type: 'output', runtimeId, data: 'ready' });
+    expect(
+      RuntimeEventSchema.safeParse({
+        type: 'output',
+        runtimeId,
+        data: 'x'.repeat(65_537)
+      }).success
+    ).toBe(false);
+  });
+
+  it('defines only namespaced terminal channels', () => {
+    expect(IPC_CHANNELS.terminalProfilesGet).toBe(
+      'lumora:terminal:profiles:get'
+    );
+    expect(IPC_CHANNELS.runtimeEvent).toBe('lumora:terminal:runtime:event');
   });
 });

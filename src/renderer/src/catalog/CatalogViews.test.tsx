@@ -257,6 +257,8 @@ describe('CatalogHomeSummary', () => {
     expect(screen.getByText('0 catalog issues')).toBeInTheDocument();
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
     expect(screen.getByText('Untitled session')).toBeInTheDocument();
-    expect(screen.getByText('Managed terminals arrive in the next slice')).toBeInTheDocument();
+    expect(
+      screen.getByText('Native Codex and Claude Code terminals owned by Lumora')
+    ).toBeInTheDocument();
   });
 });

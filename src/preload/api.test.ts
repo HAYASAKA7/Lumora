@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { IPC_CHANNELS } from '../shared/contracts';
 import { createLumoraApi } from './api';
@@ -147,5 +147,66 @@ describe('createLumoraApi', () => {
       api.getCatalog({ text: 'x'.repeat(121), provider: null })
     ).rejects.toBeDefined();
     await expect(api.refreshCatalog()).rejects.toBeDefined();
+  });
+
+  it('validates terminal requests and subscribes through the event-only bridge', async () => {
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    const profile = {
+      id: 'a'.repeat(64),
+      kind: 'detected',
+      name: 'Bash',
+      shellFamily: 'bash',
+      executablePath: '/bin/bash',
+      args: [],
+      available: true,
+      recommended: true
+    } as const;
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    let eventReceiver: ((value: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(
+      async (channel, ...args) => {
+        invocations.push({ channel, args });
+        if (channel === IPC_CHANNELS.terminalProfilesGet) return [profile];
+        if (channel === IPC_CHANNELS.runtimeWrite) return { accepted: true };
+        throw new Error(`Unexpected channel ${channel}`);
+      },
+      (channel, receiver) => {
+        expect(channel).toBe(IPC_CHANNELS.runtimeEvent);
+        eventReceiver = receiver;
+        return unsubscribe;
+      }
+    );
+
+    await expect(api.getTerminalProfiles()).resolves.toEqual([profile]);
+    await expect(api.writeRuntime({ runtimeId, data: 'hello' })).resolves.toBeUndefined();
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.terminalProfilesGet, args: [] },
+      {
+        channel: IPC_CHANNELS.runtimeWrite,
+        args: [{ runtimeId, data: 'hello' }]
+      }
+    ]);
+
+    const listener = vi.fn();
+    const remove = api.onRuntimeEvent(listener);
+    eventReceiver!({ type: 'output', runtimeId, data: 'ready' });
+    expect(listener).toHaveBeenCalledWith({
+      type: 'output', runtimeId, data: 'ready'
+    });
+    remove();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('rejects oversized terminal data before invoking IPC', async () => {
+    const invoke = vi.fn();
+    const api = createLumoraApi(invoke);
+    await expect(
+      api.writeRuntime({
+        runtimeId: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+        data: 'x'.repeat(65_537)
+      })
+    ).rejects.toBeDefined();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

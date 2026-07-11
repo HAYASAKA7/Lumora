@@ -1,0 +1,287 @@
+import { randomUUID } from 'node:crypto';
+
+import {
+  RuntimeAttachmentSchema,
+  RuntimeEventSchema,
+  RuntimeResizeRequestSchema,
+  RuntimeSummarySchema,
+  RuntimeWriteRequestSchema,
+  type RuntimeAttachment,
+  type RuntimeEvent,
+  type RuntimeResizeRequest,
+  type RuntimeSummary,
+  type RuntimeWriteRequest,
+  type SystemInfo
+} from '../../shared/contracts';
+import { resolvePtyInvocation } from '../platform/pty-invocation';
+import type { LaunchSpec } from './launch-service';
+
+const MAX_EVENT_CHARS = 65_536;
+const MAX_SNAPSHOT_CHARS = 1_048_576;
+
+export interface Disposable {
+  dispose(): void;
+}
+
+export interface PtyProcess {
+  readonly pid: number;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+  onData(listener: (data: string) => void): Disposable;
+  onExit(listener: (event: { exitCode: number }) => void): Disposable;
+}
+
+export interface PtySpawnOptions {
+  executablePath: string;
+  args: string[];
+  cwd: string;
+  env: Record<string, string | undefined>;
+  cols: number;
+  rows: number;
+}
+
+interface RuntimeRepository {
+  saveRuntime(runtime: RuntimeSummary): void;
+  listRuntimes(): RuntimeSummary[];
+}
+
+interface RuntimeHostDependencies {
+  repository: RuntimeRepository;
+  consumeLaunch(token: string): Promise<LaunchSpec>;
+  spawn(options: PtySpawnOptions): PtyProcess;
+  platform: SystemInfo['platform'];
+  clock?: () => Date;
+  createRuntimeId?: () => string;
+  wait?: (milliseconds: number) => Promise<void>;
+}
+
+interface LiveRuntime {
+  runtime: RuntimeSummary;
+  process: PtyProcess;
+  snapshot: string;
+  subscriptions: Disposable[];
+}
+
+export type TerminalRuntimeErrorCode =
+  | 'PTY_SPAWN_FAILED'
+  | 'RUNTIME_NOT_LIVE'
+  | 'RUNTIME_NOT_FOUND';
+
+const RUNTIME_ERROR_MESSAGES: Record<TerminalRuntimeErrorCode, string> = {
+  PTY_SPAWN_FAILED: 'The provider terminal could not be started.',
+  RUNTIME_NOT_LIVE: 'The terminal runtime is no longer live.',
+  RUNTIME_NOT_FOUND: 'The terminal runtime was not found.'
+};
+
+export class TerminalRuntimeError extends Error {
+  constructor(readonly code: TerminalRuntimeErrorCode) {
+    super(RUNTIME_ERROR_MESSAGES[code]);
+    this.name = 'TerminalRuntimeError';
+  }
+}
+
+function defaultWait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+export class RuntimeHost {
+  private readonly live = new Map<string, LiveRuntime>();
+  private readonly listeners = new Set<(event: RuntimeEvent) => void>();
+  private readonly clock: () => Date;
+  private readonly createRuntimeId: () => string;
+  private readonly wait: (milliseconds: number) => Promise<void>;
+
+  constructor(private readonly dependencies: RuntimeHostDependencies) {
+    this.clock = dependencies.clock ?? (() => new Date());
+    this.createRuntimeId = dependencies.createRuntimeId ?? randomUUID;
+    this.wait = dependencies.wait ?? defaultWait;
+  }
+
+  subscribe(listener: (event: RuntimeEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  async start(token: string): Promise<RuntimeSummary> {
+    const spec = await this.dependencies.consumeLaunch(token);
+    const runtimeId = this.createRuntimeId();
+    const launching = RuntimeSummarySchema.parse({
+      id: runtimeId,
+      provider: spec.provider,
+      workspaceId: spec.workspaceId,
+      terminalProfileId: spec.terminalProfile.id,
+      launchHash: spec.launchHash,
+      state: 'launching',
+      pid: null,
+      createdAt: this.clock().toISOString(),
+      startedAt: null,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    });
+    this.persistAndEmit(launching);
+
+    let process: PtyProcess;
+    try {
+      const invocation = resolvePtyInvocation({
+        platform: this.dependencies.platform,
+        executablePath: spec.executablePath,
+        args: spec.args,
+        env: spec.environment,
+        terminalProfile: spec.terminalProfile
+      });
+      process = this.dependencies.spawn({
+        ...invocation,
+        cwd: spec.workingDirectory,
+        cols: spec.cols,
+        rows: spec.rows
+      });
+    } catch {
+      const failed = RuntimeSummarySchema.parse({
+        ...launching,
+        state: 'launch_failed',
+        endedAt: this.clock().toISOString(),
+        errorCode: 'PTY_SPAWN_FAILED'
+      });
+      this.persistAndEmit(failed);
+      throw new TerminalRuntimeError('PTY_SPAWN_FAILED');
+    }
+
+    const running = RuntimeSummarySchema.parse({
+      ...launching,
+      state: 'running',
+      pid: process.pid,
+      startedAt: this.clock().toISOString()
+    });
+    const live: LiveRuntime = {
+      runtime: running,
+      process,
+      snapshot: '',
+      subscriptions: []
+    };
+    this.live.set(runtimeId, live);
+    live.subscriptions.push(
+      process.onData((data) => this.handleOutput(runtimeId, data)),
+      process.onExit(({ exitCode }) => this.handleExit(runtimeId, exitCode))
+    );
+    this.persistAndEmit(running);
+    return running;
+  }
+
+  list(): RuntimeSummary[] {
+    return this.dependencies.repository.listRuntimes();
+  }
+
+  attach(runtimeId: string): RuntimeAttachment {
+    const live = this.live.get(runtimeId);
+    if (live !== undefined) {
+      return RuntimeAttachmentSchema.parse({
+        runtime: live.runtime,
+        snapshot: live.snapshot
+      });
+    }
+    const runtime = this.list().find((candidate) => candidate.id === runtimeId);
+    if (runtime === undefined) {
+      throw new TerminalRuntimeError('RUNTIME_NOT_FOUND');
+    }
+    return RuntimeAttachmentSchema.parse({ runtime, snapshot: '' });
+  }
+
+  write(value: RuntimeWriteRequest): void {
+    const request = RuntimeWriteRequestSchema.parse(value);
+    this.requireLive(request.runtimeId).process.write(request.data);
+  }
+
+  resize(value: RuntimeResizeRequest): void {
+    const request = RuntimeResizeRequestSchema.parse(value);
+    this.requireLive(request.runtimeId).process.resize(
+      request.cols,
+      request.rows
+    );
+  }
+
+  async terminate(runtimeId: string): Promise<RuntimeSummary> {
+    const live = this.requireLive(runtimeId);
+    live.process.write('\u0003');
+    await this.wait(1_500);
+    if (this.live.get(runtimeId) === live) {
+      live.process.kill();
+      await this.wait(500);
+    }
+    if (this.live.get(runtimeId) === live) {
+      this.finalize(runtimeId, null);
+    }
+    return this.attach(runtimeId).runtime;
+  }
+
+  async shutdown(): Promise<void> {
+    await Promise.all(
+      [...this.live.keys()].map(async (runtimeId) => {
+        try {
+          await this.terminate(runtimeId);
+        } catch {
+          // Shutdown is best effort and must continue draining other PTYs.
+        }
+      })
+    );
+  }
+
+  private requireLive(runtimeId: string): LiveRuntime {
+    const live = this.live.get(runtimeId);
+    if (live === undefined) {
+      throw new TerminalRuntimeError('RUNTIME_NOT_LIVE');
+    }
+    return live;
+  }
+
+  private handleOutput(runtimeId: string, data: string): void {
+    const live = this.live.get(runtimeId);
+    if (live === undefined || data.length === 0) {
+      return;
+    }
+    live.snapshot = (live.snapshot + data).slice(-MAX_SNAPSHOT_CHARS);
+    for (let offset = 0; offset < data.length; offset += MAX_EVENT_CHARS) {
+      this.emit({
+        type: 'output',
+        runtimeId,
+        data: data.slice(offset, offset + MAX_EVENT_CHARS)
+      });
+    }
+  }
+
+  private handleExit(runtimeId: string, exitCode: number): void {
+    this.finalize(runtimeId, exitCode);
+  }
+
+  private finalize(runtimeId: string, exitCode: number | null): void {
+    const live = this.live.get(runtimeId);
+    if (live === undefined) {
+      return;
+    }
+    for (const subscription of live.subscriptions) {
+      subscription.dispose();
+    }
+    this.live.delete(runtimeId);
+    const runtime = RuntimeSummarySchema.parse({
+      ...live.runtime,
+      state: exitCode === 0 ? 'completed' : 'failed',
+      endedAt: this.clock().toISOString(),
+      exitCode,
+      errorCode: exitCode === 0 ? null : 'PTY_RUNTIME_FAILED'
+    });
+    this.persistAndEmit(runtime);
+  }
+
+  private persistAndEmit(runtime: RuntimeSummary): void {
+    this.dependencies.repository.saveRuntime(runtime);
+    this.emit({ type: 'state', runtimeId: runtime.id, runtime });
+  }
+
+  private emit(value: RuntimeEvent): void {
+    const event = RuntimeEventSchema.parse(value);
+    for (const listener of this.listeners) {
+      listener(event);
+    }
+  }
+}
