@@ -9,6 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "install-electron --no",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "verify": "npm test && npm run typecheck && npm run build",
