@@ -12,6 +12,7 @@ import type {
   LaunchPreview,
   ProviderId,
   RuntimeSummary,
+  SessionSummary,
   SystemInfo
 } from '../../shared/contracts';
 import {
@@ -25,6 +26,7 @@ import {
   type ProviderScanStatus
 } from './providers/ProviderSettings';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
+import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 
@@ -241,6 +243,7 @@ export default function App(): ReactNode {
     () => new Map<string, LaunchPreview>()
   );
   const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [resumeSession, setResumeSession] = useState<SessionSummary | null>(null);
   const providerRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
@@ -488,6 +491,7 @@ export default function App(): ReactNode {
       });
       setActiveRuntimeId(runtime.id);
       setNewSessionOpen(false);
+      setResumeSession(null);
     },
     [updateRuntime]
   );
@@ -508,6 +512,12 @@ export default function App(): ReactNode {
   const liveRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
+  const resumeWorkspace =
+    resumeSession === null || catalogStatus.state !== 'ready'
+      ? null
+      : (catalogStatus.snapshot.workspaces.find(
+          (workspace) => workspace.id === resumeSession.workspaceId
+        ) ?? null);
 
   const openLiveTerminals = useCallback(() => {
     const liveIds = liveRuntimes.map((runtime) => runtime.id);
@@ -639,8 +649,16 @@ export default function App(): ReactNode {
               isRefreshing={isCatalogRefreshing}
               onProviderChange={setSessionProvider}
               onRefresh={refreshCatalog}
+              onResume={(session) => {
+                setNewSessionOpen(false);
+                setResumeSession(session);
+              }}
               onSearchChange={setSessionSearch}
               provider={sessionProvider}
+              providerScan={
+                providerStatus.state === 'ready' ? providerStatus.scan : null
+              }
+              profiles={terminalProfiles}
               queryText={sessionSearch}
               status={catalogStatus}
             />
@@ -666,6 +684,18 @@ export default function App(): ReactNode {
           profiles={terminalProfiles}
           providerScan={providerStatus.state === 'ready' ? providerStatus.scan : null}
           workspaces={catalogStatus.snapshot.workspaces}
+        />
+      ) : null}
+      {resumeSession !== null && resumeWorkspace !== null ? (
+        <ResumeSessionDialog
+          onClose={() => setResumeSession(null)}
+          onStarted={handleRuntimeStarted}
+          profiles={terminalProfiles}
+          providerScan={
+            providerStatus.state === 'ready' ? providerStatus.scan : null
+          }
+          session={resumeSession}
+          workspace={resumeWorkspace}
         />
       ) : null}
     </div>

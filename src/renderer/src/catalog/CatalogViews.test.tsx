@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CatalogSnapshot } from '../../../shared/contracts';
+import type {
+  CatalogSnapshot,
+  ProviderScanResult,
+  TerminalProfile
+} from '../../../shared/contracts';
 import {
   CatalogHomeSummary,
   SessionsView,
@@ -84,6 +88,29 @@ const catalogSnapshot: CatalogSnapshot = {
     }
   ],
   diagnostics: []
+};
+const providerScan: ProviderScanResult = {
+  scannedAt: '2026-07-11T04:00:00.000Z',
+  providers: [
+    {
+      provider: 'codex', displayName: 'Codex', state: 'ready',
+      executablePath: 'C:\\tools\\codex.exe', version: '1.0.0', issue: null
+    },
+    {
+      provider: 'claude', displayName: 'Claude Code', state: 'ready',
+      executablePath: 'C:\\tools\\claude.exe', version: '2.0.0', issue: null
+    }
+  ]
+};
+const terminalProfile: TerminalProfile = {
+  id: 'f'.repeat(64),
+  kind: 'detected',
+  name: 'PowerShell 7',
+  shellFamily: 'pwsh',
+  executablePath: 'C:\\tools\\pwsh.exe',
+  args: [],
+  available: true,
+  recommended: true
 };
 
 describe('WorkspacesView', () => {
@@ -180,10 +207,13 @@ describe('SessionsView', () => {
     render(
       <SessionsView
         isRefreshing={false}
+        onResume={vi.fn()}
         onProviderChange={vi.fn()}
         onRefresh={vi.fn()}
         onSearchChange={vi.fn()}
         provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
         queryText=""
         status={{ state: 'ready', snapshot }}
       />
@@ -217,10 +247,13 @@ describe('SessionsView', () => {
     render(
       <SessionsView
         isRefreshing={false}
+        onResume={vi.fn()}
         onProviderChange={onProviderChange}
         onRefresh={onRefresh}
         onSearchChange={onSearchChange}
         provider="claude"
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
         queryText="missing"
         status={{
           state: 'ready',
@@ -241,6 +274,33 @@ describe('SessionsView', () => {
     expect(onProviderChange).toHaveBeenCalledWith('codex');
     expect(onRefresh).toHaveBeenCalledOnce();
     expect(screen.getByText('No sessions match these filters')).toBeInTheDocument();
+  });
+
+  it('offers resume only for current sessions with ready launch dependencies', () => {
+    const onResume = vi.fn();
+    render(
+      <SessionsView
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={onResume}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
+        queryText=""
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'Resume' });
+    expect(buttons[0]).toBeEnabled();
+    expect(buttons[1]).toBeEnabled();
+    expect(buttons[2]).toBeDisabled();
+    expect(buttons[2]).toHaveAttribute('title', 'Session source is stale.');
+
+    fireEvent.click(buttons[0]!);
+    expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
   });
 });
 

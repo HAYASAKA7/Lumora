@@ -10,9 +10,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   CatalogSnapshot,
-  ProviderScanResult
+  LaunchPreview,
+  ProviderScanResult,
+  RuntimeSummary,
+  TerminalProfile
 } from '../../shared/contracts';
 import App from './App';
+
+vi.mock('@xterm/xterm', () => ({
+  Terminal: class {
+    parser = { registerOscHandler: vi.fn() };
+    loadAddon(): void {}
+    open(): void {}
+    focus(): void {}
+    write(): void {}
+    dispose(): void {}
+    onData(): { dispose(): void } {
+      return { dispose(): void {} };
+    }
+    onResize(): { dispose(): void } {
+      return { dispose(): void {} };
+    }
+  }
+}));
+
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: class {
+    fit(): void {}
+  }
+}));
 
 const readyProviderScan: ProviderScanResult = {
   scannedAt: '2026-07-11T01:02:03.000Z',
@@ -106,6 +132,10 @@ interface CatalogApiOverrides {
   getCatalog?: ReturnType<typeof vi.fn>;
   refreshCatalog?: ReturnType<typeof vi.fn>;
   chooseWorkspace?: ReturnType<typeof vi.fn>;
+  getTerminalProfiles?: ReturnType<typeof vi.fn>;
+  prepareLaunch?: ReturnType<typeof vi.fn>;
+  startRuntime?: ReturnType<typeof vi.fn>;
+  attachRuntime?: ReturnType<typeof vi.fn>;
 }
 
 function deferred<T>() {
@@ -137,13 +167,14 @@ function setSystemInfoResult(
         catalogApi.refreshCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
       chooseWorkspace:
         catalogApi.chooseWorkspace ?? vi.fn().mockResolvedValue(null),
-      getTerminalProfiles: vi.fn().mockResolvedValue([]),
+      getTerminalProfiles:
+        catalogApi.getTerminalProfiles ?? vi.fn().mockResolvedValue([]),
       saveTerminalProfile: vi.fn().mockResolvedValue([]),
       deleteTerminalProfile: vi.fn().mockResolvedValue([]),
-      prepareLaunch: vi.fn(),
-      startRuntime: vi.fn(),
+      prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
+      startRuntime: catalogApi.startRuntime ?? vi.fn(),
       listRuntimes: vi.fn().mockResolvedValue([]),
-      attachRuntime: vi.fn(),
+      attachRuntime: catalogApi.attachRuntime ?? vi.fn(),
       writeRuntime: vi.fn().mockResolvedValue(undefined),
       resizeRuntime: vi.fn().mockResolvedValue(undefined),
       terminateRuntime: vi.fn(),
@@ -185,6 +216,79 @@ describe('App', () => {
       'aria-current',
       'page'
     );
+  });
+
+  it('opens and completes a native resume from the session catalog', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const session = readyCatalog.sessions[0]!;
+    const preview: LaunchPreview = {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      launchHash: 'd'.repeat(64),
+      strategy: 'resume',
+      sessionId: session.id,
+      provider: 'codex',
+      executablePath: 'C:\\tools\\codex.exe',
+      args: ['resume', session.nativeId],
+      workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
+      environmentNames: ['PATH', 'SHELL'],
+      terminalProfile: profile,
+      warnings: [],
+      createdAt: '2026-07-11T04:00:00.000Z',
+      expiresAt: '2026-07-11T04:05:00.000Z'
+    };
+    const runtime: RuntimeSummary = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      provider: 'codex',
+      workspaceId: session.workspaceId,
+      terminalProfileId: profile.id,
+      launchHash: preview.launchHash,
+      state: 'running',
+      pid: 4321,
+      createdAt: preview.createdAt,
+      startedAt: preview.createdAt,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+    const prepareLaunch = vi.fn().mockResolvedValue(preview);
+    const startRuntime = vi.fn().mockResolvedValue(runtime);
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch,
+      startRuntime,
+      attachRuntime: vi.fn().mockResolvedValue({ runtime, snapshot: '' })
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
+    expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
+    expect(within(dialog).getByText('Codex')).toBeInTheDocument();
+    expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Prepare launch' }));
+    expect(await within(dialog).findByText('resume codex-1')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resume session' }));
+
+    expect(await screen.findByRole('heading', { name: 'Codex terminal' })).toBeInTheDocument();
+    expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'resume',
+      sessionId: session.id,
+      terminalProfileId: profile.id,
+      cols: 100,
+      rows: 30
+    });
+    expect(startRuntime).toHaveBeenCalledWith(preview.launchToken);
   });
 
   it('shows New session in the top command bar only on Home and Workspaces', async () => {

@@ -136,7 +136,7 @@ export function ResumeSessionDialog({
           </div>
         </dl>
 
-        <div className="launch-fields">
+        <div className="launch-fields resume-launch-fields">
           <label>
             <span>Terminal profile</span>
             <select

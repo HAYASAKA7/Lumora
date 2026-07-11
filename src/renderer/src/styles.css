@@ -993,6 +993,15 @@ button {
   color: var(--text);
 }
 
+.session-action-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.session-action-cell .secondary-button {
+  width: auto;
+}
+
 .provider-codex {
   color: #2454a6;
   background: var(--blue-soft);
@@ -1367,6 +1376,7 @@ button {
   .session-table td:nth-child(3)::before { content: "Workspace"; }
   .session-table td:nth-child(4)::before { content: "Updated"; }
   .session-table td:nth-child(5)::before { content: "Source"; }
+  .session-table td:nth-child(6)::before { content: "Action"; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1490,6 +1500,50 @@ button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.resume-launch-fields {
+  grid-template-columns: minmax(220px, 1fr);
+}
+
+.resume-session-details {
+  display: grid;
+  gap: 0;
+  margin: 18px 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.resume-session-details div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.resume-session-details div:last-child {
+  border-bottom: 0;
+}
+
+.resume-session-details dt {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.resume-session-details dd {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.resume-session-details dd span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .launch-empty {

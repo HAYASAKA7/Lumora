@@ -104,11 +104,12 @@ const runtime: RuntimeSummary = {
 function renderDialog(overrides: {
   prepareLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
-  onStarted?: ReturnType<typeof vi.fn>;
 } = {}) {
   const prepareLaunch = overrides.prepareLaunch ?? vi.fn().mockResolvedValue(preview);
   const startRuntime = overrides.startRuntime ?? vi.fn().mockResolvedValue(runtime);
-  const onStarted = overrides.onStarted ?? vi.fn();
+  const onStarted = vi.fn<
+    (runtime: RuntimeSummary, preview: LaunchPreview) => void
+  >();
   Object.defineProperty(window, 'lumora', {
     configurable: true,
     value: { prepareLaunch, startRuntime }

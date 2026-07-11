@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 import type {
   CatalogSnapshot,
   ProviderId,
+  ProviderScanResult,
+  SessionSummary,
+  TerminalProfile,
   RuntimeSummary
 } from '../../../shared/contracts';
 
@@ -127,9 +130,12 @@ interface SessionsViewProps {
   isRefreshing: boolean;
   queryText: string;
   provider: ProviderId | null;
+  providerScan: ProviderScanResult | null;
+  profiles: readonly TerminalProfile[];
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
   onRefresh(): void;
+  onResume(session: SessionSummary): void;
 }
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
@@ -142,9 +148,12 @@ export function SessionsView({
   isRefreshing,
   queryText,
   provider,
+  providerScan,
+  profiles,
   onSearchChange,
   onProviderChange,
-  onRefresh
+  onRefresh,
+  onResume
 }: SessionsViewProps): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -253,11 +262,25 @@ export function SessionsView({
                 <th scope="col">Workspace</th>
                 <th scope="col">Updated</th>
                 <th scope="col">Source</th>
+                <th scope="col">Action</th>
               </tr>
             </thead>
             <tbody>
               {snapshot.sessions.map((session) => {
                 const workspace = workspaces.get(session.workspaceId);
+                const provider = providerScan?.providers.find(
+                  (installation) => installation.provider === session.provider
+                );
+                const disabledReason =
+                  session.sourceFreshness !== 'current'
+                    ? 'Session source is stale.'
+                    : workspace === undefined || !workspace.available
+                      ? 'Workspace is unavailable.'
+                      : provider?.state !== 'ready'
+                        ? 'Provider is unavailable.'
+                        : !profiles.some((profile) => profile.available)
+                          ? 'No terminal profile is available.'
+                          : null;
                 return (
                   <tr key={session.id}>
                     <td>
@@ -284,6 +307,17 @@ export function SessionsView({
                       ) : (
                         <span className="source-current">Current</span>
                       )}
+                    </td>
+                    <td className="session-action-cell">
+                      <button
+                        className="secondary-button"
+                        disabled={disabledReason !== null}
+                        onClick={() => onResume(session)}
+                        title={disabledReason ?? 'Resume this session'}
+                        type="button"
+                      >
+                        Resume
+                      </button>
                     </td>
                   </tr>
                 );
