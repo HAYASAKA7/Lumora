@@ -1,6 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 
-import type { SystemInfo } from '../../shared/contracts';
+import type {
+  ProviderInstallation,
+  ProviderScanResult,
+  SystemInfo
+} from '../../shared/contracts';
 
 type RouteId =
   | 'home'
@@ -31,6 +42,11 @@ type IconName =
 type SystemStatus =
   | { state: 'loading' }
   | { state: 'ready'; info: SystemInfo }
+  | { state: 'error' };
+
+type ProviderScanStatus =
+  | { state: 'loading' }
+  | { state: 'ready'; scan: ProviderScanResult }
   | { state: 'error' };
 
 const ROUTES = [
@@ -147,7 +163,26 @@ function Icon({ name }: { name: IconName }): ReactNode {
   );
 }
 
-function HomeDashboard(): ReactNode {
+function providerSummary(status: ProviderScanStatus): string {
+  if (status.state === 'loading') {
+    return 'Scanning provider installations';
+  }
+
+  if (status.state === 'error') {
+    return 'Provider details are unavailable';
+  }
+
+  const readyCount = status.scan.providers.filter(
+    (provider) => provider.state === 'ready'
+  ).length;
+  return `${readyCount} of ${status.scan.providers.length} providers ready`;
+}
+
+function HomeDashboard({
+  providerStatus
+}: {
+  providerStatus: ProviderScanStatus;
+}): ReactNode {
   return (
     <div className="dashboard-grid" aria-label="Workspace overview">
       {HOME_CARDS.map((card) => (
@@ -160,13 +195,134 @@ function HomeDashboard(): ReactNode {
             <h2>{card.title}</h2>
           </div>
           <p className="card-description">{card.description}</p>
-          <div className="empty-state">
-            <span className="empty-state-mark" aria-hidden="true" />
-            Waiting for the next MVP slice
-          </div>
+          {card.title === 'Scan health' ? (
+            <div
+              className={`empty-state provider-summary provider-summary-${providerStatus.state}`}
+            >
+              <span className="empty-state-mark" aria-hidden="true" />
+              {providerSummary(providerStatus)}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <span className="empty-state-mark" aria-hidden="true" />
+              Waiting for the next MVP slice
+            </div>
+          )}
         </article>
       ))}
     </div>
+  );
+}
+
+const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
+  ready: 'Detected',
+  not_found: 'Not found',
+  probe_failed: 'Probe failed'
+};
+
+function ProviderCard({
+  installation
+}: {
+  installation: ProviderInstallation;
+}): ReactNode {
+  return (
+    <article className={`provider-card provider-card-${installation.state}`}>
+      <header className="provider-card-header">
+        <div>
+          <p className="card-label">Native CLI</p>
+          <h3>{installation.displayName}</h3>
+        </div>
+        <span className={`provider-state provider-state-${installation.state}`}>
+          <span aria-hidden="true" />
+          {PROVIDER_STATE_LABELS[installation.state]}
+        </span>
+      </header>
+
+      {installation.state === 'ready' ? (
+        <dl className="provider-details">
+          <div>
+            <dt>Version</dt>
+            <dd>{installation.version}</dd>
+          </div>
+          <div>
+            <dt>Executable</dt>
+            <dd className="provider-path">{installation.executablePath}</dd>
+          </div>
+        </dl>
+      ) : (
+        <div className="provider-diagnostic">
+          <p>{installation.issue.message}</p>
+          <p className="provider-recovery">{installation.issue.recovery}</p>
+          {installation.executablePath === null ? null : (
+            <p className="provider-path">{installation.executablePath}</p>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ProviderSettings({
+  status,
+  onRefresh
+}: {
+  status: ProviderScanStatus;
+  onRefresh: () => void;
+}): ReactNode {
+  return (
+    <section className="provider-panel" aria-labelledby="provider-panel-title">
+      <div className="provider-panel-header">
+        <div>
+          <p className="card-label">Local provider registry</p>
+          <h2 id="provider-panel-title">Provider installations</h2>
+          <p>
+            Lumora reads the effective PATH and runs a bounded version check. It
+            does not sign in, launch a session, or modify provider files.
+          </p>
+        </div>
+        <button
+          className="refresh-button"
+          disabled={status.state === 'loading'}
+          onClick={onRefresh}
+          type="button"
+        >
+          <Icon name="scan" />
+          Refresh
+        </button>
+      </div>
+
+      {status.state === 'loading' ? (
+        <div className="provider-panel-state" role="status">
+          <span className="status-dot" aria-hidden="true" />
+          Scanning Codex and Claude Code
+        </div>
+      ) : status.state === 'error' ? (
+        <div className="provider-panel-state provider-panel-error" role="alert">
+          <span className="status-warning-icon" aria-hidden="true">!</span>
+          <div>
+            <strong>Provider details are unavailable</strong>
+            <p>The scan could not be completed. Refresh to try again.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="provider-grid">
+            {status.scan.providers.map((installation) => (
+              <ProviderCard
+                installation={installation}
+                key={installation.provider}
+              />
+            ))}
+          </div>
+          <p className="provider-scan-time">
+            Last checked{' '}
+            <time dateTime={status.scan.scannedAt}>
+              {new Date(status.scan.scannedAt).toLocaleString()}
+            </time>
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -234,11 +390,34 @@ export default function App(): ReactNode {
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     state: 'loading'
   });
+  const [providerStatus, setProviderStatus] = useState<ProviderScanStatus>({
+    state: 'loading'
+  });
+  const providerRequestId = useRef(0);
 
   const activeRoute = useMemo(
     () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
     [activeRouteId]
   );
+
+  const refreshProviders = useCallback(() => {
+    const requestId = providerRequestId.current + 1;
+    providerRequestId.current = requestId;
+    setProviderStatus({ state: 'loading' });
+
+    void window.lumora.scanProviders().then(
+      (scan) => {
+        if (providerRequestId.current === requestId) {
+          setProviderStatus({ state: 'ready', scan });
+        }
+      },
+      () => {
+        if (providerRequestId.current === requestId) {
+          setProviderStatus({ state: 'error' });
+        }
+      }
+    );
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -260,6 +439,14 @@ export default function App(): ReactNode {
       isCurrent = false;
     };
   }, []);
+
+  useEffect(() => {
+    refreshProviders();
+
+    return () => {
+      providerRequestId.current += 1;
+    };
+  }, [refreshProviders]);
 
   return (
     <div className="app-shell">
@@ -297,7 +484,7 @@ export default function App(): ReactNode {
         <div className="sidebar-note">
           <span className="sidebar-note-dot" aria-hidden="true" />
           <span>
-            <strong>Foundation mode</strong>
+            <strong>Discovery mode</strong>
             <small>Codex + Claude Code</small>
           </span>
         </div>
@@ -311,7 +498,7 @@ export default function App(): ReactNode {
           </div>
           <span className="release-badge">
             <span aria-hidden="true" />
-            MVP foundation
+            Provider discovery
           </span>
         </header>
 
@@ -323,7 +510,12 @@ export default function App(): ReactNode {
           </header>
 
           {activeRoute.id === 'home' ? (
-            <HomeDashboard />
+            <HomeDashboard providerStatus={providerStatus} />
+          ) : activeRoute.id === 'settings' ? (
+            <ProviderSettings
+              onRefresh={refreshProviders}
+              status={providerStatus}
+            />
           ) : (
             <DestinationPlaceholder route={activeRoute} />
           )}
