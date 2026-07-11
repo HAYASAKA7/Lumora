@@ -171,6 +171,7 @@ export const CatalogQuerySchema = z.strictObject({
 });
 
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
+export type WorkspaceOrigin = z.infer<typeof WorkspaceOriginSchema>;
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 export type CatalogDiagnostic = z.infer<typeof CatalogDiagnosticSchema>;
 export type CatalogProviderStatus = z.infer<
