@@ -74,6 +74,7 @@ export function NewSessionDialog({
     setBusy(true);
     setError(null);
     void window.lumora.prepareLaunch({
+      strategy: 'new',
       workspaceId,
       provider,
       terminalProfileId: profileId,

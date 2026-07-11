@@ -5,6 +5,7 @@ import {
   LaunchPreviewSchema,
   type LaunchPrepareRequest,
   type LaunchPreview,
+  type ProviderId,
   type ProviderScanResult,
   type SystemInfo,
   type TerminalProfile
@@ -30,7 +31,7 @@ interface LaunchServiceDependencies {
 
 export interface LaunchSpec {
   strategy: 'new';
-  provider: LaunchPrepareRequest['provider'];
+  provider: ProviderId;
   workspaceId: string;
   executablePath: string;
   args: string[];
@@ -109,6 +110,9 @@ export class LaunchService {
 
   async prepare(value: LaunchPrepareRequest): Promise<LaunchPreview> {
     const request = LaunchPrepareRequestSchema.parse(value);
+    if (request.strategy !== 'new') {
+      throw new Error('Resume launches are not implemented.');
+    }
     const workspace = this.dependencies.repository.getWorkspace(
       request.workspaceId
     );
@@ -161,6 +165,7 @@ export class LaunchService {
       launchToken: token,
       launchHash: spec.launchHash,
       strategy: spec.strategy,
+      sessionId: null,
       provider: spec.provider,
       executablePath: spec.executablePath,
       args: spec.args,

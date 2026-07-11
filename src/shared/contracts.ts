@@ -227,17 +227,30 @@ const TerminalDimensionsFields = {
   rows: z.number().int().min(5).max(300)
 };
 
-export const LaunchPrepareRequestSchema = z.strictObject({
-  workspaceId: StableIdSchema,
-  provider: ProviderIdSchema,
+const LaunchRequestBaseFields = {
   terminalProfileId: StableIdSchema,
   ...TerminalDimensionsFields
-});
+};
+
+export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
+  z.strictObject({
+    strategy: z.literal('new'),
+    workspaceId: StableIdSchema,
+    provider: ProviderIdSchema,
+    ...LaunchRequestBaseFields
+  }),
+  z.strictObject({
+    strategy: z.literal('resume'),
+    sessionId: StableIdSchema,
+    ...LaunchRequestBaseFields
+  })
+]);
 
 export const LaunchPreviewSchema = z.strictObject({
   launchToken: z.uuid(),
   launchHash: StableIdSchema,
-  strategy: z.literal('new'),
+  strategy: z.enum(['new', 'resume']),
+  sessionId: StableIdSchema.nullable(),
   provider: ProviderIdSchema,
   executablePath: z.string().min(1).max(32_768),
   args: z.array(TerminalArgumentSchema).max(64),

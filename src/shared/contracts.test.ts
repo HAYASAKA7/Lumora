@@ -322,6 +322,7 @@ describe('managed terminal contracts', () => {
 
   it('accepts typed launch preparation and preview payloads', () => {
     const request = {
+      strategy: 'new',
       workspaceId: 'a'.repeat(64),
       provider: 'claude',
       terminalProfileId: profile.id,
@@ -332,6 +333,7 @@ describe('managed terminal contracts', () => {
       launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
       launchHash: 'd'.repeat(64),
       strategy: 'new',
+      sessionId: null,
       provider: 'claude',
       executablePath: 'C:\\Users\\dev\\bin\\claude.exe',
       args: [],
@@ -345,6 +347,34 @@ describe('managed terminal contracts', () => {
 
     expect(LaunchPrepareRequestSchema.parse(request)).toEqual(request);
     expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
+    const resumeRequest = {
+      strategy: 'resume',
+      sessionId: 'c'.repeat(64),
+      terminalProfileId: profile.id,
+      cols: 120,
+      rows: 36
+    } as const;
+    expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual(
+      resumeRequest
+    );
+    expect(
+      LaunchPrepareRequestSchema.safeParse({
+        ...resumeRequest,
+        provider: 'codex',
+        workspaceId: 'a'.repeat(64)
+      }).success
+    ).toBe(false);
+    expect(
+      LaunchPreviewSchema.parse({
+        ...preview,
+        strategy: 'resume',
+        sessionId: resumeRequest.sessionId,
+        args: ['--resume', 'native-session']
+      })
+    ).toMatchObject({
+      strategy: 'resume',
+      sessionId: resumeRequest.sessionId
+    });
     expect(
       LaunchPrepareRequestSchema.safeParse({ ...request, cols: 5 }).success
     ).toBe(false);

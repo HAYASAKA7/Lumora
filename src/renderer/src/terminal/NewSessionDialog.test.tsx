@@ -47,6 +47,7 @@ const preview: LaunchPreview = {
   launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
   launchHash: 'c'.repeat(64),
   strategy: 'new',
+  sessionId: null,
   provider: 'codex',
   executablePath: 'C:\\tools\\codex.exe',
   args: [],
@@ -91,6 +92,7 @@ describe('NewSessionDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'new',
       workspaceId: workspace.id,
       provider: 'codex',
       terminalProfileId: profile.id,

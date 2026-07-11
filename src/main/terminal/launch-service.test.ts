@@ -82,6 +82,7 @@ describe('LaunchService', () => {
     async (provider) => {
       const { service } = harness();
       const preview = await service.prepare({
+        strategy: 'new',
         workspaceId,
         provider,
         terminalProfileId: profileId,
@@ -107,6 +108,7 @@ describe('LaunchService', () => {
   it('consumes a launch token exactly once', async () => {
     const { service } = harness();
     const preview = await service.prepare({
+      strategy: 'new',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -128,6 +130,7 @@ describe('LaunchService', () => {
   it('expires prepared launches after five minutes', async () => {
     const { service, setNow } = harness();
     const preview = await service.prepare({
+      strategy: 'new',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -152,6 +155,7 @@ describe('LaunchService', () => {
     }).service;
     await expect(
       unavailableWorkspace.prepare({
+        strategy: 'new',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,
@@ -165,6 +169,7 @@ describe('LaunchService', () => {
     }).service;
     await expect(
       unavailableProfile.prepare({
+        strategy: 'new',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,
@@ -196,6 +201,7 @@ describe('LaunchService', () => {
     const unavailableProvider = harness({ scan: missingProviderScan }).service;
     await expect(
       unavailableProvider.prepare({
+        strategy: 'new',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,
