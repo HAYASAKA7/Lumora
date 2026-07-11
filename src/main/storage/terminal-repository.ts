@@ -1,11 +1,21 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
+  ProviderLaunchConfigInputSchema,
+  ProviderLaunchConfigListSchema,
   RuntimeSummarySchema,
   TerminalProfileSchema,
+  type ProviderId,
+  type ProviderLaunchConfig,
+  type ProviderLaunchConfigInput,
   type RuntimeSummary,
   type TerminalProfile
 } from '../../shared/contracts';
+
+interface ProviderLaunchConfigRow {
+  provider: ProviderId;
+  command: string;
+}
 
 interface TerminalProfileRow {
   id: string;
@@ -222,6 +232,52 @@ export class TerminalRepository {
           displayName: row.display_name,
           available: row.available === 1
         };
+  }
+
+  listProviderLaunchConfigs(): ProviderLaunchConfig[] {
+    const rows = this.database
+      .prepare(
+        `SELECT provider, command
+         FROM provider_launch_config ORDER BY provider`
+      )
+      .all() as unknown as ProviderLaunchConfigRow[];
+    const commands = new Map(rows.map((row) => [row.provider, row.command]));
+    return ProviderLaunchConfigListSchema.parse([
+      { provider: 'codex', command: commands.get('codex') ?? null },
+      { provider: 'claude', command: commands.get('claude') ?? null }
+    ]);
+  }
+
+  saveProviderLaunchConfig(
+    value: ProviderLaunchConfigInput,
+    timestamp: string
+  ): ProviderLaunchConfig[] {
+    const input = ProviderLaunchConfigInputSchema.parse(value);
+    if (input.command === null) {
+      this.database
+        .prepare('DELETE FROM provider_launch_config WHERE provider = ?')
+        .run(input.provider);
+    } else {
+      this.database
+        .prepare(
+          `INSERT INTO provider_launch_config (provider, command, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(provider) DO UPDATE SET
+            command = excluded.command,
+            updated_at = excluded.updated_at`
+        )
+        .run(input.provider, input.command, normalizeTimestamp(timestamp));
+    }
+    return this.listProviderLaunchConfigs();
+  }
+
+  getProviderLaunchCommand(provider: ProviderId): string | null {
+    const row = this.database
+      .prepare(
+        'SELECT provider, command FROM provider_launch_config WHERE provider = ?'
+      )
+      .get(provider) as ProviderLaunchConfigRow | undefined;
+    return row?.command ?? null;
   }
 
   saveRuntime(value: RuntimeSummary): void {

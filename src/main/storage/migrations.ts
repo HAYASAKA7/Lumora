@@ -102,6 +102,16 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       'CREATE INDEX runtime_instance_workspace_idx ON runtime_instance (workspace_id)',
       'CREATE INDEX runtime_instance_created_idx ON runtime_instance (created_at DESC)'
     ]
+  },
+  {
+    version: 3,
+    statements: [
+      `CREATE TABLE provider_launch_config (
+        provider TEXT PRIMARY KEY CHECK (provider IN ('codex', 'claude')),
+        command TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`
+    ]
   }
 ];
 

@@ -81,6 +81,32 @@ export type ProviderInstallation = z.infer<
 >;
 export type ProviderScanResult = z.infer<typeof ProviderScanResultSchema>;
 
+const ProviderLaunchCommandSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4_096)
+  .refine((command) => !/[\0\r\n]/.test(command), {
+    message: 'Provider launch commands must use one line.'
+  });
+
+export const ProviderLaunchConfigSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  command: ProviderLaunchCommandSchema.nullable()
+});
+
+export const ProviderLaunchConfigInputSchema = ProviderLaunchConfigSchema;
+export const ProviderLaunchConfigListSchema = z
+  .array(ProviderLaunchConfigSchema)
+  .length(2);
+
+export type ProviderLaunchConfig = z.infer<
+  typeof ProviderLaunchConfigSchema
+>;
+export type ProviderLaunchConfigInput = z.infer<
+  typeof ProviderLaunchConfigInputSchema
+>;
+
 const StableIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const WorkspaceOriginSchema = z.enum(['manual', 'discovered']);

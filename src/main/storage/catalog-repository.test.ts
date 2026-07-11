@@ -102,7 +102,7 @@ describe('catalog migrations', () => {
     const rows = database
       .prepare('SELECT version FROM schema_migration ORDER BY version')
       .all();
-    expect(rows).toEqual([{ version: 1 }, { version: 2 }]);
+    expect(rows).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
     expect(
       database
         .prepare(
@@ -116,6 +116,7 @@ describe('catalog migrations', () => {
         'schema_migration',
         'session',
         'session_source',
+        'provider_launch_config',
         'workspace'
       ])
     );
