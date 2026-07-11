@@ -39,6 +39,7 @@ describe('buildVersionInvocation', () => {
       })
     ).toEqual({
       file: 'C:\\Windows\\System32\\cmd.exe',
+      windowsVerbatimArguments: true,
       args: [
         '/d',
         '/s',

@@ -9,6 +9,7 @@ type Environment = Readonly<Record<string, string | undefined>>;
 export interface VersionInvocation {
   file: string;
   args: readonly string[];
+  windowsVerbatimArguments?: boolean;
 }
 
 export interface VersionCommandOutput {
@@ -75,6 +76,7 @@ export function buildVersionInvocation(
 
   return {
     file: commandProcessor,
+    windowsVerbatimArguments: true,
     args: ['/d', '/s', '/c', `""${executablePath}" --version"`]
   };
 }
@@ -92,7 +94,9 @@ export function executeVersionInvocation(
         env: { ...env, NO_COLOR: '1' },
         maxBuffer: 32 * 1024,
         timeout: 5_000,
-        windowsHide: true
+        windowsHide: true,
+        windowsVerbatimArguments:
+          invocation.windowsVerbatimArguments ?? false
       },
       (error, stdout, stderr) => {
         if (error !== null) {
