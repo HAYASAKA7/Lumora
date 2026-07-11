@@ -586,7 +586,9 @@ export default function App(): ReactNode {
                   Open terminals
                 </button>
               ) : null}
-              {catalogStatus.state === 'ready' &&
+              {activeRuntimeId === null &&
+              (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
+              catalogStatus.state === 'ready' &&
               catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
                 <button
                   className="refresh-button"

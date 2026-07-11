@@ -180,6 +180,26 @@ describe('App', () => {
     );
   });
 
+  it('shows New session only on Home and Workspaces', async () => {
+    render(<App />);
+
+    expect(
+      await screen.findByRole('button', { name: 'New session' })
+    ).toBeInTheDocument();
+
+    for (const destination of ['All sessions', 'Terminal profiles', 'Settings']) {
+      fireEvent.click(screen.getByRole('button', { name: destination }));
+      expect(
+        screen.queryByRole('button', { name: 'New session' })
+      ).not.toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(
+      screen.getByRole('button', { name: 'New session' })
+    ).toBeInTheDocument();
+  });
+
   it('shows platform and architecture after system information resolves', async () => {
     render(<App />);
 
