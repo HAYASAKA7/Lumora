@@ -1,14 +1,20 @@
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   net,
   protocol
 } from 'electron';
 
 import { PlatformSchema } from '../shared/contracts';
+import {
+  createCatalogRuntime,
+  type CatalogRuntime
+} from './catalog/catalog-runtime';
+import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { findExecutable } from './platform/executable-locator';
@@ -39,6 +45,7 @@ const providerRegistry = new ProviderRegistry({
 });
 
 let mainWindow: BrowserWindow | null = null;
+let catalogRuntime: CatalogRuntime | null = null;
 
 app.enableSandbox();
 protocol.registerSchemesAsPrivileged([
@@ -88,6 +95,13 @@ async function createMainWindow(): Promise<void> {
 
 void app.whenReady().then(async () => {
   registerApplicationProtocol();
+  catalogRuntime = createCatalogRuntime({
+    databasePath: join(app.getPath('userData'), 'lumora.db'),
+    homeDirectory: app.getPath('home'),
+    platform,
+    env: process.env,
+    scanProviders: () => providerRegistry.scan()
+  });
   registerSystemIpc({
     ipc: ipcMain,
     platform: process.platform,
@@ -100,6 +114,12 @@ void app.whenReady().then(async () => {
     registry: providerRegistry,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  registerCatalogIpc({
+    ipc: ipcMain,
+    service: catalogRuntime.service,
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
 
   await createMainWindow();
 
@@ -108,6 +128,11 @@ void app.whenReady().then(async () => {
       void createMainWindow();
     }
   });
+});
+
+app.on('will-quit', () => {
+  catalogRuntime?.close();
+  catalogRuntime = null;
 });
 
 app.on('window-all-closed', () => {
