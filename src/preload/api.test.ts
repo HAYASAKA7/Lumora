@@ -3,6 +3,29 @@ import { describe, expect, it } from 'vitest';
 import { IPC_CHANNELS } from '../shared/contracts';
 import { createLumoraApi } from './api';
 
+const emptyCatalog = {
+  refreshedAt: '2026-07-11T03:01:00.000Z',
+  workspaces: [],
+  sessions: [],
+  providerStatus: [
+    {
+      provider: 'codex',
+      state: 'ready',
+      discoveredCount: 0,
+      unchangedCount: 0,
+      invalidCount: 0
+    },
+    {
+      provider: 'claude',
+      state: 'ready',
+      discoveredCount: 0,
+      unchangedCount: 0,
+      invalidCount: 0
+    }
+  ],
+  diagnostics: []
+} as const;
+
 describe('createLumoraApi', () => {
   it('invokes only the system-info channel for system details', async () => {
     const invokedChannels: string[] = [];
@@ -75,5 +98,54 @@ describe('createLumoraApi', () => {
     }));
 
     await expect(api.scanProviders()).rejects.toBeDefined();
+  });
+
+  it('invokes narrowed catalog channels with validated queries', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return emptyCatalog;
+    });
+
+    await expect(
+      api.getCatalog({ text: '  catalog  ', provider: 'codex' })
+    ).resolves.toEqual(emptyCatalog);
+    await expect(
+      api.refreshCatalog({ text: '', provider: null })
+    ).resolves.toEqual(emptyCatalog);
+
+    expect(invocations).toEqual([
+      {
+        channel: IPC_CHANNELS.catalogGet,
+        args: [{ text: 'catalog', provider: 'codex' }]
+      },
+      {
+        channel: IPC_CHANNELS.catalogRefresh,
+        args: [{ text: '', provider: null }]
+      }
+    ]);
+  });
+
+  it('validates workspace selection results and preserves cancellation', async () => {
+    const cancelled = createLumoraApi(async () => null);
+    await expect(cancelled.chooseWorkspace()).resolves.toBeNull();
+
+    const selected = createLumoraApi(async (channel) => {
+      expect(channel).toBe(IPC_CHANNELS.workspaceChoose);
+      return emptyCatalog;
+    });
+    await expect(selected.chooseWorkspace()).resolves.toEqual(emptyCatalog);
+  });
+
+  it('rejects malformed catalog queries and responses before returning them', async () => {
+    const api = createLumoraApi(async () => ({
+      ...emptyCatalog,
+      sessions: [{ transcript: ['must not cross IPC'] }]
+    }));
+
+    await expect(
+      api.getCatalog({ text: 'x'.repeat(121), provider: null })
+    ).rejects.toBeDefined();
+    await expect(api.refreshCatalog()).rejects.toBeDefined();
   });
 });

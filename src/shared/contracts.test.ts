@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CatalogQuerySchema,
+  CatalogSnapshotSchema,
   IPC_CHANNELS,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
@@ -139,5 +141,139 @@ describe('provider discovery contracts', () => {
 
   it('defines a dedicated provider scan channel', () => {
     expect(IPC_CHANNELS.providerScan).toBe('lumora:providers:scan');
+  });
+});
+
+describe('catalog contracts', () => {
+  const workspaceId = 'a'.repeat(64);
+  const sessionId = 'b'.repeat(64);
+  const workspace = {
+    id: workspaceId,
+    displayName: 'lumora',
+    canonicalPath: 'D:\\Projects\\AI\\Lumora',
+    available: true,
+    origin: 'manual',
+    sessionCount: 1,
+    providerCounts: { codex: 1, claude: 0 },
+    lastActivityAt: '2026-07-11T03:00:00.000Z'
+  } as const;
+  const session = {
+    id: sessionId,
+    nativeId: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+    provider: 'codex',
+    workspaceId,
+    title: 'Catalog implementation',
+    createdAt: '2026-07-11T02:00:00.000Z',
+    updatedAt: '2026-07-11T03:00:00.000Z',
+    lifecycle: 'saved',
+    sourceFreshness: 'current'
+  } as const;
+  const snapshot = {
+    refreshedAt: '2026-07-11T03:01:00.000Z',
+    workspaces: [workspace],
+    sessions: [session],
+    providerStatus: [
+      {
+        provider: 'codex',
+        state: 'ready',
+        discoveredCount: 1,
+        unchangedCount: 0,
+        invalidCount: 0
+      },
+      {
+        provider: 'claude',
+        state: 'unavailable',
+        discoveredCount: 0,
+        unchangedCount: 0,
+        invalidCount: 0
+      }
+    ],
+    diagnostics: [
+      {
+        code: 'CATALOG_PROVIDER_UNAVAILABLE',
+        provider: 'claude',
+        affectedCount: 0,
+        message: 'Claude Code is not ready.',
+        recovery: 'Install or repair Claude Code, then refresh.',
+        retryable: true,
+        scannedAt: '2026-07-11T03:01:00.000Z'
+      }
+    ]
+  } as const;
+
+  it('accepts a complete normalized catalog snapshot', () => {
+    expect(CatalogSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it('rejects source paths, transcript data, and unknown states', () => {
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        sessions: [
+          {
+            ...session,
+            sourcePath: 'C:\\Users\\dev\\.codex\\sessions\\secret.jsonl'
+          }
+        ]
+      }).success
+    ).toBe(false);
+
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        sessions: [{ ...session, transcript: ['private prompt'] }]
+      }).success
+    ).toBe(false);
+
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        sessions: [{ ...session, lifecycle: 'unknown' }]
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects malformed IDs, timestamps, and diagnostic codes', () => {
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        workspaces: [{ ...workspace, id: '../workspace' }]
+      }).success
+    ).toBe(false);
+
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        sessions: [{ ...session, updatedAt: 'recently' }]
+      }).success
+    ).toBe(false);
+
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        diagnostics: [
+          { ...snapshot.diagnostics[0], code: 'RAW_SQLITE_ERROR' }
+        ]
+      }).success
+    ).toBe(false);
+  });
+
+  it('bounds and validates catalog queries', () => {
+    expect(
+      CatalogQuerySchema.parse({ text: '  catalog  ', provider: 'claude' })
+    ).toEqual({ text: 'catalog', provider: 'claude' });
+    expect(
+      CatalogQuerySchema.safeParse({ text: 'x'.repeat(121), provider: null })
+        .success
+    ).toBe(false);
+    expect(
+      CatalogQuerySchema.safeParse({ text: '', provider: 'gemini' }).success
+    ).toBe(false);
+  });
+
+  it('defines narrowed catalog IPC channels', () => {
+    expect(IPC_CHANNELS.catalogGet).toBe('lumora:catalog:get');
+    expect(IPC_CHANNELS.catalogRefresh).toBe('lumora:catalog:refresh');
+    expect(IPC_CHANNELS.workspaceChoose).toBe('lumora:workspace:choose');
   });
 });
