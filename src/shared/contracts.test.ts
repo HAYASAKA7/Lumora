@@ -359,6 +359,7 @@ describe('managed terminal contracts', () => {
       strategy: 'new',
       provider: 'claude',
       executablePath: 'C:\\Users\\dev\\bin\\claude.exe',
+      command: null,
       args: [],
       workingDirectory: 'D:\\Projects\\Lumora',
       environmentNames: ['SHELL'],
