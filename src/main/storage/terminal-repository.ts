@@ -4,6 +4,7 @@ import {
   RuntimeSummarySchema,
   TerminalProfileSchema,
   type RuntimeSummary,
+  type SessionSummary,
   type TerminalProfile
 } from '../../shared/contracts';
 
@@ -23,6 +24,14 @@ interface WorkspaceLaunchRow {
   canonical_path: string;
   display_name: string;
   available: number;
+}
+
+interface SessionLaunchRow {
+  id: string;
+  native_id: string;
+  provider: SessionSummary['provider'];
+  workspace_id: string;
+  source_freshness: SessionSummary['sourceFreshness'];
 }
 
 interface RuntimeRow {
@@ -45,6 +54,14 @@ export interface WorkspaceLaunchInfo {
   canonicalPath: string;
   displayName: string;
   available: boolean;
+}
+
+export interface SessionLaunchInfo {
+  id: string;
+  nativeId: string;
+  provider: SessionSummary['provider'];
+  workspaceId: string;
+  sourceFreshness: SessionSummary['sourceFreshness'];
 }
 
 function normalizeTimestamp(value: string): string {
@@ -221,6 +238,24 @@ export class TerminalRepository {
           canonicalPath: row.canonical_path,
           displayName: row.display_name,
           available: row.available === 1
+        };
+  }
+
+  getSession(sessionId: string): SessionLaunchInfo | null {
+    const row = this.database
+      .prepare(
+        `SELECT id, native_id, provider, workspace_id, source_freshness
+         FROM session WHERE id = ?`
+      )
+      .get(sessionId) as SessionLaunchRow | undefined;
+    return row === undefined
+      ? null
+      : {
+          id: row.id,
+          nativeId: row.native_id,
+          provider: row.provider,
+          workspaceId: row.workspace_id,
+          sourceFreshness: row.source_freshness
         };
   }
 

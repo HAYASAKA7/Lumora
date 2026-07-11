@@ -113,6 +113,28 @@ describe('TerminalRepository', () => {
     expect(repository.getWorkspace('f'.repeat(64))).toBeNull();
   });
 
+  it('loads current session resume identity by stable ID', () => {
+    const sessionId = 'c'.repeat(64);
+    database
+      .prepare(
+        `INSERT INTO session (
+          id, provider, native_id, workspace_id, title, normalized_title,
+          created_at, updated_at, lifecycle, source_freshness
+        ) VALUES (?, 'codex', ?, ?, 'Resume me', 'resume me', ?, ?,
+          'saved', 'current')`
+      )
+      .run(sessionId, 'native-thread', workspaceId, timestamp, timestamp);
+
+    expect(repository.getSession(sessionId)).toEqual({
+      id: sessionId,
+      nativeId: 'native-thread',
+      provider: 'codex',
+      workspaceId,
+      sourceFreshness: 'current'
+    });
+    expect(repository.getSession('f'.repeat(64))).toBeNull();
+  });
+
   it('persists runtime lifecycle and marks interrupted live rows lost', () => {
     const profileId = 'b'.repeat(64);
     repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
