@@ -1615,8 +1615,12 @@ button {
 .managed-terminal-shell,
 .managed-terminal {
   min-width: 0;
-  min-height: 440px;
+  min-height: 0;
   background: var(--navy-950);
+}
+
+.managed-terminal-shell {
+  overflow: hidden;
 }
 
 .managed-terminal {

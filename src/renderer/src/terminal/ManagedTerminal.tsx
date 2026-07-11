@@ -8,6 +8,8 @@ interface ManagedTerminalProps {
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
+const TERMINAL_BLOCK_SIZE = 'clamp(360px, 55vh, 620px)';
+
 export function ManagedTerminal({
   runtime,
   onRuntimeChange
@@ -89,7 +91,12 @@ export function ManagedTerminal({
   return (
     <div className="managed-terminal-shell">
       {error === null ? null : <div className="terminal-error" role="alert">{error}</div>}
-      <div aria-label={`${runtime.provider} terminal`} className="managed-terminal" ref={container} />
+      <div
+        aria-label={`${runtime.provider} terminal`}
+        className="managed-terminal"
+        ref={container}
+        style={{ blockSize: TERMINAL_BLOCK_SIZE }}
+      />
     </div>
   );
 }
