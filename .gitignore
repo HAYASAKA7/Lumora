@@ -5,6 +5,7 @@ coverage/
 .npm-cache/
 .worktrees/
 .gax/
+.superpowers/
 *.log
 .DS_Store
 Thumbs.db
