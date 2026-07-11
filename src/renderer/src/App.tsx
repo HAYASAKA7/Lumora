@@ -8,10 +8,20 @@ import {
 } from 'react';
 
 import type {
-  ProviderInstallation,
-  ProviderScanResult,
+  CatalogQuery,
+  ProviderId,
   SystemInfo
 } from '../../shared/contracts';
+import {
+  CatalogHomeSummary,
+  SessionsView,
+  WorkspacesView,
+  type CatalogViewStatus
+} from './catalog/CatalogViews';
+import {
+  ProviderSettings,
+  type ProviderScanStatus
+} from './providers/ProviderSettings';
 
 type RouteId =
   | 'home'
@@ -44,10 +54,7 @@ type SystemStatus =
   | { state: 'ready'; info: SystemInfo }
   | { state: 'error' };
 
-type ProviderScanStatus =
-  | { state: 'loading' }
-  | { state: 'ready'; scan: ProviderScanResult }
-  | { state: 'error' };
+const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
 
 const ROUTES = [
   {
@@ -91,42 +98,6 @@ const ROUTES = [
     icon: 'settings'
   }
 ] as const satisfies readonly RouteDefinition[];
-
-const HOME_CARDS: readonly {
-  title: string;
-  label: string;
-  description: string;
-  icon: IconName;
-}[] = [
-  {
-    title: 'Running agents',
-    label: 'Runtime view',
-    description:
-      'Managed Codex and Claude processes will appear here with their workspace and live state.',
-    icon: 'activity'
-  },
-  {
-    title: 'Needs attention',
-    label: 'Diagnostics',
-    description:
-      'Provider, discovery, and launch failures will surface here with a clear recovery action.',
-    icon: 'attention'
-  },
-  {
-    title: 'Recent sessions',
-    label: 'Session history',
-    description:
-      'Newly discovered and recently resumed sessions will be available here for quick access.',
-    icon: 'history'
-  },
-  {
-    title: 'Scan health',
-    label: 'Provider discovery',
-    description:
-      'Codex and Claude scan results will show source freshness without modifying provider files.',
-    icon: 'scan'
-  }
-] as const;
 
 const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
@@ -176,154 +147,6 @@ function providerSummary(status: ProviderScanStatus): string {
     (provider) => provider.state === 'ready'
   ).length;
   return `${readyCount} of ${status.scan.providers.length} providers ready`;
-}
-
-function HomeDashboard({
-  providerStatus
-}: {
-  providerStatus: ProviderScanStatus;
-}): ReactNode {
-  return (
-    <div className="dashboard-grid" aria-label="Workspace overview">
-      {HOME_CARDS.map((card) => (
-        <article className="dashboard-card" key={card.title}>
-          <div className="card-icon">
-            <Icon name={card.icon} />
-          </div>
-          <div>
-            <p className="card-label">{card.label}</p>
-            <h2>{card.title}</h2>
-          </div>
-          <p className="card-description">{card.description}</p>
-          {card.title === 'Scan health' ? (
-            <div
-              className={`empty-state provider-summary provider-summary-${providerStatus.state}`}
-            >
-              <span className="empty-state-mark" aria-hidden="true" />
-              {providerSummary(providerStatus)}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <span className="empty-state-mark" aria-hidden="true" />
-              Waiting for the next MVP slice
-            </div>
-          )}
-        </article>
-      ))}
-    </div>
-  );
-}
-
-const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
-  ready: 'Detected',
-  not_found: 'Not found',
-  probe_failed: 'Probe failed'
-};
-
-function ProviderCard({
-  installation
-}: {
-  installation: ProviderInstallation;
-}): ReactNode {
-  return (
-    <article className={`provider-card provider-card-${installation.state}`}>
-      <header className="provider-card-header">
-        <div>
-          <p className="card-label">Native CLI</p>
-          <h3>{installation.displayName}</h3>
-        </div>
-        <span className={`provider-state provider-state-${installation.state}`}>
-          <span aria-hidden="true" />
-          {PROVIDER_STATE_LABELS[installation.state]}
-        </span>
-      </header>
-
-      {installation.state === 'ready' ? (
-        <dl className="provider-details">
-          <div>
-            <dt>Version</dt>
-            <dd>{installation.version}</dd>
-          </div>
-          <div>
-            <dt>Executable</dt>
-            <dd className="provider-path">{installation.executablePath}</dd>
-          </div>
-        </dl>
-      ) : (
-        <div className="provider-diagnostic">
-          <p>{installation.issue.message}</p>
-          <p className="provider-recovery">{installation.issue.recovery}</p>
-          {installation.executablePath === null ? null : (
-            <p className="provider-path">{installation.executablePath}</p>
-          )}
-        </div>
-      )}
-    </article>
-  );
-}
-
-function ProviderSettings({
-  status,
-  onRefresh
-}: {
-  status: ProviderScanStatus;
-  onRefresh: () => void;
-}): ReactNode {
-  return (
-    <section className="provider-panel" aria-labelledby="provider-panel-title">
-      <div className="provider-panel-header">
-        <div>
-          <p className="card-label">Local provider registry</p>
-          <h2 id="provider-panel-title">Provider installations</h2>
-          <p>
-            Lumora reads the effective PATH and runs a bounded version check. It
-            does not sign in, launch a session, or modify provider files.
-          </p>
-        </div>
-        <button
-          className="refresh-button"
-          disabled={status.state === 'loading'}
-          onClick={onRefresh}
-          type="button"
-        >
-          <Icon name="scan" />
-          Refresh
-        </button>
-      </div>
-
-      {status.state === 'loading' ? (
-        <div className="provider-panel-state" role="status">
-          <span className="status-dot" aria-hidden="true" />
-          Scanning Codex and Claude Code
-        </div>
-      ) : status.state === 'error' ? (
-        <div className="provider-panel-state provider-panel-error" role="alert">
-          <span className="status-warning-icon" aria-hidden="true">!</span>
-          <div>
-            <strong>Provider details are unavailable</strong>
-            <p>The scan could not be completed. Refresh to try again.</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="provider-grid">
-            {status.scan.providers.map((installation) => (
-              <ProviderCard
-                installation={installation}
-                key={installation.provider}
-              />
-            ))}
-          </div>
-          <p className="provider-scan-time">
-            Last checked{' '}
-            <time dateTime={status.scan.scannedAt}>
-              {new Date(status.scan.scannedAt).toLocaleString()}
-            </time>
-          </p>
-        </>
-      )}
-    </section>
-  );
 }
 
 function DestinationPlaceholder({ route }: { route: RouteDefinition }): ReactNode {
@@ -393,7 +216,19 @@ export default function App(): ReactNode {
   const [providerStatus, setProviderStatus] = useState<ProviderScanStatus>({
     state: 'loading'
   });
+  const [catalogStatus, setCatalogStatus] = useState<CatalogViewStatus>({
+    state: 'loading'
+  });
+  const [isCatalogRefreshing, setIsCatalogRefreshing] = useState(false);
+  const [catalogOperationError, setCatalogOperationError] = useState<
+    string | null
+  >(null);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [debouncedSessionSearch, setDebouncedSessionSearch] = useState('');
+  const [sessionProvider, setSessionProvider] = useState<ProviderId | null>(null);
   const providerRequestId = useRef(0);
+  const catalogRequestId = useRef(0);
+  const catalogReadyForQueries = useRef(false);
 
   const activeRoute = useMemo(
     () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
@@ -447,6 +282,143 @@ export default function App(): ReactNode {
       providerRequestId.current += 1;
     };
   }, [refreshProviders]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSessionSearch(sessionSearch.trim());
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [sessionSearch]);
+
+  useEffect(() => {
+    const requestId = catalogRequestId.current + 1;
+    catalogRequestId.current = requestId;
+    setCatalogStatus({ state: 'loading' });
+
+    void window.lumora.getCatalog(EMPTY_CATALOG_QUERY).then(
+      (snapshot) => {
+        if (catalogRequestId.current !== requestId) {
+          return;
+        }
+        setCatalogStatus({ state: 'ready', snapshot });
+        catalogReadyForQueries.current = true;
+
+        const refreshRequestId = catalogRequestId.current + 1;
+        catalogRequestId.current = refreshRequestId;
+        setIsCatalogRefreshing(true);
+        void window.lumora.refreshCatalog(EMPTY_CATALOG_QUERY).then(
+          (refreshedSnapshot) => {
+            if (catalogRequestId.current === refreshRequestId) {
+              setCatalogStatus({ state: 'ready', snapshot: refreshedSnapshot });
+              setCatalogOperationError(null);
+              setIsCatalogRefreshing(false);
+            }
+          },
+          () => {
+            if (catalogRequestId.current === refreshRequestId) {
+              setCatalogOperationError(
+                'Catalog refresh failed. Last saved data is still shown.'
+              );
+              setIsCatalogRefreshing(false);
+            }
+          }
+        );
+      },
+      () => {
+        if (catalogRequestId.current === requestId) {
+          catalogReadyForQueries.current = true;
+          setCatalogStatus({ state: 'error' });
+        }
+      }
+    );
+
+    return () => {
+      catalogRequestId.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!catalogReadyForQueries.current) {
+      return;
+    }
+
+    const requestId = catalogRequestId.current + 1;
+    catalogRequestId.current = requestId;
+    const query: CatalogQuery = {
+      text: debouncedSessionSearch,
+      provider: sessionProvider
+    };
+    void window.lumora.getCatalog(query).then(
+      (snapshot) => {
+        if (catalogRequestId.current === requestId) {
+          setCatalogStatus({ state: 'ready', snapshot });
+          setCatalogOperationError(null);
+        }
+      },
+      () => {
+        if (catalogRequestId.current === requestId) {
+          setCatalogOperationError(
+            'Catalog search failed. Last saved data is still shown.'
+          );
+        }
+      }
+    );
+  }, [debouncedSessionSearch, sessionProvider]);
+
+  const refreshCatalog = useCallback(() => {
+    const requestId = catalogRequestId.current + 1;
+    catalogRequestId.current = requestId;
+    setIsCatalogRefreshing(true);
+    setCatalogOperationError(null);
+    const query: CatalogQuery = {
+      text: debouncedSessionSearch,
+      provider: sessionProvider
+    };
+    void window.lumora.refreshCatalog(query).then(
+      (snapshot) => {
+        if (catalogRequestId.current === requestId) {
+          setCatalogStatus({ state: 'ready', snapshot });
+          setIsCatalogRefreshing(false);
+        }
+      },
+      () => {
+        if (catalogRequestId.current === requestId) {
+          setCatalogOperationError(
+            catalogStatus.state === 'ready'
+              ? 'Catalog refresh failed. Last saved data is still shown.'
+              : 'Catalog refresh failed. Try again.'
+          );
+          if (catalogStatus.state !== 'ready') {
+            setCatalogStatus({ state: 'error' });
+          }
+          setIsCatalogRefreshing(false);
+        }
+      }
+    );
+  }, [catalogStatus.state, debouncedSessionSearch, sessionProvider]);
+
+  const addWorkspace = useCallback(() => {
+    const requestId = catalogRequestId.current + 1;
+    catalogRequestId.current = requestId;
+    setCatalogOperationError(null);
+    void window.lumora.chooseWorkspace().then(
+      (snapshot) => {
+        if (catalogRequestId.current !== requestId) {
+          return;
+        }
+        setIsCatalogRefreshing(false);
+        if (snapshot !== null) {
+          setCatalogStatus({ state: 'ready', snapshot });
+        }
+      },
+      () => {
+        if (catalogRequestId.current === requestId) {
+          setCatalogOperationError('Workspace could not be added. Try again.');
+          setIsCatalogRefreshing(false);
+        }
+      }
+    );
+  }, []);
 
   return (
     <div className="app-shell">
@@ -509,8 +481,34 @@ export default function App(): ReactNode {
             <p className="page-description">{activeRoute.description}</p>
           </header>
 
+          {catalogOperationError === null ? null : (
+            <div className="catalog-operation-error" role="alert">
+              {catalogOperationError}
+            </div>
+          )}
+
           {activeRoute.id === 'home' ? (
-            <HomeDashboard providerStatus={providerStatus} />
+            <CatalogHomeSummary
+              providerSummary={providerSummary(providerStatus)}
+              status={catalogStatus}
+            />
+          ) : activeRoute.id === 'workspaces' ? (
+            <WorkspacesView
+              isRefreshing={isCatalogRefreshing}
+              onAddWorkspace={addWorkspace}
+              onRefresh={refreshCatalog}
+              status={catalogStatus}
+            />
+          ) : activeRoute.id === 'sessions' ? (
+            <SessionsView
+              isRefreshing={isCatalogRefreshing}
+              onProviderChange={setSessionProvider}
+              onRefresh={refreshCatalog}
+              onSearchChange={setSessionSearch}
+              provider={sessionProvider}
+              queryText={sessionSearch}
+              status={catalogStatus}
+            />
           ) : activeRoute.id === 'settings' ? (
             <ProviderSettings
               onRefresh={refreshProviders}
