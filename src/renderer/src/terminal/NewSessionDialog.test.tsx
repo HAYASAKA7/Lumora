@@ -64,6 +64,7 @@ const runtime: RuntimeSummary = {
   strategy: 'new',
   sessionId: null,
   nativeSessionId: null,
+  reconciliationState: 'pending',
   provider: 'codex',
   workspaceId: workspace.id,
   terminalProfileId: profile.id,

@@ -14,6 +14,7 @@ const runtime: RuntimeSummary = {
   strategy: 'resume',
   sessionId,
   nativeSessionId: 'native-thread-1',
+  reconciliationState: 'not_required',
   provider: 'codex',
   workspaceId: 'a'.repeat(64),
   terminalProfileId: 'b'.repeat(64),
@@ -55,6 +56,39 @@ describe('TerminalWorkspace', () => {
     expect(within(inspector).getByText('Resume')).toBeInTheDocument();
     expect(
       within(inspector).getByText(sessionId.slice(0, 12))
+    ).toBeInTheDocument();
+    expect(within(inspector).getByText('Native resume')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['pending', 'Matching provider session'],
+    ['linked', 'Linked'],
+    ['ambiguous', 'Ambiguous — not linked'],
+    ['unresolved', 'Not found — unlinked']
+  ] as const)('shows %s new-session identity state', (state, label) => {
+    const linked = state === 'linked';
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map()}
+        runtimes={[
+          {
+            ...runtime,
+            strategy: 'new',
+            reconciliationState: state,
+            sessionId: linked ? sessionId : null,
+            nativeSessionId: linked ? 'native-thread-1' : null
+          }
+        ]}
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(
+      within(screen.getByLabelText('Launch inspector')).getByText(label)
     ).toBeInTheDocument();
   });
 });

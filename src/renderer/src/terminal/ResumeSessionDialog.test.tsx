@@ -92,6 +92,7 @@ const runtime: RuntimeSummary = {
   strategy: 'resume',
   sessionId: session.id,
   nativeSessionId: session.nativeId,
+  reconciliationState: 'not_required',
   provider: 'codex',
   workspaceId: workspace.id,
   terminalProfileId: profile.id,

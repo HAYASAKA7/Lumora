@@ -17,6 +17,17 @@ interface TerminalWorkspaceProps {
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
+const IDENTITY_MATCH_LABELS: Record<
+  RuntimeSummary['reconciliationState'],
+  string
+> = {
+  not_required: 'Native resume',
+  pending: 'Matching provider session',
+  linked: 'Linked',
+  ambiguous: 'Ambiguous — not linked',
+  unresolved: 'Not found — unlinked'
+};
+
 export function TerminalWorkspace({
   runtimes,
   activeRuntimeId,
@@ -87,6 +98,7 @@ export function TerminalWorkspace({
             <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
             <div><dt>Profile</dt><dd>{preview?.terminalProfile.name ?? runtime.terminalProfileId.slice(0, 12)}</dd></div>
             <div><dt>Launch type</dt><dd>{runtime.strategy === 'resume' ? 'Resume' : 'New session'}</dd></div>
+            <div><dt>Identity match</dt><dd>{IDENTITY_MATCH_LABELS[runtime.reconciliationState]}</dd></div>
             <div><dt>Session</dt><dd>{runtime.sessionId?.slice(0, 12) ?? 'Not linked'}</dd></div>
             <div><dt>Launch hash</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>
           </dl>

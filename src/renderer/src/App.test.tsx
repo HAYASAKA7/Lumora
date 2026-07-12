@@ -259,6 +259,7 @@ describe('App', () => {
       strategy: 'resume',
       sessionId: session.id,
       nativeSessionId: session.nativeId,
+      reconciliationState: 'not_required',
       provider: 'codex',
       workspaceId: session.workspaceId,
       terminalProfileId: profile.id,
