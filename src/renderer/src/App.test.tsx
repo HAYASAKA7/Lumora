@@ -136,6 +136,7 @@ interface CatalogApiOverrides {
   prepareLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
   attachRuntime?: ReturnType<typeof vi.fn>;
+  listRuntimes?: ReturnType<typeof vi.fn>;
 }
 
 function deferred<T>() {
@@ -181,7 +182,7 @@ function setSystemInfoResult(
       ]),
       prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
       startRuntime: catalogApi.startRuntime ?? vi.fn(),
-      listRuntimes: vi.fn().mockResolvedValue([]),
+      listRuntimes: catalogApi.listRuntimes ?? vi.fn().mockResolvedValue([]),
       attachRuntime: catalogApi.attachRuntime ?? vi.fn(),
       writeRuntime: vi.fn().mockResolvedValue(undefined),
       resizeRuntime: vi.fn().mockResolvedValue(undefined),
@@ -302,6 +303,107 @@ describe('App', () => {
       rows: 30
     });
     expect(startRuntime).toHaveBeenCalledWith(preview.launchToken);
+  });
+
+  it('recovers a lost runtime into a separate active terminal', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const session = readyCatalog.sessions[0]!;
+    const lostRuntime: RuntimeSummary = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ab0',
+      strategy: 'resume',
+      sessionId: session.id,
+      nativeSessionId: session.nativeId,
+      reconciliationState: 'not_required',
+      provider: 'codex',
+      workspaceId: session.workspaceId,
+      terminalProfileId: profile.id,
+      launchHash: 'd'.repeat(64),
+      state: 'runtime_lost',
+      pid: null,
+      createdAt: '2026-07-12T03:00:00.000Z',
+      startedAt: '2026-07-12T03:00:01.000Z',
+      endedAt: '2026-07-12T04:00:00.000Z',
+      exitCode: null,
+      errorCode: 'PTY_RUNTIME_LOST'
+    };
+    const preview: LaunchPreview = {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789ab1',
+      launchHash: 'e'.repeat(64),
+      strategy: 'resume',
+      sessionId: session.id,
+      provider: 'codex',
+      executablePath: 'C:\\tools\\codex.exe',
+      args: ['resume', session.nativeId],
+      command: 'codexp',
+      workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
+      environmentNames: ['PATH'],
+      terminalProfile: profile,
+      warnings: [],
+      createdAt: '2026-07-12T04:01:00.000Z',
+      expiresAt: '2026-07-12T04:06:00.000Z'
+    };
+    const recoveredRuntime: RuntimeSummary = {
+      ...lostRuntime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ab2',
+      state: 'running',
+      pid: 4321,
+      launchHash: preview.launchHash,
+      createdAt: preview.createdAt,
+      startedAt: preview.createdAt,
+      endedAt: null,
+      errorCode: null
+    };
+    const prepareLaunch = vi.fn().mockResolvedValue(preview);
+    const startRuntime = vi.fn().mockResolvedValue(recoveredRuntime);
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      listRuntimes: vi.fn().mockResolvedValue([lostRuntime]),
+      prepareLaunch,
+      startRuntime,
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime: recoveredRuntime,
+        snapshot: ''
+      })
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Recover' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Recover lost runtime'
+    });
+    expect(within(dialog).getByText(/cannot reattach/i)).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Prepare recovery' })
+    );
+    expect(await within(dialog).findByText('codexp')).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Resume saved session' })
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: 'Codex terminal' })
+    ).toBeInTheDocument();
+    expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'resume',
+      sessionId: session.id,
+      terminalProfileId: profile.id,
+      cols: 100,
+      rows: 30
+    });
+    expect(startRuntime).toHaveBeenCalledWith(preview.launchToken);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    expect(await screen.findByText(/1 lost runtime/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recover' })).toBeInTheDocument();
   });
 
   it('shows New session in the top command bar only on Home and Workspaces', async () => {

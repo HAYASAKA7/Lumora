@@ -27,6 +27,7 @@ import {
 } from './providers/ProviderSettings';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
+import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 
@@ -244,6 +245,8 @@ export default function App(): ReactNode {
   );
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [resumeSession, setResumeSession] = useState<SessionSummary | null>(null);
+  const [recoveryRuntime, setRecoveryRuntime] =
+    useState<RuntimeSummary | null>(null);
   const providerRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
@@ -492,6 +495,7 @@ export default function App(): ReactNode {
       setActiveRuntimeId(runtime.id);
       setNewSessionOpen(false);
       setResumeSession(null);
+      setRecoveryRuntime(null);
     },
     [updateRuntime]
   );
@@ -595,7 +599,11 @@ export default function App(): ReactNode {
             catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
               <button
                 className="refresh-button"
-                onClick={() => setNewSessionOpen(true)}
+                onClick={() => {
+                  setResumeSession(null);
+                  setRecoveryRuntime(null);
+                  setNewSessionOpen(true);
+                }}
                 type="button"
               >
                 New session
@@ -633,6 +641,11 @@ export default function App(): ReactNode {
             />
           ) : activeRoute.id === 'home' ? (
             <CatalogHomeSummary
+              onRecover={(runtime) => {
+                setNewSessionOpen(false);
+                setResumeSession(null);
+                setRecoveryRuntime(runtime);
+              }}
               providerSummary={providerSummary(providerStatus)}
               runtimes={runtimes}
               status={catalogStatus}
@@ -651,6 +664,7 @@ export default function App(): ReactNode {
               onRefresh={refreshCatalog}
               onResume={(session) => {
                 setNewSessionOpen(false);
+                setRecoveryRuntime(null);
                 setResumeSession(session);
               }}
               onSearchChange={setSessionSearch}
@@ -696,6 +710,19 @@ export default function App(): ReactNode {
           }
           session={resumeSession}
           workspace={resumeWorkspace}
+        />
+      ) : null}
+      {recoveryRuntime !== null && catalogStatus.state === 'ready' ? (
+        <RuntimeRecoveryDialog
+          onClose={() => setRecoveryRuntime(null)}
+          onStarted={handleRuntimeStarted}
+          profiles={terminalProfiles}
+          providerScan={
+            providerStatus.state === 'ready' ? providerStatus.scan : null
+          }
+          runtime={recoveryRuntime}
+          sessions={catalogStatus.snapshot.sessions}
+          workspaces={catalogStatus.snapshot.workspaces}
         />
       ) : null}
     </div>
