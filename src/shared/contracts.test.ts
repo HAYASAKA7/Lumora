@@ -456,31 +456,64 @@ describe('managed terminal contracts', () => {
       ...runtimeBase,
       strategy: 'new',
       sessionId: null,
-      nativeSessionId: null
-    })).toMatchObject({ strategy: 'new', sessionId: null });
+      nativeSessionId: null,
+      reconciliationState: 'pending'
+    })).toMatchObject({ strategy: 'new', reconciliationState: 'pending' });
     expect(RuntimeSummarySchema.safeParse({
       ...runtimeBase,
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
-      nativeSessionId: 'native-thread-1'
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'not_required'
     }).success).toBe(true);
     expect(RuntimeSummarySchema.safeParse({
       ...runtimeBase,
       strategy: 'resume',
       sessionId: null,
-      nativeSessionId: 'native-thread-1'
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'not_required'
     }).success).toBe(true);
     expect(RuntimeSummarySchema.safeParse({
       ...runtimeBase,
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
-      nativeSessionId: null
+      nativeSessionId: null,
+      reconciliationState: 'not_required'
     }).success).toBe(false);
     expect(RuntimeSummarySchema.safeParse({
       ...runtimeBase,
       strategy: 'new',
       sessionId: 'd'.repeat(64),
-      nativeSessionId: null
+      nativeSessionId: null,
+      reconciliationState: 'linked'
+    }).success).toBe(false);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'new',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'linked'
+    }).success).toBe(true);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'linked'
+    }).success).toBe(false);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'new',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'ambiguous'
+    }).success).toBe(false);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'resume',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'linked'
     }).success).toBe(false);
   });
 

@@ -106,7 +106,8 @@ describe('catalog migrations', () => {
       { version: 1 },
       { version: 2 },
       { version: 3 },
-      { version: 4 }
+      { version: 4 },
+      { version: 5 }
     ]);
     expect(
       database
@@ -122,6 +123,7 @@ describe('catalog migrations', () => {
         'session',
         'session_source',
         'provider_launch_config',
+        'runtime_reconciliation',
         'workspace'
       ])
     );
@@ -133,7 +135,8 @@ describe('catalog migrations', () => {
     expect(runtimeColumns).toEqual(expect.arrayContaining([
       'strategy',
       'session_id',
-      'native_session_id'
+      'native_session_id',
+      'reconciliation_state'
     ]));
 
     const timestamp = '2026-07-11T04:00:00.000Z';
@@ -175,13 +178,14 @@ describe('catalog migrations', () => {
 
     expect(
       database.prepare(
-        `SELECT strategy, session_id, native_session_id
+        `SELECT strategy, session_id, native_session_id, reconciliation_state
          FROM runtime_instance WHERE id = ?`
       ).get(runtimeId)
     ).toEqual({
       strategy: 'new',
       session_id: null,
-      native_session_id: null
+      native_session_id: null,
+      reconciliation_state: 'unresolved'
     });
   });
 

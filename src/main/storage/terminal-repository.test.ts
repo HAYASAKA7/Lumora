@@ -176,6 +176,7 @@ describe('TerminalRepository', () => {
       strategy: 'new',
       sessionId: null,
       nativeSessionId: null,
+      reconciliationState: 'pending',
       provider: 'codex',
       workspaceId,
       terminalProfileId: profileId,
@@ -196,6 +197,7 @@ describe('TerminalRepository', () => {
     expect(repository.listRuntimes()).toEqual([
       {
         ...runtime,
+        reconciliationState: 'unresolved',
         state: 'runtime_lost',
         pid: null,
         endedAt: '2026-07-11T05:00:00.000Z',
@@ -220,6 +222,7 @@ describe('TerminalRepository', () => {
       strategy: 'resume',
       sessionId,
       nativeSessionId: 'native-thread',
+      reconciliationState: 'not_required',
       provider: 'codex',
       workspaceId,
       terminalProfileId: profileId,
@@ -259,5 +262,92 @@ describe('TerminalRepository', () => {
         nativeSessionId: 'native-thread'
       })
     ]);
+  });
+
+  it('persists a launch baseline and applies one controlled reconciliation result', () => {
+    const profileId = 'b'.repeat(64);
+    const knownSessionId = 'c'.repeat(64);
+    const newSessionId = 'd'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abe';
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    const insertSession = database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', ?, ?, ?, ?, ?, ?, 'active', 'current')`
+    );
+    insertSession.run(
+      knownSessionId,
+      'known-native',
+      workspaceId,
+      'Known',
+      'known',
+      timestamp,
+      timestamp
+    );
+    insertSession.run(
+      newSessionId,
+      'new-native',
+      workspaceId,
+      'New',
+      'new',
+      timestamp,
+      timestamp
+    );
+    const runtime: RuntimeSummary = {
+      id: runtimeId,
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running',
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+
+    repository.saveRuntime(runtime, ['known-native', 'known-native']);
+
+    expect(
+      database
+        .prepare(
+          `SELECT baseline_native_ids_json
+           FROM runtime_reconciliation WHERE runtime_id = ?`
+        )
+        .get(runtimeId)
+    ).toEqual({ baseline_native_ids_json: '["known-native"]' });
+    expect(repository.listCurrentSessionIdentities('codex', workspaceId)).toEqual([
+      { id: knownSessionId, nativeId: 'known-native' },
+      { id: newSessionId, nativeId: 'new-native' }
+    ]);
+
+    expect(
+      repository.applyRuntimeReconciliation(runtimeId, {
+        state: 'linked',
+        sessionId: newSessionId,
+        nativeSessionId: 'new-native'
+      })
+    ).toMatchObject({
+      reconciliationState: 'linked',
+      sessionId: newSessionId,
+      nativeSessionId: 'new-native'
+    });
+    expect(
+      repository.applyRuntimeReconciliation(runtimeId, { state: 'ambiguous' })
+    ).toBeNull();
+
+    database.prepare('DELETE FROM session WHERE id = ?').run(newSessionId);
+    expect(repository.listRuntimes()[0]).toMatchObject({
+      reconciliationState: 'linked',
+      sessionId: null,
+      nativeSessionId: 'new-native'
+    });
   });
 });

@@ -8,6 +8,7 @@ import {
   type ProviderId,
   type ProviderLaunchConfig,
   type ProviderLaunchConfigInput,
+  type RuntimeReconciliationState,
   type RuntimeSummary,
   type SessionSummary,
   type TerminalProfile
@@ -49,6 +50,7 @@ interface RuntimeRow {
   strategy: RuntimeSummary['strategy'];
   session_id: string | null;
   native_session_id: string | null;
+  reconciliation_state: RuntimeReconciliationState;
   provider: RuntimeSummary['provider'];
   workspace_id: string;
   terminal_profile_id: string;
@@ -61,6 +63,19 @@ interface RuntimeRow {
   exit_code: number | null;
   error_code: RuntimeSummary['errorCode'];
 }
+
+export interface SessionIdentity {
+  id: string;
+  nativeId: string;
+}
+
+export type RuntimeReconciliationResult =
+  | {
+      state: 'linked';
+      sessionId: string;
+      nativeSessionId: string;
+    }
+  | { state: 'ambiguous' | 'unresolved' };
 
 export interface WorkspaceLaunchInfo {
   id: string;
@@ -100,6 +115,7 @@ function rowToRuntime(row: RuntimeRow): RuntimeSummary {
     strategy: row.strategy,
     sessionId: row.session_id,
     nativeSessionId: row.native_session_id,
+    reconciliationState: row.reconciliation_state,
     provider: row.provider,
     workspaceId: row.workspace_id,
     terminalProfileId: row.terminal_profile_id,
@@ -275,6 +291,25 @@ export class TerminalRepository {
         };
   }
 
+  listCurrentSessionIdentities(
+    provider: ProviderId,
+    workspaceId: string
+  ): SessionIdentity[] {
+    return (
+      this.database
+        .prepare(
+          `SELECT id, native_id
+           FROM session
+           WHERE provider = ? AND workspace_id = ? AND source_freshness = 'current'
+           ORDER BY native_id, id`
+        )
+        .all(provider, workspaceId) as unknown as Array<{
+        id: string;
+        native_id: string;
+      }>
+    ).map((row) => ({ id: row.id, nativeId: row.native_id }));
+  }
+
   listProviderLaunchConfigs(): ProviderLaunchConfig[] {
     const rows = this.database
       .prepare(
@@ -321,15 +356,34 @@ export class TerminalRepository {
     return row?.command ?? null;
   }
 
-  saveRuntime(value: RuntimeSummary): void {
+  saveRuntime(
+    value: RuntimeSummary,
+    baselineNativeSessionIds?: readonly string[]
+  ): void {
     const runtime = RuntimeSummarySchema.parse(value);
-    this.database
-      .prepare(
-        `INSERT INTO runtime_instance (
-          id, strategy, session_id, native_session_id, provider, workspace_id,
-          terminal_profile_id, launch_hash, state, pid, created_at, started_at,
-          ended_at, exit_code, error_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    let baseline: string[] | undefined;
+    if (baselineNativeSessionIds !== undefined) {
+      if (
+        runtime.strategy !== 'new' ||
+        runtime.reconciliationState !== 'pending'
+      ) {
+        throw new Error('Only pending new runtimes can persist a baseline.');
+      }
+      if (baselineNativeSessionIds.length > 25_000) {
+        throw new Error('Runtime reconciliation baselines are too large.');
+      }
+      const normalized = baselineNativeSessionIds.map((id) => id.trim());
+      if (normalized.some((id) => id.length === 0 || id.length > 256)) {
+        throw new Error('Runtime reconciliation baselines contain an invalid ID.');
+      }
+      baseline = [...new Set(normalized)].sort();
+    }
+    const save = this.database.prepare(
+      `INSERT INTO runtime_instance (
+          id, strategy, session_id, native_session_id, reconciliation_state,
+          provider, workspace_id, terminal_profile_id, launch_hash, state, pid,
+          created_at, started_at, ended_at, exit_code, error_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           state = excluded.state,
           pid = excluded.pid,
@@ -337,12 +391,14 @@ export class TerminalRepository {
           ended_at = excluded.ended_at,
           exit_code = excluded.exit_code,
           error_code = excluded.error_code`
-      )
-      .run(
+    );
+    const runSave = () =>
+      save.run(
         runtime.id,
         runtime.strategy,
         runtime.sessionId,
         runtime.nativeSessionId,
+        runtime.reconciliationState,
         runtime.provider,
         runtime.workspaceId,
         runtime.terminalProfileId,
@@ -355,13 +411,105 @@ export class TerminalRepository {
         runtime.exitCode,
         runtime.errorCode
       );
+    if (baseline === undefined) {
+      runSave();
+      return;
+    }
+
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      runSave();
+      this.database
+        .prepare(
+          `INSERT INTO runtime_reconciliation (
+            runtime_id, baseline_native_ids_json
+          ) VALUES (?, ?)
+          ON CONFLICT(runtime_id) DO NOTHING`
+        )
+        .run(runtime.id, JSON.stringify(baseline));
+      this.database.exec('COMMIT');
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  applyRuntimeReconciliation(
+    runtimeId: string,
+    result: RuntimeReconciliationResult
+  ): RuntimeSummary | null {
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const current = this.database
+        .prepare(
+          `SELECT id, strategy, session_id, native_session_id,
+            reconciliation_state, provider, workspace_id, terminal_profile_id,
+            launch_hash, state, pid, created_at, started_at, ended_at,
+            exit_code, error_code
+           FROM runtime_instance WHERE id = ?`
+        )
+        .get(runtimeId) as RuntimeRow | undefined;
+      if (
+        current === undefined ||
+        current.strategy !== 'new' ||
+        current.reconciliation_state !== 'pending'
+      ) {
+        this.database.exec('ROLLBACK');
+        return null;
+      }
+
+      let sessionId: string | null = null;
+      let nativeSessionId: string | null = null;
+      if (result.state === 'linked') {
+        const session = this.getSession(result.sessionId);
+        if (
+          session === null ||
+          session.sourceFreshness !== 'current' ||
+          session.provider !== current.provider ||
+          session.workspaceId !== current.workspace_id ||
+          session.nativeId !== result.nativeSessionId
+        ) {
+          this.database.exec('ROLLBACK');
+          return null;
+        }
+        sessionId = result.sessionId;
+        nativeSessionId = result.nativeSessionId;
+      }
+
+      const update = this.database
+        .prepare(
+          `UPDATE runtime_instance
+           SET reconciliation_state = ?, session_id = ?, native_session_id = ?
+           WHERE id = ? AND strategy = 'new' AND reconciliation_state = 'pending'`
+        )
+        .run(result.state, sessionId, nativeSessionId, runtimeId);
+      if (update.changes !== 1) {
+        this.database.exec('ROLLBACK');
+        return null;
+      }
+      const updated = this.database
+        .prepare(
+          `SELECT id, strategy, session_id, native_session_id,
+            reconciliation_state, provider, workspace_id, terminal_profile_id,
+            launch_hash, state, pid, created_at, started_at, ended_at,
+            exit_code, error_code
+           FROM runtime_instance WHERE id = ?`
+        )
+        .get(runtimeId) as unknown as RuntimeRow;
+      this.database.exec('COMMIT');
+      return rowToRuntime(updated);
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   listRuntimes(): RuntimeSummary[] {
     const rows = this.database
       .prepare(
-        `SELECT id, strategy, session_id, native_session_id, provider,
-          workspace_id, terminal_profile_id, launch_hash, state, pid,
+        `SELECT id, strategy, session_id, native_session_id,
+          reconciliation_state, provider, workspace_id, terminal_profile_id,
+          launch_hash, state, pid,
           created_at, started_at, ended_at, exit_code, error_code
          FROM runtime_instance ORDER BY created_at DESC, id`
       )
@@ -370,13 +518,27 @@ export class TerminalRepository {
   }
 
   markLiveRuntimesLost(timestamp: string): void {
-    this.database
-      .prepare(
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      this.database
+        .prepare(
         `UPDATE runtime_instance
          SET state = 'runtime_lost', pid = NULL, ended_at = ?,
           error_code = 'PTY_RUNTIME_LOST'
          WHERE state IN ('launching', 'running')`
-      )
-      .run(normalizeTimestamp(timestamp));
+        )
+        .run(normalizeTimestamp(timestamp));
+      this.database
+        .prepare(
+          `UPDATE runtime_instance
+           SET reconciliation_state = 'unresolved'
+           WHERE reconciliation_state = 'pending'`
+        )
+        .run();
+      this.database.exec('COMMIT');
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
   }
 }

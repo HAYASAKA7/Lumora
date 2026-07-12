@@ -123,6 +123,26 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       'ALTER TABLE runtime_instance ADD COLUMN native_session_id TEXT',
       'CREATE INDEX runtime_instance_session_idx ON runtime_instance (session_id)'
     ]
+  },
+  {
+    version: 5,
+    statements: [
+      `ALTER TABLE runtime_instance ADD COLUMN reconciliation_state TEXT NOT NULL
+        DEFAULT 'unresolved' CHECK (reconciliation_state IN (
+          'not_required', 'pending', 'linked', 'ambiguous', 'unresolved'
+        ))`,
+      `UPDATE runtime_instance SET reconciliation_state = CASE
+        WHEN strategy = 'resume' THEN 'not_required'
+        WHEN native_session_id IS NOT NULL THEN 'linked'
+        ELSE 'unresolved'
+      END`,
+      `CREATE TABLE runtime_reconciliation (
+        runtime_id TEXT PRIMARY KEY REFERENCES runtime_instance(id) ON DELETE CASCADE,
+        baseline_native_ids_json TEXT NOT NULL CHECK (
+          json_valid(baseline_native_ids_json)
+        )
+      ) STRICT`
+    ]
   }
 ];
 

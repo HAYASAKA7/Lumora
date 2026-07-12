@@ -306,6 +306,13 @@ export const RuntimeErrorCodeSchema = z.enum([
   'PTY_RUNTIME_LOST'
 ]);
 export const RuntimeStrategySchema = z.enum(['new', 'resume']);
+export const RuntimeReconciliationStateSchema = z.enum([
+  'not_required',
+  'pending',
+  'linked',
+  'ambiguous',
+  'unresolved'
+]);
 const RuntimeIdSchema = z.uuid();
 
 export const RuntimeSummarySchema = z.strictObject({
@@ -313,6 +320,7 @@ export const RuntimeSummarySchema = z.strictObject({
   strategy: RuntimeStrategySchema,
   sessionId: StableIdSchema.nullable(),
   nativeSessionId: z.string().trim().min(1).max(256).nullable(),
+  reconciliationState: RuntimeReconciliationStateSchema,
   provider: ProviderIdSchema,
   workspaceId: StableIdSchema,
   terminalProfileId: StableIdSchema,
@@ -337,6 +345,48 @@ export const RuntimeSummarySchema = z.strictObject({
       code: 'custom',
       path: ['nativeSessionId'],
       message: 'A resume runtime requires its native session identity.'
+    });
+  }
+  if (
+    runtime.strategy === 'resume' &&
+    runtime.reconciliationState !== 'not_required'
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['reconciliationState'],
+      message: 'A resume runtime does not require identity reconciliation.'
+    });
+  }
+  if (
+    runtime.strategy === 'new' &&
+    runtime.reconciliationState === 'not_required'
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['reconciliationState'],
+      message: 'A new runtime requires an explicit reconciliation result.'
+    });
+  }
+  if (
+    runtime.strategy === 'new' &&
+    runtime.reconciliationState === 'linked' &&
+    runtime.nativeSessionId === null
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['nativeSessionId'],
+      message: 'A linked runtime requires its native session identity.'
+    });
+  }
+  if (
+    runtime.strategy === 'new' &&
+    runtime.reconciliationState !== 'linked' &&
+    (runtime.sessionId !== null || runtime.nativeSessionId !== null)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['reconciliationState'],
+      message: 'An unlinked new runtime cannot carry session identity.'
     });
   }
 });
@@ -378,6 +428,9 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export type RuntimeState = z.infer<typeof RuntimeStateSchema>;
+export type RuntimeReconciliationState = z.infer<
+  typeof RuntimeReconciliationStateSchema
+>;
 export type RuntimeErrorCode = z.infer<typeof RuntimeErrorCodeSchema>;
 export type RuntimeStrategy = z.infer<typeof RuntimeStrategySchema>;
 export type RuntimeSummary = z.infer<typeof RuntimeSummarySchema>;
