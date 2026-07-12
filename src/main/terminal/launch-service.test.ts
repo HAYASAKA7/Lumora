@@ -55,6 +55,7 @@ function harness(overrides: {
   now?: Date;
   env?: Readonly<Record<string, string | undefined>>;
   command?: string | null;
+  baseline?: readonly string[] | Error;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentSession = overrides.session === undefined ? session : overrides.session;
@@ -79,6 +80,10 @@ function harness(overrides: {
     repository,
     scanProviders: vi.fn(async () => overrides.scan ?? scan),
     isExecutablePath: vi.fn(async () => true),
+    captureSessionBaseline: vi.fn(async () => {
+      if (overrides.baseline instanceof Error) throw overrides.baseline;
+      return overrides.baseline ?? [];
+    }),
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
     clock: () => now,
@@ -171,6 +176,47 @@ describe('LaunchService', () => {
       strategy: 'resume',
       command: 'codexp',
       args: ['resume', nativeId]
+    });
+  });
+
+  it('captures a normalized pre-launch baseline only for new sessions', async () => {
+    const { service } = harness({ baseline: ['native-b', 'native-a', 'native-a'] });
+    const preview = await service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      reconciliationBaselineNativeIds: ['native-a', 'native-b']
+    });
+
+    const failed = harness({ baseline: new Error('scan failed') }).service;
+    const failedPreview = await failed.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    await expect(failed.consume(failedPreview.launchToken)).resolves.toMatchObject({
+      reconciliationBaselineNativeIds: null
+    });
+
+    const resume = harness({ baseline: new Error('must not run') }).service;
+    const resumePreview = await resume.prepare({
+      strategy: 'resume',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    await expect(resume.consume(resumePreview.launchToken)).resolves.toMatchObject({
+      reconciliationBaselineNativeIds: null
     });
   });
 

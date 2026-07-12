@@ -27,6 +27,10 @@ interface LaunchServiceDependencies {
   repository: LaunchRepository;
   scanProviders(): Promise<ProviderScanResult>;
   isExecutablePath(path: string): Promise<boolean>;
+  captureSessionBaseline(
+    provider: ProviderId,
+    workspaceId: string
+  ): Promise<readonly string[]>;
   platform: SystemInfo['platform'];
   env: Environment;
   clock?: () => Date;
@@ -37,6 +41,7 @@ export interface LaunchSpec {
   strategy: 'new' | 'resume';
   sessionId: string | null;
   nativeSessionId: string | null;
+  reconciliationBaselineNativeIds: string[] | null;
   provider: ProviderId;
   workspaceId: string;
   executablePath: string;
@@ -110,6 +115,17 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
     .digest('hex');
 }
 
+function normalizeSessionBaseline(values: readonly string[]): string[] {
+  if (values.length > 25_000) {
+    throw new Error('The session baseline is too large.');
+  }
+  const normalized = values.map((value) => value.trim());
+  if (normalized.some((value) => value.length === 0 || value.length > 256)) {
+    throw new Error('The session baseline contains an invalid identity.');
+  }
+  return [...new Set(normalized)].sort();
+}
+
 export class LaunchService {
   private readonly prepared = new Map<string, PreparedLaunch>();
   private readonly clock: () => Date;
@@ -173,11 +189,22 @@ export class LaunchService {
     const command = this.dependencies.repository.getProviderLaunchCommand(
       provider
     );
+    let reconciliationBaselineNativeIds: string[] | null = null;
+    if (request.strategy === 'new') {
+      try {
+        reconciliationBaselineNativeIds = normalizeSessionBaseline(
+          await this.dependencies.captureSessionBaseline(provider, workspace.id)
+        );
+      } catch {
+        reconciliationBaselineNativeIds = null;
+      }
+    }
     const createdAt = this.clock();
     const partial = {
       strategy: request.strategy,
       sessionId,
       nativeSessionId,
+      reconciliationBaselineNativeIds,
       provider,
       workspaceId: workspace.id,
       executablePath: installation.executablePath,

@@ -25,6 +25,7 @@ import { findExecutable, isExecutableFile } from '../platform/executable-locator
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
 import { LaunchService } from './launch-service';
+import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
 import { detectTerminalProfiles } from './profile-detector';
 import { RuntimeHost, type PtySpawnOptions, type PtyProcess } from './runtime-host';
@@ -36,6 +37,7 @@ interface CreateTerminalRuntimeOptions {
   platform: SystemInfo['platform'];
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
+  refreshCatalog?(): Promise<unknown>;
   clock?: () => Date;
   createProfileId?: () => string;
   spawn?: (options: PtySpawnOptions) => PtyProcess;
@@ -66,6 +68,7 @@ export async function createTerminalRuntime({
   platform,
   env,
   scanProviders,
+  refreshCatalog,
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
   spawn = spawnPty
@@ -94,14 +97,40 @@ export async function createTerminalRuntime({
     repository,
     scanProviders,
     isExecutablePath: (path) => isExecutableFile(path, platform),
+    captureSessionBaseline: async (provider, workspaceId) => {
+      if (refreshCatalog === undefined) {
+        throw new Error('Catalog refresh is unavailable.');
+      }
+      await refreshCatalog();
+      return repository
+        .listCurrentSessionIdentities(provider, workspaceId)
+        .map((session) => session.nativeId);
+    },
     platform,
     env,
     clock
   });
-  const host = new RuntimeHost({
+  let host!: RuntimeHost;
+  const reconciler = new NewSessionReconciler({
+    refreshCatalog: async () => {
+      if (refreshCatalog === undefined) {
+        throw new Error('Catalog refresh is unavailable.');
+      }
+      await refreshCatalog();
+    },
+    listCurrentSessionIdentities: (provider, workspaceId) =>
+      repository.listCurrentSessionIdentities(provider, workspaceId),
+    applyResult: (runtimeId, result) => {
+      host.applyReconciliation(runtimeId, result);
+    }
+  });
+  host = new RuntimeHost({
     repository,
     consumeLaunch: (token) => launchService.consume(token),
     spawn,
+    startReconciliation: (request) => {
+      void reconciler.start(request);
+    },
     platform,
     clock
   });
@@ -164,12 +193,14 @@ export async function createTerminalRuntime({
     subscribe(listener) {
       return host.subscribe(listener);
     },
-    shutdown() {
-      return host.shutdown();
+    async shutdown() {
+      await reconciler.shutdown();
+      await host.shutdown();
     },
     close() {
       if (closed) return;
       closed = true;
+      void reconciler.shutdown();
       database.close();
     }
   };

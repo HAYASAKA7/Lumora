@@ -14,7 +14,11 @@ import {
   type SystemInfo
 } from '../../shared/contracts';
 import { resolvePtyInvocation } from '../platform/pty-invocation';
+import type {
+  RuntimeReconciliationResult
+} from '../storage/terminal-repository';
 import type { LaunchSpec } from './launch-service';
+import type { ReconciliationRequest } from './new-session-reconciler';
 
 const MAX_EVENT_CHARS = 65_536;
 const MAX_SNAPSHOT_CHARS = 1_048_576;
@@ -42,14 +46,22 @@ export interface PtySpawnOptions {
 }
 
 interface RuntimeRepository {
-  saveRuntime(runtime: RuntimeSummary): void;
+  saveRuntime(
+    runtime: RuntimeSummary,
+    baselineNativeSessionIds?: readonly string[]
+  ): void;
   listRuntimes(): RuntimeSummary[];
+  applyRuntimeReconciliation(
+    runtimeId: string,
+    result: RuntimeReconciliationResult
+  ): RuntimeSummary | null;
 }
 
 interface RuntimeHostDependencies {
   repository: RuntimeRepository;
   consumeLaunch(token: string): Promise<LaunchSpec>;
   spawn(options: PtySpawnOptions): PtyProcess;
+  startReconciliation(request: ReconciliationRequest): void;
   platform: SystemInfo['platform'];
   clock?: () => Date;
   createRuntimeId?: () => string;
@@ -111,6 +123,12 @@ export class RuntimeHost {
       strategy: spec.strategy,
       sessionId: spec.sessionId,
       nativeSessionId: spec.nativeSessionId,
+      reconciliationState:
+        spec.strategy === 'resume'
+          ? 'not_required'
+          : spec.reconciliationBaselineNativeIds === null
+            ? 'unresolved'
+            : 'pending',
       provider: spec.provider,
       workspaceId: spec.workspaceId,
       terminalProfileId: spec.terminalProfile.id,
@@ -123,7 +141,12 @@ export class RuntimeHost {
       exitCode: null,
       errorCode: null
     });
-    this.persistAndEmit(launching);
+    this.persistAndEmit(
+      launching,
+      spec.strategy === 'new' && spec.reconciliationBaselineNativeIds !== null
+        ? spec.reconciliationBaselineNativeIds
+        : undefined
+    );
 
     let process: PtyProcess;
     try {
@@ -142,8 +165,15 @@ export class RuntimeHost {
         rows: spec.rows
       });
     } catch {
+      const failedBase =
+        launching.reconciliationState === 'pending'
+          ? (this.dependencies.repository.applyRuntimeReconciliation(
+              runtimeId,
+              { state: 'unresolved' }
+            ) ?? { ...launching, reconciliationState: 'unresolved' as const })
+          : launching;
       const failed = RuntimeSummarySchema.parse({
-        ...launching,
+        ...failedBase,
         state: 'launch_failed',
         endedAt: this.clock().toISOString(),
         errorCode: 'PTY_SPAWN_FAILED'
@@ -170,7 +200,37 @@ export class RuntimeHost {
       process.onExit(({ exitCode }) => this.handleExit(runtimeId, exitCode))
     );
     this.persistAndEmit(running);
+    if (
+      running.reconciliationState === 'pending' &&
+      spec.reconciliationBaselineNativeIds !== null
+    ) {
+      try {
+        this.dependencies.startReconciliation({
+          runtimeId,
+          provider: spec.provider,
+          workspaceId: spec.workspaceId,
+          baselineNativeIds: spec.reconciliationBaselineNativeIds
+        });
+      } catch {
+        this.applyReconciliation(runtimeId, { state: 'unresolved' });
+      }
+    }
     return running;
+  }
+
+  applyReconciliation(
+    runtimeId: string,
+    result: RuntimeReconciliationResult
+  ): RuntimeSummary | null {
+    const updated = this.dependencies.repository.applyRuntimeReconciliation(
+      runtimeId,
+      result
+    );
+    if (updated === null) return null;
+    const live = this.live.get(runtimeId);
+    if (live !== undefined) live.runtime = updated;
+    this.emit({ type: 'state', runtimeId, runtime: updated });
+    return updated;
   }
 
   list(): RuntimeSummary[] {
@@ -277,8 +337,15 @@ export class RuntimeHost {
     this.persistAndEmit(runtime);
   }
 
-  private persistAndEmit(runtime: RuntimeSummary): void {
-    this.dependencies.repository.saveRuntime(runtime);
+  private persistAndEmit(
+    runtime: RuntimeSummary,
+    baselineNativeSessionIds?: readonly string[]
+  ): void {
+    if (baselineNativeSessionIds === undefined) {
+      this.dependencies.repository.saveRuntime(runtime);
+    } else {
+      this.dependencies.repository.saveRuntime(runtime, baselineNativeSessionIds);
+    }
     this.emit({ type: 'state', runtimeId: runtime.id, runtime });
   }
 

@@ -114,7 +114,8 @@ void app.whenReady().then(async () => {
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     platform,
     env: process.env,
-    scanProviders: () => providerRegistry.scan()
+    scanProviders: () => providerRegistry.scan(),
+    refreshCatalog: () => catalogRuntime!.service.refreshCatalog()
   });
   registerSystemIpc({
     ipc: ipcMain,

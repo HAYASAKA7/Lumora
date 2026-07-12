@@ -13,6 +13,7 @@ const launchSpec: LaunchSpec = {
   strategy: 'new',
   sessionId: null,
   nativeSessionId: null,
+  reconciliationBaselineNativeIds: ['known-native'],
   provider: 'codex',
   workspaceId: 'a'.repeat(64),
   executablePath: '/usr/local/bin/codex',
@@ -88,8 +89,25 @@ function harness(options: {
       if (index === -1) stored.push(runtime);
       else stored[index] = runtime;
     }),
-    listRuntimes: vi.fn(() => [...stored])
+    listRuntimes: vi.fn(() => [...stored]),
+    applyRuntimeReconciliation: vi.fn((runtimeId, result) => {
+      const index = stored.findIndex((item) => item.id === runtimeId);
+      const current = stored[index];
+      if (current === undefined || current.reconciliationState !== 'pending') {
+        return null;
+      }
+      const updated: RuntimeSummary = {
+        ...current,
+        reconciliationState: result.state,
+        sessionId: result.state === 'linked' ? result.sessionId : null,
+        nativeSessionId:
+          result.state === 'linked' ? result.nativeSessionId : null
+      };
+      stored[index] = updated;
+      return updated;
+    })
   };
+  const startReconciliation = vi.fn();
   const spawn = vi.fn((_options: PtySpawnOptions) => {
     if (options.spawnError !== undefined) throw options.spawnError;
     return pty;
@@ -98,17 +116,18 @@ function harness(options: {
     repository,
     consumeLaunch: vi.fn(async () => options.launch ?? launchSpec),
     spawn,
+    startReconciliation,
     platform: options.platform ?? 'linux',
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc',
     wait: vi.fn(async () => undefined)
   });
-  return { host, pty, repository, spawn };
+  return { host, pty, repository, spawn, startReconciliation };
 }
 
 describe('RuntimeHost', () => {
   it('persists launch transitions and forwards input and resize', async () => {
-    const { host, pty, repository, spawn } = harness();
+    const { host, pty, repository, spawn, startReconciliation } = harness();
     const events: RuntimeEvent[] = [];
     host.subscribe((event) => events.push(event));
 
@@ -118,7 +137,22 @@ describe('RuntimeHost', () => {
     host.write({ runtimeId: runtime.id, data: 'hello' });
     host.resize({ runtimeId: runtime.id, cols: 120, rows: 36 });
 
-    expect(runtime).toMatchObject({ state: 'running', pid: 4321 });
+    expect(runtime).toMatchObject({
+      state: 'running',
+      pid: 4321,
+      reconciliationState: 'pending'
+    });
+    expect(repository.saveRuntime).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ reconciliationState: 'pending' }),
+      ['known-native']
+    );
+    expect(startReconciliation).toHaveBeenCalledWith({
+      runtimeId: runtime.id,
+      provider: 'codex',
+      workspaceId: launchSpec.workspaceId,
+      baselineNativeIds: ['known-native']
+    });
     expect(spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         executablePath: '/bin/bash',
@@ -140,6 +174,7 @@ describe('RuntimeHost', () => {
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
       nativeSessionId: 'native-thread-1',
+      reconciliationBaselineNativeIds: null,
       args: ['resume', 'native-thread-1']
     };
     const { host, repository } = harness({ launch: resumeLaunch });
@@ -152,6 +187,7 @@ describe('RuntimeHost', () => {
         strategy: 'resume',
         sessionId: 'd'.repeat(64),
         nativeSessionId: 'native-thread-1',
+        reconciliationState: 'not_required',
         state: 'launching'
       })
     );
@@ -160,9 +196,38 @@ describe('RuntimeHost', () => {
         strategy: 'resume',
         sessionId: 'd'.repeat(64),
         nativeSessionId: 'native-thread-1',
+        reconciliationState: 'not_required',
         state: 'running'
       })
     );
+  });
+
+  it('applies a unique reconciliation result to live and durable state', async () => {
+    const { host, repository } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    const linked = host.applyReconciliation(runtime.id, {
+      state: 'linked',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1'
+    });
+
+    expect(linked).toMatchObject({
+      reconciliationState: 'linked',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1'
+    });
+    expect(host.attach(runtime.id).runtime).toEqual(linked);
+    expect(repository.applyRuntimeReconciliation).toHaveBeenCalledWith(
+      runtime.id,
+      expect.objectContaining({ state: 'linked' })
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'state',
+      runtime: { reconciliationState: 'linked' }
+    });
   });
 
   it('bounds output events and the attach snapshot', async () => {

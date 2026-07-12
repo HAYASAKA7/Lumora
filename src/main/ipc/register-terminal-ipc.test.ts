@@ -14,6 +14,7 @@ const runtime = {
   strategy: 'new' as const,
   sessionId: null,
   nativeSessionId: null,
+  reconciliationState: 'pending' as const,
   provider: 'codex' as const,
   workspaceId: 'a'.repeat(64),
   terminalProfileId: 'b'.repeat(64),
