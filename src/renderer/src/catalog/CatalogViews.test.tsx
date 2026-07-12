@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   CatalogSnapshot,
   ProviderScanResult,
+  RuntimeSummary,
   TerminalProfile
 } from '../../../shared/contracts';
 import {
@@ -320,5 +321,56 @@ describe('CatalogHomeSummary', () => {
     expect(
       screen.getByText('Native Codex and Claude Code terminals owned by Lumora')
     ).toBeInTheDocument();
+  });
+
+  it('combines lost runtimes with diagnostics and offers three recent recoveries', () => {
+    const diagnostic = {
+      code: 'CATALOG_SOURCE_INVALID' as const,
+      provider: 'claude' as const,
+      affectedCount: 1,
+      message: 'One source is invalid.',
+      recovery: 'Refresh the catalog.',
+      retryable: true,
+      scannedAt: '2026-07-12T04:00:00.000Z'
+    };
+    const lost = Array.from({ length: 4 }, (_, index): RuntimeSummary => ({
+      id: `0198f8b6-18f3-7ca0-9f0f-123456789ab${index}`,
+      strategy: index === 0 ? 'resume' : 'new',
+      sessionId: index === 0 ? catalogSnapshot.sessions[0]!.id : null,
+      nativeSessionId: index === 0 ? catalogSnapshot.sessions[0]!.nativeId : null,
+      reconciliationState: index === 0 ? 'not_required' : 'unresolved',
+      provider: index % 2 === 0 ? 'codex' : 'claude',
+      workspaceId: 'a'.repeat(64),
+      terminalProfileId: terminalProfile.id,
+      launchHash: String(index).repeat(64),
+      state: 'runtime_lost',
+      pid: null,
+      createdAt: `2026-07-12T0${4 - index}:00:00.000Z`,
+      startedAt: `2026-07-12T0${4 - index}:00:01.000Z`,
+      endedAt: '2026-07-12T05:00:00.000Z',
+      exitCode: null,
+      errorCode: 'PTY_RUNTIME_LOST'
+    }));
+    const onRecover = vi.fn();
+
+    render(
+      <CatalogHomeSummary
+        onRecover={onRecover}
+        runtimes={lost}
+        status={{
+          state: 'ready',
+          snapshot: { ...catalogSnapshot, diagnostics: [diagnostic] }
+        }}
+      />
+    );
+
+    expect(screen.getByText('5 items need attention')).toBeInTheDocument();
+    expect(screen.getByText('1 catalog issue · 4 lost runtimes')).toBeInTheDocument();
+    expect(screen.getByText('Resume saved session')).toBeInTheDocument();
+    expect(screen.getAllByText('Restart as new session')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Recover' })).toHaveLength(3);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Recover' })[0]!);
+    expect(onRecover).toHaveBeenCalledWith(lost[0]);
   });
 });

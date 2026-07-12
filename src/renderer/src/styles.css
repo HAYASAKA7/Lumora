@@ -1110,6 +1110,35 @@ button {
   font-size: 0.72rem;
 }
 
+.runtime-recovery-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runtime-recovery-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.runtime-recovery-message {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runtime-recovery-message strong,
+.runtime-recovery-message small {
+  overflow-wrap: anywhere;
+}
+
 .status-bar {
   display: flex;
   min-width: 0;

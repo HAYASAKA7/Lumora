@@ -8,6 +8,7 @@ import type {
   TerminalProfile,
   RuntimeSummary
 } from '../../../shared/contracts';
+import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
 
 export type CatalogViewStatus =
   | { state: 'loading' }
@@ -333,11 +334,13 @@ export function SessionsView({
 export function CatalogHomeSummary({
   status,
   providerSummary,
-  runtimes = []
+  runtimes = [],
+  onRecover
 }: {
   status: CatalogViewStatus;
   providerSummary?: string;
   runtimes?: readonly RuntimeSummary[];
+  onRecover?(runtime: RuntimeSummary): void;
 }): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -361,6 +364,10 @@ export function CatalogHomeSummary({
   const liveRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
+  const lostRuntimes = runtimes.filter(
+    (runtime) => runtime.state === 'runtime_lost'
+  );
+  const attentionCount = snapshot.diagnostics.length + lostRuntimes.length;
   return (
     <div className="dashboard-grid" aria-label="Workspace overview">
       <article className="dashboard-card catalog-metric-card">
@@ -380,12 +387,54 @@ export function CatalogHomeSummary({
         <p className="card-label">Diagnostics</p>
         <h2>Needs attention</h2>
         <strong className="metric-value">
-          {snapshot.diagnostics.length} catalog{' '}
-          {snapshot.diagnostics.length === 1 ? 'issue' : 'issues'}
+          {lostRuntimes.length === 0
+            ? `${snapshot.diagnostics.length} catalog ${
+                snapshot.diagnostics.length === 1 ? 'issue' : 'issues'
+              }`
+            : `${attentionCount} ${
+                attentionCount === 1 ? 'item needs' : 'items need'
+              } attention`}
         </strong>
         <p className="card-description">
-          Provider discovery problems remain visible without hiding healthy data.
+          {lostRuntimes.length === 0
+            ? 'Provider discovery problems remain visible without hiding healthy data.'
+            : `${snapshot.diagnostics.length} catalog ${
+                snapshot.diagnostics.length === 1 ? 'issue' : 'issues'
+              } · ${lostRuntimes.length} lost ${
+                lostRuntimes.length === 1 ? 'runtime' : 'runtimes'
+              }`}
         </p>
+        {lostRuntimes.length === 0 ? null : (
+          <ul className="runtime-recovery-list">
+            {lostRuntimes.slice(0, 3).map((runtime) => {
+              const recovery = resolveRuntimeRecovery(
+                runtime,
+                snapshot.sessions
+              );
+              return (
+                <li className="runtime-recovery-item" key={runtime.id}>
+                  <span className="runtime-recovery-message">
+                    <strong>{PROVIDER_LABELS[runtime.provider]}</strong>
+                    <small>
+                      {recovery?.strategy === 'resume'
+                        ? 'Resume saved session'
+                        : 'Restart as new session'}
+                    </small>
+                  </span>
+                  {onRecover === undefined ? null : (
+                    <button
+                      className="text-button"
+                      onClick={() => onRecover(runtime)}
+                      type="button"
+                    >
+                      Recover
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </article>
 
       <article className="dashboard-card recent-session-card">
