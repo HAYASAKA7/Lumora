@@ -8,7 +8,7 @@ interface ManagedTerminalProps {
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
-const TERMINAL_BLOCK_SIZE = 'clamp(360px, 55vh, 620px)';
+const TERMINAL_BLOCK_SIZE = '100%';
 
 export function ManagedTerminal({
   runtime,

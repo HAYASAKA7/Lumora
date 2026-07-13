@@ -524,6 +524,7 @@ export default function App(): ReactNode {
   const liveRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
+  const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
   const resumeWorkspace =
     resumeSession === null || catalogStatus.state !== 'ready'
       ? null
@@ -621,16 +622,18 @@ export default function App(): ReactNode {
         </header>
 
         <main
-          className="main-content"
+          className={`main-content${terminalActive ? ' terminal-main-content' : ''}`}
           id="main-content"
           ref={mainContentRef}
           tabIndex={-1}
         >
-          <header className="page-header">
-            <p className="eyebrow">{activeRoute.eyebrow}</p>
-            <h1>{activeRoute.label}</h1>
-            <p className="page-description">{activeRoute.description}</p>
-          </header>
+          {terminalActive ? null : (
+            <header className="page-header">
+              <p className="eyebrow">{activeRoute.eyebrow}</p>
+              <h1>{activeRoute.label}</h1>
+              <p className="page-description">{activeRoute.description}</p>
+            </header>
+          )}
 
           {catalogOperationError === null ? null : (
             <div className="catalog-operation-error" role="alert">
@@ -638,7 +641,7 @@ export default function App(): ReactNode {
             </div>
           )}
 
-          {activeRuntimeId !== null && openRuntimes.length > 0 ? (
+          {terminalActive ? (
             <TerminalWorkspace
               activeRuntimeId={activeRuntimeId}
               onActivate={setActiveRuntimeId}

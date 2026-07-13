@@ -316,7 +316,11 @@ describe('App', () => {
       getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
       prepareLaunch,
       startRuntime,
-      attachRuntime: vi.fn().mockResolvedValue({ runtime, snapshot: '' })
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
     });
     render(<App />);
 
@@ -332,6 +336,12 @@ describe('App', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume session' }));
 
     expect(await screen.findByRole('heading', { name: 'Codex terminal' })).toBeInTheDocument();
+    expect(document.getElementById('main-content')).toHaveClass(
+      'terminal-main-content'
+    );
+    expect(
+      screen.queryByRole('heading', { name: 'All sessions' })
+    ).not.toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,
@@ -428,7 +438,8 @@ describe('App', () => {
       startRuntime,
       attachRuntime: vi.fn().mockResolvedValue({
         runtime: recoveredRuntime,
-        snapshot: ''
+        snapshot: '',
+        outputSequence: 0
       })
     });
     render(<App />);

@@ -49,7 +49,7 @@ const runtime: RuntimeSummary = {
 };
 
 describe('ManagedTerminal', () => {
-  it('bounds the observed xterm target to a responsive viewport height', () => {
+  it('fills the available fixed terminal viewport', () => {
     Object.defineProperty(window, 'lumora', {
       configurable: true,
       value: {
@@ -63,7 +63,7 @@ describe('ManagedTerminal', () => {
     render(<ManagedTerminal onRuntimeChange={vi.fn()} runtime={runtime} />);
 
     expect(screen.getByLabelText('codex terminal')).toHaveStyle({
-      blockSize: 'clamp(360px, 55vh, 620px)'
+      blockSize: '100%'
     });
   });
 

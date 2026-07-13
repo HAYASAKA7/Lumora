@@ -337,6 +337,13 @@ button {
   outline: none;
 }
 
+.terminal-main-content {
+  display: grid;
+  min-height: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
 .page-header {
   max-width: 760px;
   margin-bottom: 30px;
@@ -1803,7 +1810,10 @@ button {
 }
 
 .terminal-workspace {
-  min-height: 520px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   background: #fff;
   border: 1px solid var(--line);
@@ -1865,8 +1875,9 @@ button {
 
 .terminal-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  min-height: 440px;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .managed-terminal-shell,
@@ -1877,10 +1888,15 @@ button {
 }
 
 .managed-terminal-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
   overflow: hidden;
 }
 
 .managed-terminal {
+  height: 100%;
+  overflow: hidden;
   padding: 10px;
 }
 
@@ -1890,10 +1906,14 @@ button {
   background: #5b2028;
 }
 
-.terminal-inspector {
-  padding: 18px;
-  overflow: auto;
-  border-left: 1px solid var(--line);
+.terminal-details-dialog {
+  width: min(900px, 100%);
+}
+
+.terminal-details-dialog .terminal-inspector {
+  padding: 0;
+  overflow: visible;
+  border: 0;
 }
 
 .terminal-inspector dl div {
@@ -1902,14 +1922,8 @@ button {
 }
 
 @media (max-width: 900px) {
-  .terminal-profile-layout,
-  .terminal-grid {
+  .terminal-profile-layout {
     grid-template-columns: 1fr;
-  }
-
-  .terminal-inspector {
-    border-top: 1px solid var(--line);
-    border-left: 0;
   }
 }
 

@@ -5,8 +5,8 @@ import type {
   RuntimeSummary,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchConfiguration } from './LaunchConfiguration';
 import { ManagedTerminal } from './ManagedTerminal';
+import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 
 interface TerminalWorkspaceProps {
   runtimes: readonly RuntimeSummary[];
@@ -18,17 +18,6 @@ interface TerminalWorkspaceProps {
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
-const IDENTITY_MATCH_LABELS: Record<
-  RuntimeSummary['reconciliationState'],
-  string
-> = {
-  not_required: 'Native resume',
-  pending: 'Matching provider session',
-  linked: 'Linked',
-  ambiguous: 'Ambiguous — not linked',
-  unresolved: 'Not found — unlinked'
-};
-
 export function TerminalWorkspace({
   runtimes,
   activeRuntimeId,
@@ -39,6 +28,7 @@ export function TerminalWorkspace({
   onRuntimeChange
 }: TerminalWorkspaceProps): ReactNode {
   const [stopping, setStopping] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const runtime = runtimes.find((item) => item.id === activeRuntimeId) ?? runtimes[0];
   if (runtime === undefined) return null;
   const preview = previews.get(runtime.id);
@@ -78,6 +68,13 @@ export function TerminalWorkspace({
         </div>
         <div className="catalog-actions">
           <span className={`runtime-state runtime-${runtime.state}`}>{runtime.state}</span>
+          <button
+            className="secondary-button"
+            onClick={() => setDetailsOpen(true)}
+            type="button"
+          >
+            Terminal details
+          </button>
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
             {stopping ? 'Stopping' : 'Stop'}
           </button>
@@ -87,23 +84,16 @@ export function TerminalWorkspace({
 
       <div className="terminal-grid">
         <ManagedTerminal runtime={runtime} onRuntimeChange={onRuntimeChange} />
-        <aside className="terminal-inspector" aria-label="Launch inspector">
-          <p className="card-label">Effective launch</p>
-          <dl>
-            <div><dt>Provider</dt><dd>{runtime.provider}</dd></div>
-            <div><dt>Process</dt><dd>{runtime.pid ?? 'Not live'}</dd></div>
-            <div><dt>Executable</dt><dd>{preview?.executablePath ?? 'Saved runtime'}</dd></div>
-            <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
-            <div><dt>Launch type</dt><dd>{runtime.strategy === 'resume' ? 'Resume' : 'New session'}</dd></div>
-            <div><dt>Identity match</dt><dd>{IDENTITY_MATCH_LABELS[runtime.reconciliationState]}</dd></div>
-            <div><dt>Session</dt><dd>{runtime.sessionId?.slice(0, 12) ?? 'Not linked'}</dd></div>
-            <div><dt>Launch hash</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>
-          </dl>
-          {preview === undefined ? null : (
-            <LaunchConfiguration preview={preview} />
-          )}
-        </aside>
       </div>
+
+      {detailsOpen ? (
+        <TerminalDetailsDialog
+          onClose={() => setDetailsOpen(false)}
+          preview={preview}
+          runtime={runtime}
+          workspace={workspace}
+        />
+      ) : null}
     </section>
   );
 }

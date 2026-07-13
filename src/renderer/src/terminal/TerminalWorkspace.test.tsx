@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -88,7 +88,7 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
-  it('shows effective setting provenance for an active launch preview', () => {
+  it('hides launch details until the user opens and closes the details dialog', () => {
     render(
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
@@ -101,9 +101,23 @@ describe('TerminalWorkspace', () => {
       />
     );
 
-    const inspector = screen.getByLabelText('Launch inspector');
+    expect(
+      screen.queryByRole('dialog', { name: 'Terminal details' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Launch inspector')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal details' }));
+    const dialog = screen.getByRole('dialog', { name: 'Terminal details' });
+    const inspector = within(dialog).getByLabelText('Launch inspector');
     expect(within(inspector).getByText('Workspace layer')).toBeInTheDocument();
     expect(within(inspector).getByText('Global layer')).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Close terminal details' })
+    );
+    expect(
+      screen.queryByRole('dialog', { name: 'Terminal details' })
+    ).not.toBeInTheDocument();
   });
 
   it('shows durable resume identity without an ephemeral preview', () => {
@@ -119,7 +133,10 @@ describe('TerminalWorkspace', () => {
       />
     );
 
-    const inspector = screen.getByLabelText('Launch inspector');
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal details' }));
+    const inspector = within(
+      screen.getByRole('dialog', { name: 'Terminal details' })
+    ).getByLabelText('Launch inspector');
     expect(within(inspector).getByText('Resume')).toBeInTheDocument();
     expect(
       within(inspector).getByText(sessionId.slice(0, 12))
@@ -154,8 +171,10 @@ describe('TerminalWorkspace', () => {
       />
     );
 
-    expect(
-      within(screen.getByLabelText('Launch inspector')).getByText(label)
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal details' }));
+    const inspector = within(
+      screen.getByRole('dialog', { name: 'Terminal details' })
+    ).getByLabelText('Launch inspector');
+    expect(within(inspector).getByText(label)).toBeInTheDocument();
   });
 });
