@@ -190,9 +190,9 @@ describe('createLumoraApi', () => {
 
     const listener = vi.fn();
     const remove = api.onRuntimeEvent(listener);
-    eventReceiver!({ type: 'output', runtimeId, data: 'ready' });
+    eventReceiver!({ type: 'output', runtimeId, sequence: 1, data: 'ready' });
     expect(listener).toHaveBeenCalledWith({
-      type: 'output', runtimeId, data: 'ready'
+      type: 'output', runtimeId, sequence: 1, data: 'ready'
     });
     remove();
     expect(unsubscribe).toHaveBeenCalledOnce();
