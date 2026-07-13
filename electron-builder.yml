@@ -1,0 +1,54 @@
+appId: app.lumora.desktop
+productName: Lumora
+artifactName: Lumora-${version}-${os}-${arch}.${ext}
+
+directories:
+  output: dist
+  buildResources: resources/icons/lumora
+
+files:
+  - out/**/*
+
+asar: true
+asarUnpack:
+  - node_modules/node-pty/**/*
+npmRebuild: false
+forceCodeSigning: false
+
+extraMetadata:
+  desktopName: app.lumora.desktop
+
+win:
+  executableName: Lumora
+  icon: windows/Lumora.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  executableName: Lumora
+  icon: macos/Lumora.icns
+  category: public.app-category.developer-tools
+  identity: null
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+
+linux:
+  executableName: lumora
+  syncDesktopName: true
+  icon: linux/lumora.png
+  category: Development
+  target:
+    - target: AppImage
+      arch:
+        - x64
