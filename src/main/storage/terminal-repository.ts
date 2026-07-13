@@ -9,6 +9,8 @@ import {
   ProviderLaunchConfigListSchema,
   RuntimeSummarySchema,
   TerminalProfileSchema,
+  WorkspaceTrustDecisionListSchema,
+  WorkspaceTrustDecisionSchema,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
   type ProviderId,
@@ -17,7 +19,8 @@ import {
   type RuntimeReconciliationState,
   type RuntimeSummary,
   type SessionSummary,
-  type TerminalProfile
+  type TerminalProfile,
+  type WorkspaceTrustDecision
 } from '../../shared/contracts';
 
 interface LaunchSettingsLayerRow {
@@ -43,6 +46,12 @@ interface WorkspaceLaunchRow {
   canonical_path: string;
   display_name: string;
   available: number;
+}
+
+interface WorkspaceTrustDecisionRow {
+  workspace_id: string;
+  canonical_path: string;
+  trusted_at: string;
 }
 
 interface SessionLaunchRow {
@@ -279,6 +288,78 @@ export class TerminalRepository {
           displayName: row.display_name,
           available: row.available === 1
         };
+  }
+
+  listWorkspaceTrustDecisions(): WorkspaceTrustDecision[] {
+    const rows = this.database
+      .prepare(
+        `SELECT workspace_id, canonical_path, trusted_at
+         FROM trust_decision
+         ORDER BY trusted_at DESC, workspace_id`
+      )
+      .all() as unknown as WorkspaceTrustDecisionRow[];
+    return WorkspaceTrustDecisionListSchema.parse(
+      rows.map((row) =>
+        WorkspaceTrustDecisionSchema.parse({
+          workspaceId: row.workspace_id,
+          canonicalPath: row.canonical_path,
+          trustedAt: row.trusted_at
+        })
+      )
+    );
+  }
+
+  isWorkspaceTrusted(workspaceId: string, canonicalPath: string): boolean {
+    return (
+      this.database
+        .prepare(
+          `SELECT 1
+           FROM trust_decision
+           WHERE workspace_id = ? AND canonical_path = ?`
+        )
+        .get(workspaceId, canonicalPath) !== undefined
+    );
+  }
+
+  trustWorkspace(
+    workspaceId: string,
+    canonicalPath: string,
+    timestamp: string
+  ): WorkspaceTrustDecision {
+    const workspace = this.getWorkspace(workspaceId);
+    if (workspace === null) {
+      throw new Error('The workspace does not exist.');
+    }
+    if (!workspace.available) {
+      throw new Error('The workspace is not available.');
+    }
+    if (workspace.canonicalPath !== canonicalPath) {
+      throw new Error('The workspace canonical path does not match.');
+    }
+
+    const decision = WorkspaceTrustDecisionSchema.parse({
+      workspaceId,
+      canonicalPath,
+      trustedAt: normalizeTimestamp(timestamp)
+    });
+    this.database
+      .prepare(
+        `INSERT INTO trust_decision (
+          workspace_id, canonical_path, trusted_at
+        ) VALUES (?, ?, ?)
+        ON CONFLICT(workspace_id) DO UPDATE SET
+          canonical_path = excluded.canonical_path,
+          trusted_at = excluded.trusted_at`
+      )
+      .run(decision.workspaceId, decision.canonicalPath, decision.trustedAt);
+    return decision;
+  }
+
+  revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[] {
+    this.database
+      .prepare('DELETE FROM trust_decision WHERE workspace_id = ?')
+      .run(workspaceId);
+    return this.listWorkspaceTrustDecisions();
   }
 
   getSession(sessionId: string): SessionLaunchInfo | null {

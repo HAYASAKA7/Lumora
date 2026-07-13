@@ -113,6 +113,79 @@ describe('TerminalRepository', () => {
     expect(repository.getWorkspace('f'.repeat(64))).toBeNull();
   });
 
+  it('persists exact-path trust decisions and revokes them', () => {
+    const canonicalPath = 'D:\\Projects\\Lumora';
+    const decision = repository.trustWorkspace(
+      workspaceId,
+      canonicalPath,
+      timestamp
+    );
+
+    expect(decision).toEqual({
+      workspaceId,
+      canonicalPath,
+      trustedAt: timestamp
+    });
+    expect(repository.isWorkspaceTrusted(workspaceId, canonicalPath)).toBe(true);
+    expect(
+      repository.isWorkspaceTrusted(workspaceId, 'D:\\Projects\\Other')
+    ).toBe(false);
+    expect(repository.listWorkspaceTrustDecisions()).toEqual([decision]);
+
+    const updatedAt = '2026-07-11T05:00:00.000Z';
+    expect(
+      repository.trustWorkspace(workspaceId, canonicalPath, updatedAt)
+    ).toEqual({ ...decision, trustedAt: updatedAt });
+    expect(repository.listWorkspaceTrustDecisions()).toEqual([
+      { ...decision, trustedAt: updatedAt }
+    ]);
+
+    expect(repository.revokeWorkspaceTrust(workspaceId)).toEqual([]);
+    expect(repository.isWorkspaceTrusted(workspaceId, canonicalPath)).toBe(
+      false
+    );
+  });
+
+  it('rejects trust for mismatched, missing, and unavailable workspaces', () => {
+    expect(() =>
+      repository.trustWorkspace(
+        workspaceId,
+        'D:\\Projects\\Other',
+        timestamp
+      )
+    ).toThrow();
+    expect(() =>
+      repository.trustWorkspace(
+        'f'.repeat(64),
+        'D:\\Projects\\Lumora',
+        timestamp
+      )
+    ).toThrow();
+
+    database
+      .prepare('UPDATE workspace SET available = 0 WHERE id = ?')
+      .run(workspaceId);
+    expect(() =>
+      repository.trustWorkspace(
+        workspaceId,
+        'D:\\Projects\\Lumora',
+        timestamp
+      )
+    ).toThrow();
+  });
+
+  it('deletes trust decisions with their workspace', () => {
+    repository.trustWorkspace(
+      workspaceId,
+      'D:\\Projects\\Lumora',
+      timestamp
+    );
+
+    database.prepare('DELETE FROM workspace WHERE id = ?').run(workspaceId);
+
+    expect(repository.listWorkspaceTrustDecisions()).toEqual([]);
+  });
+
   it('loads current session resume identity by stable ID', () => {
     const sessionId = 'c'.repeat(64);
     database

@@ -167,6 +167,16 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         updated_at
       FROM provider_launch_config`
     ]
+  },
+  {
+    version: 7,
+    statements: [
+      `CREATE TABLE trust_decision (
+        workspace_id TEXT PRIMARY KEY REFERENCES workspace(id) ON DELETE CASCADE,
+        canonical_path TEXT NOT NULL,
+        trusted_at TEXT NOT NULL
+      ) STRICT`
+    ]
   }
 ];
 
