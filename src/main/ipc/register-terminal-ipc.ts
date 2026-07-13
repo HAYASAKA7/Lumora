@@ -18,6 +18,10 @@ import {
   RuntimeWriteRequestSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
+  WorkspaceTrustDecisionListSchema,
+  WorkspaceTrustDecisionSchema,
+  WorkspaceTrustGrantRequestSchema,
+  WorkspaceTrustRevokeRequestSchema,
   type RuntimeEvent
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
@@ -47,6 +51,9 @@ type TerminalIpcRuntime = Pick<
   | 'getLaunchSettingsLayers'
   | 'saveLaunchSettingsLayer'
   | 'prepareLaunch'
+  | 'getWorkspaceTrustDecisions'
+  | 'trustWorkspaceForLaunch'
+  | 'revokeWorkspaceTrust'
   | 'startRuntime'
   | 'listRuntimes'
   | 'attachRuntime'
@@ -162,6 +169,32 @@ export function registerTerminalIpc({
     const request = LaunchPrepareRequestSchema.parse(input);
     return privileged(async () =>
       LaunchPreviewSchema.parse(await runtime.prepareLaunch(request))
+    );
+  });
+  ipc.handle(IPC_CHANNELS.workspaceTrustGet, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() =>
+      WorkspaceTrustDecisionListSchema.parse(
+        runtime.getWorkspaceTrustDecisions()
+      )
+    );
+  });
+  ipc.handle(IPC_CHANNELS.workspaceTrustGrant, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = WorkspaceTrustGrantRequestSchema.parse(input);
+    return privileged(() =>
+      WorkspaceTrustDecisionSchema.parse(
+        runtime.trustWorkspaceForLaunch(request.launchToken)
+      )
+    );
+  });
+  ipc.handle(IPC_CHANNELS.workspaceTrustRevoke, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = WorkspaceTrustRevokeRequestSchema.parse(input);
+    return privileged(() =>
+      WorkspaceTrustDecisionListSchema.parse(
+        runtime.revokeWorkspaceTrust(request.workspaceId)
+      )
     );
   });
   ipc.handle(IPC_CHANNELS.runtimeStart, async (event, input) => {

@@ -22,6 +22,10 @@ import {
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
+  WorkspaceTrustDecisionListSchema,
+  WorkspaceTrustDecisionSchema,
+  WorkspaceTrustGrantRequestSchema,
+  WorkspaceTrustRevokeRequestSchema,
   type CatalogQuery,
   type LumoraApi
 } from '../shared/contracts';
@@ -103,6 +107,20 @@ export function createLumoraApi(
       const request = LaunchPrepareRequestSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.launchPrepare, request);
       return LaunchPreviewSchema.parse(value);
+    },
+    async getWorkspaceTrustDecisions() {
+      const value = await invoke(IPC_CHANNELS.workspaceTrustGet);
+      return WorkspaceTrustDecisionListSchema.parse(value);
+    },
+    async trustWorkspaceForLaunch(launchToken) {
+      const request = WorkspaceTrustGrantRequestSchema.parse({ launchToken });
+      const value = await invoke(IPC_CHANNELS.workspaceTrustGrant, request);
+      return WorkspaceTrustDecisionSchema.parse(value);
+    },
+    async revokeWorkspaceTrust(workspaceId) {
+      const request = WorkspaceTrustRevokeRequestSchema.parse({ workspaceId });
+      const value = await invoke(IPC_CHANNELS.workspaceTrustRevoke, request);
+      return WorkspaceTrustDecisionListSchema.parse(value);
     },
     async startRuntime(launchToken) {
       const request = RuntimeStartRequestSchema.parse({ launchToken });

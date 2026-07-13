@@ -81,6 +81,7 @@ const preview: LaunchPreview = {
   args: ['resume', session.nativeId],
   command: 'codexp',
   workingDirectory: workspace.canonicalPath,
+  workspaceTrusted: true,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,
   configuration: [

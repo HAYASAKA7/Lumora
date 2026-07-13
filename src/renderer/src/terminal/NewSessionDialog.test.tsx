@@ -53,6 +53,7 @@ const preview: LaunchPreview = {
   args: [],
   command: 'codexp',
   workingDirectory: workspace.canonicalPath,
+  workspaceTrusted: true,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,
   configuration: [

@@ -51,6 +51,7 @@ const preview: LaunchPreview = {
   args: ['resume', 'native-thread-1'],
   command: 'workspace-codex',
   workingDirectory: workspace.canonicalPath,
+  workspaceTrusted: true,
   environmentNames: ['PATH'],
   terminalProfile: {
     id: runtime.terminalProfileId,

@@ -438,6 +438,7 @@ describe('App', () => {
       args: ['resume', session.nativeId],
       command: null,
       workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
+      workspaceTrusted: true,
       environmentNames: ['PATH', 'SHELL'],
       terminalProfile: profile,
       configuration: [
@@ -564,6 +565,7 @@ describe('App', () => {
       args: ['resume', session.nativeId],
       command: 'codexp',
       workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
+      workspaceTrusted: true,
       environmentNames: ['PATH'],
       terminalProfile: profile,
       configuration: [

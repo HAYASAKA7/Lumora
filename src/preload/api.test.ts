@@ -258,6 +258,52 @@ describe('createLumoraApi', () => {
     ]);
   });
 
+  it('uses validated narrow channels for workspace trust', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const launchToken = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    const decision = {
+      workspaceId: 'a'.repeat(64),
+      canonicalPath: 'D:\\Projects\\Lumora',
+      trustedAt: '2026-07-13T08:00:00.000Z'
+    };
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      if (channel === IPC_CHANNELS.workspaceTrustGet) return [decision];
+      if (channel === IPC_CHANNELS.workspaceTrustGrant) return decision;
+      if (channel === IPC_CHANNELS.workspaceTrustRevoke) return [];
+      throw new Error(`Unexpected channel ${channel}`);
+    });
+
+    await expect(api.getWorkspaceTrustDecisions()).resolves.toEqual([decision]);
+    await expect(api.trustWorkspaceForLaunch(launchToken)).resolves.toEqual(
+      decision
+    );
+    await expect(
+      api.revokeWorkspaceTrust(decision.workspaceId)
+    ).resolves.toEqual([]);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.workspaceTrustGet, args: [] },
+      {
+        channel: IPC_CHANNELS.workspaceTrustGrant,
+        args: [{ launchToken }]
+      },
+      {
+        channel: IPC_CHANNELS.workspaceTrustRevoke,
+        args: [{ workspaceId: decision.workspaceId }]
+      }
+    ]);
+  });
+
+  it('rejects malformed workspace trust requests and responses', async () => {
+    const invoke = vi.fn(async () => [{ workspaceId: '../escape' }]);
+    const api = createLumoraApi(invoke);
+
+    await expect(api.getWorkspaceTrustDecisions()).rejects.toBeDefined();
+    await expect(api.trustWorkspaceForLaunch('not-a-uuid')).rejects.toBeDefined();
+    await expect(api.revokeWorkspaceTrust('../escape')).rejects.toBeDefined();
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
   it('rejects oversized terminal data before invoking IPC', async () => {
     const invoke = vi.fn();
     const api = createLumoraApi(invoke);

@@ -657,7 +657,7 @@ export interface LumoraApi {
   getWorkspaceTrustDecisions(): Promise<WorkspaceTrustDecision[]>;
   trustWorkspaceForLaunch(
     launchToken: string
-  ): Promise<WorkspaceTrustDecision[]>;
+  ): Promise<WorkspaceTrustDecision>;
   revokeWorkspaceTrust(workspaceId: string): Promise<WorkspaceTrustDecision[]>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): Promise<RuntimeSummary[]>;

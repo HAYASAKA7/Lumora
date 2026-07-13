@@ -7,6 +7,8 @@ import {
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
   TerminalProfileSchema,
+  WorkspaceTrustDecisionListSchema,
+  WorkspaceTrustDecisionSchema,
   type CustomTerminalProfileInput,
   type LaunchPrepareRequest,
   type LaunchPreview,
@@ -21,7 +23,8 @@ import {
   type RuntimeSummary,
   type RuntimeWriteRequest,
   type SystemInfo,
-  type TerminalProfile
+  type TerminalProfile,
+  type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import { findExecutable, isExecutableFile } from '../platform/executable-locator';
 import { migrateCatalogDatabase } from '../storage/migrations';
@@ -56,6 +59,9 @@ export interface TerminalRuntime {
   getLaunchSettingsLayers(): LaunchSettingsLayer[];
   saveLaunchSettingsLayer(input: LaunchSettingsLayerInput): LaunchSettingsLayer[];
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
+  getWorkspaceTrustDecisions(): WorkspaceTrustDecision[];
+  trustWorkspaceForLaunch(launchToken: string): WorkspaceTrustDecision;
+  revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[];
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): RuntimeSummary[];
   attachRuntime(runtimeId: string): RuntimeAttachment;
@@ -181,6 +187,21 @@ export async function createTerminalRuntime({
     },
     prepareLaunch(input) {
       return launchService.prepare(input);
+    },
+    getWorkspaceTrustDecisions() {
+      return WorkspaceTrustDecisionListSchema.parse(
+        repository.listWorkspaceTrustDecisions()
+      );
+    },
+    trustWorkspaceForLaunch(launchToken) {
+      return WorkspaceTrustDecisionSchema.parse(
+        launchService.trustWorkspaceForLaunch(launchToken)
+      );
+    },
+    revokeWorkspaceTrust(workspaceId) {
+      return WorkspaceTrustDecisionListSchema.parse(
+        repository.revokeWorkspaceTrust(workspaceId)
+      );
     },
     startRuntime(launchToken) {
       return host.start(launchToken);

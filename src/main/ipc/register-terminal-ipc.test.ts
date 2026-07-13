@@ -33,6 +33,11 @@ const settingsLayer = {
   settings: { providerCommands: { codex: 'codexp' } },
   updatedAt: '2026-07-13T00:00:00.000Z'
 };
+const trustDecision = {
+  workspaceId: 'a'.repeat(64),
+  canonicalPath: 'D:\\Projects\\Lumora',
+  trustedAt: '2026-07-13T08:00:00.000Z'
+};
 
 function createHarness() {
   const handlers = new Map<string, Handler>();
@@ -52,6 +57,9 @@ function createHarness() {
     getLaunchSettingsLayers: vi.fn(() => [settingsLayer]),
     saveLaunchSettingsLayer: vi.fn(() => [settingsLayer]),
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
+    getWorkspaceTrustDecisions: vi.fn(() => [trustDecision]),
+    trustWorkspaceForLaunch: vi.fn(() => trustDecision),
+    revokeWorkspaceTrust: vi.fn(() => []),
     startRuntime: vi.fn(async () => runtime),
     listRuntimes: vi.fn(() => [runtime]),
     attachRuntime: vi.fn(() => ({
@@ -84,7 +92,7 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the fourteen explicit terminal operations', () => {
+  it('registers the seventeen explicit terminal operations', () => {
     const { handlers } = createHarness();
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
       providerLaunchConfigsGet: string;
@@ -99,6 +107,9 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.launchSettingsLayersGet,
       IPC_CHANNELS.launchSettingsLayerSave,
       IPC_CHANNELS.launchPrepare,
+      IPC_CHANNELS.workspaceTrustGet,
+      IPC_CHANNELS.workspaceTrustGrant,
+      IPC_CHANNELS.workspaceTrustRevoke,
       IPC_CHANNELS.runtimeStart,
       IPC_CHANNELS.runtimeList,
       IPC_CHANNELS.runtimeAttach,
@@ -106,6 +117,59 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.runtimeResize,
       IPC_CHANNELS.runtimeTerminate
     ]);
+  });
+
+  it('validates and forwards workspace trust operations', async () => {
+    const { handlers, runtimeService } = createHarness();
+    const launchToken = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+
+    await expect(
+      handlers.get(IPC_CHANNELS.workspaceTrustGet)!(trustedEvent)
+    ).resolves.toEqual([trustDecision]);
+    await expect(
+      handlers.get(IPC_CHANNELS.workspaceTrustGrant)!(trustedEvent, {
+        launchToken
+      })
+    ).resolves.toEqual(trustDecision);
+    expect(runtimeService.trustWorkspaceForLaunch).toHaveBeenCalledWith(
+      launchToken
+    );
+    await expect(
+      handlers.get(IPC_CHANNELS.workspaceTrustRevoke)!(trustedEvent, {
+        workspaceId: trustDecision.workspaceId
+      })
+    ).resolves.toEqual([]);
+    expect(runtimeService.revokeWorkspaceTrust).toHaveBeenCalledWith(
+      trustDecision.workspaceId
+    );
+
+    await expect(
+      Promise.resolve().then(() =>
+        handlers.get(IPC_CHANNELS.workspaceTrustGrant)!(trustedEvent, {
+          launchToken: 'not-a-uuid'
+        })
+      )
+    ).rejects.toBeDefined();
+    await expect(
+      Promise.resolve().then(() =>
+        handlers.get(IPC_CHANNELS.workspaceTrustRevoke)!(trustedEvent, {
+          workspaceId: '../escape'
+        })
+      )
+    ).rejects.toBeDefined();
+    expect(runtimeService.trustWorkspaceForLaunch).toHaveBeenCalledOnce();
+    expect(runtimeService.revokeWorkspaceTrust).toHaveBeenCalledOnce();
+  });
+
+  it('rejects malformed workspace trust responses', async () => {
+    const { handlers, runtimeService } = createHarness();
+    runtimeService.getWorkspaceTrustDecisions.mockReturnValue([
+      { ...trustDecision, canonicalPath: '' }
+    ]);
+
+    await expect(
+      handlers.get(IPC_CHANNELS.workspaceTrustGet)!(trustedEvent)
+    ).rejects.toMatchObject({ code: 'TERMINAL_OPERATION_FAILED' });
   });
 
   it('validates and forwards layered launch settings', async () => {
