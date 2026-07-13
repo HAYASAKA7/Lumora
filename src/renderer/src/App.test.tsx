@@ -12,6 +12,7 @@ import type {
   CatalogSnapshot,
   LaunchPreview,
   ProviderScanResult,
+  RuntimeEvent,
   RuntimeSummary,
   TerminalProfile
 } from '../../shared/contracts';
@@ -128,6 +129,30 @@ const readyCatalog: CatalogSnapshot = {
   diagnostics: []
 };
 
+function runningRuntime(
+  id: string,
+  provider: RuntimeSummary['provider'] = 'codex'
+): RuntimeSummary {
+  return {
+    id,
+    strategy: 'new',
+    sessionId: null,
+    nativeSessionId: null,
+    reconciliationState: 'pending',
+    provider,
+    workspaceId: readyCatalog.workspaces[0]!.id,
+    terminalProfileId: 'c'.repeat(64),
+    launchHash: 'd'.repeat(64),
+    state: 'running',
+    pid: 4321,
+    createdAt: '2026-07-13T01:00:00.000Z',
+    startedAt: '2026-07-13T01:00:01.000Z',
+    endedAt: null,
+    exitCode: null,
+    errorCode: null
+  };
+}
+
 interface CatalogApiOverrides {
   getCatalog?: ReturnType<typeof vi.fn>;
   refreshCatalog?: ReturnType<typeof vi.fn>;
@@ -137,6 +162,9 @@ interface CatalogApiOverrides {
   startRuntime?: ReturnType<typeof vi.fn>;
   attachRuntime?: ReturnType<typeof vi.fn>;
   listRuntimes?: ReturnType<typeof vi.fn>;
+  onRuntimeEvent?: (
+    listener: (event: RuntimeEvent) => void
+  ) => () => void;
 }
 
 function deferred<T>() {
@@ -189,7 +217,8 @@ function setSystemInfoResult(
       writeRuntime: vi.fn().mockResolvedValue(undefined),
       resizeRuntime: vi.fn().mockResolvedValue(undefined),
       terminateRuntime: vi.fn(),
-      onRuntimeEvent: vi.fn(() => () => undefined)
+      onRuntimeEvent:
+        catalogApi.onRuntimeEvent ?? vi.fn(() => () => undefined)
     }
   });
 }
@@ -227,6 +256,149 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
 
     await waitFor(() => expect(main.scrollTop).toBe(0));
+  });
+
+  it('closes the active terminal tab when its runtime completes', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ac0'
+    );
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime ??= listener;
+        return () => undefined;
+      }
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onRuntimeEvent
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Codex terminal' })
+    ).toBeInTheDocument();
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: runtime.id,
+        runtime: {
+          ...runtime,
+          state: 'completed',
+          endedAt: '2026-07-13T01:30:00.000Z',
+          exitCode: 0
+        }
+      });
+    });
+
+    expect(
+      screen.queryByRole('heading', { name: 'Codex terminal' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+  });
+
+  it('activates the next terminal after the active runtime fails', async () => {
+    const codexRuntime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ac1'
+    );
+    const claudeRuntime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ac2',
+      'claude'
+    );
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime ??= listener;
+        return () => undefined;
+      }
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([codexRuntime, claudeRuntime]),
+      attachRuntime: vi.fn().mockImplementation((runtimeId: string) => {
+        const runtime =
+          runtimeId === codexRuntime.id ? codexRuntime : claudeRuntime;
+        return Promise.resolve({ runtime, snapshot: '', outputSequence: 0 });
+      }),
+      onRuntimeEvent
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Codex terminal' })
+    ).toBeInTheDocument();
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: codexRuntime.id,
+        runtime: {
+          ...codexRuntime,
+          state: 'failed',
+          endedAt: '2026-07-13T01:30:00.000Z',
+          exitCode: 1,
+          errorCode: 'PTY_RUNTIME_FAILED'
+        }
+      });
+    });
+
+    expect(
+      screen.queryByRole('heading', { name: 'Codex terminal' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Claude Code terminal' })
+    ).toBeInTheDocument();
+  });
+
+  it('keeps a terminal tab open for running state updates', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ac3'
+    );
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime ??= listener;
+        return () => undefined;
+      }
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onRuntimeEvent
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    await screen.findByRole('heading', { name: 'Codex terminal' });
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: runtime.id,
+        runtime
+      });
+    });
+
+    expect(
+      screen.getByRole('heading', { name: 'Codex terminal' })
+    ).toBeInTheDocument();
   });
 
   it('changes destination and exposes layered launch settings', async () => {

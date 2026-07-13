@@ -322,6 +322,16 @@ export default function App(): ReactNode {
     });
   }, []);
 
+  const closeRuntimeTab = useCallback((runtimeId: string) => {
+    setOpenRuntimeIds((current) => {
+      const next = current.filter((id) => id !== runtimeId);
+      setActiveRuntimeId((active) =>
+        active === runtimeId ? (next[0] ?? null) : active
+      );
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     let current = true;
     void window.lumora.getTerminalProfiles().then(
@@ -343,13 +353,22 @@ export default function App(): ReactNode {
       () => undefined
     );
     const unsubscribe = window.lumora.onRuntimeEvent((event) => {
-      if (event.type === 'state') updateRuntime(event.runtime);
+      if (event.type !== 'state') {
+        return;
+      }
+      updateRuntime(event.runtime);
+      if (
+        event.runtime.state === 'completed' ||
+        event.runtime.state === 'failed'
+      ) {
+        closeRuntimeTab(event.runtimeId);
+      }
     });
     return () => {
       current = false;
       unsubscribe();
     };
-  }, [updateRuntime]);
+  }, [closeRuntimeTab, updateRuntime]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -507,16 +526,6 @@ export default function App(): ReactNode {
     },
     [updateRuntime]
   );
-
-  const closeRuntimeTab = useCallback((runtimeId: string) => {
-    setOpenRuntimeIds((current) => {
-      const next = current.filter((id) => id !== runtimeId);
-      setActiveRuntimeId((active) =>
-        active === runtimeId ? (next[0] ?? null) : active
-      );
-      return next;
-    });
-  }, []);
 
   const openRuntimes = openRuntimeIds
     .map((id) => runtimes.find((runtime) => runtime.id === id))
