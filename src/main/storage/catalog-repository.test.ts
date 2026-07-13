@@ -107,7 +107,8 @@ describe('catalog migrations', () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
-      { version: 5 }
+      { version: 5 },
+      { version: 6 }
     ]);
     expect(
       database
@@ -120,6 +121,7 @@ describe('catalog migrations', () => {
       expect.arrayContaining([
         'scan_error',
         'schema_migration',
+        'config_layer',
         'session',
         'session_source',
         'provider_launch_config',
