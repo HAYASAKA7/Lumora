@@ -1,0 +1,62 @@
+name: Unsigned MVP packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  package:
+    name: Package (${{ matrix.label }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64
+            runner: windows-latest
+            platform: win
+            arch: x64
+            extension: exe
+            builder_args: --win nsis --x64
+          - label: Linux x64
+            runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            extension: AppImage
+            builder_args: --linux AppImage --x64
+          - label: macOS Apple Silicon
+            runner: macos-15
+            platform: mac
+            arch: arm64
+            extension: dmg
+            builder_args: --mac dmg --arm64
+          - label: macOS Intel
+            runner: macos-15-intel
+            platform: mac
+            arch: x64
+            extension: dmg
+            builder_args: --mac dmg --x64
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npx electron-builder ${{ matrix.builder_args }}
+      - run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lumora-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
+          if-no-files-found: error
+          retention-days: 14
