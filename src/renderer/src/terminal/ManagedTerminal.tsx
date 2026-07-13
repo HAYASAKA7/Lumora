@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
-import type { RuntimeSummary } from '../../../shared/contracts';
+import type { RuntimeEvent, RuntimeSummary } from '../../../shared/contracts';
 
 interface ManagedTerminalProps {
   runtime: RuntimeSummary;
@@ -51,10 +51,22 @@ export function ManagedTerminal({
         const resize = terminal.onResize(({ cols, rows }) => {
           void window.lumora.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);
         });
+        let attached = false;
+        let outputSequence = 0;
+        let pendingOutput: Extract<RuntimeEvent, { type: 'output' }>[] = [];
+        const writeOutput = (
+          event: Extract<RuntimeEvent, { type: 'output' }>
+        ) => {
+          if (event.sequence <= outputSequence) return;
+          terminal.write(event.data);
+          outputSequence = event.sequence;
+        };
         const unsubscribe = window.lumora.onRuntimeEvent((event) => {
           if (event.runtimeId !== runtime.id) return;
-          if (event.type === 'output') terminal.write(event.data);
-          else onRuntimeChange(event.runtime);
+          if (event.type === 'output') {
+            if (attached) writeOutput(event);
+            else pendingOutput.push(event);
+          } else onRuntimeChange(event.runtime);
         });
         const observer =
           typeof ResizeObserver === 'undefined'
@@ -73,6 +85,12 @@ export function ManagedTerminal({
           (attachment) => {
             if (!active) return;
             if (attachment.snapshot.length > 0) terminal.write(attachment.snapshot);
+            outputSequence = attachment.outputSequence;
+            attached = true;
+            pendingOutput
+              .sort((left, right) => left.sequence - right.sequence)
+              .forEach(writeOutput);
+            pendingOutput = [];
             onRuntimeChange(attachment.runtime);
             terminal.focus();
           },

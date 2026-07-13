@@ -54,7 +54,11 @@ function createHarness() {
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
     startRuntime: vi.fn(async () => runtime),
     listRuntimes: vi.fn(() => [runtime]),
-    attachRuntime: vi.fn(() => ({ runtime, snapshot: '' })),
+    attachRuntime: vi.fn(() => ({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    })),
     writeRuntime: vi.fn(),
     resizeRuntime: vi.fn(),
     terminateRuntime: vi.fn(async () => runtime),
@@ -201,10 +205,11 @@ describe('registerTerminalIpc', () => {
 
   it('forwards validated runtime events to the narrow broadcaster', () => {
     const { emit, sendRuntimeEvent } = createHarness();
-    emit({ type: 'output', runtimeId, data: 'ready' });
+    emit({ type: 'output', runtimeId, sequence: 1, data: 'ready' });
     expect(sendRuntimeEvent).toHaveBeenCalledWith({
       type: 'output',
       runtimeId,
+      sequence: 1,
       data: 'ready'
     });
   });
