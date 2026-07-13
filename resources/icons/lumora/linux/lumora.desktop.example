@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lumora
+Comment=Local agent workspace and session manager
+Exec=lumora
+Icon=lumora
+Terminal=false
+Categories=Development;Utility;

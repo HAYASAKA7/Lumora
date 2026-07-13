@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+
+        <defs>
+          <linearGradient id="bgGradient" x1="110" y1="80" x2="920" y2="960" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#13242D"/>
+            <stop offset="0.52" stop-color="#071018"/>
+            <stop offset="1" stop-color="#050B10"/>
+          </linearGradient>
+          <linearGradient id="cyanGradient" x1="260" y1="210" x2="770" y2="800" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#67E8F9"/>
+            <stop offset="0.56" stop-color="#22D3EE"/>
+            <stop offset="1" stop-color="#00B8D9"/>
+          </linearGradient>
+          <radialGradient id="glow" cx="50%" cy="47%" r="50%">
+            <stop offset="0" stop-color="#22D3EE" stop-opacity="0.16"/>
+            <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        
+<rect x="62" y="62" width="900" height="900" rx="222" fill="url(#bgGradient)"/>
+<rect x="64.5" y="64.5" width="895" height="895" rx="219.5" fill="none" stroke="#29414C" stroke-width="5"/>
+<ellipse cx="520" cy="515" rx="330" ry="330" fill="url(#glow)"/>
+
+<path d="M 332 250 V 584 C 332 687 415 770 518 770 H 720"
+      fill="none" stroke="url(#cyanGradient)" stroke-width="144"
+      stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="602" y="420" width="154" height="154" rx="42" fill="url(#cyanGradient)"/>
+
+</svg>

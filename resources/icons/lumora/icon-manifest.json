@@ -1,0 +1,18 @@
+{
+  "name": "Lumora",
+  "themeColor": "#22D3EE",
+  "secondaryColors": {
+    "cyanLight": "#67E8F9",
+    "cyanDeep": "#00B8D9",
+    "appBackground": "#071018"
+  },
+  "symbol": "Stylized L with a detached session/workspace tile",
+  "recommended": {
+    "windowsExecutable": "windows/Lumora.ico",
+    "windowsTransparentTaskbar": "windows/LumoraTransparent.ico",
+    "macOSDock": "macos/Lumora.icns",
+    "macOSMenuBar": "macos/menu-bar/LumoraTemplate.png",
+    "linuxDesktop": "linux/usr/share/icons/hicolor/scalable/apps/lumora.svg",
+    "linuxSymbolicTray": "linux/usr/share/icons/hicolor/symbolic/apps/lumora-symbolic.svg"
+  }
+}
