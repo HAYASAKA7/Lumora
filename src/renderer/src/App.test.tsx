@@ -238,6 +238,7 @@ describe('App', () => {
       .closest('.brand');
     const mark = brand?.querySelector<HTMLImageElement>('img.brand-mark');
 
+    expect(brand?.querySelector('strong')).toHaveTextContent('Lumora');
     expect(mark).not.toBeNull();
     expect(mark).toHaveAttribute('alt', '');
     expect(mark).toHaveAttribute('src', lumoraBrandMarkUrl);
