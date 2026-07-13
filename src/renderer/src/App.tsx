@@ -25,6 +25,7 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from './providers/ProviderSettings';
+import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -677,10 +678,19 @@ export default function App(): ReactNode {
               status={catalogStatus}
             />
           ) : activeRoute.id === 'settings' ? (
-            <ProviderSettings
-              onRefresh={refreshProviders}
-              status={providerStatus}
-            />
+            <div className="settings-layout">
+              <ProviderSettings
+                onRefresh={refreshProviders}
+                status={providerStatus}
+              />
+              {catalogStatus.state === 'ready' ? (
+                <LaunchSettingsPanel
+                  profiles={terminalProfiles}
+                  sessions={catalogStatus.snapshot.sessions}
+                  workspaces={catalogStatus.snapshot.workspaces}
+                />
+              ) : null}
+            </div>
           ) : activeRoute.id === 'profiles' ? (
             <TerminalProfiles onProfilesChange={setTerminalProfiles} />
           ) : (

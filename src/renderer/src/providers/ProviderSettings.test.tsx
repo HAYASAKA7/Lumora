@@ -47,6 +47,9 @@ describe('ProviderSettings', () => {
     );
 
     const input = await screen.findByLabelText('Codex start command');
+    expect(
+      screen.getAllByText(/Provider layer override/).length
+    ).toBeGreaterThan(0);
     fireEvent.change(input, { target: { value: 'codexp' } });
     fireEvent.click(
       screen.getByRole('button', { name: 'Save Codex start command' })

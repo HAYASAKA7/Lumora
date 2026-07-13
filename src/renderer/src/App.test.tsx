@@ -180,6 +180,8 @@ function setSystemInfoResult(
         { provider: 'codex', command: null },
         { provider: 'claude', command: null }
       ]),
+      getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
+      saveLaunchSettingsLayer: vi.fn().mockResolvedValue([]),
       prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
       startRuntime: catalogApi.startRuntime ?? vi.fn(),
       listRuntimes: catalogApi.listRuntimes ?? vi.fn().mockResolvedValue([]),
@@ -215,7 +217,7 @@ describe('App', () => {
     }
   });
 
-  it('changes destination without reloading the page', () => {
+  it('changes destination and exposes layered launch settings', async () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -225,6 +227,9 @@ describe('App', () => {
       'aria-current',
       'page'
     );
+    expect(
+      await screen.findByRole('heading', { name: 'Launch defaults' })
+    ).toBeInTheDocument();
   });
 
   it('opens and completes a native resume from the session catalog', async () => {

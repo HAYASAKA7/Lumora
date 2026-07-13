@@ -695,6 +695,64 @@ button {
   margin-top: 12px;
 }
 
+.settings-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.launch-settings-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.launch-settings-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.launch-settings-scope,
+.launch-settings-commands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.launch-settings-editor label,
+.launch-settings-commands fieldset {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.launch-settings-editor select,
+.launch-settings-editor input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.launch-settings-commands fieldset {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.launch-settings-commands legend {
+  padding: 0 5px;
+  color: var(--text);
+}
+
+.launch-settings-commands input {
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
 .provider-panel-state {
   display: flex;
   min-height: 124px;
@@ -1799,6 +1857,11 @@ button {
 
   .topbar-actions .refresh-button {
     width: auto;
+  }
+
+  .launch-settings-scope,
+  .launch-settings-commands {
+    grid-template-columns: 1fr;
   }
 
   .launch-fields {

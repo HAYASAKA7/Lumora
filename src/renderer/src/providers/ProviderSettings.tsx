@@ -98,7 +98,7 @@ function ProviderCard({
           />
         </label>
         <p>
-          Optional shell command. Leave blank to use the detected executable.
+          Provider layer override. Leave blank to use the detected executable.
         </p>
         <div className="provider-command-actions">
           <button
