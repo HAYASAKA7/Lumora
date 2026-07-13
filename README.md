@@ -82,8 +82,60 @@ installation does not already contain it.
 | `npm run typecheck` | Check the main/preload and renderer TypeScript projects |
 | `npm run verify` | Run tests, type checks, and a production build |
 | `npm run build` | Build Electron main, preload, and renderer bundles into `out/` |
+| `npm run package:dir` | Build an unpacked native application for local testing |
+| `npm run package` | Build the native installer or application image into `dist/` |
 
 For a reproducible clean installation, CI uses `npm ci`.
+
+## Package an unsigned MVP build
+
+Create a local package from a clean dependency installation:
+
+```powershell
+npm ci
+npm run package:dir
+npm run package
+```
+
+`npm run package:dir` creates unpacked output for quick local inspection.
+`npm run package` creates the native installer or application image under
+`dist/`. Packaging is native-only: run these commands on the operating system
+you are packaging, rather than expecting cross-compilation.
+
+The GitHub Actions workflow **Unsigned MVP packages** builds each native target,
+then verifies and uploads all four artifacts. Start it manually from the Actions
+page with **Run workflow**. The workflow artifacts are retained for 14 days.
+Open the completed workflow run and find its **Artifacts section**. Then
+download the artifact for your platform.
+
+| Target | Package |
+| --- | --- |
+| Windows x64 | NSIS `.exe` installer |
+| Linux x64 | AppImage |
+| macOS Intel x64 | DMG |
+| macOS Apple Silicon arm64 | DMG |
+
+These artifacts are unsigned MVP test builds. Use only artifacts produced by
+this repository's **Unsigned MVP packages** workflow. Windows SmartScreen may
+warn about or block the installer. macOS Gatekeeper may block the DMG or app;
+after verifying its source, use **System Settings > Privacy & Security > Open
+Anyway** to approve it. On Linux, make the downloaded AppImage executable
+before launching it, for example with `chmod +x Lumora-*.AppImage`.
+
+For each target, complete this manual smoke-test checklist:
+
+1. Confirm the application launches and displays the Lumora app icon.
+2. Confirm OpenAI Codex CLI and Claude Code discovery reports installed
+   providers correctly.
+3. Start a session using a custom CLI start command.
+4. Check terminal input, output, and resize behavior without duplicate rendering
+   or scrolling the page outside the fixed terminal UI.
+5. Resume a session and confirm it applies the configured start command.
+6. Exit the provider process and confirm the session tab closes automatically.
+7. Restart Lumora and confirm workspaces, settings, and history persist.
+
+Signing, notarization, publishing, and automatic updates are deferred until
+after MVP testing.
 
 ## Configuration
 
@@ -144,7 +196,8 @@ isolation mechanism.
 
 ## Current limitations
 
-- This repository is an MVP development build, not a signed packaged release.
+- Packaged artifacts are unsigned MVP test builds, so SmartScreen or Gatekeeper
+  warnings are expected until signing and notarization are introduced.
 - Generic PTY processes cannot be reattached after Lumora restarts; affected
   runtimes are reported honestly and can be resumed or restarted.
 - Provider-native authentication and approval flows must be completed inside
