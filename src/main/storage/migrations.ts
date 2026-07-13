@@ -143,6 +143,30 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         )
       ) STRICT`
     ]
+  },
+  {
+    version: 6,
+    statements: [
+      `CREATE TABLE config_layer (
+        scope TEXT NOT NULL CHECK (
+          scope IN ('global', 'provider', 'workspace', 'session')
+        ),
+        target_id TEXT NOT NULL,
+        settings_json TEXT NOT NULL CHECK (json_valid(settings_json)),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (scope, target_id)
+      ) STRICT`,
+      `INSERT INTO config_layer (
+        scope, target_id, settings_json, updated_at
+      )
+      SELECT 'provider', provider,
+        json_object(
+          'providerCommands',
+          json_object(provider, command)
+        ),
+        updated_at
+      FROM provider_launch_config`
+    ]
   }
 ];
 

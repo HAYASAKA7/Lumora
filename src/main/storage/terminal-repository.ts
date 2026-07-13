@@ -1,10 +1,16 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
+  LaunchSettingsLayerInputSchema,
+  LaunchSettingsLayerListSchema,
+  LaunchSettingsLayerSchema,
+  LaunchSettingsValueSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
   RuntimeSummarySchema,
   TerminalProfileSchema,
+  type LaunchSettingsLayer,
+  type LaunchSettingsLayerInput,
   type ProviderId,
   type ProviderLaunchConfig,
   type ProviderLaunchConfigInput,
@@ -14,9 +20,11 @@ import {
   type TerminalProfile
 } from '../../shared/contracts';
 
-interface ProviderLaunchConfigRow {
-  provider: ProviderId;
-  command: string;
+interface LaunchSettingsLayerRow {
+  scope: LaunchSettingsLayer['scope'];
+  target_id: string;
+  settings_json: string;
+  updated_at: string;
 }
 
 interface TerminalProfileRow {
@@ -311,13 +319,15 @@ export class TerminalRepository {
   }
 
   listProviderLaunchConfigs(): ProviderLaunchConfig[] {
-    const rows = this.database
-      .prepare(
-        `SELECT provider, command
-         FROM provider_launch_config ORDER BY provider`
-      )
-      .all() as unknown as ProviderLaunchConfigRow[];
-    const commands = new Map(rows.map((row) => [row.provider, row.command]));
+    const layers = this.listLaunchSettingsLayers().filter(
+      (layer) => layer.scope === 'provider'
+    );
+    const commands = new Map(
+      layers.map((layer) => [
+        layer.targetId,
+        layer.settings.providerCommands?.[layer.targetId]
+      ])
+    );
     return ProviderLaunchConfigListSchema.parse([
       { provider: 'codex', command: commands.get('codex') ?? null },
       { provider: 'claude', command: commands.get('claude') ?? null }
@@ -329,31 +339,112 @@ export class TerminalRepository {
     timestamp: string
   ): ProviderLaunchConfig[] {
     const input = ProviderLaunchConfigInputSchema.parse(value);
-    if (input.command === null) {
-      this.database
-        .prepare('DELETE FROM provider_launch_config WHERE provider = ?')
-        .run(input.provider);
-    } else {
-      this.database
-        .prepare(
-          `INSERT INTO provider_launch_config (provider, command, updated_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(provider) DO UPDATE SET
-            command = excluded.command,
-            updated_at = excluded.updated_at`
-        )
-        .run(input.provider, input.command, normalizeTimestamp(timestamp));
-    }
+    const existing = this.listLaunchSettingsLayers().find(
+      (layer) =>
+        layer.scope === 'provider' && layer.targetId === input.provider
+    );
+    this.saveLaunchSettingsLayer(
+      {
+        scope: 'provider',
+        targetId: input.provider,
+        settings: {
+          ...existing?.settings,
+          providerCommands: { [input.provider]: input.command }
+        }
+      },
+      timestamp
+    );
     return this.listProviderLaunchConfigs();
   }
 
   getProviderLaunchCommand(provider: ProviderId): string | null {
-    const row = this.database
+    const layer = this.listLaunchSettingsLayers().find(
+      (candidate) =>
+        candidate.scope === 'provider' && candidate.targetId === provider
+    );
+    return layer?.settings.providerCommands?.[provider] ?? null;
+  }
+
+  listLaunchSettingsLayers(): LaunchSettingsLayer[] {
+    const rows = this.database
       .prepare(
-        'SELECT provider, command FROM provider_launch_config WHERE provider = ?'
+        `SELECT scope, target_id, settings_json, updated_at
+         FROM config_layer
+         ORDER BY CASE scope
+          WHEN 'global' THEN 0
+          WHEN 'provider' THEN 1
+          WHEN 'workspace' THEN 2
+          ELSE 3 END,
+          target_id`
       )
-      .get(provider) as ProviderLaunchConfigRow | undefined;
-    return row?.command ?? null;
+      .all() as unknown as LaunchSettingsLayerRow[];
+    return LaunchSettingsLayerListSchema.parse(
+      rows.map((row) =>
+        LaunchSettingsLayerSchema.parse({
+          scope: row.scope,
+          targetId: row.target_id,
+          settings: LaunchSettingsValueSchema.parse(
+            JSON.parse(row.settings_json) as unknown
+          ),
+          updatedAt: row.updated_at
+        })
+      )
+    );
+  }
+
+  saveLaunchSettingsLayer(
+    value: LaunchSettingsLayerInput,
+    timestamp: string
+  ): LaunchSettingsLayer[] {
+    const input = LaunchSettingsLayerInputSchema.parse(value);
+    if (
+      input.scope === 'workspace' &&
+      this.getWorkspace(input.targetId) === null
+    ) {
+      throw new Error('The launch settings workspace does not exist.');
+    }
+    if (input.scope === 'session') {
+      const session = this.getSession(input.targetId);
+      if (session === null) {
+        throw new Error('The launch settings session does not exist.');
+      }
+      const commands = input.settings.providerCommands;
+      if (
+        commands !== undefined &&
+        Object.keys(commands).some((provider) => provider !== session.provider)
+      ) {
+        throw new Error(
+          'Session launch settings can only configure their session provider.'
+        );
+      }
+    }
+
+    const empty =
+      input.settings.terminalProfileId === undefined &&
+      (input.settings.providerCommands === undefined ||
+        Object.keys(input.settings.providerCommands).length === 0);
+    if (empty) {
+      this.database
+        .prepare('DELETE FROM config_layer WHERE scope = ? AND target_id = ?')
+        .run(input.scope, input.targetId);
+    } else {
+      this.database
+        .prepare(
+          `INSERT INTO config_layer (
+            scope, target_id, settings_json, updated_at
+          ) VALUES (?, ?, ?, ?)
+          ON CONFLICT(scope, target_id) DO UPDATE SET
+            settings_json = excluded.settings_json,
+            updated_at = excluded.updated_at`
+        )
+        .run(
+          input.scope,
+          input.targetId,
+          JSON.stringify(input.settings),
+          normalizeTimestamp(timestamp)
+        );
+    }
+    return this.listLaunchSettingsLayers();
   }
 
   saveRuntime(

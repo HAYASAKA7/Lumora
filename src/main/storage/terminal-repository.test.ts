@@ -168,6 +168,112 @@ describe('TerminalRepository', () => {
     expect(configurable.getProviderLaunchCommand('codex')).toBeNull();
   });
 
+  it('persists ordered launch setting layers and deletes empty overrides', () => {
+    const profileId = 'b'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+
+    repository.saveLaunchSettingsLayer(
+      {
+        scope: 'workspace',
+        targetId: workspaceId,
+        settings: {
+          terminalProfileId: profileId,
+          providerCommands: { codex: 'workspace-codex' }
+        }
+      },
+      timestamp
+    );
+    repository.saveLaunchSettingsLayer(
+      {
+        scope: 'global',
+        targetId: 'global',
+        settings: { terminalProfileId: null }
+      },
+      timestamp
+    );
+
+    expect(repository.listLaunchSettingsLayers()).toEqual([
+      expect.objectContaining({ scope: 'global', targetId: 'global' }),
+      expect.objectContaining({ scope: 'workspace', targetId: workspaceId })
+    ]);
+
+    repository.saveLaunchSettingsLayer(
+      { scope: 'workspace', targetId: workspaceId, settings: {} },
+      '2026-07-11T05:00:00.000Z'
+    );
+    expect(repository.listLaunchSettingsLayers()).toEqual([
+      expect.objectContaining({ scope: 'global', targetId: 'global' })
+    ]);
+  });
+
+  it('validates layer targets and session provider commands', () => {
+    const sessionId = 'c'.repeat(64);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', ?, ?, 'Resume me', 'resume me', ?, ?,
+        'saved', 'current')`
+    ).run(sessionId, 'native-thread', workspaceId, timestamp, timestamp);
+
+    expect(() =>
+      repository.saveLaunchSettingsLayer(
+        {
+          scope: 'workspace',
+          targetId: 'f'.repeat(64),
+          settings: { terminalProfileId: null }
+        },
+        timestamp
+      )
+    ).toThrow('workspace');
+    expect(() =>
+      repository.saveLaunchSettingsLayer(
+        {
+          scope: 'session',
+          targetId: sessionId,
+          settings: { providerCommands: { claude: 'claude-dev' } }
+        },
+        timestamp
+      )
+    ).toThrow('provider');
+  });
+
+  it('migrates legacy provider commands into provider layers', () => {
+    const legacy = new DatabaseSync(':memory:');
+    try {
+      legacy.exec(`CREATE TABLE schema_migration (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT`);
+      for (let version = 1; version <= 5; version += 1) {
+        legacy.prepare(
+          'INSERT INTO schema_migration (version, applied_at) VALUES (?, ?)'
+        ).run(version, timestamp);
+      }
+      legacy.exec(`CREATE TABLE provider_launch_config (
+        provider TEXT PRIMARY KEY CHECK (provider IN ('codex', 'claude')),
+        command TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`);
+      legacy.prepare(
+        `INSERT INTO provider_launch_config
+          (provider, command, updated_at) VALUES ('codex', 'codexp', ?)`
+      ).run(timestamp);
+
+      migrateCatalogDatabase(legacy);
+
+      const row = legacy.prepare(
+        `SELECT scope, target_id, settings_json
+         FROM config_layer WHERE scope = 'provider' AND target_id = 'codex'`
+      ).get() as { scope: string; target_id: string; settings_json: string };
+      expect(JSON.parse(row.settings_json)).toEqual({
+        providerCommands: { codex: 'codexp' }
+      });
+    } finally {
+      legacy.close();
+    }
+  });
+
   it('persists runtime lifecycle and marks interrupted live rows lost', () => {
     const profileId = 'b'.repeat(64);
     repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
