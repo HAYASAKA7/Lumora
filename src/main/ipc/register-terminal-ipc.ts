@@ -3,6 +3,8 @@ import {
   IPC_CHANNELS,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  LaunchSettingsLayerInputSchema,
+  LaunchSettingsLayerListSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
   RuntimeAttachmentSchema,
@@ -42,6 +44,8 @@ type TerminalIpcRuntime = Pick<
   | 'deleteProfile'
   | 'getProviderLaunchConfigs'
   | 'saveProviderLaunchConfig'
+  | 'getLaunchSettingsLayers'
+  | 'saveLaunchSettingsLayer'
   | 'prepareLaunch'
   | 'startRuntime'
   | 'listRuntimes'
@@ -135,6 +139,21 @@ export function registerTerminalIpc({
     return privileged(() =>
       ProviderLaunchConfigListSchema.parse(
         runtime.saveProviderLaunchConfig(request)
+      )
+    );
+  });
+  ipc.handle(IPC_CHANNELS.launchSettingsLayersGet, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() =>
+      LaunchSettingsLayerListSchema.parse(runtime.getLaunchSettingsLayers())
+    );
+  });
+  ipc.handle(IPC_CHANNELS.launchSettingsLayerSave, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = LaunchSettingsLayerInputSchema.parse(input);
+    return privileged(() =>
+      LaunchSettingsLayerListSchema.parse(
+        runtime.saveLaunchSettingsLayer(request)
       )
     );
   });

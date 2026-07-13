@@ -5,6 +5,8 @@ import {
   IPC_CHANNELS,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  LaunchSettingsLayerInputSchema,
+  LaunchSettingsLayerListSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
   ProviderScanResultSchema,
@@ -84,6 +86,18 @@ export function createLumoraApi(
         request
       );
       return ProviderLaunchConfigListSchema.parse(value);
+    },
+    async getLaunchSettingsLayers() {
+      const value = await invoke(IPC_CHANNELS.launchSettingsLayersGet);
+      return LaunchSettingsLayerListSchema.parse(value);
+    },
+    async saveLaunchSettingsLayer(input) {
+      const request = LaunchSettingsLayerInputSchema.parse(input);
+      const value = await invoke(
+        IPC_CHANNELS.launchSettingsLayerSave,
+        request
+      );
+      return LaunchSettingsLayerListSchema.parse(value);
     },
     async prepareLaunch(input) {
       const request = LaunchPrepareRequestSchema.parse(input);

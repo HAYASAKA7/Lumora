@@ -27,6 +27,12 @@ const runtime = {
   exitCode: null,
   errorCode: null
 };
+const settingsLayer = {
+  scope: 'provider' as const,
+  targetId: 'codex' as const,
+  settings: { providerCommands: { codex: 'codexp' } },
+  updatedAt: '2026-07-13T00:00:00.000Z'
+};
 
 function createHarness() {
   const handlers = new Map<string, Handler>();
@@ -43,6 +49,8 @@ function createHarness() {
       { provider: 'codex' as const, command: 'codexp' },
       { provider: 'claude' as const, command: null }
     ]),
+    getLaunchSettingsLayers: vi.fn(() => [settingsLayer]),
+    saveLaunchSettingsLayer: vi.fn(() => [settingsLayer]),
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
     startRuntime: vi.fn(async () => runtime),
     listRuntimes: vi.fn(() => [runtime]),
@@ -72,7 +80,7 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the twelve explicit terminal operations', () => {
+  it('registers the fourteen explicit terminal operations', () => {
     const { handlers } = createHarness();
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
       providerLaunchConfigsGet: string;
@@ -84,6 +92,8 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.terminalProfileDelete,
       channels.providerLaunchConfigsGet,
       channels.providerLaunchConfigSave,
+      IPC_CHANNELS.launchSettingsLayersGet,
+      IPC_CHANNELS.launchSettingsLayerSave,
       IPC_CHANNELS.launchPrepare,
       IPC_CHANNELS.runtimeStart,
       IPC_CHANNELS.runtimeList,
@@ -92,6 +102,34 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.runtimeResize,
       IPC_CHANNELS.runtimeTerminate
     ]);
+  });
+
+  it('validates and forwards layered launch settings', async () => {
+    const { handlers, runtimeService } = createHarness();
+    await expect(
+      handlers.get(IPC_CHANNELS.launchSettingsLayersGet)!(trustedEvent)
+    ).resolves.toEqual([settingsLayer]);
+    await expect(
+      handlers.get(IPC_CHANNELS.launchSettingsLayerSave)!(trustedEvent, {
+        scope: 'provider',
+        targetId: 'codex',
+        settings: { providerCommands: { codex: 'codexp' } }
+      })
+    ).resolves.toEqual([settingsLayer]);
+    expect(runtimeService.saveLaunchSettingsLayer).toHaveBeenCalledWith({
+      scope: 'provider',
+      targetId: 'codex',
+      settings: { providerCommands: { codex: 'codexp' } }
+    });
+    await expect(
+      Promise.resolve().then(() =>
+        handlers.get(IPC_CHANNELS.launchSettingsLayerSave)!(trustedEvent, {
+          scope: 'provider',
+          targetId: 'codex',
+          settings: { providerCommands: { claude: 'wrong-provider' } }
+        })
+      )
+    ).rejects.toBeDefined();
   });
 
   it('validates and forwards provider launch configuration', async () => {

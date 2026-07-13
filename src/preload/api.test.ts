@@ -232,6 +232,32 @@ describe('createLumoraApi', () => {
     ]);
   });
 
+  it('uses validated narrow channels for layered launch settings', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const layer = {
+      scope: 'workspace' as const,
+      targetId: 'a'.repeat(64),
+      settings: { terminalProfileId: null },
+      updatedAt: '2026-07-13T00:00:00.000Z'
+    };
+    const input = {
+      scope: 'workspace' as const,
+      targetId: layer.targetId,
+      settings: { terminalProfileId: null }
+    };
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return [layer];
+    });
+
+    await expect(api.getLaunchSettingsLayers()).resolves.toEqual([layer]);
+    await expect(api.saveLaunchSettingsLayer(input)).resolves.toEqual([layer]);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.launchSettingsLayersGet, args: [] },
+      { channel: IPC_CHANNELS.launchSettingsLayerSave, args: [input] }
+    ]);
+  });
+
   it('rejects oversized terminal data before invoking IPC', async () => {
     const invoke = vi.fn();
     const api = createLumoraApi(invoke);
