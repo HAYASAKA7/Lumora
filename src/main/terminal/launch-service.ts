@@ -5,14 +5,17 @@ import {
   LaunchPreviewSchema,
   type LaunchPrepareRequest,
   type LaunchPreview,
+  type LaunchSettingsLayer,
   type ProviderId,
   type ProviderScanResult,
+  type ResolvedLaunchSetting,
   type SystemInfo,
   type TerminalProfile
 } from '../../shared/contracts';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { buildResumeArguments } from '../providers/launch-command';
+import { resolveLaunchSettings } from './launch-settings';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -20,7 +23,8 @@ interface LaunchRepository {
   getWorkspace(workspaceId: string): WorkspaceLaunchInfo | null;
   getProfile(profileId: string): TerminalProfile | null;
   getSession(sessionId: string): SessionLaunchInfo | null;
-  getProviderLaunchCommand(provider: ProviderId): string | null;
+  listProfiles(): TerminalProfile[];
+  listLaunchSettingsLayers(): LaunchSettingsLayer[];
 }
 
 interface LaunchServiceDependencies {
@@ -50,6 +54,7 @@ export interface LaunchSpec {
   workingDirectory: string;
   environment: Record<string, string | undefined>;
   terminalProfile: TerminalProfile;
+  configuration: [ResolvedLaunchSetting, ResolvedLaunchSetting];
   launchHash: string;
   cols: number;
   rows: number;
@@ -167,13 +172,6 @@ export class LaunchService {
       throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
     }
 
-    const profile = this.dependencies.repository.getProfile(
-      request.terminalProfileId
-    );
-    if (profile === null || !profile.available) {
-      throw new TerminalLaunchError('TERMINAL_PROFILE_UNAVAILABLE');
-    }
-
     const scan = await this.dependencies.scanProviders();
     const installation = scan.providers.find(
       (candidate) => candidate.provider === provider
@@ -185,10 +183,20 @@ export class LaunchService {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
 
+    const resolved = resolveLaunchSettings({
+      provider,
+      workspaceId: workspace.id,
+      sessionId,
+      requestedTerminalProfileId: request.terminalProfileId,
+      layers: this.dependencies.repository.listLaunchSettingsLayers(),
+      profiles: this.dependencies.repository.listProfiles()
+    });
+    const profile = resolved.profile;
+    if (profile === null) {
+      throw new TerminalLaunchError('TERMINAL_PROFILE_UNAVAILABLE');
+    }
     const environment = environmentWithProfile(this.dependencies.env, profile);
-    const command = this.dependencies.repository.getProviderLaunchCommand(
-      provider
-    );
+    const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
     if (request.strategy === 'new') {
       try {
@@ -213,6 +221,7 @@ export class LaunchService {
       workingDirectory: workspace.canonicalPath,
       environment,
       terminalProfile: profile,
+      configuration: resolved.configuration,
       cols: request.cols,
       rows: request.rows
     };
@@ -237,7 +246,8 @@ export class LaunchService {
       workingDirectory: spec.workingDirectory,
       environmentNames: Object.keys(spec.environment).sort(),
       terminalProfile: spec.terminalProfile,
-      warnings: [],
+      configuration: spec.configuration,
+      warnings: resolved.warnings,
       createdAt: spec.createdAt,
       expiresAt: new Date(expiresAtMs).toISOString()
     });

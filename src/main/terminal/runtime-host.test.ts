@@ -31,6 +31,26 @@ const launchSpec: LaunchSpec = {
     available: true,
     recommended: true
   },
+  configuration: [
+    {
+      field: 'providerCommand',
+      value: null,
+      winningSource: { scope: 'default', targetId: null },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    },
+    {
+      field: 'terminalProfile',
+      value: 'b'.repeat(64),
+      winningSource: { scope: 'launch', targetId: null },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    }
+  ],
   launchHash: 'c'.repeat(64),
   cols: 80,
   rows: 24,

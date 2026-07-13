@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProviderScanResult, TerminalProfile } from '../../shared/contracts';
+import type {
+  LaunchSettingsLayer,
+  ProviderScanResult,
+  TerminalProfile
+} from '../../shared/contracts';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { LaunchService, TerminalLaunchError } from './launch-service';
 
@@ -55,10 +59,29 @@ function harness(overrides: {
   now?: Date;
   env?: Readonly<Record<string, string | undefined>>;
   command?: string | null;
+  layers?: LaunchSettingsLayer[];
+  profiles?: TerminalProfile[];
   baseline?: readonly string[] | Error;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentSession = overrides.session === undefined ? session : overrides.session;
+  let currentLayers =
+    overrides.layers ??
+    (overrides.command === undefined
+      ? []
+      : [
+          {
+            scope: 'provider',
+            targetId: 'codex',
+            settings: { providerCommands: { codex: overrides.command } },
+            updatedAt: '2026-07-11T04:00:00.000Z'
+          } as LaunchSettingsLayer
+        ]);
+  const profiles =
+    overrides.profiles ??
+    [overrides.profile === undefined ? profile : overrides.profile].filter(
+      (value): value is TerminalProfile => value !== null
+    );
   const repository = {
     getWorkspace: vi.fn(() =>
       overrides.workspace === undefined
@@ -74,7 +97,9 @@ function harness(overrides: {
       overrides.profile === undefined ? profile : overrides.profile
     ),
     getSession: vi.fn(() => currentSession),
-    getProviderLaunchCommand: vi.fn(() => overrides.command ?? null)
+    getProviderLaunchCommand: vi.fn(() => overrides.command ?? null),
+    listLaunchSettingsLayers: vi.fn(() => currentLayers),
+    listProfiles: vi.fn(() => profiles)
   };
   const service = new LaunchService({
     repository,
@@ -96,6 +121,9 @@ function harness(overrides: {
     },
     setSession(value: SessionLaunchInfo | null) {
       currentSession = value;
+    },
+    setLayers(value: LaunchSettingsLayer[]) {
+      currentLayers = value;
     }
   };
 }
@@ -176,6 +204,50 @@ describe('LaunchService', () => {
       strategy: 'resume',
       command: 'codexp',
       args: ['resume', nativeId]
+    });
+  });
+
+  it('resolves session settings once and consumes the immutable result', async () => {
+    const sessionProfile = {
+      ...profile,
+      id: 'd'.repeat(64),
+      name: 'Session shell',
+      recommended: false
+    };
+    const sessionLayer = {
+      scope: 'session',
+      targetId: sessionId,
+      settings: {
+        terminalProfileId: sessionProfile.id,
+        providerCommands: { codex: 'session-codex' }
+      },
+      updatedAt: '2026-07-13T00:00:00.000Z'
+    } as LaunchSettingsLayer;
+    const { service, setLayers } = harness({
+      layers: [sessionLayer],
+      profiles: [profile, sessionProfile]
+    });
+
+    const preview = await service.prepare({
+      strategy: 'resume',
+      sessionId,
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    });
+    expect(preview).toMatchObject({
+      command: 'session-codex',
+      terminalProfile: { id: sessionProfile.id },
+      configuration: [
+        { field: 'providerCommand', winningSource: { scope: 'session' } },
+        { field: 'terminalProfile', winningSource: { scope: 'session' } }
+      ]
+    });
+
+    setLayers([]);
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      command: 'session-codex',
+      terminalProfile: { id: sessionProfile.id }
     });
   });
 

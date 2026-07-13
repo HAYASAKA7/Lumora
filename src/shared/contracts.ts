@@ -265,7 +265,7 @@ export const LaunchSettingsScopeSchema = z.enum([
   'session'
 ]);
 
-const launchSettingsInputVariants = [
+const LaunchSettingsLayerInputBaseSchema = z.discriminatedUnion('scope', [
   z.strictObject({
     scope: z.literal('global'),
     targetId: z.literal('global'),
@@ -286,12 +286,14 @@ const launchSettingsInputVariants = [
     targetId: StableIdSchema,
     settings: LaunchSettingsValueSchema
   })
-] as const;
+]);
 
 function validateProviderLayer(
-  layer: { scope: string; targetId: string; settings: {
-    providerCommands?: { codex?: string | null; claude?: string | null };
-  } },
+  layer: {
+    scope: string;
+    targetId: string;
+    settings: z.infer<typeof LaunchSettingsValueSchema>;
+  },
   context: z.RefinementCtx
 ): void {
   if (layer.scope !== 'provider' || layer.settings.providerCommands === undefined) {
@@ -312,20 +314,37 @@ function validateProviderLayer(
   }
 }
 
-export const LaunchSettingsLayerInputSchema = z
-  .discriminatedUnion('scope', launchSettingsInputVariants)
+export const LaunchSettingsLayerInputSchema = LaunchSettingsLayerInputBaseSchema
   .superRefine(validateProviderLayer);
 
-const launchSettingsLayerVariants = launchSettingsInputVariants.map((variant) =>
-  variant.extend({ updatedAt: z.iso.datetime() })
-) as unknown as [
-  z.ZodTypeAny,
-  z.ZodTypeAny,
-  ...z.ZodTypeAny[]
-];
+const LaunchSettingsLayerBaseSchema = z.discriminatedUnion('scope', [
+  z.strictObject({
+    scope: z.literal('global'),
+    targetId: z.literal('global'),
+    settings: LaunchSettingsValueSchema,
+    updatedAt: z.iso.datetime()
+  }),
+  z.strictObject({
+    scope: z.literal('provider'),
+    targetId: ProviderIdSchema,
+    settings: LaunchSettingsValueSchema,
+    updatedAt: z.iso.datetime()
+  }),
+  z.strictObject({
+    scope: z.literal('workspace'),
+    targetId: StableIdSchema,
+    settings: LaunchSettingsValueSchema,
+    updatedAt: z.iso.datetime()
+  }),
+  z.strictObject({
+    scope: z.literal('session'),
+    targetId: StableIdSchema,
+    settings: LaunchSettingsValueSchema,
+    updatedAt: z.iso.datetime()
+  })
+]);
 
-export const LaunchSettingsLayerSchema = z
-  .discriminatedUnion('scope', launchSettingsLayerVariants)
+export const LaunchSettingsLayerSchema = LaunchSettingsLayerBaseSchema
   .superRefine(validateProviderLayer);
 export const LaunchSettingsLayerListSchema = z
   .array(LaunchSettingsLayerSchema)

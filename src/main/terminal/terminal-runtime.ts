@@ -10,6 +10,8 @@ import {
   type CustomTerminalProfileInput,
   type LaunchPrepareRequest,
   type LaunchPreview,
+  type LaunchSettingsLayer,
+  type LaunchSettingsLayerInput,
   type ProviderLaunchConfig,
   type ProviderLaunchConfigInput,
   type ProviderScanResult,
@@ -51,6 +53,8 @@ export interface TerminalRuntime {
   saveProviderLaunchConfig(
     input: ProviderLaunchConfigInput
   ): ProviderLaunchConfig[];
+  getLaunchSettingsLayers(): LaunchSettingsLayer[];
+  saveLaunchSettingsLayer(input: LaunchSettingsLayerInput): LaunchSettingsLayer[];
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): RuntimeSummary[];
@@ -168,6 +172,12 @@ export async function createTerminalRuntime({
     },
     saveProviderLaunchConfig(input) {
       return repository.saveProviderLaunchConfig(input, clock().toISOString());
+    },
+    getLaunchSettingsLayers() {
+      return repository.listLaunchSettingsLayers();
+    },
+    saveLaunchSettingsLayer(input) {
+      return repository.saveLaunchSettingsLayer(input, clock().toISOString());
     },
     prepareLaunch(input) {
       return launchService.prepare(input);
