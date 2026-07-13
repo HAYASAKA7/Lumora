@@ -26,6 +26,7 @@ import {
   type ProviderScanStatus
 } from './providers/ProviderSettings';
 import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
+import { WorkspaceTrustPanel } from './settings/WorkspaceTrustPanel';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -708,11 +709,16 @@ export default function App(): ReactNode {
                 status={providerStatus}
               />
               {catalogStatus.state === 'ready' ? (
-                <LaunchSettingsPanel
-                  profiles={terminalProfiles}
-                  sessions={catalogStatus.snapshot.sessions}
-                  workspaces={catalogStatus.snapshot.workspaces}
-                />
+                <>
+                  <WorkspaceTrustPanel
+                    workspaces={catalogStatus.snapshot.workspaces}
+                  />
+                  <LaunchSettingsPanel
+                    profiles={terminalProfiles}
+                    sessions={catalogStatus.snapshot.sessions}
+                    workspaces={catalogStatus.snapshot.workspaces}
+                  />
+                </>
               ) : null}
             </div>
           ) : activeRoute.id === 'profiles' ? (

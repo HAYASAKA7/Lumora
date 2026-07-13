@@ -1869,6 +1869,52 @@ button {
   outline-offset: 2px;
 }
 
+.workspace-trust-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.workspace-trust-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  background: #fbfcfe;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.workspace-trust-list li > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.workspace-trust-list strong {
+  color: var(--text);
+}
+
+.workspace-trust-list code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.workspace-trust-empty {
+  padding: 16px;
+  margin-top: 18px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+}
+
 .new-session-dialog footer {
   display: flex;
   justify-content: flex-end;
@@ -2037,5 +2083,10 @@ button {
 
   .workspace-trust-heading code {
     text-align: left;
+  }
+
+  .workspace-trust-list li {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

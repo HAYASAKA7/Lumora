@@ -210,6 +210,9 @@ function setSystemInfoResult(
       ]),
       getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
       saveLaunchSettingsLayer: vi.fn().mockResolvedValue([]),
+      getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
+      trustWorkspaceForLaunch: vi.fn(),
+      revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
       prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
       startRuntime: catalogApi.startRuntime ?? vi.fn(),
       listRuntimes: catalogApi.listRuntimes ?? vi.fn().mockResolvedValue([]),
@@ -715,6 +718,9 @@ describe('App', () => {
 
     expect(
       screen.getByRole('heading', { name: 'Provider installations' })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace trust' })
     ).toBeInTheDocument();
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
     expect(screen.getByText('2.3.4 (Claude Code)')).toBeInTheDocument();
