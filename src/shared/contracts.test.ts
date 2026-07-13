@@ -15,7 +15,11 @@ import {
   RuntimeEventSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
-  SystemInfoSchema
+  SystemInfoSchema,
+  WorkspaceTrustDecisionListSchema,
+  WorkspaceTrustDecisionSchema,
+  WorkspaceTrustGrantRequestSchema,
+  WorkspaceTrustRevokeRequestSchema
 } from './contracts';
 import * as contracts from './contracts';
 
@@ -300,6 +304,59 @@ describe('managed terminal contracts', () => {
     recommended: true
   } as const;
 
+  it('validates workspace trust decisions and requests', () => {
+    const workspaceId = 'a'.repeat(64);
+    const decision = {
+      workspaceId,
+      canonicalPath: 'D:\\Projects\\AI\\Lumora',
+      trustedAt: '2026-07-13T08:00:00.000Z'
+    } as const;
+
+    expect(WorkspaceTrustDecisionSchema.parse(decision)).toEqual(decision);
+    expect(WorkspaceTrustDecisionListSchema.parse([decision])).toEqual([
+      decision
+    ]);
+    expect(
+      WorkspaceTrustGrantRequestSchema.parse({
+        launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+      })
+    ).toEqual({ launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc' });
+    expect(
+      WorkspaceTrustRevokeRequestSchema.parse({ workspaceId })
+    ).toEqual({ workspaceId });
+
+    expect(
+      WorkspaceTrustDecisionSchema.safeParse({
+        ...decision,
+        canonicalPath: ''
+      }).success
+    ).toBe(false);
+    expect(
+      WorkspaceTrustDecisionSchema.safeParse({
+        ...decision,
+        trustedAt: 'recently'
+      }).success
+    ).toBe(false);
+    expect(
+      WorkspaceTrustGrantRequestSchema.safeParse({ launchToken: 'not-a-uuid' })
+        .success
+    ).toBe(false);
+    expect(
+      WorkspaceTrustRevokeRequestSchema.safeParse({ workspaceId: '../escape' })
+        .success
+    ).toBe(false);
+
+    expect(IPC_CHANNELS.workspaceTrustGet).toBe(
+      'lumora:terminal:workspace-trust:get'
+    );
+    expect(IPC_CHANNELS.workspaceTrustGrant).toBe(
+      'lumora:terminal:workspace-trust:grant'
+    );
+    expect(IPC_CHANNELS.workspaceTrustRevoke).toBe(
+      'lumora:terminal:workspace-trust:revoke'
+    );
+  });
+
   it('accepts single-line provider commands and rejects multiline input', () => {
     const schema = (
       contracts as unknown as {
@@ -398,6 +455,7 @@ describe('managed terminal contracts', () => {
       command: null,
       args: [],
       workingDirectory: 'D:\\Projects\\Lumora',
+      workspaceTrusted: false,
       environmentNames: ['SHELL'],
       terminalProfile: profile,
       configuration: [
@@ -427,6 +485,11 @@ describe('managed terminal contracts', () => {
 
     expect(LaunchPrepareRequestSchema.parse(request)).toEqual(request);
     expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
+    const { workspaceTrusted: _workspaceTrusted, ...previewWithoutTrust } =
+      preview;
+    expect(LaunchPreviewSchema.safeParse(previewWithoutTrust).success).toBe(
+      false
+    );
     const resumeRequest = {
       strategy: 'resume',
       sessionId: 'c'.repeat(64),

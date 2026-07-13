@@ -139,6 +139,24 @@ export const WorkspaceSummarySchema = z.strictObject({
   lastActivityAt: z.iso.datetime().nullable()
 });
 
+export const WorkspaceTrustDecisionSchema = z.strictObject({
+  workspaceId: StableIdSchema,
+  canonicalPath: WorkspaceSummarySchema.shape.canonicalPath,
+  trustedAt: z.iso.datetime()
+});
+
+export const WorkspaceTrustDecisionListSchema = z
+  .array(WorkspaceTrustDecisionSchema)
+  .max(50_000);
+
+export const WorkspaceTrustGrantRequestSchema = z.strictObject({
+  launchToken: z.uuid()
+});
+
+export const WorkspaceTrustRevokeRequestSchema = z.strictObject({
+  workspaceId: StableIdSchema
+});
+
 export const SessionSummarySchema = z.strictObject({
   id: StableIdSchema,
   nativeId: z.string().trim().min(1).max(256),
@@ -198,6 +216,9 @@ export const CatalogQuerySchema = z.strictObject({
 
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
 export type WorkspaceOrigin = z.infer<typeof WorkspaceOriginSchema>;
+export type WorkspaceTrustDecision = z.infer<
+  typeof WorkspaceTrustDecisionSchema
+>;
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 export type CatalogDiagnostic = z.infer<typeof CatalogDiagnosticSchema>;
 export type CatalogProviderStatus = z.infer<
@@ -424,6 +445,7 @@ export const LaunchPreviewSchema = z.strictObject({
   args: z.array(TerminalArgumentSchema).max(64),
   command: ProviderLaunchConfigSchema.shape.command.default(null),
   workingDirectory: z.string().min(1).max(32_768),
+  workspaceTrusted: z.boolean(),
   environmentNames: z.array(z.string().min(1).max(256)).max(256),
   terminalProfile: TerminalProfileSchema,
   configuration: z.array(ResolvedLaunchSettingSchema).length(2),
@@ -600,6 +622,9 @@ export const IPC_CHANNELS = {
   launchSettingsLayersGet: 'lumora:terminal:launch-settings:get',
   launchSettingsLayerSave: 'lumora:terminal:launch-settings:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
+  workspaceTrustGet: 'lumora:terminal:workspace-trust:get',
+  workspaceTrustGrant: 'lumora:terminal:workspace-trust:grant',
+  workspaceTrustRevoke: 'lumora:terminal:workspace-trust:revoke',
   runtimeStart: 'lumora:terminal:runtime:start',
   runtimeList: 'lumora:terminal:runtime:list',
   runtimeAttach: 'lumora:terminal:runtime:attach',
@@ -629,6 +654,11 @@ export interface LumoraApi {
     input: LaunchSettingsLayerInput
   ): Promise<LaunchSettingsLayer[]>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
+  getWorkspaceTrustDecisions(): Promise<WorkspaceTrustDecision[]>;
+  trustWorkspaceForLaunch(
+    launchToken: string
+  ): Promise<WorkspaceTrustDecision[]>;
+  revokeWorkspaceTrust(workspaceId: string): Promise<WorkspaceTrustDecision[]>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): Promise<RuntimeSummary[]>;
   attachRuntime(runtimeId: string): Promise<RuntimeAttachment>;
