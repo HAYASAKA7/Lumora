@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import type {
   CatalogSnapshot,
   LaunchPreview,
@@ -228,6 +229,19 @@ function setSystemInfoResult(
 
 describe('App', () => {
   beforeEach(() => setSystemInfoResult());
+
+  it('uses the canonical Lumora brand artwork in the sidebar', () => {
+    render(<App />);
+
+    const brand = screen
+      .getByText('Agent workspace manager')
+      .closest('.brand');
+    const mark = brand?.querySelector<HTMLImageElement>('img.brand-mark');
+
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute('alt', '');
+    expect(mark).toHaveAttribute('src', lumoraBrandMarkUrl);
+  });
 
   it('opens on Home and exposes the complete primary navigation', () => {
     render(<App />);

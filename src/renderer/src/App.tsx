@@ -7,6 +7,7 @@ import {
   type ReactNode
 } from 'react';
 
+import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import type {
   CatalogQuery,
   LaunchPreview,
@@ -559,9 +560,7 @@ export default function App(): ReactNode {
 
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-          </span>
+          <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
           <span>
             <strong>Lumora</strong>
             <small>Agent workspace manager</small>

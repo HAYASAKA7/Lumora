@@ -120,40 +120,11 @@ button {
 }
 
 .brand-mark {
-  position: relative;
-  display: grid;
+  display: block;
   width: 35px;
   height: 35px;
   flex: 0 0 auto;
-  place-items: center;
-  background: var(--blue);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(41, 109, 255, 0.35);
-}
-
-.brand-mark::before,
-.brand-mark::after,
-.brand-mark span {
-  position: absolute;
-  width: 4px;
-  content: "";
-  background: #fff;
-  border-radius: 8px;
-}
-
-.brand-mark::before {
-  height: 13px;
-  transform: translateX(-7px);
-}
-
-.brand-mark span {
-  height: 21px;
-}
-
-.brand-mark::after {
-  height: 9px;
-  transform: translateX(7px);
+  filter: drop-shadow(0 8px 18px rgba(34, 211, 238, 0.28));
 }
 
 .brand strong,
