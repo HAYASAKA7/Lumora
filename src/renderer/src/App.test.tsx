@@ -217,6 +217,18 @@ describe('App', () => {
     }
   });
 
+  it('resets the shared page scroll position when navigation changes', async () => {
+    render(<App />);
+    const main = document.getElementById('main-content');
+    expect(main).not.toBeNull();
+    if (main === null) throw new Error('main content missing');
+    main.scrollTop = 480;
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+
+    await waitFor(() => expect(main.scrollTop).toBe(0));
+  });
+
   it('changes destination and exposes layered launch settings', async () => {
     render(<App />);
 

@@ -251,11 +251,18 @@ export default function App(): ReactNode {
   const providerRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
+  const mainContentRef = useRef<HTMLElement | null>(null);
 
   const activeRoute = useMemo(
     () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
     [activeRouteId]
   );
+
+  useEffect(() => {
+    if (mainContentRef.current !== null) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeRouteId, activeRuntimeId]);
 
   const refreshProviders = useCallback(() => {
     const requestId = providerRequestId.current + 1;
@@ -613,7 +620,12 @@ export default function App(): ReactNode {
           </div>
         </header>
 
-        <main className="main-content" id="main-content" tabIndex={-1}>
+        <main
+          className="main-content"
+          id="main-content"
+          ref={mainContentRef}
+          tabIndex={-1}
+        >
           <header className="page-header">
             <p className="eyebrow">{activeRoute.eyebrow}</p>
             <h1>{activeRoute.label}</h1>
