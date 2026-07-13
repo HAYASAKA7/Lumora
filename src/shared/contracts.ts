@@ -248,13 +248,136 @@ export type CustomTerminalProfileInput = z.infer<
   typeof CustomTerminalProfileInputSchema
 >;
 
+const ProviderCommandOverridesSchema = z.strictObject({
+  codex: ProviderLaunchCommandSchema.nullable().optional(),
+  claude: ProviderLaunchCommandSchema.nullable().optional()
+});
+
+export const LaunchSettingsValueSchema = z.strictObject({
+  terminalProfileId: TerminalProfileIdSchema.nullable().optional(),
+  providerCommands: ProviderCommandOverridesSchema.optional()
+});
+
+export const LaunchSettingsScopeSchema = z.enum([
+  'global',
+  'provider',
+  'workspace',
+  'session'
+]);
+
+const launchSettingsInputVariants = [
+  z.strictObject({
+    scope: z.literal('global'),
+    targetId: z.literal('global'),
+    settings: LaunchSettingsValueSchema
+  }),
+  z.strictObject({
+    scope: z.literal('provider'),
+    targetId: ProviderIdSchema,
+    settings: LaunchSettingsValueSchema
+  }),
+  z.strictObject({
+    scope: z.literal('workspace'),
+    targetId: StableIdSchema,
+    settings: LaunchSettingsValueSchema
+  }),
+  z.strictObject({
+    scope: z.literal('session'),
+    targetId: StableIdSchema,
+    settings: LaunchSettingsValueSchema
+  })
+] as const;
+
+function validateProviderLayer(
+  layer: { scope: string; targetId: string; settings: {
+    providerCommands?: { codex?: string | null; claude?: string | null };
+  } },
+  context: z.RefinementCtx
+): void {
+  if (layer.scope !== 'provider' || layer.settings.providerCommands === undefined) {
+    return;
+  }
+  const unexpectedProvider = layer.targetId === 'codex' ? 'claude' : 'codex';
+  if (
+    Object.prototype.hasOwnProperty.call(
+      layer.settings.providerCommands,
+      unexpectedProvider
+    )
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['settings', 'providerCommands', unexpectedProvider],
+      message: 'Provider layers can only configure their own provider.'
+    });
+  }
+}
+
+export const LaunchSettingsLayerInputSchema = z
+  .discriminatedUnion('scope', launchSettingsInputVariants)
+  .superRefine(validateProviderLayer);
+
+const launchSettingsLayerVariants = launchSettingsInputVariants.map((variant) =>
+  variant.extend({ updatedAt: z.iso.datetime() })
+) as unknown as [
+  z.ZodTypeAny,
+  z.ZodTypeAny,
+  ...z.ZodTypeAny[]
+];
+
+export const LaunchSettingsLayerSchema = z
+  .discriminatedUnion('scope', launchSettingsLayerVariants)
+  .superRefine(validateProviderLayer);
+export const LaunchSettingsLayerListSchema = z
+  .array(LaunchSettingsLayerSchema)
+  .max(50_000);
+
+export const LaunchSettingSourceSchema = z.strictObject({
+  scope: z.enum([
+    'default',
+    'global',
+    'provider',
+    'workspace',
+    'session',
+    'launch'
+  ]),
+  targetId: z.string().min(1).nullable()
+});
+
+export const ResolvedLaunchSettingSchema = z.strictObject({
+  field: z.enum(['providerCommand', 'terminalProfile']),
+  value: z.string().nullable(),
+  winningSource: LaunchSettingSourceSchema,
+  shadowed: z
+    .array(
+      z.strictObject({
+        value: z.string().nullable(),
+        source: LaunchSettingSourceSchema
+      })
+    )
+    .max(8),
+  mergeStrategy: z.literal('replace'),
+  warnings: z.array(z.string().trim().min(1).max(512)).max(8),
+  sensitive: z.literal(false)
+});
+
+export type LaunchSettingsScope = z.infer<typeof LaunchSettingsScopeSchema>;
+export type LaunchSettingsValue = z.infer<typeof LaunchSettingsValueSchema>;
+export type LaunchSettingsLayerInput = z.infer<
+  typeof LaunchSettingsLayerInputSchema
+>;
+export type LaunchSettingsLayer = z.infer<typeof LaunchSettingsLayerSchema>;
+export type LaunchSettingSource = z.infer<typeof LaunchSettingSourceSchema>;
+export type ResolvedLaunchSetting = z.infer<
+  typeof ResolvedLaunchSettingSchema
+>;
+
 const TerminalDimensionsFields = {
   cols: z.number().int().min(20).max(500),
   rows: z.number().int().min(5).max(300)
 };
 
 const LaunchRequestBaseFields = {
-  terminalProfileId: StableIdSchema,
+  terminalProfileId: StableIdSchema.nullable().default(null),
   ...TerminalDimensionsFields
 };
 
@@ -284,6 +407,7 @@ export const LaunchPreviewSchema = z.strictObject({
   workingDirectory: z.string().min(1).max(32_768),
   environmentNames: z.array(z.string().min(1).max(256)).max(256),
   terminalProfile: TerminalProfileSchema,
+  configuration: z.array(ResolvedLaunchSettingSchema).length(2),
   warnings: z.array(z.string().trim().min(1).max(512)).max(10),
   createdAt: z.iso.datetime(),
   expiresAt: z.iso.datetime()
@@ -452,6 +576,8 @@ export const IPC_CHANNELS = {
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
   providerLaunchConfigsGet: 'lumora:terminal:provider-launch-configs:get',
   providerLaunchConfigSave: 'lumora:terminal:provider-launch-configs:save',
+  launchSettingsLayersGet: 'lumora:terminal:launch-settings:get',
+  launchSettingsLayerSave: 'lumora:terminal:launch-settings:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
   runtimeStart: 'lumora:terminal:runtime:start',
   runtimeList: 'lumora:terminal:runtime:list',
@@ -477,6 +603,10 @@ export interface LumoraApi {
   saveProviderLaunchConfig(
     input: ProviderLaunchConfigInput
   ): Promise<ProviderLaunchConfig[]>;
+  getLaunchSettingsLayers(): Promise<LaunchSettingsLayer[]>;
+  saveLaunchSettingsLayer(
+    input: LaunchSettingsLayerInput
+  ): Promise<LaunchSettingsLayer[]>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): Promise<RuntimeSummary[]>;

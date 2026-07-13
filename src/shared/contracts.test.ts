@@ -5,6 +5,8 @@ import {
   CatalogSnapshotSchema,
   CustomTerminalProfileInputSchema,
   IPC_CHANNELS,
+  LaunchSettingsLayerInputSchema,
+  LaunchSettingsLayerSchema,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
   ProviderInstallationSchema,
@@ -321,6 +323,36 @@ describe('managed terminal contracts', () => {
     });
   });
 
+  it('types launch setting layers and enforces provider ownership', () => {
+    const settings = {
+      terminalProfileId: null,
+      providerCommands: { codex: 'codexp', claude: null }
+    } as const;
+
+    expect(
+      LaunchSettingsLayerSchema.parse({
+        scope: 'global',
+        targetId: 'global',
+        settings,
+        updatedAt: '2026-07-13T00:00:00.000Z'
+      })
+    ).toMatchObject({ scope: 'global', settings });
+    expect(
+      LaunchSettingsLayerInputSchema.safeParse({
+        scope: 'provider',
+        targetId: 'codex',
+        settings: { providerCommands: { claude: 'claude-dev' } }
+      }).success
+    ).toBe(false);
+    expect(
+      LaunchSettingsLayerInputSchema.parse({
+        scope: 'workspace',
+        targetId: 'a'.repeat(64),
+        settings: {}
+      })
+    ).toMatchObject({ scope: 'workspace', settings: {} });
+  });
+
   it('accepts bounded custom terminal profile input', () => {
     expect(
       CustomTerminalProfileInputSchema.parse({
@@ -367,6 +399,26 @@ describe('managed terminal contracts', () => {
       workingDirectory: 'D:\\Projects\\Lumora',
       environmentNames: ['SHELL'],
       terminalProfile: profile,
+      configuration: [
+        {
+          field: 'providerCommand',
+          value: null,
+          winningSource: { scope: 'default', targetId: null },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        },
+        {
+          field: 'terminalProfile',
+          value: profile.id,
+          winningSource: { scope: 'launch', targetId: null },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        }
+      ],
       warnings: [],
       createdAt: '2026-07-11T04:00:00.000Z',
       expiresAt: '2026-07-11T04:05:00.000Z'
@@ -384,6 +436,12 @@ describe('managed terminal contracts', () => {
     expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual(
       resumeRequest
     );
+    expect(
+      LaunchPrepareRequestSchema.parse({
+        ...request,
+        terminalProfileId: null
+      }).terminalProfileId
+    ).toBeNull();
     expect(
       LaunchPrepareRequestSchema.safeParse({
         ...resumeRequest,
