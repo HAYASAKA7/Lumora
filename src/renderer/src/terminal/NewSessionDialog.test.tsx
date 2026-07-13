@@ -98,10 +98,11 @@ const runtime: RuntimeSummary = {
 describe('NewSessionDialog', () => {
   it('requires a resolved preview before starting the exact launch token', async () => {
     const prepareLaunch = vi.fn().mockResolvedValue(preview);
+    const trustWorkspaceForLaunch = vi.fn();
     const startRuntime = vi.fn().mockResolvedValue(runtime);
     Object.defineProperty(window, 'lumora', {
       configurable: true,
-      value: { prepareLaunch, startRuntime }
+      value: { prepareLaunch, trustWorkspaceForLaunch, startRuntime }
     });
     const onStarted = vi.fn();
     render(
@@ -119,6 +120,11 @@ describe('NewSessionDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(screen.getByText('codexp')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', {
+        name: 'I trust this workspace and want to run the provider here'
+      })
+    ).not.toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'new',
       workspaceId: workspace.id,
@@ -133,5 +139,88 @@ describe('NewSessionDialog', () => {
       expect(startRuntime).toHaveBeenCalledWith(preview.launchToken)
     );
     expect(onStarted).toHaveBeenCalledWith(runtime, preview);
+    expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
+  });
+
+  it('grants explicit trust before starting an untrusted workspace', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const prepareLaunch = vi.fn().mockResolvedValue(untrustedPreview);
+    const trustWorkspaceForLaunch = vi.fn().mockResolvedValue({
+      workspaceId: workspace.id,
+      canonicalPath: workspace.canonicalPath,
+      trustedAt: preview.createdAt
+    });
+    const startRuntime = vi.fn().mockResolvedValue(runtime);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: { prepareLaunch, trustWorkspaceForLaunch, startRuntime }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
+    const confirmation = await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    });
+    expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
+
+    fireEvent.click(confirmation);
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+
+    await waitFor(() =>
+      expect(trustWorkspaceForLaunch).toHaveBeenCalledWith(
+        untrustedPreview.launchToken
+      )
+    );
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenCalledWith(untrustedPreview.launchToken)
+    );
+    expect(trustWorkspaceForLaunch.mock.invocationCallOrder[0]).toBeLessThan(
+      startRuntime.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it('keeps the dialog open when workspace trust cannot be saved', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trustWorkspaceForLaunch = vi.fn().mockRejectedValue(new Error('disk'));
+    const startRuntime = vi.fn();
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+        trustWorkspaceForLaunch,
+        startRuntime
+      }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
+    fireEvent.click(
+      await screen.findByRole('checkbox', {
+        name: 'I trust this workspace and want to run the provider here'
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+
+    expect(
+      await screen.findByText('Workspace trust could not be saved.')
+    ).toHaveAttribute('role', 'alert');
+    expect(startRuntime).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'New session' })).toBeInTheDocument();
   });
 });

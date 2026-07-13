@@ -9,6 +9,7 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
+import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface NewSessionDialogProps {
   workspaces: readonly WorkspaceSummary[];
@@ -43,10 +44,14 @@ export function NewSessionDialog({
   );
   const [profileId, setProfileId] = useState('');
   const [preview, setPreview] = useState<LaunchPreview | null>(null);
+  const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setPreview(null), [workspaceId, provider, profileId]);
+  useEffect(() => {
+    setPreview(null);
+    setTrustConfirmed(false);
+  }, [workspaceId, provider, profileId]);
   useEffect(() => {
     if (!availableWorkspaces.some((workspace) => workspace.id === workspaceId)) {
       setWorkspaceId(availableWorkspaces[0]?.id ?? '');
@@ -69,6 +74,7 @@ export function NewSessionDialog({
   const prepare = () => {
     setBusy(true);
     setError(null);
+    setTrustConfirmed(false);
     void window.lumora.prepareLaunch({
       strategy: 'new',
       workspaceId,
@@ -77,23 +83,46 @@ export function NewSessionDialog({
       cols: 100,
       rows: 30
     }).then(
-      (value) => { setPreview(value); setBusy(false); },
+      (value) => { setPreview(value); setTrustConfirmed(false); setBusy(false); },
       () => { setError('The launch preview could not be prepared.'); setBusy(false); }
     );
   };
 
   const start = () => {
-    if (preview === null) return;
+    if (
+      preview === null ||
+      (!preview.workspaceTrusted && !trustConfirmed)
+    ) return;
     setBusy(true);
     setError(null);
-    void window.lumora.startRuntime(preview.launchToken).then(
-      (runtime) => onStarted(runtime, preview),
-      () => { setError('The provider terminal could not be started.'); setBusy(false); }
-    );
+    void (async () => {
+      let confirmedPreview = preview;
+      if (!preview.workspaceTrusted) {
+        try {
+          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          confirmedPreview = { ...preview, workspaceTrusted: true };
+          setPreview(confirmedPreview);
+        } catch {
+          setError('Workspace trust could not be saved.');
+          setBusy(false);
+          return;
+        }
+      }
+      try {
+        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        onStarted(runtime, confirmedPreview);
+      } catch {
+        setError('The provider terminal could not be started.');
+        setBusy(false);
+      }
+    })();
   };
 
   const canPrepare =
     workspaceId !== '' && availableProfiles.length > 0 && readyProviders.length > 0;
+  const selectedWorkspace = availableWorkspaces.find(
+    (workspace) => workspace.id === workspaceId
+  );
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -154,6 +183,13 @@ export function NewSessionDialog({
               <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
               <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
             </dl>
+            {preview.workspaceTrusted || selectedWorkspace === undefined ? null : (
+              <WorkspaceTrustNotice
+                confirmed={trustConfirmed}
+                onConfirmedChange={setTrustConfirmed}
+                workspace={selectedWorkspace}
+              />
+            )}
           </>
         )}
 
@@ -161,7 +197,7 @@ export function NewSessionDialog({
           <button className="secondary-button" disabled={!canPrepare || busy} onClick={prepare} type="button">
             {busy && preview === null ? 'Preparing' : 'Prepare launch'}
           </button>
-          <button className="refresh-button" disabled={preview === null || busy} onClick={start} type="button">
+          <button className="refresh-button" disabled={preview === null || busy || (!preview.workspaceTrusted && !trustConfirmed)} onClick={start} type="button">
             {busy && preview !== null ? 'Starting terminal' : 'Start session'}
           </button>
         </footer>

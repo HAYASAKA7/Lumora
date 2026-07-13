@@ -129,16 +129,19 @@ const runtime: RuntimeSummary = {
 
 function renderDialog(overrides: {
   prepareLaunch?: ReturnType<typeof vi.fn>;
+  trustWorkspaceForLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
 } = {}) {
   const prepareLaunch = overrides.prepareLaunch ?? vi.fn().mockResolvedValue(preview);
+  const trustWorkspaceForLaunch =
+    overrides.trustWorkspaceForLaunch ?? vi.fn();
   const startRuntime = overrides.startRuntime ?? vi.fn().mockResolvedValue(runtime);
   const onStarted = vi.fn<
     (runtime: RuntimeSummary, preview: LaunchPreview) => void
   >();
   Object.defineProperty(window, 'lumora', {
     configurable: true,
-    value: { prepareLaunch, startRuntime }
+    value: { prepareLaunch, trustWorkspaceForLaunch, startRuntime }
   });
   render(
     <ResumeSessionDialog
@@ -150,12 +153,17 @@ function renderDialog(overrides: {
       workspace={workspace}
     />
   );
-  return { prepareLaunch, startRuntime, onStarted };
+  return { prepareLaunch, trustWorkspaceForLaunch, startRuntime, onStarted };
 }
 
 describe('ResumeSessionDialog', () => {
   it('prepares and starts the exact selected native session', async () => {
-    const { prepareLaunch, startRuntime, onStarted } = renderDialog();
+    const {
+      prepareLaunch,
+      trustWorkspaceForLaunch,
+      startRuntime,
+      onStarted
+    } = renderDialog();
 
     expect(screen.getByText(session.title)).toBeInTheDocument();
     expect(screen.getByText('Codex')).toBeInTheDocument();
@@ -179,6 +187,45 @@ describe('ResumeSessionDialog', () => {
       expect(startRuntime).toHaveBeenCalledWith(preview.launchToken)
     );
     expect(onStarted).toHaveBeenCalledWith(runtime, preview);
+    expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
+  });
+
+  it('grants trust before resuming an untrusted workspace', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trustWorkspaceForLaunch = vi.fn().mockResolvedValue({
+      workspaceId: workspace.id,
+      canonicalPath: workspace.canonicalPath,
+      trustedAt: preview.createdAt
+    });
+    const { startRuntime } = renderDialog({
+      prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+      trustWorkspaceForLaunch
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
+    const confirmation = await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    });
+    expect(screen.getByText('resume native-thread')).toBeInTheDocument();
+    expect(screen.getAllByText(workspace.canonicalPath).length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
+
+    fireEvent.click(confirmation);
+    fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
+
+    await waitFor(() =>
+      expect(trustWorkspaceForLaunch).toHaveBeenCalledWith(
+        untrustedPreview.launchToken
+      )
+    );
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenCalledWith(untrustedPreview.launchToken)
+    );
+    expect(trustWorkspaceForLaunch.mock.invocationCallOrder[0]).toBeLessThan(
+      startRuntime.mock.invocationCallOrder[0]!
+    );
   });
 
   it('invalidates the preview when the terminal profile changes', async () => {

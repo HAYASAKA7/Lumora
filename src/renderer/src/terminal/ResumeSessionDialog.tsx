@@ -9,6 +9,7 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
+import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface ResumeSessionDialogProps {
   session: SessionSummary;
@@ -36,10 +37,14 @@ export function ResumeSessionDialog({
   );
   const [profileId, setProfileId] = useState('');
   const [preview, setPreview] = useState<LaunchPreview | null>(null);
+  const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setPreview(null), [profileId]);
+  useEffect(() => {
+    setPreview(null);
+    setTrustConfirmed(false);
+  }, [profileId]);
   useEffect(() => {
     if (
       profileId !== '' &&
@@ -52,6 +57,7 @@ export function ResumeSessionDialog({
   const prepare = () => {
     setBusy(true);
     setError(null);
+    setTrustConfirmed(false);
     void window.lumora
       .prepareLaunch({
         strategy: 'resume',
@@ -63,6 +69,7 @@ export function ResumeSessionDialog({
       .then(
         (value) => {
           setPreview(value);
+          setTrustConfirmed(false);
           setBusy(false);
         },
         () => {
@@ -73,16 +80,33 @@ export function ResumeSessionDialog({
   };
 
   const start = () => {
-    if (preview === null) return;
+    if (
+      preview === null ||
+      (!preview.workspaceTrusted && !trustConfirmed)
+    ) return;
     setBusy(true);
     setError(null);
-    void window.lumora.startRuntime(preview.launchToken).then(
-      (runtime) => onStarted(runtime, preview),
-      () => {
+    void (async () => {
+      let confirmedPreview = preview;
+      if (!preview.workspaceTrusted) {
+        try {
+          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          confirmedPreview = { ...preview, workspaceTrusted: true };
+          setPreview(confirmedPreview);
+        } catch {
+          setError('Workspace trust could not be saved.');
+          setBusy(false);
+          return;
+        }
+      }
+      try {
+        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        onStarted(runtime, confirmedPreview);
+      } catch {
         setError('The provider session could not be resumed.');
         setBusy(false);
       }
-    );
+    })();
   };
 
   const canPrepare =
@@ -183,6 +207,13 @@ export function ResumeSessionDialog({
                 <dd>{preview.environmentNames.join(', ')}</dd>
               </div>
             </dl>
+            {preview.workspaceTrusted ? null : (
+              <WorkspaceTrustNotice
+                confirmed={trustConfirmed}
+                onConfirmedChange={setTrustConfirmed}
+                workspace={workspace}
+              />
+            )}
           </>
         )}
 
@@ -197,7 +228,7 @@ export function ResumeSessionDialog({
           </button>
           <button
             className="refresh-button"
-            disabled={preview === null || busy}
+            disabled={preview === null || busy || (!preview.workspaceTrusted && !trustConfirmed)}
             onClick={start}
             type="button"
           >
