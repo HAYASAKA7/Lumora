@@ -11,6 +11,7 @@ const requiredAssets = [
   'windows/Lumora.ico',
   'macos/Lumora.icns',
   'linux/lumora.png',
+  'linux/usr/share/icons/hicolor/scalable/apps/lumora.svg',
   'source/lumora-symbol-gradient.svg'
 ] as const;
 
@@ -42,6 +43,7 @@ describe('Lumora icon assets', () => {
     const readme = await readFile(join(iconRoot, 'README.md'), 'utf8');
 
     expect(readme).not.toContain('common/action-icons/');
+    expect(readme).not.toContain('SVG action icons');
     await expect(
       stat(join(iconRoot, 'common', 'action-icons'))
     ).rejects.toMatchObject({ code: 'ENOENT' });

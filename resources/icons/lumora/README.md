@@ -62,4 +62,3 @@ Primary cyan: `#22D3EE`
 
 - The taskbar, tray, and menu-bar assets intentionally have **transparent backgrounds**.
 - The desktop/Dock application icon keeps a dark rounded tile for stronger recognition.
-- SVG action icons use `currentColor`, so they inherit your UI text/accent color.
