@@ -51,6 +51,16 @@ const scan: ProviderScanResult = {
   ]
 };
 
+function captureLaunchError(action: () => unknown): TerminalLaunchError {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TerminalLaunchError);
+    return error as TerminalLaunchError;
+  }
+  throw new Error('Expected a terminal launch error.');
+}
+
 function harness(overrides: {
   workspace?: { id: string; canonicalPath: string; displayName: string; available: boolean } | null;
   profile?: TerminalProfile | null;
@@ -62,9 +72,20 @@ function harness(overrides: {
   layers?: LaunchSettingsLayer[];
   profiles?: TerminalProfile[];
   baseline?: readonly string[] | Error;
+  trusted?: boolean;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
+  let currentWorkspace =
+    overrides.workspace === undefined
+      ? {
+          id: workspaceId,
+          canonicalPath: '/work/lumora',
+          displayName: 'Lumora',
+          available: true
+        }
+      : overrides.workspace;
   let currentSession = overrides.session === undefined ? session : overrides.session;
+  let trusted = overrides.trusted ?? false;
   let currentLayers =
     overrides.layers ??
     (overrides.command === undefined
@@ -82,24 +103,23 @@ function harness(overrides: {
     [overrides.profile === undefined ? profile : overrides.profile].filter(
       (value): value is TerminalProfile => value !== null
     );
+  const trustWorkspace = vi.fn(
+    (id: string, canonicalPath: string, trustedAt: string) => {
+      trusted = true;
+      return { workspaceId: id, canonicalPath, trustedAt };
+    }
+  );
   const repository = {
-    getWorkspace: vi.fn(() =>
-      overrides.workspace === undefined
-        ? {
-            id: workspaceId,
-            canonicalPath: '/work/lumora',
-            displayName: 'Lumora',
-            available: true
-          }
-        : overrides.workspace
-    ),
+    getWorkspace: vi.fn(() => currentWorkspace),
     getProfile: vi.fn(() =>
       overrides.profile === undefined ? profile : overrides.profile
     ),
     getSession: vi.fn(() => currentSession),
     getProviderLaunchCommand: vi.fn(() => overrides.command ?? null),
     listLaunchSettingsLayers: vi.fn(() => currentLayers),
-    listProfiles: vi.fn(() => profiles)
+    listProfiles: vi.fn(() => profiles),
+    isWorkspaceTrusted: vi.fn(() => trusted),
+    trustWorkspace
   };
   const service = new LaunchService({
     repository,
@@ -116,11 +136,18 @@ function harness(overrides: {
   });
   return {
     service,
+    repository,
     setNow(value: string) {
       now = new Date(value);
     },
     setSession(value: SessionLaunchInfo | null) {
       currentSession = value;
+    },
+    setWorkspace(value: typeof currentWorkspace) {
+      currentWorkspace = value;
+    },
+    setTrusted(value: boolean) {
+      trusted = value;
     },
     setLayers(value: LaunchSettingsLayer[]) {
       currentLayers = value;
@@ -176,7 +203,7 @@ describe('LaunchService', () => {
   });
 
   it('rejects resume identity drift when consuming a token', async () => {
-    const { service, setSession } = harness();
+    const { service, setSession } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'resume',
       sessionId,
@@ -225,7 +252,8 @@ describe('LaunchService', () => {
     } as LaunchSettingsLayer;
     const { service, setLayers } = harness({
       layers: [sessionLayer],
-      profiles: [profile, sessionProfile]
+      profiles: [profile, sessionProfile],
+      trusted: true
     });
 
     const preview = await service.prepare({
@@ -252,7 +280,10 @@ describe('LaunchService', () => {
   });
 
   it('captures a normalized pre-launch baseline only for new sessions', async () => {
-    const { service } = harness({ baseline: ['native-b', 'native-a', 'native-a'] });
+    const { service } = harness({
+      baseline: ['native-b', 'native-a', 'native-a'],
+      trusted: true
+    });
     const preview = await service.prepare({
       strategy: 'new',
       workspaceId,
@@ -266,7 +297,10 @@ describe('LaunchService', () => {
       reconciliationBaselineNativeIds: ['native-a', 'native-b']
     });
 
-    const failed = harness({ baseline: new Error('scan failed') }).service;
+    const failed = harness({
+      baseline: new Error('scan failed'),
+      trusted: true
+    }).service;
     const failedPreview = await failed.prepare({
       strategy: 'new',
       workspaceId,
@@ -279,7 +313,10 @@ describe('LaunchService', () => {
       reconciliationBaselineNativeIds: null
     });
 
-    const resume = harness({ baseline: new Error('must not run') }).service;
+    const resume = harness({
+      baseline: new Error('must not run'),
+      trusted: true
+    }).service;
     const resumePreview = await resume.prepare({
       strategy: 'resume',
       sessionId,
@@ -311,6 +348,7 @@ describe('LaunchService', () => {
         executablePath: `/usr/local/bin/${provider}`,
         args: [],
         workingDirectory: '/work/lumora',
+        workspaceTrusted: false,
         environmentNames: ['PATH', 'SHELL'],
         terminalProfile: profile,
         warnings: []
@@ -319,6 +357,140 @@ describe('LaunchService', () => {
       expect(JSON.stringify(preview)).not.toContain('/secret');
     }
   );
+
+  it('blocks an untrusted prepared launch before returning its specification', async () => {
+    const { service } = harness();
+    const preview = await service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview.workspaceTrusted).toBe(false);
+    await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
+      code: 'WORKSPACE_NOT_TRUSTED'
+    });
+  });
+
+  it('reports and consumes an already trusted workspace', async () => {
+    const { service } = harness({ trusted: true });
+    const preview = await service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview.workspaceTrusted).toBe(true);
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      workspaceId,
+      workingDirectory: '/work/lumora'
+    });
+  });
+
+  it('grants trust through the exact prepared launch token', async () => {
+    const { service, repository } = harness();
+    const preview = await service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(service.trustWorkspaceForLaunch(preview.launchToken)).toEqual({
+      workspaceId,
+      canonicalPath: '/work/lumora',
+      trustedAt: '2026-07-11T04:00:00.000Z'
+    });
+    expect(repository.trustWorkspace).toHaveBeenCalledWith(
+      workspaceId,
+      '/work/lumora',
+      '2026-07-11T04:00:00.000Z'
+    );
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      workspaceId
+    });
+  });
+
+  it('rejects invalid or changed prepared launches when granting trust', async () => {
+    const unknown = harness().service;
+    expect(
+      captureLaunchError(() =>
+        unknown.trustWorkspaceForLaunch(
+          '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+        )
+      )
+    ).toMatchObject({ code: 'LAUNCH_TOKEN_INVALID' });
+
+    const expiredHarness = harness();
+    const expiredPreview = await expiredHarness.service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    expiredHarness.setNow('2026-07-11T04:05:00.001Z');
+    expect(
+      captureLaunchError(() =>
+        expiredHarness.service.trustWorkspaceForLaunch(
+          expiredPreview.launchToken
+        )
+      )
+    ).toMatchObject({ code: 'LAUNCH_TOKEN_EXPIRED' });
+
+    const unavailableHarness = harness();
+    const unavailablePreview = await unavailableHarness.service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    unavailableHarness.setWorkspace({
+      id: workspaceId,
+      canonicalPath: '/work/lumora',
+      displayName: 'Lumora',
+      available: false
+    });
+    expect(
+      captureLaunchError(() =>
+        unavailableHarness.service.trustWorkspaceForLaunch(
+          unavailablePreview.launchToken
+        )
+      )
+    ).toMatchObject({ code: 'WORKSPACE_UNAVAILABLE' });
+
+    const driftHarness = harness();
+    const driftPreview = await driftHarness.service.prepare({
+      strategy: 'new',
+      workspaceId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    driftHarness.setWorkspace({
+      id: workspaceId,
+      canonicalPath: '/work/replaced',
+      displayName: 'Lumora',
+      available: true
+    });
+    expect(
+      captureLaunchError(() =>
+        driftHarness.service.trustWorkspaceForLaunch(driftPreview.launchToken)
+      )
+    ).toMatchObject({ code: 'WORKSPACE_UNAVAILABLE' });
+  });
 
   it('prepares a launch preview with a realistic large environment', async () => {
     const env = Object.fromEntries(
@@ -366,7 +538,7 @@ describe('LaunchService', () => {
   });
 
   it('consumes a launch token exactly once', async () => {
-    const { service } = harness();
+    const { service } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'new',
       workspaceId,

@@ -10,7 +10,8 @@ import {
   type ProviderScanResult,
   type ResolvedLaunchSetting,
   type SystemInfo,
-  type TerminalProfile
+  type TerminalProfile,
+  type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
@@ -25,6 +26,12 @@ interface LaunchRepository {
   getSession(sessionId: string): SessionLaunchInfo | null;
   listProfiles(): TerminalProfile[];
   listLaunchSettingsLayers(): LaunchSettingsLayer[];
+  isWorkspaceTrusted(workspaceId: string, canonicalPath: string): boolean;
+  trustWorkspace(
+    workspaceId: string,
+    canonicalPath: string,
+    timestamp: string
+  ): WorkspaceTrustDecision;
 }
 
 interface LaunchServiceDependencies {
@@ -68,6 +75,7 @@ interface PreparedLaunch {
 
 export type TerminalLaunchErrorCode =
   | 'WORKSPACE_UNAVAILABLE'
+  | 'WORKSPACE_NOT_TRUSTED'
   | 'SESSION_UNAVAILABLE'
   | 'TERMINAL_PROFILE_UNAVAILABLE'
   | 'PROVIDER_UNAVAILABLE'
@@ -76,6 +84,7 @@ export type TerminalLaunchErrorCode =
 
 const ERROR_MESSAGES: Record<TerminalLaunchErrorCode, string> = {
   WORKSPACE_UNAVAILABLE: 'The selected workspace is unavailable.',
+  WORKSPACE_NOT_TRUSTED: 'Trust this workspace before starting a provider.',
   SESSION_UNAVAILABLE: 'The selected session is unavailable.',
   TERMINAL_PROFILE_UNAVAILABLE: 'The selected terminal profile is unavailable.',
   PROVIDER_UNAVAILABLE: 'The selected provider is unavailable.',
@@ -244,6 +253,10 @@ export class LaunchService {
       args: spec.args,
       command: spec.command,
       workingDirectory: spec.workingDirectory,
+      workspaceTrusted: this.dependencies.repository.isWorkspaceTrusted(
+        workspace.id,
+        workspace.canonicalPath
+      ),
       environmentNames: Object.keys(spec.environment).sort(),
       terminalProfile: spec.terminalProfile,
       configuration: spec.configuration,
@@ -253,15 +266,28 @@ export class LaunchService {
     });
   }
 
+  trustWorkspaceForLaunch(token: string): WorkspaceTrustDecision {
+    const prepared = this.getPrepared(token);
+    const workspace = this.dependencies.repository.getWorkspace(
+      prepared.spec.workspaceId
+    );
+    if (
+      workspace === null ||
+      !workspace.available ||
+      workspace.canonicalPath !== prepared.spec.workingDirectory
+    ) {
+      throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
+    }
+    return this.dependencies.repository.trustWorkspace(
+      workspace.id,
+      workspace.canonicalPath,
+      this.clock().toISOString()
+    );
+  }
+
   async consume(token: string): Promise<LaunchSpec> {
-    const prepared = this.prepared.get(token);
+    const prepared = this.getPrepared(token);
     this.prepared.delete(token);
-    if (prepared === undefined) {
-      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
-    }
-    if (this.clock().getTime() > prepared.expiresAtMs) {
-      throw new TerminalLaunchError('LAUNCH_TOKEN_EXPIRED');
-    }
 
     const workspace = this.dependencies.repository.getWorkspace(
       prepared.spec.workspaceId
@@ -272,6 +298,14 @@ export class LaunchService {
       workspace.canonicalPath !== prepared.spec.workingDirectory
     ) {
       throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
+    }
+    if (
+      !this.dependencies.repository.isWorkspaceTrusted(
+        workspace.id,
+        workspace.canonicalPath
+      )
+    ) {
+      throw new TerminalLaunchError('WORKSPACE_NOT_TRUSTED');
     }
     if (prepared.spec.strategy === 'resume') {
       const session = this.dependencies.repository.getSession(
@@ -298,5 +332,17 @@ export class LaunchService {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
     return prepared.spec;
+  }
+
+  private getPrepared(token: string): PreparedLaunch {
+    const prepared = this.prepared.get(token);
+    if (prepared === undefined) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
+    if (this.clock().getTime() > prepared.expiresAtMs) {
+      this.prepared.delete(token);
+      throw new TerminalLaunchError('LAUNCH_TOKEN_EXPIRED');
+    }
+    return prepared;
   }
 }
