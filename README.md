@@ -28,6 +28,8 @@ and production bundles on all three operating systems.
 - Resolve global, provider, workspace, session, and one-time launch settings.
 - Preview the effective command, working directory, terminal, and setting
   provenance before launch.
+- Require persistent, explicit trust for the exact canonical workspace path
+  before a provider can start, with revocation available in Settings.
 - Record managed runtime history and report runtimes that cannot be reattached
   after an application restart.
 
@@ -99,6 +101,13 @@ Global < Provider < Workspace < Session < One-time launch
 
 The launch preview shows which layer supplied each effective value.
 
+Workspace trust is separate from launch settings. The first launch in an exact
+canonical workspace path requires explicit confirmation. Lumora persists that
+decision locally for the workspace ID and path, applies it to both new and
+resumed sessions, and lets it be revoked from Settings. A path change requires
+a new decision. Trust allows the provider to run with the user's operating
+system permissions; it is not an OS sandbox.
+
 <!-- SCREENSHOT: Add docs/screenshots/launch-settings.png (Layered launch settings) -->
 
 ## Architecture and privacy
@@ -125,6 +134,13 @@ discovery, session indexing, launch construction, and PTY processes.
 Provider session sources are read-only inputs. Lumora stores normalized session
 metadata and managed runtime history locally; it does not copy transcript
 bodies into its catalog and does not provide cloud synchronization.
+
+Workspace trust decisions are also stored in local SQLite as a workspace ID,
+canonical path, and timestamp. They do not add an operating-system security
+boundary: Codex or Claude Code still runs with the permissions of the user who
+started Lumora. Trust is a persistent, revocable consent gate that prevents an
+unapproved workspace launch; it is not a provider sandbox or filesystem
+isolation mechanism.
 
 ## Current limitations
 
