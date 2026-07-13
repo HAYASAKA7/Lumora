@@ -8,6 +8,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { LaunchConfiguration } from './LaunchConfiguration';
 import { resolveRuntimeRecovery } from './runtime-recovery';
 
 interface RuntimeRecoveryDialogProps {
@@ -37,31 +38,20 @@ export function RuntimeRecoveryDialog({
     () => profiles.filter((profile) => profile.available),
     [profiles]
   );
-  const initialProfileId =
-    availableProfiles.find(
-      (profile) => profile.id === runtime.terminalProfileId
-    )?.id ??
-    availableProfiles.find((profile) => profile.recommended)?.id ??
-    availableProfiles[0]?.id ??
-    '';
-  const [profileId, setProfileId] = useState(initialProfileId);
+  const [profileId, setProfileId] = useState('');
   const [preview, setPreview] = useState<LaunchPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => setPreview(null), [profileId]);
   useEffect(() => {
-    if (!availableProfiles.some((profile) => profile.id === profileId)) {
-      setProfileId(
-        availableProfiles.find(
-          (profile) => profile.id === runtime.terminalProfileId
-        )?.id ??
-          availableProfiles.find((profile) => profile.recommended)?.id ??
-          availableProfiles[0]?.id ??
-          ''
-      );
+    if (
+      profileId !== '' &&
+      !availableProfiles.some((profile) => profile.id === profileId)
+    ) {
+      setProfileId('');
     }
-  }, [availableProfiles, profileId, runtime.terminalProfileId]);
+  }, [availableProfiles, profileId]);
 
   const workspace = workspaces.find(
     (candidate) => candidate.id === runtime.workspaceId
@@ -80,7 +70,7 @@ export function RuntimeRecoveryDialog({
         ? 'The workspace is unavailable.'
         : provider?.state !== 'ready'
           ? `${runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} is unavailable.`
-          : profileId === ''
+          : availableProfiles.length === 0
             ? 'No terminal profile is available.'
             : null;
 
@@ -93,7 +83,7 @@ export function RuntimeRecoveryDialog({
         ? {
             strategy: 'resume' as const,
             sessionId: plan.session.id,
-            terminalProfileId: profileId,
+            terminalProfileId: profileId || null,
             cols: 100,
             rows: 30
           }
@@ -101,7 +91,7 @@ export function RuntimeRecoveryDialog({
             strategy: 'new' as const,
             provider: plan.provider,
             workspaceId: plan.workspaceId,
-            terminalProfileId: profileId,
+            terminalProfileId: profileId || null,
             cols: 100,
             rows: 30
           };
@@ -171,6 +161,7 @@ export function RuntimeRecoveryDialog({
               onChange={(event) => setProfileId(event.currentTarget.value)}
               value={profileId}
             >
+              <option value="">Configured default</option>
               {availableProfiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
@@ -190,16 +181,15 @@ export function RuntimeRecoveryDialog({
             <p>Prepare recovery to verify the exact executable, start command, working directory, and terminal profile.</p>
           </div>
         ) : (
-          <dl className="launch-preview">
-            {preview.command === null ? null : (
-              <div><dt>Start command</dt><dd>{preview.command}</dd></div>
-            )}
-            <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
-            <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
-            <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
-            <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
-            <div><dt>Profile</dt><dd>{preview.terminalProfile.name}</dd></div>
-          </dl>
+          <>
+            <LaunchConfiguration preview={preview} />
+            <dl className="launch-preview">
+              <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
+              <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
+              <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
+              <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
+            </dl>
+          </>
         )}
 
         <footer>

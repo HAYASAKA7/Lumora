@@ -93,6 +93,26 @@ const preview: LaunchPreview = {
   workingDirectory: workspace.canonicalPath,
   environmentNames: ['PATH'],
   terminalProfile: previousProfile,
+  configuration: [
+    {
+      field: 'providerCommand',
+      value: 'codexp',
+      winningSource: { scope: 'provider', targetId: 'codex' },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    },
+    {
+      field: 'terminalProfile',
+      value: previousProfile.id,
+      winningSource: { scope: 'session', targetId: session.id },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    }
+  ],
   warnings: [],
   createdAt: '2026-07-12T04:01:00.000Z',
   expiresAt: '2026-07-12T04:06:00.000Z'
@@ -148,12 +168,12 @@ function renderDialog(options: RenderOptions = {}) {
 }
 
 describe('RuntimeRecoveryDialog', () => {
-  it('previews and starts an exact native resume with the previous profile', async () => {
+  it('previews and starts an exact native resume with configured defaults', async () => {
     const { prepareLaunch, startRuntime, onStarted } = renderDialog();
 
     expect(screen.getAllByText('Resume saved session')).toHaveLength(2);
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
-      previousProfile.id
+      ''
     );
     expect(screen.getByText(/cannot reattach the previous terminal/i)).toBeInTheDocument();
 
@@ -162,7 +182,7 @@ describe('RuntimeRecoveryDialog', () => {
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,
-      terminalProfileId: previousProfile.id,
+      terminalProfileId: null,
       cols: 100,
       rows: 30
     });
@@ -194,18 +214,18 @@ describe('RuntimeRecoveryDialog', () => {
         strategy: 'new',
         provider: 'codex',
         workspaceId: workspace.id,
-        terminalProfileId: previousProfile.id,
+        terminalProfileId: null,
         cols: 100,
         rows: 30
       })
     );
   });
 
-  it('falls back to the recommended available profile', () => {
+  it('keeps configured default when the previous profile is unavailable', () => {
     renderDialog({ profiles: [recommendedProfile] });
 
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
-      recommendedProfile.id
+      ''
     );
   });
 

@@ -1,7 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
+import type {
+  LaunchPreview,
+  RuntimeSummary,
+  WorkspaceSummary
+} from '../../../shared/contracts';
 import { TerminalWorkspace } from './TerminalWorkspace';
 
 vi.mock('./ManagedTerminal', () => ({
@@ -37,8 +41,71 @@ const workspace: WorkspaceSummary = {
   providerCounts: { codex: 1, claude: 0 },
   lastActivityAt: '2026-07-11T04:00:00.000Z'
 };
+const preview: LaunchPreview = {
+  launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+  launchHash: runtime.launchHash,
+  strategy: 'resume',
+  sessionId,
+  provider: 'codex',
+  executablePath: 'C:\\tools\\codex.exe',
+  args: ['resume', 'native-thread-1'],
+  command: 'workspace-codex',
+  workingDirectory: workspace.canonicalPath,
+  environmentNames: ['PATH'],
+  terminalProfile: {
+    id: runtime.terminalProfileId,
+    kind: 'detected',
+    name: 'PowerShell 7',
+    shellFamily: 'pwsh',
+    executablePath: 'C:\\tools\\pwsh.exe',
+    args: [],
+    available: true,
+    recommended: true
+  },
+  configuration: [
+    {
+      field: 'providerCommand',
+      value: 'workspace-codex',
+      winningSource: { scope: 'workspace', targetId: workspace.id },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    },
+    {
+      field: 'terminalProfile',
+      value: runtime.terminalProfileId,
+      winningSource: { scope: 'global', targetId: null },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    }
+  ],
+  warnings: [],
+  createdAt: runtime.createdAt,
+  expiresAt: '2026-07-11T04:05:00.000Z'
+};
 
 describe('TerminalWorkspace', () => {
+  it('shows effective setting provenance for an active launch preview', () => {
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map([[runtime.id, preview]])}
+        runtimes={[runtime]}
+        workspaces={[workspace]}
+      />
+    );
+
+    const inspector = screen.getByLabelText('Launch inspector');
+    expect(within(inspector).getByText('Workspace layer')).toBeInTheDocument();
+    expect(within(inspector).getByText('Global layer')).toBeInTheDocument();
+  });
+
   it('shows durable resume identity without an ephemeral preview', () => {
     render(
       <TerminalWorkspace

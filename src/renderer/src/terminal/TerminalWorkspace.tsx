@@ -5,6 +5,7 @@ import type {
   RuntimeSummary,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { LaunchConfiguration } from './LaunchConfiguration';
 import { ManagedTerminal } from './ManagedTerminal';
 
 interface TerminalWorkspaceProps {
@@ -91,17 +92,16 @@ export function TerminalWorkspace({
           <dl>
             <div><dt>Provider</dt><dd>{runtime.provider}</dd></div>
             <div><dt>Process</dt><dd>{runtime.pid ?? 'Not live'}</dd></div>
-            {preview?.command == null ? null : (
-              <div><dt>Start command</dt><dd>{preview.command}</dd></div>
-            )}
             <div><dt>Executable</dt><dd>{preview?.executablePath ?? 'Saved runtime'}</dd></div>
             <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
-            <div><dt>Profile</dt><dd>{preview?.terminalProfile.name ?? runtime.terminalProfileId.slice(0, 12)}</dd></div>
             <div><dt>Launch type</dt><dd>{runtime.strategy === 'resume' ? 'Resume' : 'New session'}</dd></div>
             <div><dt>Identity match</dt><dd>{IDENTITY_MATCH_LABELS[runtime.reconciliationState]}</dd></div>
             <div><dt>Session</dt><dd>{runtime.sessionId?.slice(0, 12) ?? 'Not linked'}</dd></div>
             <div><dt>Launch hash</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>
           </dl>
+          {preview === undefined ? null : (
+            <LaunchConfiguration preview={preview} />
+          )}
         </aside>
       </div>
     </section>

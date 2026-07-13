@@ -1721,6 +1721,80 @@ button {
   overflow-wrap: anywhere;
 }
 
+.launch-configuration {
+  margin: 18px 0;
+  padding: 14px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.launch-configuration h3 {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.launch-configuration dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+}
+
+.launch-configuration dl div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  padding: 0;
+  border: 0;
+}
+
+.launch-configuration dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.configuration-source {
+  padding: 2px 7px;
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.launch-configuration details {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.launch-configuration summary {
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.configuration-details {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.configuration-details ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.configuration-warning {
+  margin: 6px 0 0;
+  color: var(--warning);
+}
+
 .new-session-dialog footer {
   display: flex;
   justify-content: flex-end;

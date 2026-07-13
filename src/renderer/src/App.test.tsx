@@ -256,6 +256,26 @@ describe('App', () => {
       workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
       environmentNames: ['PATH', 'SHELL'],
       terminalProfile: profile,
+      configuration: [
+        {
+          field: 'providerCommand',
+          value: null,
+          winningSource: { scope: 'default', targetId: null },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        },
+        {
+          field: 'terminalProfile',
+          value: profile.id,
+          winningSource: { scope: 'default', targetId: null },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        }
+      ],
       warnings: [],
       createdAt: '2026-07-11T04:00:00.000Z',
       expiresAt: '2026-07-11T04:05:00.000Z'
@@ -303,7 +323,7 @@ describe('App', () => {
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,
-      terminalProfileId: profile.id,
+      terminalProfileId: null,
       cols: 100,
       rows: 30
     });
@@ -352,6 +372,26 @@ describe('App', () => {
       workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
       environmentNames: ['PATH'],
       terminalProfile: profile,
+      configuration: [
+        {
+          field: 'providerCommand',
+          value: 'codexp',
+          winningSource: { scope: 'provider', targetId: 'codex' },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        },
+        {
+          field: 'terminalProfile',
+          value: profile.id,
+          winningSource: { scope: 'session', targetId: session.id },
+          shadowed: [],
+          mergeStrategy: 'replace',
+          warnings: [],
+          sensitive: false
+        }
+      ],
       warnings: [],
       createdAt: '2026-07-12T04:01:00.000Z',
       expiresAt: '2026-07-12T04:06:00.000Z'
@@ -400,7 +440,7 @@ describe('App', () => {
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,
-      terminalProfileId: profile.id,
+      terminalProfileId: null,
       cols: 100,
       rows: 30
     });

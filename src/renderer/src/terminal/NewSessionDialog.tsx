@@ -8,6 +8,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { LaunchConfiguration } from './LaunchConfiguration';
 
 interface NewSessionDialogProps {
   workspaces: readonly WorkspaceSummary[];
@@ -40,11 +41,7 @@ export function NewSessionDialog({
   const [provider, setProvider] = useState<ProviderId>(
     readyProviders[0]?.provider ?? 'codex'
   );
-  const [profileId, setProfileId] = useState(
-    availableProfiles.find((profile) => profile.recommended)?.id ??
-      availableProfiles[0]?.id ??
-      ''
-  );
+  const [profileId, setProfileId] = useState('');
   const [preview, setPreview] = useState<LaunchPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +53,11 @@ export function NewSessionDialog({
     }
   }, [availableWorkspaces, workspaceId]);
   useEffect(() => {
-    if (!availableProfiles.some((profile) => profile.id === profileId)) {
-      setProfileId(
-        availableProfiles.find((profile) => profile.recommended)?.id ??
-          availableProfiles[0]?.id ??
-          ''
-      );
+    if (
+      profileId !== '' &&
+      !availableProfiles.some((profile) => profile.id === profileId)
+    ) {
+      setProfileId('');
     }
   }, [availableProfiles, profileId]);
   useEffect(() => {
@@ -77,7 +73,7 @@ export function NewSessionDialog({
       strategy: 'new',
       workspaceId,
       provider,
-      terminalProfileId: profileId,
+      terminalProfileId: profileId || null,
       cols: 100,
       rows: 30
     }).then(
@@ -96,7 +92,8 @@ export function NewSessionDialog({
     );
   };
 
-  const canPrepare = workspaceId !== '' && profileId !== '' && readyProviders.length > 0;
+  const canPrepare =
+    workspaceId !== '' && availableProfiles.length > 0 && readyProviders.length > 0;
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -134,6 +131,7 @@ export function NewSessionDialog({
           <label>
             <span>Terminal profile</span>
             <select onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
+              <option value="">Configured default</option>
               {availableProfiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
@@ -148,16 +146,15 @@ export function NewSessionDialog({
             <p>Prepare to resolve the exact executable, arguments, working directory, and environment names.</p>
           </div>
         ) : (
-          <dl className="launch-preview">
-            {preview.command === null ? null : (
-              <div><dt>Start command</dt><dd>{preview.command}</dd></div>
-            )}
-            <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
-            <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
-            <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
-            <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
-            <div><dt>Profile</dt><dd>{preview.terminalProfile.name}</dd></div>
-          </dl>
+          <>
+            <LaunchConfiguration preview={preview} />
+            <dl className="launch-preview">
+              <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
+              <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
+              <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
+              <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
+            </dl>
+          </>
         )}
 
         <footer>

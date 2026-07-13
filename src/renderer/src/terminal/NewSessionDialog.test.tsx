@@ -55,6 +55,26 @@ const preview: LaunchPreview = {
   workingDirectory: workspace.canonicalPath,
   environmentNames: ['PATH', 'SHELL'],
   terminalProfile: profile,
+  configuration: [
+    {
+      field: 'providerCommand',
+      value: 'codexp',
+      winningSource: { scope: 'provider', targetId: 'codex' },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    },
+    {
+      field: 'terminalProfile',
+      value: profile.id,
+      winningSource: { scope: 'default', targetId: null },
+      shadowed: [],
+      mergeStrategy: 'replace',
+      warnings: [],
+      sensitive: false
+    }
+  ],
   warnings: [],
   createdAt: '2026-07-11T04:00:00.000Z',
   expiresAt: '2026-07-11T04:05:00.000Z'
@@ -94,6 +114,7 @@ describe('NewSessionDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
     fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(screen.getByText('codexp')).toBeInTheDocument();
@@ -101,7 +122,7 @@ describe('NewSessionDialog', () => {
       strategy: 'new',
       workspaceId: workspace.id,
       provider: 'codex',
-      terminalProfileId: profile.id,
+      terminalProfileId: null,
       cols: 100,
       rows: 30
     });
