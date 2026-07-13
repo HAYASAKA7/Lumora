@@ -1,0 +1,140 @@
+# Lumora
+
+Lumora is a local desktop workspace and session manager for OpenAI Codex CLI
+and Claude Code. It brings provider discovery, saved sessions, launch settings,
+and native CLI terminals into one Electron application without replacing the
+providers' own session formats or permission models.
+
+<!-- SCREENSHOT: Add docs/screenshots/home.png (Home and workspace overview) -->
+
+## Current MVP
+
+Lumora is an active MVP. The current source supports the core local workflow:
+discover installed providers, index their saved session metadata, start or
+resume a native provider session, and operate it in an embedded terminal.
+
+The project targets Windows, macOS, and Linux. CI verifies tests, TypeScript,
+and production bundles on all three operating systems.
+
+## Features
+
+- Detect OpenAI Codex CLI and Claude Code installations and versions.
+- Discover provider-owned session metadata without modifying provider files.
+- Group and search sessions by workspace and provider.
+- Start new Codex and Claude Code sessions in managed terminal tabs.
+- Resume a selected native provider session using its provider identity.
+- Close an exited session's terminal tab automatically.
+- Detect common shells and support custom terminal profiles.
+- Resolve global, provider, workspace, session, and one-time launch settings.
+- Preview the effective command, working directory, terminal, and setting
+  provenance before launch.
+- Record managed runtime history and report runtimes that cannot be reattached
+  after an application restart.
+
+<!-- SCREENSHOT: Add docs/screenshots/terminal.png (Managed terminal session) -->
+
+## Supported platforms and providers
+
+| Category | First-version support |
+| --- | --- |
+| Desktop | Windows 10/11, macOS, Linux |
+| Providers | OpenAI Codex CLI, Claude Code |
+| Terminal host | Native local shell through `node-pty` and xterm.js |
+
+Lumora uses the provider's official CLI behavior. Authentication, approvals,
+sandboxing, and usage limits remain provider-owned.
+
+## Prerequisites
+
+- Node.js 22 or newer. The repository's `.nvmrc` selects Node.js 26.2.0.
+- npm.
+- OpenAI Codex CLI, Claude Code, or both.
+- Provider commands available on `PATH` so Lumora can discover and probe them.
+
+Confirm the provider commands in a terminal before starting Lumora:
+
+```powershell
+codex --version
+claude --version
+```
+
+Either provider may be unavailable; Lumora reports each provider independently.
+
+## Install and run
+
+```powershell
+npm install
+npm run dev
+```
+
+`npm run dev` runs the Electron development application. Its pre-development
+step installs Electron's platform-specific runtime when a fresh dependency
+installation does not already contain it.
+
+## Development commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm test` | Run the Vitest suite once |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run typecheck` | Check the main/preload and renderer TypeScript projects |
+| `npm run verify` | Run tests, type checks, and a production build |
+| `npm run build` | Build Electron main, preload, and renderer bundles into `out/` |
+
+For a reproducible clean installation, CI uses `npm ci`.
+
+## Configuration
+
+Lumora detects provider executables and terminal profiles automatically. The
+Settings page can override provider launch commands globally or per provider,
+workspace, and session. This supports aliases or wrapper commands such as a
+custom Codex command defined in the user's shell environment. Terminal profiles
+can also specify the shell executable and its startup arguments.
+
+Launch settings are layered in this order:
+
+```text
+Global < Provider < Workspace < Session < One-time launch
+```
+
+The launch preview shows which layer supplied each effective value.
+
+<!-- SCREENSHOT: Add docs/screenshots/launch-settings.png (Layered launch settings) -->
+
+## Architecture and privacy
+
+```text
+Sandboxed React renderer + xterm.js
+                  |
+          schema-validated IPC
+                  |
+        Electron main process
+        /          |           \
+ provider adapters |       platform services
+  Codex / Claude   |    Windows / macOS / Linux
+                   |
+            node-pty runtime host
+                   |
+              local SQLite
+```
+
+The renderer cannot read provider files, spawn processes, or access the
+database directly. The main process validates IPC data and owns provider
+discovery, session indexing, launch construction, and PTY processes.
+
+Provider session sources are read-only inputs. Lumora stores normalized session
+metadata and managed runtime history locally; it does not copy transcript
+bodies into its catalog and does not provide cloud synchronization.
+
+## Current limitations
+
+- This repository is an MVP development build, not a signed packaged release.
+- Generic PTY processes cannot be reattached after Lumora restarts; affected
+  runtimes are reported honestly and can be resumed or restarted.
+- Provider-native authentication and approval flows must be completed inside
+  the embedded terminal.
+- WSL-specific orchestration, third-party providers, cloud sync, and transcript
+  full-text indexing are outside the current MVP.
+
+The detailed MVP architecture and acceptance criteria are documented in
+[`docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md`](docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md).
