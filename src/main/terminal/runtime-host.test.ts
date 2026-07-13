@@ -261,6 +261,13 @@ describe('RuntimeHost', () => {
     const outputEvents = events.filter((event) => event.type === 'output');
     expect(outputEvents.length).toBeGreaterThan(1);
     expect(outputEvents.every((event) => event.data.length <= 65_536)).toBe(true);
+    expect(outputEvents.map((event) => event.sequence)).toEqual(
+      outputEvents.map((_event, index) => index + 1)
+    );
+    expect(host.attach(runtime.id)).toMatchObject({
+      snapshot: expect.any(String),
+      outputSequence: outputEvents.length
+    });
     expect(host.attach(runtime.id).snapshot).toHaveLength(1_048_576);
   });
 
@@ -302,10 +309,13 @@ describe('RuntimeHost', () => {
     const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
     pty.emitExit(7);
 
-    expect(host.attach(runtime.id).runtime).toMatchObject({
-      state: 'failed',
-      exitCode: 7,
-      errorCode: 'PTY_RUNTIME_FAILED'
+    expect(host.attach(runtime.id)).toMatchObject({
+      outputSequence: 0,
+      runtime: {
+        state: 'failed',
+        exitCode: 7,
+        errorCode: 'PTY_RUNTIME_FAILED'
+      }
     });
     expect(() => host.write({ runtimeId: runtime.id, data: 'late' })).toThrow(
       TerminalRuntimeError

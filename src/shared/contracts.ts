@@ -551,7 +551,8 @@ export const RuntimeResizeRequestSchema = z.strictObject({
 });
 export const RuntimeAttachmentSchema = z.strictObject({
   runtime: RuntimeSummarySchema,
-  snapshot: z.string().max(1_048_576)
+  snapshot: z.string().max(1_048_576),
+  outputSequence: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 });
 export const RuntimeCommandResultSchema = z.strictObject({
   accepted: z.literal(true)
@@ -561,6 +562,7 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('output'),
     runtimeId: RuntimeIdSchema,
+    sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     data: z.string().min(1).max(65_536)
   }),
   z.strictObject({

@@ -72,6 +72,7 @@ interface LiveRuntime {
   runtime: RuntimeSummary;
   process: PtyProcess;
   snapshot: string;
+  outputSequence: number;
   subscriptions: Disposable[];
 }
 
@@ -192,6 +193,7 @@ export class RuntimeHost {
       runtime: running,
       process,
       snapshot: '',
+      outputSequence: 0,
       subscriptions: []
     };
     this.live.set(runtimeId, live);
@@ -242,14 +244,19 @@ export class RuntimeHost {
     if (live !== undefined) {
       return RuntimeAttachmentSchema.parse({
         runtime: live.runtime,
-        snapshot: live.snapshot
+        snapshot: live.snapshot,
+        outputSequence: live.outputSequence
       });
     }
     const runtime = this.list().find((candidate) => candidate.id === runtimeId);
     if (runtime === undefined) {
       throw new TerminalRuntimeError('RUNTIME_NOT_FOUND');
     }
-    return RuntimeAttachmentSchema.parse({ runtime, snapshot: '' });
+    return RuntimeAttachmentSchema.parse({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    });
   }
 
   write(value: RuntimeWriteRequest): void {
@@ -306,9 +313,11 @@ export class RuntimeHost {
     }
     live.snapshot = (live.snapshot + data).slice(-MAX_SNAPSHOT_CHARS);
     for (let offset = 0; offset < data.length; offset += MAX_EVENT_CHARS) {
+      live.outputSequence += 1;
       this.emit({
         type: 'output',
         runtimeId,
+        sequence: live.outputSequence,
         data: data.slice(offset, offset + MAX_EVENT_CHARS)
       });
     }

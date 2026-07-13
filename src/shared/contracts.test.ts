@@ -11,6 +11,7 @@ import {
   LaunchPreviewSchema,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
+  RuntimeAttachmentSchema,
   RuntimeEventSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
@@ -483,15 +484,47 @@ describe('managed terminal contracts', () => {
       }).success
     ).toBe(false);
     expect(
-      RuntimeEventSchema.parse({ type: 'output', runtimeId, data: 'ready' })
-    ).toEqual({ type: 'output', runtimeId, data: 'ready' });
+      RuntimeEventSchema.parse({
+        type: 'output',
+        runtimeId,
+        sequence: 4,
+        data: 'ready'
+      })
+    ).toEqual({ type: 'output', runtimeId, sequence: 4, data: 'ready' });
     expect(
       RuntimeEventSchema.safeParse({
         type: 'output',
         runtimeId,
+        sequence: 5,
         data: 'x'.repeat(65_537)
       }).success
     ).toBe(false);
+
+    const runtime = RuntimeSummarySchema.parse({
+      id: runtimeId,
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending',
+      provider: 'codex',
+      workspaceId: 'a'.repeat(64),
+      terminalProfileId: 'b'.repeat(64),
+      launchHash: 'c'.repeat(64),
+      state: 'running',
+      pid: 123,
+      createdAt: '2026-07-13T01:00:00.000Z',
+      startedAt: '2026-07-13T01:00:01.000Z',
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    });
+    expect(
+      RuntimeAttachmentSchema.parse({
+        runtime,
+        snapshot: 'ready',
+        outputSequence: 3
+      })
+    ).toMatchObject({ snapshot: 'ready', outputSequence: 3 });
   });
 
   it('validates durable runtime launch identity combinations', () => {
