@@ -17,6 +17,17 @@ export function keyboardEventMatchesChord(
     event.metaKey === chord.meta;
 }
 
+export function isRequiredModifierKey(
+  code: string,
+  chord: KeyboardShortcutChord
+): boolean {
+  if (code === 'ControlLeft' || code === 'ControlRight') return chord.control;
+  if (code === 'AltLeft' || code === 'AltRight') return chord.alt;
+  if (code === 'ShiftLeft' || code === 'ShiftRight') return chord.shift;
+  if (code === 'MetaLeft' || code === 'MetaRight') return chord.meta;
+  return false;
+}
+
 export function chordFromKeyboardEvent(
   event: KeyboardEvent
 ): KeyboardShortcutChord | null {

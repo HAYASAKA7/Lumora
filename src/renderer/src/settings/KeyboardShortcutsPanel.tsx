@@ -10,6 +10,7 @@ import type {
   KeyboardShortcutChord,
   SystemInfo
 } from '../../../shared/contracts';
+import { DEFAULT_KEYBOARD_SETTINGS } from '../../../shared/contracts';
 import {
   chordFromKeyboardEvent,
   formatShortcutChord,
@@ -74,12 +75,8 @@ export function KeyboardShortcutsPanel({
     setNotice(null);
   };
 
-  const save = () => {
-    if (settings === null || draft === null || saving) return;
-    const next: KeyboardSettings = {
-      version: 1,
-      terminalSwitcher: draft
-    };
+  const persist = (next: KeyboardSettings, successNotice: string) => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -88,7 +85,7 @@ export function KeyboardShortcutsPanel({
         setSettings(value);
         setDraft(value.terminalSwitcher);
         setSaving(false);
-        setNotice('Shortcut saved.');
+        setNotice(successNotice);
         onChange?.(value);
       },
       () => {
@@ -96,6 +93,16 @@ export function KeyboardShortcutsPanel({
         setError('The shortcut could not be saved.');
       }
     );
+  };
+
+  const save = () => {
+    if (settings === null || draft === null) return;
+    persist({ version: 1, terminalSwitcher: draft }, 'Shortcut saved.');
+  };
+
+  const reset = () => {
+    if (settings === null) return;
+    persist(DEFAULT_KEYBOARD_SETTINGS, 'Shortcut reset.');
   };
 
   return (
@@ -137,6 +144,14 @@ export function KeyboardShortcutsPanel({
             type="button"
           >
             {saving ? 'Saving…' : 'Save shortcut'}
+          </button>
+          <button
+            className="secondary-button"
+            disabled={saving || recording}
+            onClick={reset}
+            type="button"
+          >
+            Reset to default
           </button>
         </div>
       )}

@@ -70,4 +70,48 @@ describe('KeyboardShortcutsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/reserved by Windows/i);
     expect(window.lumora.saveKeyboardSettings).not.toHaveBeenCalled();
   });
+
+  it('resets the shortcut to the default after persistence succeeds', async () => {
+    const custom = {
+      version: 1 as const,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    };
+    const onChange = vi.fn();
+    window.lumora.getKeyboardSettings = vi.fn().mockResolvedValue(custom);
+    render(<KeyboardShortcutsPanel onChange={onChange} platform="win32" />);
+
+    await screen.findByText('Ctrl + Shift + K');
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }));
+
+    await waitFor(() => {
+      expect(window.lumora.saveKeyboardSettings).toHaveBeenCalledWith(
+        DEFAULT_KEYBOARD_SETTINGS
+      );
+    });
+    expect(onChange).toHaveBeenLastCalledWith(DEFAULT_KEYBOARD_SETTINGS);
+    expect(screen.getByRole('status')).toHaveTextContent('Shortcut reset');
+  });
+
+  it('keeps the effective shortcut when resetting cannot be persisted', async () => {
+    const onChange = vi.fn();
+    window.lumora.saveKeyboardSettings = vi.fn().mockRejectedValue(
+      new Error('disk unavailable')
+    );
+    render(<KeyboardShortcutsPanel onChange={onChange} platform="win32" />);
+    await screen.findByText('Ctrl + Tab');
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'could not be saved'
+    );
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });

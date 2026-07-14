@@ -8,11 +8,15 @@ import type {
 } from '../../../shared/contracts';
 import { ManagedTerminal } from './ManagedTerminal';
 
-const { terminalWrite } = vi.hoisted(() => ({ terminalWrite: vi.fn() }));
+const { fitTerminal, focusTerminal, terminalWrite } = vi.hoisted(() => ({
+  fitTerminal: vi.fn(),
+  focusTerminal: vi.fn(),
+  terminalWrite: vi.fn()
+}));
 
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
-    fit(): void {}
+    fit(): void { fitTerminal(); }
   }
 }));
 
@@ -24,7 +28,7 @@ vi.mock('@xterm/xterm', () => ({
     onData(): { dispose(): void } { return { dispose() {} }; }
     onResize(): { dispose(): void } { return { dispose() {} }; }
     write(data: string): void { terminalWrite(data); }
-    focus(): void {}
+    focus(): void { focusTerminal(); }
     dispose(): void {}
   }
 }));
@@ -61,7 +65,7 @@ describe('ManagedTerminal', () => {
       }
     });
 
-    render(<ManagedTerminal onRuntimeChange={vi.fn()} runtime={runtime} />);
+    render(<ManagedTerminal active onRuntimeChange={vi.fn()} runtime={runtime} />);
 
     expect(screen.getByLabelText('codex terminal')).toHaveStyle({
       blockSize: '100%'
@@ -94,7 +98,7 @@ describe('ManagedTerminal', () => {
       }
     });
 
-    render(<ManagedTerminal onRuntimeChange={vi.fn()} runtime={runtime} />);
+    render(<ManagedTerminal active onRuntimeChange={vi.fn()} runtime={runtime} />);
     await waitFor(() => expect(onRuntimeEvent).toHaveBeenCalled());
 
     act(() => {
@@ -126,5 +130,43 @@ describe('ManagedTerminal', () => {
     });
     expect(terminalWrite).toHaveBeenCalledTimes(2);
     expect(terminalWrite).toHaveBeenLastCalledWith('next\r\n');
+  });
+
+  it('fits and focuses only when its mounted terminal becomes active', async () => {
+    fitTerminal.mockClear();
+    focusTerminal.mockClear();
+    const attachRuntime = vi.fn().mockResolvedValue({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    });
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        attachRuntime,
+        onRuntimeEvent: vi.fn(() => () => undefined),
+        resizeRuntime: vi.fn().mockResolvedValue(undefined),
+        writeRuntime: vi.fn().mockResolvedValue(undefined)
+      }
+    });
+    const onRuntimeChange = vi.fn();
+
+    const { rerender } = render(
+      <ManagedTerminal
+        active={false}
+        onRuntimeChange={onRuntimeChange}
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(attachRuntime).toHaveBeenCalled());
+    await waitFor(() => expect(fitTerminal).toHaveBeenCalledTimes(1));
+    expect(focusTerminal).not.toHaveBeenCalled();
+
+    rerender(
+      <ManagedTerminal active onRuntimeChange={onRuntimeChange} runtime={runtime} />
+    );
+
+    await waitFor(() => expect(fitTerminal).toHaveBeenCalledTimes(2));
+    expect(focusTerminal).toHaveBeenCalledTimes(1);
   });
 });

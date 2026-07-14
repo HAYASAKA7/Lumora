@@ -28,7 +28,10 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from './providers/ProviderSettings';
-import { keyboardEventMatchesChord } from './keyboard/shortcut';
+import {
+  isRequiredModifierKey,
+  keyboardEventMatchesChord
+} from './keyboard/shortcut';
 import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
 import { KeyboardShortcutsPanel } from './settings/KeyboardShortcutsPanel';
 import { WorkspaceTrustPanel } from './settings/WorkspaceTrustPanel';
@@ -39,8 +42,10 @@ import {
   RuntimeSwitcher,
   buildRuntimeMru,
   nextRuntimeInOrder,
+  reconcileRuntimeSwitch,
   touchRuntimeMru
 } from './terminal/RuntimeSwitcher';
+import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 
@@ -74,11 +79,6 @@ type SystemStatus =
   | { state: 'loading' }
   | { state: 'ready'; info: SystemInfo }
   | { state: 'error' };
-
-interface RuntimeSwitcherState {
-  order: string[];
-  selectedRuntimeId: string;
-}
 
 const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
 
@@ -359,6 +359,9 @@ export default function App(): ReactNode {
   }, []);
 
   const activateRuntime = useCallback((runtimeId: string) => {
+    setOpenRuntimeIds((current) =>
+      current.includes(runtimeId) ? current : [...current, runtimeId]
+    );
     setRuntimeMru((current) => touchRuntimeMru(current, runtimeId));
     setActiveRuntimeId(runtimeId);
   }, []);
@@ -608,14 +611,7 @@ export default function App(): ReactNode {
     );
     setRuntimeSwitcher((current) => {
       if (current === null) return null;
-      const order = buildRuntimeMru(openRuntimeIds, current.order, null);
-      if (order.length < 2) return null;
-      return {
-        order,
-        selectedRuntimeId: order.includes(current.selectedRuntimeId)
-          ? current.selectedRuntimeId
-          : order[0]!
-      };
+      return reconcileRuntimeSwitch(current, openRuntimeIds);
     });
   }, [activeRuntimeId, openRuntimeIds]);
 
@@ -639,6 +635,7 @@ export default function App(): ReactNode {
 
       event.preventDefault();
       event.stopPropagation();
+      if (event.repeat) return;
       if (openRuntimeIds.length === 1) {
         activateRuntime(openRuntimeIds[0]!);
         setRuntimeSwitcher(null);
@@ -668,12 +665,7 @@ export default function App(): ReactNode {
     };
     const keyup = (event: KeyboardEvent) => {
       if (runtimeSwitcher === null) return;
-      const requiredModifiersStillHeld =
-        (!chord.control || event.ctrlKey) &&
-        (!chord.alt || event.altKey) &&
-        (!chord.shift || event.shiftKey) &&
-        (!chord.meta || event.metaKey);
-      if (requiredModifiersStillHeld) return;
+      if (!isRequiredModifierKey(event.code, chord)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -878,6 +870,7 @@ export default function App(): ReactNode {
                 onRuntimeChange={updateRuntime}
                 previews={launchPreviews}
                 runtimes={openRuntimes}
+                visible={terminalActive}
                 workspaces={
                   catalogStatus.state === 'ready'
                     ? catalogStatus.snapshot.workspaces
@@ -891,10 +884,15 @@ export default function App(): ReactNode {
         <SystemStatusBar status={systemStatus} />
       </div>
 
-      {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 1 ? (
+      {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
         <RuntimeSwitcher
           runtimes={runtimeSwitcherRuntimes}
           selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
+          workspaces={
+            catalogStatus.state === 'ready'
+              ? catalogStatus.snapshot.workspaces
+              : []
+          }
         />
       ) : null}
 

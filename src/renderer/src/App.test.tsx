@@ -518,6 +518,19 @@ describe('App', () => {
       screen.getByRole('option', { name: /Claude working session/ })
     ).toHaveAttribute('aria-selected', 'true');
 
+    fireEvent.keyDown(window, {
+      code: 'Tab',
+      key: 'Tab',
+      ctrlKey: true,
+      repeat: true
+    });
+    expect(
+      screen.getByRole('option', { name: /Claude working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyUp(window, { code: 'KeyX', key: 'x' });
+    expect(screen.getByRole('dialog', { name: 'Open terminals' }))
+      .toBeInTheDocument();
+
     fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
     expect(
       screen.getByRole('option', { name: /Codex working session/ })
@@ -531,6 +544,64 @@ describe('App', () => {
     expect(
       screen.getByRole('tab', { name: /Claude working session/ })
     ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('moves a pending switch selection forward when that runtime exits', async () => {
+    const first = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ae0'),
+      displayName: 'First session'
+    };
+    const second = {
+      ...runningRuntime(
+        '0198f8b6-18f3-7ca0-9f0f-123456789ae1',
+        'claude'
+      ),
+      displayName: 'Second session'
+    };
+    const third = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ae2'),
+      displayName: 'Third session'
+    };
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second, third]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: [first, second, third].find((item) => item.id === runtimeId)!,
+        snapshot: '',
+        outputSequence: 0
+      })),
+      onRuntimeEvent: vi.fn((listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      })
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(screen.getByRole('option', { name: /Second session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: second.id,
+        runtime: {
+          ...second,
+          state: 'completed',
+          endedAt: '2026-07-14T02:00:00.000Z',
+          exitCode: 0
+        }
+      });
+    });
+
+    expect(screen.getByRole('option', { name: /Third session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyUp(window, { code: 'ControlLeft', key: 'Control' });
+    expect(screen.getByRole('tab', { name: /Third session/ }))
+      .toHaveAttribute('aria-selected', 'true');
   });
 
   it('uses a saved switcher binding and lets Escape cancel selection', async () => {

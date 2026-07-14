@@ -1,6 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
-import type { RuntimeSummary } from '../../../shared/contracts';
+import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
+
+export interface RuntimeSwitcherState {
+  order: string[];
+  selectedRuntimeId: string;
+}
 
 export function touchRuntimeMru(
   order: readonly string[],
@@ -43,29 +48,82 @@ export function nextRuntimeInOrder(
   return order[(currentIndex + 1) % order.length] ?? order[0] ?? null;
 }
 
+export function reconcileRuntimeSwitch(
+  state: RuntimeSwitcherState,
+  validRuntimeIds: readonly string[]
+): RuntimeSwitcherState | null {
+  const valid = new Set(validRuntimeIds);
+  const order = state.order.filter((id) => valid.has(id));
+  for (const id of validRuntimeIds) {
+    if (!order.includes(id)) order.push(id);
+  }
+  if (order.length === 0) return null;
+  if (valid.has(state.selectedRuntimeId)) {
+    return { order, selectedRuntimeId: state.selectedRuntimeId };
+  }
+  const removedIndex = state.order.indexOf(state.selectedRuntimeId);
+  if (removedIndex >= 0) {
+    for (let offset = 1; offset <= state.order.length; offset += 1) {
+      const candidate = state.order[
+        (removedIndex + offset) % state.order.length
+      ];
+      if (candidate !== undefined && valid.has(candidate)) {
+        return { order, selectedRuntimeId: candidate };
+      }
+    }
+  }
+  return { order, selectedRuntimeId: order[0]! };
+}
+
 export function RuntimeSwitcher({
   runtimes,
-  selectedRuntimeId
+  selectedRuntimeId,
+  workspaces
 }: {
   runtimes: readonly RuntimeSummary[];
   selectedRuntimeId: string;
+  workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
+  const listboxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    listboxRef.current?.focus();
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
+
   return (
     <div className="runtime-switcher-layer">
       <section
         aria-label="Open terminals"
         aria-live="polite"
+        aria-modal="true"
         className="runtime-switcher"
         role="dialog"
       >
         <p className="runtime-switcher-title">Open terminals</p>
-        <div aria-label="Terminal switcher" className="runtime-switcher-list" role="listbox">
+        <div
+          aria-activedescendant={`runtime-switcher-option-${selectedRuntimeId}`}
+          aria-label="Terminal switcher"
+          className="runtime-switcher-list"
+          ref={listboxRef}
+          role="listbox"
+          tabIndex={-1}
+        >
           {runtimes.map((runtime) => {
             const selected = runtime.id === selectedRuntimeId;
+            const workspace = workspaces.find(
+              (item) => item.id === runtime.workspaceId
+            );
             return (
               <div
                 aria-selected={selected}
                 className={`runtime-switcher-option${selected ? ' is-selected' : ''}`}
+                id={`runtime-switcher-option-${runtime.id}`}
                 key={runtime.id}
                 role="option"
               >
@@ -75,7 +133,7 @@ export function RuntimeSwitcher({
                 <span>
                   <strong>{runtime.displayName}</strong>
                   <small>
-                    {runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} · {runtime.state}
+                    {runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} · {workspace?.displayName ?? 'Workspace'}
                   </small>
                 </span>
               </div>

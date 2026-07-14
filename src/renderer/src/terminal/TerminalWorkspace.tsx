@@ -11,6 +11,7 @@ import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 interface TerminalWorkspaceProps {
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
+  visible: boolean;
   previews: ReadonlyMap<string, LaunchPreview>;
   workspaces: readonly WorkspaceSummary[];
   onActivate(runtimeId: string): void;
@@ -21,6 +22,7 @@ interface TerminalWorkspaceProps {
 export function TerminalWorkspace({
   runtimes,
   activeRuntimeId,
+  visible,
   previews,
   workspaces,
   onActivate,
@@ -96,6 +98,7 @@ export function TerminalWorkspace({
             key={item.id}
           >
             <ManagedTerminal
+              active={visible && item.id === runtime.id}
               runtime={item}
               onRuntimeChange={onRuntimeChange}
             />

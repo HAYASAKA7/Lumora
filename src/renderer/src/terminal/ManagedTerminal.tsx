@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import type { RuntimeEvent, RuntimeSummary } from '../../../shared/contracts';
 
 interface ManagedTerminalProps {
+  active: boolean;
   runtime: RuntimeSummary;
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
@@ -11,20 +12,25 @@ interface ManagedTerminalProps {
 const TERMINAL_BLOCK_SIZE = '100%';
 
 export function ManagedTerminal({
+  active,
   runtime,
   onRuntimeChange
 }: ManagedTerminalProps): ReactNode {
   const container = useRef<HTMLDivElement | null>(null);
+  const activeRef = useRef(active);
+  const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
+  const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const [error, setError] = useState<string | null>(null);
+  activeRef.current = active;
 
   useEffect(() => {
     const target = container.current;
     if (target === null) return;
-    let active = true;
+    let alive = true;
     let dispose = () => undefined;
     void Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')]).then(
       ([{ Terminal }, { FitAddon }]) => {
-        if (!active) return;
+        if (!alive) return;
         const terminal = new Terminal({
           cursorBlink: true,
           fontFamily: 'Cascadia Mono, SFMono-Regular, Consolas, monospace',
@@ -38,6 +44,8 @@ export function ManagedTerminal({
           }
         });
         const fitAddon = new FitAddon();
+        terminalRef.current = terminal;
+        fitAddonRef.current = fitAddon;
         terminal.loadAddon(fitAddon);
         terminal.parser.registerOscHandler(52, () => true);
         terminal.open(target);
@@ -45,7 +53,7 @@ export function ManagedTerminal({
 
         const input = terminal.onData((data) => {
           void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).catch(() => {
-            if (active) setError('Terminal input could not be delivered.');
+            if (alive) setError('Terminal input could not be delivered.');
           });
         });
         const resize = terminal.onResize(({ cols, rows }) => {
@@ -83,7 +91,7 @@ export function ManagedTerminal({
 
         void window.lumora.attachRuntime(runtime.id).then(
           (attachment) => {
-            if (!active) return;
+            if (!alive) return;
             if (attachment.snapshot.length > 0) terminal.write(attachment.snapshot);
             outputSequence = attachment.outputSequence;
             attached = true;
@@ -92,19 +100,27 @@ export function ManagedTerminal({
               .forEach(writeOutput);
             pendingOutput = [];
             onRuntimeChange(attachment.runtime);
-            terminal.focus();
+            if (activeRef.current) terminal.focus();
           },
-          () => { if (active) setError('The terminal runtime could not be attached.'); }
+          () => { if (alive) setError('The terminal runtime could not be attached.'); }
         );
       },
-      () => { if (active) setError('The terminal renderer could not be loaded.'); }
+      () => { if (alive) setError('The terminal renderer could not be loaded.'); }
     );
 
     return () => {
-      active = false;
+      alive = false;
+      terminalRef.current = null;
+      fitAddonRef.current = null;
       dispose();
     };
   }, [runtime.id, onRuntimeChange]);
+
+  useEffect(() => {
+    if (!active) return;
+    fitAddonRef.current?.fit();
+    terminalRef.current?.focus();
+  }, [active]);
 
   return (
     <div className="managed-terminal-shell">

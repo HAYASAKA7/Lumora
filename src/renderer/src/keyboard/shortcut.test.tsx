@@ -4,6 +4,7 @@ import type { KeyboardShortcutChord } from '../../../shared/contracts';
 import {
   chordFromKeyboardEvent,
   formatShortcutChord,
+  isRequiredModifierKey,
   keyboardEventMatchesChord,
   shortcutConflictMessage
 } from './shortcut';
@@ -69,5 +70,13 @@ describe('keyboard shortcut utilities', () => {
     expect(shortcutConflictMessage(altTab, 'win32')).toMatch(/reserved/i);
     expect(shortcutConflictMessage(altTab, 'linux')).toBeNull();
     expect(shortcutConflictMessage(chord, 'win32')).toBeNull();
+  });
+
+  it('identifies only modifier keys required by the configured chord', () => {
+    expect(isRequiredModifierKey('ControlLeft', chord)).toBe(true);
+    expect(isRequiredModifierKey('ControlRight', chord)).toBe(true);
+    expect(isRequiredModifierKey('ShiftLeft', chord)).toBe(false);
+    expect(isRequiredModifierKey('Tab', chord)).toBe(false);
+    expect(isRequiredModifierKey('MetaLeft', { ...chord, meta: true })).toBe(true);
   });
 });

@@ -9,8 +9,8 @@ import type {
 import { TerminalWorkspace } from './TerminalWorkspace';
 
 vi.mock('./ManagedTerminal', () => ({
-  ManagedTerminal: ({ runtime }: { runtime: RuntimeSummary }) => (
-    <div data-testid={`managed-terminal-${runtime.id}`} />
+  ManagedTerminal: ({ active, runtime }: { active: boolean; runtime: RuntimeSummary }) => (
+    <div data-active={active} data-testid={`managed-terminal-${runtime.id}`} />
   )
 }));
 
@@ -111,6 +111,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         previews={new Map()}
         runtimes={[runtime, secondRuntime]}
+        visible
         workspaces={[workspace]}
       />
     );
@@ -121,6 +122,8 @@ describe('TerminalWorkspace', () => {
 
     expect(firstTerminal.parentElement).not.toHaveAttribute('hidden');
     expect(secondTerminal.parentElement).toHaveAttribute('hidden');
+    expect(firstTerminal).toHaveAttribute('data-active', 'true');
+    expect(secondTerminal).toHaveAttribute('data-active', 'false');
 
     rerender(
       <TerminalWorkspace
@@ -130,6 +133,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         previews={new Map()}
         runtimes={[runtime, secondRuntime]}
+        visible
         workspaces={[workspace]}
       />
     );
@@ -142,6 +146,23 @@ describe('TerminalWorkspace', () => {
     ).toBe(secondTerminal);
     expect(firstTerminal.parentElement).toHaveAttribute('hidden');
     expect(secondTerminal.parentElement).not.toHaveAttribute('hidden');
+    expect(firstTerminal).toHaveAttribute('data-active', 'false');
+    expect(secondTerminal).toHaveAttribute('data-active', 'true');
+
+    rerender(
+      <TerminalWorkspace
+        activeRuntimeId={secondRuntime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        visible={false}
+        workspaces={[workspace]}
+      />
+    );
+    expect(firstTerminal).toHaveAttribute('data-active', 'false');
+    expect(secondTerminal).toHaveAttribute('data-active', 'false');
   });
 
   it('uses the durable session name as the primary tab and heading label', () => {
@@ -153,6 +174,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         previews={new Map()}
         runtimes={[runtime]}
+        visible
         workspaces={[workspace]}
       />
     );
@@ -174,6 +196,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         previews={new Map([[runtime.id, preview]])}
         runtimes={[runtime]}
+        visible
         workspaces={[workspace]}
       />
     );
@@ -206,6 +229,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         previews={new Map()}
         runtimes={[runtime]}
+        visible
         workspaces={[workspace]}
       />
     );
@@ -244,6 +268,7 @@ describe('TerminalWorkspace', () => {
             nativeSessionId: linked ? 'native-thread-1' : null
           }
         ]}
+        visible
         workspaces={[workspace]}
       />
     );
