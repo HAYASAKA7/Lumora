@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
+import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
   CatalogSnapshot,
   LaunchPreview,
@@ -212,6 +213,8 @@ function setSystemInfoResult(
       ]),
       getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
       saveLaunchSettingsLayer: vi.fn().mockResolvedValue([]),
+      getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
+      saveKeyboardSettings: vi.fn(async (value) => value),
       getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
       trustWorkspaceForLaunch: vi.fn(),
       revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
@@ -769,6 +772,9 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(
       await screen.findByRole('heading', { name: 'Workspace trust' })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Keyboard shortcuts' })
     ).toBeInTheDocument();
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
     expect(screen.getByText('2.3.4 (Claude Code)')).toBeInTheDocument();

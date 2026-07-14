@@ -687,6 +687,67 @@ button {
   gap: 18px;
 }
 
+.keyboard-settings-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.keyboard-shortcut-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.keyboard-shortcut-row strong {
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.keyboard-shortcut-row p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.shortcut-recorder {
+  min-width: 150px;
+  min-height: 38px;
+  padding: 8px 12px;
+  color: #34445d;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.shortcut-recorder:hover,
+.shortcut-recorder:focus-visible,
+.shortcut-recorder.is-recording {
+  color: var(--blue);
+  border-color: var(--blue);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.keyboard-setting-error,
+.keyboard-setting-notice {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.keyboard-setting-error {
+  color: var(--warning);
+}
+
+.keyboard-setting-notice {
+  color: #157a5d;
+}
+
 .launch-settings-panel {
   display: grid;
   gap: 18px;

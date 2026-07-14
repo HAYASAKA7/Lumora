@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { IPC_CHANNELS } from '../shared/contracts';
+import { DEFAULT_KEYBOARD_SETTINGS, IPC_CHANNELS } from '../shared/contracts';
 import { createLumoraApi } from './api';
 
 const emptyCatalog = {
@@ -255,6 +255,35 @@ describe('createLumoraApi', () => {
     expect(invocations).toEqual([
       { channel: IPC_CHANNELS.launchSettingsLayersGet, args: [] },
       { channel: IPC_CHANNELS.launchSettingsLayerSave, args: [input] }
+    ]);
+  });
+
+  it('uses validated narrow channels for keyboard settings', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const custom = {
+      version: 1 as const,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    };
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.keyboardSettingsGet
+        ? DEFAULT_KEYBOARD_SETTINGS
+        : custom;
+    });
+
+    await expect(api.getKeyboardSettings()).resolves.toEqual(
+      DEFAULT_KEYBOARD_SETTINGS
+    );
+    await expect(api.saveKeyboardSettings(custom)).resolves.toEqual(custom);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.keyboardSettingsGet, args: [] },
+      { channel: IPC_CHANNELS.keyboardSettingsSave, args: [custom] }
     ]);
   });
 

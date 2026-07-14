@@ -1,6 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
+  DEFAULT_KEYBOARD_SETTINGS,
+  KeyboardSettingsSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerListSchema,
   LaunchSettingsLayerSchema,
@@ -13,6 +15,7 @@ import {
   WorkspaceTrustDecisionSchema,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
+  type KeyboardSettings,
   type ProviderId,
   type ProviderLaunchConfig,
   type ProviderLaunchConfigInput,
@@ -22,6 +25,8 @@ import {
   type TerminalProfile,
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
+
+const KEYBOARD_SETTINGS_PREFERENCE_KEY = 'keyboardShortcuts.v1';
 
 interface LaunchSettingsLayerRow {
   scope: LaunchSettingsLayer['scope'];
@@ -153,6 +158,45 @@ function rowToRuntime(row: RuntimeRow): RuntimeSummary {
 
 export class TerminalRepository {
   constructor(private readonly database: DatabaseSync) {}
+
+  getKeyboardSettings(): KeyboardSettings {
+    const row = this.database.prepare(
+      'SELECT value_json FROM app_preference WHERE key = ?'
+    ).get(KEYBOARD_SETTINGS_PREFERENCE_KEY) as
+      | { value_json: string }
+      | undefined;
+    if (row === undefined) {
+      return KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
+    }
+
+    try {
+      const parsed = KeyboardSettingsSchema.safeParse(JSON.parse(row.value_json));
+      return parsed.success
+        ? parsed.data
+        : KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
+    } catch {
+      return KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
+    }
+  }
+
+  saveKeyboardSettings(
+    value: KeyboardSettings,
+    timestamp: string
+  ): KeyboardSettings {
+    const settings = KeyboardSettingsSchema.parse(value);
+    this.database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         value_json = excluded.value_json,
+         updated_at = excluded.updated_at`
+    ).run(
+      KEYBOARD_SETTINGS_PREFERENCE_KEY,
+      JSON.stringify(settings),
+      normalizeTimestamp(timestamp)
+    );
+    return settings;
+  }
 
   reconcileDetectedProfiles(
     values: readonly TerminalProfile[],

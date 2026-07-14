@@ -14,6 +14,7 @@ import {
   type LaunchPreview,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
+  type KeyboardSettings,
   type ProviderLaunchConfig,
   type ProviderLaunchConfigInput,
   type ProviderScanResult,
@@ -58,6 +59,8 @@ export interface TerminalRuntime {
   ): ProviderLaunchConfig[];
   getLaunchSettingsLayers(): LaunchSettingsLayer[];
   saveLaunchSettingsLayer(input: LaunchSettingsLayerInput): LaunchSettingsLayer[];
+  getKeyboardSettings(): KeyboardSettings;
+  saveKeyboardSettings(input: KeyboardSettings): KeyboardSettings;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   getWorkspaceTrustDecisions(): WorkspaceTrustDecision[];
   trustWorkspaceForLaunch(launchToken: string): WorkspaceTrustDecision;
@@ -184,6 +187,12 @@ export async function createTerminalRuntime({
     },
     saveLaunchSettingsLayer(input) {
       return repository.saveLaunchSettingsLayer(input, clock().toISOString());
+    },
+    getKeyboardSettings() {
+      return repository.getKeyboardSettings();
+    },
+    saveKeyboardSettings(input) {
+      return repository.saveKeyboardSettings(input, clock().toISOString());
     },
     prepareLaunch(input) {
       return launchService.prepare(input);

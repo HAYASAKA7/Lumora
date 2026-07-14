@@ -8,8 +8,10 @@ import {
 } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
+import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
   CatalogQuery,
+  KeyboardSettings,
   LaunchPreview,
   ProviderId,
   RuntimeSummary,
@@ -27,6 +29,7 @@ import {
   type ProviderScanStatus
 } from './providers/ProviderSettings';
 import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
+import { KeyboardShortcutsPanel } from './settings/KeyboardShortcutsPanel';
 import { WorkspaceTrustPanel } from './settings/WorkspaceTrustPanel';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
@@ -246,6 +249,9 @@ export default function App(): ReactNode {
   const [launchPreviews, setLaunchPreviews] = useState(
     () => new Map<string, LaunchPreview>()
   );
+  const [, setKeyboardSettings] = useState<KeyboardSettings>(
+    DEFAULT_KEYBOARD_SETTINGS
+  );
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [resumeSession, setResumeSession] = useState<SessionSummary | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
@@ -301,6 +307,19 @@ export default function App(): ReactNode {
       }
     );
 
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+    void window.lumora.getKeyboardSettings().then(
+      (settings) => {
+        if (isCurrent) setKeyboardSettings(settings);
+      },
+      () => undefined
+    );
     return () => {
       isCurrent = false;
     };
@@ -693,6 +712,14 @@ export default function App(): ReactNode {
                 <ProviderSettings
                   onRefresh={refreshProviders}
                   status={providerStatus}
+                />
+                <KeyboardShortcutsPanel
+                  onChange={setKeyboardSettings}
+                  platform={
+                    systemStatus.state === 'ready'
+                      ? systemStatus.info.platform
+                      : 'win32'
+                  }
                 />
                 {catalogStatus.state === 'ready' ? (
                   <>

@@ -4,7 +4,10 @@ import {
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   CustomTerminalProfileInputSchema,
+  DEFAULT_KEYBOARD_SETTINGS,
   IPC_CHANNELS,
+  KeyboardSettingsSchema,
+  KeyboardShortcutChordSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerSchema,
   LaunchPrepareRequestSchema,
@@ -688,5 +691,39 @@ describe('managed terminal contracts', () => {
       'lumora:terminal:profiles:get'
     );
     expect(IPC_CHANNELS.runtimeEvent).toBe('lumora:terminal:runtime:event');
+  });
+
+  it('validates versioned keyboard settings with a real modified key', () => {
+    expect(KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS)).toEqual({
+      version: 1,
+      terminalSwitcher: {
+        code: 'Tab',
+        control: true,
+        alt: false,
+        shift: false,
+        meta: false
+      }
+    });
+    expect(KeyboardShortcutChordSchema.safeParse({
+      code: 'KeyK',
+      control: true,
+      alt: false,
+      shift: true,
+      meta: false
+    }).success).toBe(true);
+    expect(KeyboardShortcutChordSchema.safeParse({
+      code: 'KeyK',
+      control: false,
+      alt: false,
+      shift: true,
+      meta: false
+    }).success).toBe(false);
+    expect(KeyboardShortcutChordSchema.safeParse({
+      code: 'ControlLeft',
+      control: true,
+      alt: false,
+      shift: false,
+      meta: false
+    }).success).toBe(false);
   });
 });

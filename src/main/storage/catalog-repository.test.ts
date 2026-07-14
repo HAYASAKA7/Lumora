@@ -111,7 +111,8 @@ describe('catalog migrations', () => {
       { version: 5 },
       { version: 6 },
       { version: 7 },
-      { version: 8 }
+      { version: 8 },
+      { version: 9 }
     ]);
     expect(
       database
@@ -125,6 +126,7 @@ describe('catalog migrations', () => {
         'scan_error',
         'schema_migration',
         'config_layer',
+        'app_preference',
         'session',
         'session_source',
         'provider_launch_config',

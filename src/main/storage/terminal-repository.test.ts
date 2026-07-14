@@ -1,7 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { RuntimeSummary, TerminalProfile } from '../../shared/contracts';
+import {
+  DEFAULT_KEYBOARD_SETTINGS,
+  type KeyboardSettings,
+  type RuntimeSummary,
+  type TerminalProfile
+} from '../../shared/contracts';
 import { migrateCatalogDatabase } from './migrations';
 import { TerminalRepository } from './terminal-repository';
 
@@ -278,6 +283,29 @@ describe('TerminalRepository', () => {
     expect(repository.listLaunchSettingsLayers()).toEqual([
       expect.objectContaining({ scope: 'global', targetId: 'global' })
     ]);
+  });
+
+  it('persists keyboard settings and falls back when a stored value is invalid', () => {
+    const custom: KeyboardSettings = {
+      version: 1,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    };
+
+    expect(repository.getKeyboardSettings()).toEqual(DEFAULT_KEYBOARD_SETTINGS);
+    expect(repository.saveKeyboardSettings(custom, timestamp)).toEqual(custom);
+    expect(repository.getKeyboardSettings()).toEqual(custom);
+
+    database.prepare(
+      `UPDATE app_preference SET value_json = ?
+       WHERE key = 'keyboardShortcuts.v1'`
+    ).run('{"version":2}');
+    expect(repository.getKeyboardSettings()).toEqual(DEFAULT_KEYBOARD_SETTINGS);
   });
 
   it('validates layer targets and session provider commands', () => {

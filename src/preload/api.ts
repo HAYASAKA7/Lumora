@@ -3,6 +3,7 @@ import {
   CatalogSnapshotSchema,
   CustomTerminalProfileInputSchema,
   IPC_CHANNELS,
+  KeyboardSettingsSchema,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
   LaunchSettingsLayerInputSchema,
@@ -102,6 +103,15 @@ export function createLumoraApi(
         request
       );
       return LaunchSettingsLayerListSchema.parse(value);
+    },
+    async getKeyboardSettings() {
+      const value = await invoke(IPC_CHANNELS.keyboardSettingsGet);
+      return KeyboardSettingsSchema.parse(value);
+    },
+    async saveKeyboardSettings(input) {
+      const request = KeyboardSettingsSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.keyboardSettingsSave, request);
+      return KeyboardSettingsSchema.parse(value);
     },
     async prepareLaunch(input) {
       const request = LaunchPrepareRequestSchema.parse(input);

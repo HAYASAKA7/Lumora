@@ -411,6 +411,57 @@ export type ResolvedLaunchSetting = z.infer<
   typeof ResolvedLaunchSettingSchema
 >;
 
+const MODIFIER_KEY_CODES = new Set([
+  'AltLeft',
+  'AltRight',
+  'ControlLeft',
+  'ControlRight',
+  'MetaLeft',
+  'MetaRight',
+  'ShiftLeft',
+  'ShiftRight'
+]);
+
+export const KeyboardShortcutChordSchema = z.strictObject({
+  code: z.string().trim().min(1).max(64).refine(
+    (code) => !MODIFIER_KEY_CODES.has(code),
+    'A shortcut requires a non-modifier key.'
+  ),
+  control: z.boolean(),
+  alt: z.boolean(),
+  shift: z.boolean(),
+  meta: z.boolean()
+}).superRefine((chord, context) => {
+  if (!chord.control && !chord.alt && !chord.meta) {
+    context.addIssue({
+      code: 'custom',
+      path: ['control'],
+      message: 'A shortcut requires Control, Alt, or Meta.'
+    });
+  }
+});
+
+export const KeyboardSettingsSchema = z.strictObject({
+  version: z.literal(1),
+  terminalSwitcher: KeyboardShortcutChordSchema
+});
+
+export type KeyboardShortcutChord = z.infer<
+  typeof KeyboardShortcutChordSchema
+>;
+export type KeyboardSettings = z.infer<typeof KeyboardSettingsSchema>;
+
+export const DEFAULT_KEYBOARD_SETTINGS = {
+  version: 1,
+  terminalSwitcher: {
+    code: 'Tab',
+    control: true,
+    alt: false,
+    shift: false,
+    meta: false
+  }
+} as const satisfies KeyboardSettings;
+
 const TerminalDimensionsFields = {
   cols: z.number().int().min(20).max(500),
   rows: z.number().int().min(5).max(300)
@@ -622,6 +673,8 @@ export const IPC_CHANNELS = {
   providerLaunchConfigSave: 'lumora:terminal:provider-launch-configs:save',
   launchSettingsLayersGet: 'lumora:terminal:launch-settings:get',
   launchSettingsLayerSave: 'lumora:terminal:launch-settings:save',
+  keyboardSettingsGet: 'lumora:terminal:keyboard-settings:get',
+  keyboardSettingsSave: 'lumora:terminal:keyboard-settings:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
   workspaceTrustGet: 'lumora:terminal:workspace-trust:get',
   workspaceTrustGrant: 'lumora:terminal:workspace-trust:grant',
@@ -654,6 +707,8 @@ export interface LumoraApi {
   saveLaunchSettingsLayer(
     input: LaunchSettingsLayerInput
   ): Promise<LaunchSettingsLayer[]>;
+  getKeyboardSettings(): Promise<KeyboardSettings>;
+  saveKeyboardSettings(input: KeyboardSettings): Promise<KeyboardSettings>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
   getWorkspaceTrustDecisions(): Promise<WorkspaceTrustDecision[]>;
   trustWorkspaceForLaunch(

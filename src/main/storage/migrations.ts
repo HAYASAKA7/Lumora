@@ -185,7 +185,17 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         DEFAULT 'New Codex session'`,
       `UPDATE runtime_instance
        SET display_name = 'New Claude Code session'
-       WHERE provider = 'claude'`
+      WHERE provider = 'claude'`
+    ]
+  },
+  {
+    version: 9,
+    statements: [
+      `CREATE TABLE app_preference (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL CHECK (json_valid(value_json)),
+        updated_at TEXT NOT NULL
+      ) STRICT`
     ]
   }
 ];

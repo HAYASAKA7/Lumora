@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { IPC_CHANNELS, type RuntimeEvent } from '../../shared/contracts';
+import {
+  DEFAULT_KEYBOARD_SETTINGS,
+  IPC_CHANNELS,
+  type RuntimeEvent
+} from '../../shared/contracts';
 import { registerTerminalIpc } from './register-terminal-ipc';
 
 type Handler = (
@@ -57,6 +61,8 @@ function createHarness() {
     ]),
     getLaunchSettingsLayers: vi.fn(() => [settingsLayer]),
     saveLaunchSettingsLayer: vi.fn(() => [settingsLayer]),
+    getKeyboardSettings: vi.fn(() => DEFAULT_KEYBOARD_SETTINGS),
+    saveKeyboardSettings: vi.fn((value) => value),
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
     getWorkspaceTrustDecisions: vi.fn(() => [trustDecision]),
     trustWorkspaceForLaunch: vi.fn(() => trustDecision),
@@ -93,7 +99,7 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the seventeen explicit terminal operations', () => {
+  it('registers the nineteen explicit terminal operations', () => {
     const { handlers } = createHarness();
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
       providerLaunchConfigsGet: string;
@@ -107,6 +113,8 @@ describe('registerTerminalIpc', () => {
       channels.providerLaunchConfigSave,
       IPC_CHANNELS.launchSettingsLayersGet,
       IPC_CHANNELS.launchSettingsLayerSave,
+      IPC_CHANNELS.keyboardSettingsGet,
+      IPC_CHANNELS.keyboardSettingsSave,
       IPC_CHANNELS.launchPrepare,
       IPC_CHANNELS.workspaceTrustGet,
       IPC_CHANNELS.workspaceTrustGrant,
@@ -196,6 +204,41 @@ describe('registerTerminalIpc', () => {
           scope: 'provider',
           targetId: 'codex',
           settings: { providerCommands: { claude: 'wrong-provider' } }
+        })
+      )
+    ).rejects.toBeDefined();
+  });
+
+  it('validates and forwards keyboard settings', async () => {
+    const { handlers, runtimeService } = createHarness();
+    const custom = {
+      version: 1 as const,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    };
+
+    await expect(
+      handlers.get(IPC_CHANNELS.keyboardSettingsGet)!(trustedEvent)
+    ).resolves.toEqual(DEFAULT_KEYBOARD_SETTINGS);
+    await expect(
+      handlers.get(IPC_CHANNELS.keyboardSettingsSave)!(trustedEvent, custom)
+    ).resolves.toEqual(custom);
+    expect(runtimeService.saveKeyboardSettings).toHaveBeenCalledWith(custom);
+
+    await expect(
+      Promise.resolve().then(() =>
+        handlers.get(IPC_CHANNELS.keyboardSettingsSave)!(trustedEvent, {
+          ...custom,
+          terminalSwitcher: {
+            ...custom.terminalSwitcher,
+            control: false,
+            shift: false
+          }
         })
       )
     ).rejects.toBeDefined();
