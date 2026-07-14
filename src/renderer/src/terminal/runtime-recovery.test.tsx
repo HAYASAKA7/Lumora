@@ -5,6 +5,7 @@ import { resolveRuntimeRecovery } from './runtime-recovery';
 
 const runtime: RuntimeSummary = {
   id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+  displayName: 'Repository cleanup',
   strategy: 'resume',
   sessionId: 'b'.repeat(64),
   nativeSessionId: 'native-thread',

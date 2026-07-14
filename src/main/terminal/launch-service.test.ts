@@ -14,6 +14,7 @@ const sessionId = 'c'.repeat(64);
 const nativeId = 'native-session-123';
 const session: SessionLaunchInfo = {
   id: sessionId,
+  title: 'Repository cleanup',
   nativeId,
   provider: 'codex',
   workspaceId,
@@ -175,6 +176,43 @@ describe('LaunchService', () => {
       sessionId,
       provider,
       args
+    });
+  });
+
+  it('uses the catalog session title for a resumed runtime', async () => {
+    const { service } = harness({ trusted: true });
+    const preview = await service.prepare({
+      strategy: 'resume',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      displayName: 'Repository cleanup'
+    });
+  });
+
+  it.each([
+    ['codex', 'New Codex session'],
+    ['claude', 'New Claude Code session']
+  ] as const)('uses the provider fallback for a new %s runtime', async (
+    provider,
+    displayName
+  ) => {
+    const { service } = harness({ trusted: true });
+    const preview = await service.prepare({
+      strategy: 'new',
+      provider,
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      displayName
     });
   });
 

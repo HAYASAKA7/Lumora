@@ -49,6 +49,7 @@ interface LaunchServiceDependencies {
 }
 
 export interface LaunchSpec {
+  displayName: string;
   strategy: 'new' | 'resume';
   sessionId: string | null;
   nativeSessionId: string | null;
@@ -156,12 +157,15 @@ export class LaunchService {
     let workspaceId: string;
     let sessionId: string | null;
     let nativeSessionId: string | null;
+    let displayName: string;
     let args: string[];
     if (request.strategy === 'new') {
       provider = request.provider;
       workspaceId = request.workspaceId;
       sessionId = null;
       nativeSessionId = null;
+      displayName =
+        provider === 'codex' ? 'New Codex session' : 'New Claude Code session';
       args = [];
     } else {
       const session = this.dependencies.repository.getSession(request.sessionId);
@@ -172,6 +176,7 @@ export class LaunchService {
       workspaceId = session.workspaceId;
       sessionId = session.id;
       nativeSessionId = session.nativeId;
+      displayName = session.title;
       args = buildResumeArguments(provider, nativeSessionId);
     }
     const workspace = this.dependencies.repository.getWorkspace(
@@ -218,6 +223,7 @@ export class LaunchService {
     }
     const createdAt = this.clock();
     const partial = {
+      displayName,
       strategy: request.strategy,
       sessionId,
       nativeSessionId,

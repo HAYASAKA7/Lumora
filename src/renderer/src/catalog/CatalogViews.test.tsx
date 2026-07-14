@@ -335,6 +335,7 @@ describe('CatalogHomeSummary', () => {
     };
     const lost = Array.from({ length: 4 }, (_, index): RuntimeSummary => ({
       id: `0198f8b6-18f3-7ca0-9f0f-123456789ab${index}`,
+      displayName: `Lost session ${index + 1}`,
       strategy: index === 0 ? 'resume' : 'new',
       sessionId: index === 0 ? catalogSnapshot.sessions[0]!.id : null,
       nativeSessionId: index === 0 ? catalogSnapshot.sessions[0]!.nativeId : null,

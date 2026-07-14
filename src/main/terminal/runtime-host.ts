@@ -121,6 +121,7 @@ export class RuntimeHost {
     const runtimeId = this.createRuntimeId();
     const launching = RuntimeSummarySchema.parse({
       id: runtimeId,
+      displayName: spec.displayName,
       strategy: spec.strategy,
       sessionId: spec.sessionId,
       nativeSessionId: spec.nativeSessionId,

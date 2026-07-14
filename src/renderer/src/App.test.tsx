@@ -136,6 +136,7 @@ function runningRuntime(
 ): RuntimeSummary {
   return {
     id,
+    displayName: provider === 'codex' ? 'Codex working session' : 'Claude working session',
     strategy: 'new',
     sessionId: null,
     nativeSessionId: null,
@@ -302,7 +303,7 @@ describe('App', () => {
       await screen.findByRole('button', { name: 'Open terminals' })
     );
     expect(
-      await screen.findByRole('heading', { name: 'Codex terminal' })
+      await screen.findByRole('heading', { name: 'Codex working session' })
     ).toBeInTheDocument();
 
     act(() => {
@@ -319,7 +320,7 @@ describe('App', () => {
     });
 
     expect(
-      screen.queryByRole('heading', { name: 'Codex terminal' })
+      screen.queryByRole('heading', { name: 'Codex working session' })
     ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
   });
@@ -354,7 +355,7 @@ describe('App', () => {
       await screen.findByRole('button', { name: 'Open terminals' })
     );
     expect(
-      await screen.findByRole('heading', { name: 'Codex terminal' })
+      await screen.findByRole('heading', { name: 'Codex working session' })
     ).toBeInTheDocument();
 
     act(() => {
@@ -372,10 +373,10 @@ describe('App', () => {
     });
 
     expect(
-      screen.queryByRole('heading', { name: 'Codex terminal' })
+      screen.queryByRole('heading', { name: 'Codex working session' })
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Claude Code terminal' })
+      screen.getByRole('heading', { name: 'Claude working session' })
     ).toBeInTheDocument();
   });
 
@@ -404,7 +405,7 @@ describe('App', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
     );
-    await screen.findByRole('heading', { name: 'Codex terminal' });
+    await screen.findByRole('heading', { name: 'Codex working session' });
 
     act(() => {
       emitRuntime({
@@ -415,7 +416,7 @@ describe('App', () => {
     });
 
     expect(
-      screen.getByRole('heading', { name: 'Codex terminal' })
+      screen.getByRole('heading', { name: 'Codex working session' })
     ).toBeInTheDocument();
   });
 
@@ -485,6 +486,7 @@ describe('App', () => {
     };
     const runtime: RuntimeSummary = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: session.title,
       strategy: 'resume',
       sessionId: session.id,
       nativeSessionId: session.nativeId,
@@ -526,7 +528,7 @@ describe('App', () => {
     expect(await within(dialog).findByText('resume codex-1')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume session' }));
 
-    expect(await screen.findByRole('heading', { name: 'Codex terminal' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: session.title })).toBeInTheDocument();
     expect(document.getElementById('main-content')).toHaveClass(
       'terminal-main-content'
     );
@@ -557,6 +559,7 @@ describe('App', () => {
     const session = readyCatalog.sessions[0]!;
     const lostRuntime: RuntimeSummary = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789ab0',
+      displayName: session.title,
       strategy: 'resume',
       sessionId: session.id,
       nativeSessionId: session.nativeId,
@@ -650,7 +653,7 @@ describe('App', () => {
     );
 
     expect(
-      await screen.findByRole('heading', { name: 'Codex terminal' })
+      await screen.findByRole('heading', { name: session.title })
     ).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',

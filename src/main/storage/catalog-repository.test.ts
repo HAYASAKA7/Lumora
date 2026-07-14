@@ -12,6 +12,7 @@ import type { CanonicalWorkspacePath } from '../platform/workspace-path';
 import type { CatalogCandidate } from '../catalog/catalog-candidate';
 import { CatalogRepository } from './catalog-repository';
 import {
+  CATALOG_MIGRATIONS,
   migrateCatalogDatabase,
   runMigrations,
   type CatalogMigration
@@ -109,7 +110,8 @@ describe('catalog migrations', () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
-      { version: 7 }
+      { version: 7 },
+      { version: 8 }
     ]);
     expect(
       database
@@ -140,7 +142,8 @@ describe('catalog migrations', () => {
       'strategy',
       'session_id',
       'native_session_id',
-      'reconciliation_state'
+      'reconciliation_state',
+      'display_name'
     ]));
 
     const timestamp = '2026-07-11T04:00:00.000Z';
@@ -182,15 +185,73 @@ describe('catalog migrations', () => {
 
     expect(
       database.prepare(
-        `SELECT strategy, session_id, native_session_id, reconciliation_state
+        `SELECT strategy, session_id, native_session_id, reconciliation_state,
+          display_name
          FROM runtime_instance WHERE id = ?`
       ).get(runtimeId)
     ).toEqual({
       strategy: 'new',
       session_id: null,
       native_session_id: null,
-      reconciliation_state: 'unresolved'
+      reconciliation_state: 'unresolved',
+      display_name: 'New Codex session'
     });
+  });
+
+  it('backfills provider-specific display names for legacy runtimes', () => {
+    const database = createDatabase();
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter((migration) => migration.version <= 7)
+    );
+    const timestamp = '2026-07-11T04:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const profileId = 'b'.repeat(64);
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO terminal_profile (
+        id, kind, name, shell_family, executable_path, args_json,
+        available, recommended, created_at, updated_at
+      ) VALUES (?, 'detected', 'Bash', 'bash', '/bin/bash', '[]', 1, 1, ?, ?)`
+    ).run(profileId, timestamp, timestamp);
+    const insertRuntime = database.prepare(
+      `INSERT INTO runtime_instance (
+        id, provider, workspace_id, terminal_profile_id, launch_hash, state,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, 'completed', ?)`
+    );
+    insertRuntime.run(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      'codex',
+      workspaceId,
+      profileId,
+      'c'.repeat(64),
+      timestamp
+    );
+    insertRuntime.run(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      'claude',
+      workspaceId,
+      profileId,
+      'd'.repeat(64),
+      timestamp
+    );
+
+    migrateCatalogDatabase(database);
+
+    expect(
+      database.prepare(
+        'SELECT provider, display_name FROM runtime_instance ORDER BY provider'
+      ).all()
+    ).toEqual([
+      { provider: 'claude', display_name: 'New Claude Code session' },
+      { provider: 'codex', display_name: 'New Codex session' }
+    ]);
   });
 
   it('rolls back every statement and migration record on failure', () => {

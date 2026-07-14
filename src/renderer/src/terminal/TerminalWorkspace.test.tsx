@@ -15,6 +15,7 @@ vi.mock('./ManagedTerminal', () => ({
 const sessionId = 'd'.repeat(64);
 const runtime: RuntimeSummary = {
   id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+  displayName: 'Repository cleanup',
   strategy: 'resume',
   sessionId,
   nativeSessionId: 'native-thread-1',
@@ -89,6 +90,27 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('uses the durable session name as the primary tab and heading label', () => {
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map()}
+        runtimes={[runtime]}
+        workspaces={[workspace]}
+      />
+    );
+
+    const tab = screen.getByRole('tab', { name: /Repository cleanup/ });
+    expect(within(tab).getByText('Repository cleanup')).toBeInTheDocument();
+    expect(within(tab).getByText('Codex · completed')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Repository cleanup' })
+    ).toBeInTheDocument();
+  });
+
   it('hides launch details until the user opens and closes the details dialog', () => {
     render(
       <TerminalWorkspace

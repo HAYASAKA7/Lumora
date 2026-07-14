@@ -5,7 +5,7 @@ export interface CatalogMigration {
   statements: readonly string[];
 }
 
-const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
+export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
   {
     version: 1,
     statements: [
@@ -176,6 +176,16 @@ const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         canonical_path TEXT NOT NULL,
         trusted_at TEXT NOT NULL
       ) STRICT`
+    ]
+  },
+  {
+    version: 8,
+    statements: [
+      `ALTER TABLE runtime_instance ADD COLUMN display_name TEXT NOT NULL
+        DEFAULT 'New Codex session'`,
+      `UPDATE runtime_instance
+       SET display_name = 'New Claude Code session'
+       WHERE provider = 'claude'`
     ]
   }
 ];

@@ -82,6 +82,7 @@ const preview: LaunchPreview = {
 };
 const runtime: RuntimeSummary = {
   id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+  displayName: 'New Codex session',
   strategy: 'new',
   sessionId: null,
   nativeSessionId: null,

@@ -10,6 +10,7 @@ import {
 } from './runtime-host';
 
 const launchSpec: LaunchSpec = {
+  displayName: 'New Codex session',
   strategy: 'new',
   sessionId: null,
   nativeSessionId: null,
@@ -158,6 +159,7 @@ describe('RuntimeHost', () => {
     host.resize({ runtimeId: runtime.id, cols: 120, rows: 36 });
 
     expect(runtime).toMatchObject({
+      displayName: 'New Codex session',
       state: 'running',
       pid: 4321,
       reconciliationState: 'pending'
@@ -191,6 +193,7 @@ describe('RuntimeHost', () => {
   it('copies resume identity into every runtime transition', async () => {
     const resumeLaunch: LaunchSpec = {
       ...launchSpec,
+      displayName: 'Repository cleanup',
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
       nativeSessionId: 'native-thread-1',
@@ -204,6 +207,7 @@ describe('RuntimeHost', () => {
     expect(repository.saveRuntime).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
+        displayName: 'Repository cleanup',
         strategy: 'resume',
         sessionId: 'd'.repeat(64),
         nativeSessionId: 'native-thread-1',
@@ -213,6 +217,7 @@ describe('RuntimeHost', () => {
     );
     expect(repository.saveRuntime).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        displayName: 'Repository cleanup',
         strategy: 'resume',
         sessionId: 'd'.repeat(64),
         nativeSessionId: 'native-thread-1',

@@ -482,6 +482,7 @@ const RuntimeIdSchema = z.uuid();
 
 export const RuntimeSummarySchema = z.strictObject({
   id: RuntimeIdSchema,
+  displayName: z.string().trim().min(1).max(256),
   strategy: RuntimeStrategySchema,
   sessionId: StableIdSchema.nullable(),
   nativeSessionId: z.string().trim().min(1).max(256).nullable(),

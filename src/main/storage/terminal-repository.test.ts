@@ -200,6 +200,7 @@ describe('TerminalRepository', () => {
 
     expect(repository.getSession(sessionId)).toEqual({
       id: sessionId,
+      title: 'Resume me',
       nativeId: 'native-thread',
       provider: 'codex',
       workspaceId,
@@ -328,6 +329,10 @@ describe('TerminalRepository', () => {
         command TEXT NOT NULL,
         updated_at TEXT NOT NULL
       ) STRICT`);
+      legacy.exec(`CREATE TABLE runtime_instance (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL CHECK (provider IN ('codex', 'claude'))
+      ) STRICT`);
       legacy.prepare(
         `INSERT INTO provider_launch_config
           (provider, command, updated_at) VALUES ('codex', 'codexp', ?)`
@@ -352,6 +357,7 @@ describe('TerminalRepository', () => {
     repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
     const runtime: RuntimeSummary = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      displayName: 'Repository cleanup',
       strategy: 'new',
       sessionId: null,
       nativeSessionId: null,
@@ -398,6 +404,7 @@ describe('TerminalRepository', () => {
     ).run(sessionId, 'native-thread', workspaceId, timestamp, timestamp);
     const runtime: RuntimeSummary = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: 'Resume me',
       strategy: 'resume',
       sessionId,
       nativeSessionId: 'native-thread',
@@ -475,6 +482,7 @@ describe('TerminalRepository', () => {
     );
     const runtime: RuntimeSummary = {
       id: runtimeId,
+      displayName: 'Repository cleanup',
       strategy: 'new',
       sessionId: null,
       nativeSessionId: null,
@@ -514,6 +522,7 @@ describe('TerminalRepository', () => {
         nativeSessionId: 'new-native'
       })
     ).toMatchObject({
+      displayName: 'New',
       reconciliationState: 'linked',
       sessionId: newSessionId,
       nativeSessionId: 'new-native'

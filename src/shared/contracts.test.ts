@@ -565,6 +565,7 @@ describe('managed terminal contracts', () => {
 
     const runtime = RuntimeSummarySchema.parse({
       id: runtimeId,
+      displayName: 'Repository cleanup',
       strategy: 'new',
       sessionId: null,
       nativeSessionId: null,
@@ -581,6 +582,7 @@ describe('managed terminal contracts', () => {
       exitCode: null,
       errorCode: null
     });
+    expect(runtime.displayName).toBe('Repository cleanup');
     expect(
       RuntimeAttachmentSchema.parse({
         runtime,
@@ -593,6 +595,7 @@ describe('managed terminal contracts', () => {
   it('validates durable runtime launch identity combinations', () => {
     const runtimeBase = {
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      displayName: 'Repository cleanup',
       provider: 'codex',
       workspaceId: 'a'.repeat(64),
       terminalProfileId: 'b'.repeat(64),
@@ -605,6 +608,15 @@ describe('managed terminal contracts', () => {
       exitCode: 0,
       errorCode: null
     } as const;
+
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      displayName: '   ',
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending'
+    }).success).toBe(false);
 
     expect(RuntimeSummarySchema.parse({
       ...runtimeBase,

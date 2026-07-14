@@ -34,6 +34,7 @@ export function TerminalWorkspace({
   const preview = previews.get(runtime.id);
   const workspace = workspaces.find((item) => item.id === runtime.workspaceId);
   const isLive = runtime.state === 'launching' || runtime.state === 'running';
+  const providerName = runtime.provider === 'codex' ? 'Codex' : 'Claude Code';
 
   const stop = () => {
     setStopping(true);
@@ -55,16 +56,20 @@ export function TerminalWorkspace({
             role="tab"
             type="button"
           >
-            <span>{item.provider === 'codex' ? 'Codex' : 'Claude Code'}</span>
-            <small>{item.state}</small>
+            <span>{item.displayName}</span>
+            <small>
+              {item.provider === 'codex' ? 'Codex' : 'Claude Code'} · {item.state}
+            </small>
           </button>
         ))}
       </div>
 
       <header className="terminal-header">
         <div>
-          <p className="card-label">{workspace?.displayName ?? 'Workspace'}</p>
-          <h2>{runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} terminal</h2>
+          <p className="card-label">
+            {workspace?.displayName ?? 'Workspace'} · {providerName} terminal
+          </p>
+          <h2>{runtime.displayName}</h2>
         </div>
         <div className="catalog-actions">
           <span className={`runtime-state runtime-${runtime.state}`}>{runtime.state}</span>
