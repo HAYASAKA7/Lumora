@@ -227,6 +227,9 @@ describe('NewSessionDialog', () => {
         name: 'I trust this workspace and want to run the provider here'
       })
     );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
 
     expect(
@@ -320,6 +323,9 @@ describe('NewSessionDialog', () => {
     fireEvent.click(await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
     expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
 

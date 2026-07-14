@@ -295,6 +295,7 @@ describe('RuntimeRecoveryDialog', () => {
     const action = screen.getByRole('button', { name: 'Resume saved session' });
     expect(action).toBeDisabled();
     fireEvent.click(confirmation);
+    await waitFor(() => expect(action).toBeEnabled());
     fireEvent.click(action);
 
     await waitFor(() =>
@@ -326,6 +327,11 @@ describe('RuntimeRecoveryDialog', () => {
     fireEvent.click(await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Resume saved session' })
+      ).toBeEnabled()
+    );
     fireEvent.click(
       screen.getByRole('button', { name: 'Resume saved session' })
     );

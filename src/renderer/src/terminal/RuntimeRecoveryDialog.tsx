@@ -112,8 +112,8 @@ export function RuntimeRecoveryDialog({
   const preview = preflight.preview;
 
   useEffect(() => {
-    setTrustConfirmed(false);
-  }, [preview?.launchToken]);
+    if (preflight.status !== 'ready') setTrustConfirmed(false);
+  }, [preflight.status]);
 
   const finishLaunchOperation = (operation: number) => {
     if (launchOperation.current === operation) setStarting(false);

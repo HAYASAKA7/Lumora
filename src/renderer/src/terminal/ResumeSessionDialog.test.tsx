@@ -223,6 +223,9 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
 
     fireEvent.click(confirmation);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resume session' })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
 
     await waitFor(() =>
@@ -269,6 +272,9 @@ describe('ResumeSessionDialog', () => {
     fireEvent.click(await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resume session' })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
     expect(
       screen.getByRole('combobox', { name: 'Terminal profile' })
