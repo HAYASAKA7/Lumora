@@ -15,6 +15,10 @@ asarUnpack:
 npmRebuild: false
 forceCodeSigning: false
 
+extraResources:
+  - from: resources/icons/lumora/windows/LumoraTransparent.ico
+    to: icons/LumoraTransparent.ico
+
 extraMetadata:
   desktopName: app.lumora.desktop
 

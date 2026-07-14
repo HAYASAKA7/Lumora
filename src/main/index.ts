@@ -36,9 +36,16 @@ import {
 } from './security-policy';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
-const { preloadPath, rendererRoot } = getRuntimePaths(currentDirectory);
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
 const platform = PlatformSchema.parse(process.platform);
+const { preloadPath, rendererRoot, windowIconPath } = getRuntimePaths(
+  currentDirectory,
+  {
+    platform,
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath
+  }
+);
 const providerDependencies = {
   findExecutable: (command: string) =>
     findExecutable(command, { platform, env: process.env }),
@@ -84,7 +91,9 @@ function registerApplicationProtocol(): void {
 }
 
 async function createMainWindow(): Promise<void> {
-  const window = new BrowserWindow(createSecureWindowOptions(preloadPath));
+  const window = new BrowserWindow(
+    createSecureWindowOptions(preloadPath, windowIconPath)
+  );
   mainWindow = window;
 
   installWindowGuards(window.webContents, developmentOrigin);

@@ -22,6 +22,14 @@ describe('createSecureWindowOptions', () => {
       webSecurity: true
     });
   });
+
+  it('uses a supplied taskbar icon without requiring one on other platforms', () => {
+    const preloadPath = resolve('out/preload/index.js');
+    const iconPath = resolve('resources/icons/lumora/windows/LumoraTransparent.ico');
+
+    expect(createSecureWindowOptions(preloadPath, iconPath).icon).toBe(iconPath);
+    expect(createSecureWindowOptions(preloadPath)).not.toHaveProperty('icon');
+  });
 });
 
 describe('isTrustedRendererUrl', () => {

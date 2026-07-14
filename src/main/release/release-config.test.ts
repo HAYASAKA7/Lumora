@@ -48,6 +48,7 @@ describe('release packaging configuration', () => {
     const directories = topLevelSection(config, 'directories');
     const files = topLevelSection(config, 'files');
     const asarUnpack = topLevelSection(config, 'asarUnpack');
+    const extraResources = topLevelSection(config, 'extraResources');
     const extraMetadata = topLevelSection(config, 'extraMetadata');
     const win = topLevelSection(config, 'win');
     const nsis = topLevelSection(config, 'nsis');
@@ -62,6 +63,10 @@ describe('release packaging configuration', () => {
     expect(files).toContain('  - out/**/*');
     expect(config).toMatch(/^asar: true$/m);
     expect(asarUnpack).toContain('  - node_modules/node-pty/**/*');
+    expect(extraResources).toContain(
+      '  - from: resources/icons/lumora/windows/LumoraTransparent.ico'
+    );
+    expect(extraResources).toContain('    to: icons/LumoraTransparent.ico');
     expect(config).toMatch(/^npmRebuild: false$/m);
     expect(config).toMatch(/^forceCodeSigning: false$/m);
     expect(extraMetadata).toContain('  desktopName: app.lumora.desktop');

@@ -10,9 +10,11 @@ interface GuardedWebContents {
 }
 
 export function createSecureWindowOptions(
-  preloadPath: string
+  preloadPath: string,
+  iconPath?: string
 ): BrowserWindowConstructorOptions {
   return {
+    ...(iconPath === undefined ? {} : { icon: iconPath }),
     width: 1280,
     height: 800,
     minWidth: 760,
