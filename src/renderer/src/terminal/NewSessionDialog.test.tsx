@@ -118,7 +118,9 @@ describe('NewSessionDialog', () => {
 
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
+    expect(
+      screen.queryByRole('button', { name: 'Prepare launch' })
+    ).not.toBeInTheDocument();
     expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(screen.getByText('codexp')).toBeInTheDocument();
     expect(
@@ -166,7 +168,6 @@ describe('NewSessionDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     const confirmation = await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     });
@@ -210,7 +211,6 @@ describe('NewSessionDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     fireEvent.click(
       await screen.findByRole('checkbox', {
         name: 'I trust this workspace and want to run the provider here'
@@ -223,5 +223,86 @@ describe('NewSessionDialog', () => {
     ).toHaveAttribute('role', 'alert');
     expect(startRuntime).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'New session' })).toBeInTheDocument();
+  });
+
+  it('retries automatic preparation after an inline failure', async () => {
+    const prepareLaunch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('prepare'))
+      .mockResolvedValueOnce(preview);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('The launch preview could not be prepared.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByText('codexp')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled();
+    expect(prepareLaunch).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes a consumed launch token after start fails', async () => {
+    const refreshedPreview: LaunchPreview = {
+      ...preview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abe'
+    };
+    const prepareLaunch = vi
+      .fn()
+      .mockResolvedValueOnce(preview)
+      .mockResolvedValueOnce(refreshedPreview);
+    const startRuntime = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('expired'))
+      .mockResolvedValueOnce(runtime);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime
+      }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    await screen.findByText('codexp');
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+    expect(
+      await screen.findByText('The provider terminal could not be started.')
+    ).toHaveAttribute('role', 'alert');
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled()
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenLastCalledWith(
+        refreshedPreview.launchToken
+      )
+    );
   });
 });

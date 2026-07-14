@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type {
+  LaunchPrepareRequest,
   LaunchPreview,
   ProviderId,
   ProviderScanResult,
@@ -8,7 +9,8 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchConfiguration } from './LaunchConfiguration';
+import { LaunchDetails } from './LaunchDetails';
+import { useLaunchPreflight } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface NewSessionDialogProps {
@@ -43,14 +45,13 @@ export function NewSessionDialog({
     readyProviders[0]?.provider ?? 'codex'
   );
   const [profileId, setProfileId] = useState('');
-  const [preview, setPreview] = useState<LaunchPreview | null>(null);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPreview(null);
     setTrustConfirmed(false);
+    setActionError(null);
   }, [workspaceId, provider, profileId]);
   useEffect(() => {
     if (!availableWorkspaces.some((workspace) => workspace.id === workspaceId)) {
@@ -71,40 +72,53 @@ export function NewSessionDialog({
     }
   }, [provider, readyProviders]);
 
-  const prepare = () => {
-    setBusy(true);
-    setError(null);
+  const canPrepare =
+    workspaceId !== '' && availableProfiles.length > 0 && readyProviders.length > 0;
+  const request = useMemo<LaunchPrepareRequest | null>(
+    () => canPrepare
+      ? {
+          strategy: 'new',
+          workspaceId,
+          provider,
+          terminalProfileId: profileId || null,
+          cols: 100,
+          rows: 30
+        }
+      : null,
+    [canPrepare, profileId, provider, workspaceId]
+  );
+  const preflight = useLaunchPreflight(request);
+  const preview = preflight.preview;
+  const selectedWorkspace = availableWorkspaces.find(
+    (workspace) => workspace.id === workspaceId
+  );
+
+  useEffect(() => {
     setTrustConfirmed(false);
-    void window.lumora.prepareLaunch({
-      strategy: 'new',
-      workspaceId,
-      provider,
-      terminalProfileId: profileId || null,
-      cols: 100,
-      rows: 30
-    }).then(
-      (value) => { setPreview(value); setTrustConfirmed(false); setBusy(false); },
-      () => { setError('The launch preview could not be prepared.'); setBusy(false); }
-    );
+  }, [preview?.launchToken]);
+
+  const retry = () => {
+    setActionError(null);
+    preflight.retry();
   };
 
   const start = () => {
     if (
       preview === null ||
+      preflight.status !== 'ready' ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
-    setBusy(true);
-    setError(null);
+    setStarting(true);
+    setActionError(null);
     void (async () => {
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
-          setPreview(confirmedPreview);
         } catch {
-          setError('Workspace trust could not be saved.');
-          setBusy(false);
+          setActionError('Workspace trust could not be saved.');
+          setStarting(false);
           return;
         }
       }
@@ -112,17 +126,12 @@ export function NewSessionDialog({
         const runtime = await window.lumora.startRuntime(preview.launchToken);
         onStarted(runtime, confirmedPreview);
       } catch {
-        setError('The provider terminal could not be started.');
-        setBusy(false);
+        setActionError('The provider terminal could not be started.');
+        setStarting(false);
+        preflight.retry();
       }
     })();
   };
-
-  const canPrepare =
-    workspaceId !== '' && availableProfiles.length > 0 && readyProviders.length > 0;
-  const selectedWorkspace = availableWorkspaces.find(
-    (workspace) => workspace.id === workspaceId
-  );
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -168,21 +177,24 @@ export function NewSessionDialog({
           </label>
         </div>
 
-        {error === null ? null : <div className="catalog-operation-error" role="alert">{error}</div>}
+        {actionError === null ? null : (
+          <div className="catalog-operation-error" role="alert">{actionError}</div>
+        )}
 
-        {preview === null ? (
+        {preflight.status === 'preparing' ? (
+          <div className="launch-empty" role="status"><p>Preparing launch</p></div>
+        ) : preflight.status === 'failed' ? (
+          <div className="catalog-operation-error" role="alert">
+            <span>The launch preview could not be prepared.</span>{' '}
+            <button className="text-button" onClick={retry} type="button">Retry</button>
+          </div>
+        ) : preview === null ? (
           <div className="launch-empty">
-            <p>Prepare to resolve the exact executable, arguments, working directory, and environment names.</p>
+            <p>Select an available workspace, provider, and terminal profile.</p>
           </div>
         ) : (
           <>
-            <LaunchConfiguration preview={preview} />
-            <dl className="launch-preview">
-              <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
-              <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
-              <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
-              <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
-            </dl>
+            <LaunchDetails preview={preview} />
             {preview.workspaceTrusted || selectedWorkspace === undefined ? null : (
               <WorkspaceTrustNotice
                 confirmed={trustConfirmed}
@@ -194,11 +206,18 @@ export function NewSessionDialog({
         )}
 
         <footer>
-          <button className="secondary-button" disabled={!canPrepare || busy} onClick={prepare} type="button">
-            {busy && preview === null ? 'Preparing' : 'Prepare launch'}
-          </button>
-          <button className="refresh-button" disabled={preview === null || busy || (!preview.workspaceTrusted && !trustConfirmed)} onClick={start} type="button">
-            {busy && preview !== null ? 'Starting terminal' : 'Start session'}
+          <button
+            className="refresh-button"
+            disabled={
+              preview === null ||
+              preflight.status !== 'ready' ||
+              starting ||
+              (!preview.workspaceTrusted && !trustConfirmed)
+            }
+            onClick={start}
+            type="button"
+          >
+            {starting ? 'Starting terminal' : 'Start session'}
           </button>
         </footer>
       </section>
