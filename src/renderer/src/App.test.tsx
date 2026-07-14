@@ -420,6 +420,36 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the same terminal mounted while navigating pages', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ac4'
+    );
+    const attachRuntime = vi.fn().mockResolvedValue({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    });
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    const terminal = await screen.findByLabelText('codex terminal');
+    await waitFor(() => expect(attachRuntime).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(screen.getByRole('heading', { name: 'All sessions' })).toBeInTheDocument();
+    expect(document.body.contains(terminal)).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open terminals' }));
+    expect(await screen.findByLabelText('codex terminal')).toBe(terminal);
+    expect(attachRuntime).toHaveBeenCalledTimes(1);
+  });
+
   it('changes destination and exposes layered launch settings', async () => {
     render(<App />);
 

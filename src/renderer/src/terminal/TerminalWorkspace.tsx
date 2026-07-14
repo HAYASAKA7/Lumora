@@ -88,7 +88,19 @@ export function TerminalWorkspace({
       </header>
 
       <div className="terminal-grid">
-        <ManagedTerminal runtime={runtime} onRuntimeChange={onRuntimeChange} />
+        {runtimes.map((item) => (
+          <div
+            aria-hidden={item.id !== runtime.id}
+            className="terminal-panel"
+            hidden={item.id !== runtime.id}
+            key={item.id}
+          >
+            <ManagedTerminal
+              runtime={item}
+              onRuntimeChange={onRuntimeChange}
+            />
+          </div>
+        ))}
       </div>
 
       {detailsOpen ? (

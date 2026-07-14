@@ -9,7 +9,9 @@ import type {
 import { TerminalWorkspace } from './TerminalWorkspace';
 
 vi.mock('./ManagedTerminal', () => ({
-  ManagedTerminal: () => <div data-testid="managed-terminal" />
+  ManagedTerminal: ({ runtime }: { runtime: RuntimeSummary }) => (
+    <div data-testid={`managed-terminal-${runtime.id}`} />
+  )
 }));
 
 const sessionId = 'd'.repeat(64);
@@ -90,6 +92,58 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('keeps one mounted terminal for every open tab while switching', () => {
+    const secondRuntime: RuntimeSummary = {
+      ...runtime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: 'Release notes',
+      provider: 'claude',
+      state: 'running',
+      pid: 4321,
+      endedAt: null,
+      exitCode: null
+    };
+    const { rerender } = render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        workspaces={[workspace]}
+      />
+    );
+    const firstTerminal = screen.getByTestId(`managed-terminal-${runtime.id}`);
+    const secondTerminal = screen.getByTestId(
+      `managed-terminal-${secondRuntime.id}`
+    );
+
+    expect(firstTerminal.parentElement).not.toHaveAttribute('hidden');
+    expect(secondTerminal.parentElement).toHaveAttribute('hidden');
+
+    rerender(
+      <TerminalWorkspace
+        activeRuntimeId={secondRuntime.id}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.getByTestId(`managed-terminal-${runtime.id}`)).toBe(
+      firstTerminal
+    );
+    expect(
+      screen.getByTestId(`managed-terminal-${secondRuntime.id}`)
+    ).toBe(secondTerminal);
+    expect(firstTerminal.parentElement).toHaveAttribute('hidden');
+    expect(secondTerminal.parentElement).not.toHaveAttribute('hidden');
+  });
+
   it('uses the durable session name as the primary tab and heading label', () => {
     render(
       <TerminalWorkspace

@@ -650,81 +650,87 @@ export default function App(): ReactNode {
             </div>
           )}
 
-          {terminalActive ? (
-            <TerminalWorkspace
-              activeRuntimeId={activeRuntimeId}
-              onActivate={setActiveRuntimeId}
-              onClose={closeRuntimeTab}
-              onRuntimeChange={updateRuntime}
-              previews={launchPreviews}
-              runtimes={openRuntimes}
-              workspaces={
-                catalogStatus.state === 'ready'
-                  ? catalogStatus.snapshot.workspaces
-                  : []
-              }
-            />
-          ) : activeRoute.id === 'home' ? (
-            <CatalogHomeSummary
-              onRecover={(runtime) => {
-                setNewSessionOpen(false);
-                setResumeSession(null);
-                setRecoveryRuntime(runtime);
-              }}
-              providerSummary={providerSummary(providerStatus)}
-              runtimes={runtimes}
-              status={catalogStatus}
-            />
-          ) : activeRoute.id === 'workspaces' ? (
-            <WorkspacesView
-              isRefreshing={isCatalogRefreshing}
-              onAddWorkspace={addWorkspace}
-              onRefresh={refreshCatalog}
-              status={catalogStatus}
-            />
-          ) : activeRoute.id === 'sessions' ? (
-            <SessionsView
-              isRefreshing={isCatalogRefreshing}
-              onProviderChange={setSessionProvider}
-              onRefresh={refreshCatalog}
-              onResume={(session) => {
-                setNewSessionOpen(false);
-                setRecoveryRuntime(null);
-                setResumeSession(session);
-              }}
-              onSearchChange={setSessionSearch}
-              provider={sessionProvider}
-              providerScan={
-                providerStatus.state === 'ready' ? providerStatus.scan : null
-              }
-              profiles={terminalProfiles}
-              queryText={sessionSearch}
-              status={catalogStatus}
-            />
-          ) : activeRoute.id === 'settings' ? (
-            <div className="settings-layout">
-              <ProviderSettings
-                onRefresh={refreshProviders}
-                status={providerStatus}
+          <div className="route-surface" hidden={terminalActive}>
+            {activeRoute.id === 'home' ? (
+              <CatalogHomeSummary
+                onRecover={(runtime) => {
+                  setNewSessionOpen(false);
+                  setResumeSession(null);
+                  setRecoveryRuntime(runtime);
+                }}
+                providerSummary={providerSummary(providerStatus)}
+                runtimes={runtimes}
+                status={catalogStatus}
               />
-              {catalogStatus.state === 'ready' ? (
-                <>
-                  <WorkspaceTrustPanel
-                    workspaces={catalogStatus.snapshot.workspaces}
-                  />
-                  <LaunchSettingsPanel
-                    profiles={terminalProfiles}
-                    sessions={catalogStatus.snapshot.sessions}
-                    workspaces={catalogStatus.snapshot.workspaces}
-                  />
-                </>
-              ) : null}
+            ) : activeRoute.id === 'workspaces' ? (
+              <WorkspacesView
+                isRefreshing={isCatalogRefreshing}
+                onAddWorkspace={addWorkspace}
+                onRefresh={refreshCatalog}
+                status={catalogStatus}
+              />
+            ) : activeRoute.id === 'sessions' ? (
+              <SessionsView
+                isRefreshing={isCatalogRefreshing}
+                onProviderChange={setSessionProvider}
+                onRefresh={refreshCatalog}
+                onResume={(session) => {
+                  setNewSessionOpen(false);
+                  setRecoveryRuntime(null);
+                  setResumeSession(session);
+                }}
+                onSearchChange={setSessionSearch}
+                provider={sessionProvider}
+                providerScan={
+                  providerStatus.state === 'ready' ? providerStatus.scan : null
+                }
+                profiles={terminalProfiles}
+                queryText={sessionSearch}
+                status={catalogStatus}
+              />
+            ) : activeRoute.id === 'settings' ? (
+              <div className="settings-layout">
+                <ProviderSettings
+                  onRefresh={refreshProviders}
+                  status={providerStatus}
+                />
+                {catalogStatus.state === 'ready' ? (
+                  <>
+                    <WorkspaceTrustPanel
+                      workspaces={catalogStatus.snapshot.workspaces}
+                    />
+                    <LaunchSettingsPanel
+                      profiles={terminalProfiles}
+                      sessions={catalogStatus.snapshot.sessions}
+                      workspaces={catalogStatus.snapshot.workspaces}
+                    />
+                  </>
+                ) : null}
+              </div>
+            ) : activeRoute.id === 'profiles' ? (
+              <TerminalProfiles onProfilesChange={setTerminalProfiles} />
+            ) : (
+              <DestinationPlaceholder route={activeRoute} />
+            )}
+          </div>
+
+          {openRuntimes.length > 0 ? (
+            <div className="terminal-surface" hidden={!terminalActive}>
+              <TerminalWorkspace
+                activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
+                onActivate={setActiveRuntimeId}
+                onClose={closeRuntimeTab}
+                onRuntimeChange={updateRuntime}
+                previews={launchPreviews}
+                runtimes={openRuntimes}
+                workspaces={
+                  catalogStatus.state === 'ready'
+                    ? catalogStatus.snapshot.workspaces
+                    : []
+                }
+              />
             </div>
-          ) : activeRoute.id === 'profiles' ? (
-            <TerminalProfiles onProfilesChange={setTerminalProfiles} />
-          ) : (
-            <DestinationPlaceholder route={activeRoute} />
-          )}
+          ) : null}
         </main>
 
         <SystemStatusBar status={systemStatus} />
