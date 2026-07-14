@@ -860,7 +860,6 @@ describe('App', () => {
     expect(within(dialog).getByText('Codex')).toBeInTheDocument();
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Prepare launch' }));
     expect(await within(dialog).findByText('resume codex-1')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume session' }));
 
@@ -980,9 +979,6 @@ describe('App', () => {
       name: 'Recover lost runtime'
     });
     expect(within(dialog).getByText(/cannot reattach/i)).toBeInTheDocument();
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: 'Prepare recovery' })
-    );
     expect(await within(dialog).findByText('codexp')).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Resume saved session' })
