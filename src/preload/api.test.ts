@@ -137,6 +137,86 @@ describe('createLumoraApi', () => {
     await expect(selected.chooseWorkspace()).resolves.toEqual(emptyCatalog);
   });
 
+  it('reads clipboard text through only the dedicated channel', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.clipboardTextRead
+        ? 'clipboard value'
+        : { accepted: true };
+    });
+
+    await expect(api.readClipboardText()).resolves.toBe('clipboard value');
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.clipboardTextRead, args: [] }
+    ]);
+  });
+
+  it('writes validated clipboard text through only the dedicated channel', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.clipboardTextRead
+        ? 'clipboard value'
+        : { accepted: true };
+    });
+
+    await expect(
+      api.writeClipboardText('selected value')
+    ).resolves.toBeUndefined();
+    expect(invocations).toEqual([
+      {
+        channel: IPC_CHANNELS.clipboardTextWrite,
+        args: ['selected value']
+      }
+    ]);
+  });
+
+  it('rejects malformed clipboard read results at the preload boundary', async () => {
+    const api = createLumoraApi(async () => ({ text: 'clipboard value' }));
+
+    await expect(api.readClipboardText()).rejects.toBeDefined();
+  });
+
+  it('rejects oversized clipboard writes before invoking IPC', async () => {
+    const invoke = vi.fn(async () => ({ accepted: true }));
+    const api = createLumoraApi(invoke);
+
+    await expect(
+      api.writeClipboardText('x'.repeat(4_194_305))
+    ).rejects.toBeDefined();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { accepted: false },
+    { accepted: true, unexpected: 'data' }
+  ])(
+    'rejects malformed clipboard write result $accepted at the preload boundary',
+    async (result) => {
+      const api = createLumoraApi(async () => result);
+
+      await expect(api.writeClipboardText('selected value')).rejects.toBeDefined();
+    }
+  );
+
+  it('allows empty clipboard text for reads and writes', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.clipboardTextRead
+        ? ''
+        : { accepted: true };
+    });
+
+    await expect(api.readClipboardText()).resolves.toBe('');
+    await expect(api.writeClipboardText('')).resolves.toBeUndefined();
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.clipboardTextRead, args: [] },
+      { channel: IPC_CHANNELS.clipboardTextWrite, args: [''] }
+    ]);
+  });
+
   it('rejects malformed catalog queries and responses before returning them', async () => {
     const api = createLumoraApi(async () => ({
       ...emptyCatalog,

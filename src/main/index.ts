@@ -3,6 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   net,
@@ -16,6 +17,7 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
+import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
@@ -144,6 +146,14 @@ void app.whenReady().then(async () => {
     ipc: ipcMain,
     service: catalogRuntime.service,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerClipboardIpc({
+    ipc: ipcMain,
+    clipboard: {
+      readText: () => clipboard.readText(),
+      writeText: (text) => clipboard.writeText(text)
+    },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   unsubscribeTerminalEvents = registerTerminalIpc({

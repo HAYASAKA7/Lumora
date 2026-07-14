@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CatalogQuerySchema,
   CatalogSnapshotSchema,
+  ClipboardTextSchema,
+  ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
   DEFAULT_KEYBOARD_SETTINGS,
   IPC_CHANNELS,
@@ -89,6 +91,38 @@ describe('IPC_CHANNELS', () => {
     for (const channel of Object.values(IPC_CHANNELS)) {
       expect(channel).toMatch(/^lumora:/);
     }
+  });
+});
+
+describe('clipboard contracts', () => {
+  it('bounds plain clipboard text and validates accepted writes', () => {
+    expect(ClipboardTextSchema.parse('hello')).toBe('hello');
+    expect(ClipboardTextSchema.parse('')).toBe('');
+    expect(
+      ClipboardTextSchema.safeParse('x'.repeat(4_194_304)).success
+    ).toBe(true);
+    expect(
+      ClipboardTextSchema.safeParse('x'.repeat(4_194_305)).success
+    ).toBe(false);
+    expect(ClipboardWriteResultSchema.parse({ accepted: true })).toEqual({
+      accepted: true
+    });
+    expect(
+      ClipboardWriteResultSchema.safeParse({ accepted: true, extra: true })
+        .success
+    ).toBe(false);
+    expect(
+      ClipboardWriteResultSchema.safeParse({ accepted: false }).success
+    ).toBe(false);
+  });
+
+  it('defines only namespaced clipboard channels', () => {
+    expect(IPC_CHANNELS.clipboardTextRead).toBe(
+      'lumora:clipboard:text:read'
+    );
+    expect(IPC_CHANNELS.clipboardTextWrite).toBe(
+      'lumora:clipboard:text:write'
+    );
   });
 });
 

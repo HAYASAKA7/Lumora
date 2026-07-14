@@ -660,12 +660,22 @@ export type RuntimeResizeRequest = z.infer<typeof RuntimeResizeRequestSchema>;
 export type RuntimeAttachment = z.infer<typeof RuntimeAttachmentSchema>;
 export type RuntimeEvent = z.infer<typeof RuntimeEventSchema>;
 
+export const ClipboardTextSchema = z.string().max(4_194_304);
+
+export const ClipboardWriteResultSchema = z.strictObject({
+  accepted: z.literal(true)
+});
+
+export type ClipboardText = z.infer<typeof ClipboardTextSchema>;
+
 export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
   providerScan: 'lumora:providers:scan',
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
   workspaceChoose: 'lumora:workspace:choose',
+  clipboardTextRead: 'lumora:clipboard:text:read',
+  clipboardTextWrite: 'lumora:clipboard:text:write',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -694,6 +704,8 @@ export interface LumoraApi {
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   chooseWorkspace(): Promise<CatalogSnapshot | null>;
+  readClipboardText(): Promise<string>;
+  writeClipboardText(text: string): Promise<void>;
   getTerminalProfiles(): Promise<TerminalProfile[]>;
   saveTerminalProfile(
     input: CustomTerminalProfileInput

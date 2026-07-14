@@ -1,6 +1,8 @@
 import {
   CatalogQuerySchema,
   CatalogSnapshotSchema,
+  ClipboardTextSchema,
+  ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
@@ -65,6 +67,15 @@ export function createLumoraApi(
     async chooseWorkspace() {
       const value = await invoke(IPC_CHANNELS.workspaceChoose);
       return value === null ? null : CatalogSnapshotSchema.parse(value);
+    },
+    async readClipboardText() {
+      const value = await invoke(IPC_CHANNELS.clipboardTextRead);
+      return ClipboardTextSchema.parse(value);
+    },
+    async writeClipboardText(text) {
+      const request = ClipboardTextSchema.parse(text);
+      const value = await invoke(IPC_CHANNELS.clipboardTextWrite, request);
+      ClipboardWriteResultSchema.parse(value);
     },
     async getTerminalProfiles() {
       const value = await invoke(IPC_CHANNELS.terminalProfilesGet);
