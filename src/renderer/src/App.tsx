@@ -28,12 +28,19 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from './providers/ProviderSettings';
+import { keyboardEventMatchesChord } from './keyboard/shortcut';
 import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
 import { KeyboardShortcutsPanel } from './settings/KeyboardShortcutsPanel';
 import { WorkspaceTrustPanel } from './settings/WorkspaceTrustPanel';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
+import {
+  RuntimeSwitcher,
+  buildRuntimeMru,
+  nextRuntimeInOrder,
+  touchRuntimeMru
+} from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 
@@ -67,6 +74,11 @@ type SystemStatus =
   | { state: 'loading' }
   | { state: 'ready'; info: SystemInfo }
   | { state: 'error' };
+
+interface RuntimeSwitcherState {
+  order: string[];
+  selectedRuntimeId: string;
+}
 
 const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
 
@@ -249,9 +261,12 @@ export default function App(): ReactNode {
   const [launchPreviews, setLaunchPreviews] = useState(
     () => new Map<string, LaunchPreview>()
   );
-  const [, setKeyboardSettings] = useState<KeyboardSettings>(
+  const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings>(
     DEFAULT_KEYBOARD_SETTINGS
   );
+  const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
+  const [runtimeSwitcher, setRuntimeSwitcher] =
+    useState<RuntimeSwitcherState | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [resumeSession, setResumeSession] = useState<SessionSummary | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
@@ -343,7 +358,13 @@ export default function App(): ReactNode {
     });
   }, []);
 
+  const activateRuntime = useCallback((runtimeId: string) => {
+    setRuntimeMru((current) => touchRuntimeMru(current, runtimeId));
+    setActiveRuntimeId(runtimeId);
+  }, []);
+
   const closeRuntimeTab = useCallback((runtimeId: string) => {
+    setRuntimeMru((current) => current.filter((id) => id !== runtimeId));
     setOpenRuntimeIds((current) => {
       const next = current.filter((id) => id !== runtimeId);
       setActiveRuntimeId((active) =>
@@ -540,12 +561,12 @@ export default function App(): ReactNode {
         next.set(runtime.id, preview);
         return next;
       });
-      setActiveRuntimeId(runtime.id);
+      activateRuntime(runtime.id);
       setNewSessionOpen(false);
       setResumeSession(null);
       setRecoveryRuntime(null);
     },
-    [updateRuntime]
+    [activateRuntime, updateRuntime]
   );
 
   const openRuntimes = openRuntimeIds
@@ -555,6 +576,11 @@ export default function App(): ReactNode {
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
   const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
+  const runtimeSwitcherRuntimes = runtimeSwitcher === null
+    ? []
+    : runtimeSwitcher.order
+        .map((id) => openRuntimes.find((runtime) => runtime.id === id))
+        .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
   const resumeWorkspace =
     resumeSession === null || catalogStatus.state !== 'ready'
       ? null
@@ -568,8 +594,110 @@ export default function App(): ReactNode {
       ...current,
       ...liveIds.filter((id) => !current.includes(id))
     ]);
-    setActiveRuntimeId(liveIds[0] ?? null);
-  }, [liveRuntimes]);
+    const nextActive = liveIds[0] ?? null;
+    if (nextActive === null) {
+      setActiveRuntimeId(null);
+    } else {
+      activateRuntime(nextActive);
+    }
+  }, [activateRuntime, liveRuntimes]);
+
+  useEffect(() => {
+    setRuntimeMru((current) =>
+      buildRuntimeMru(openRuntimeIds, current, activeRuntimeId)
+    );
+    setRuntimeSwitcher((current) => {
+      if (current === null) return null;
+      const order = buildRuntimeMru(openRuntimeIds, current.order, null);
+      if (order.length < 2) return null;
+      return {
+        order,
+        selectedRuntimeId: order.includes(current.selectedRuntimeId)
+          ? current.selectedRuntimeId
+          : order[0]!
+      };
+    });
+  }, [activeRuntimeId, openRuntimeIds]);
+
+  useEffect(() => {
+    const chord = keyboardSettings.terminalSwitcher;
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.shortcut-recorder[aria-pressed="true"]') !== null
+      ) {
+        return;
+      }
+      if (runtimeSwitcher !== null && event.code === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setRuntimeSwitcher(null);
+        return;
+      }
+      if (!keyboardEventMatchesChord(event, chord)) return;
+      if (openRuntimeIds.length === 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (openRuntimeIds.length === 1) {
+        activateRuntime(openRuntimeIds[0]!);
+        setRuntimeSwitcher(null);
+        return;
+      }
+
+      setRuntimeSwitcher((current) => {
+        if (current !== null) {
+          return {
+            ...current,
+            selectedRuntimeId:
+              nextRuntimeInOrder(current.order, current.selectedRuntimeId) ??
+              current.selectedRuntimeId
+          };
+        }
+        const order = buildRuntimeMru(
+          openRuntimeIds,
+          runtimeMru,
+          activeRuntimeId
+        );
+        const selectedRuntimeId =
+          nextRuntimeInOrder(order, activeRuntimeId) ?? order[0];
+        return selectedRuntimeId === undefined
+          ? null
+          : { order, selectedRuntimeId };
+      });
+    };
+    const keyup = (event: KeyboardEvent) => {
+      if (runtimeSwitcher === null) return;
+      const requiredModifiersStillHeld =
+        (!chord.control || event.ctrlKey) &&
+        (!chord.alt || event.altKey) &&
+        (!chord.shift || event.shiftKey) &&
+        (!chord.meta || event.metaKey);
+      if (requiredModifiersStillHeld) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      const selectedRuntimeId = runtimeSwitcher.selectedRuntimeId;
+      setRuntimeSwitcher(null);
+      if (openRuntimeIds.includes(selectedRuntimeId)) {
+        activateRuntime(selectedRuntimeId);
+      }
+    };
+
+    window.addEventListener('keydown', keydown, true);
+    window.addEventListener('keyup', keyup, true);
+    return () => {
+      window.removeEventListener('keydown', keydown, true);
+      window.removeEventListener('keyup', keyup, true);
+    };
+  }, [
+    activeRuntimeId,
+    activateRuntime,
+    keyboardSettings,
+    openRuntimeIds,
+    runtimeMru,
+    runtimeSwitcher
+  ]);
 
   return (
     <div className="app-shell">
@@ -745,7 +873,7 @@ export default function App(): ReactNode {
             <div className="terminal-surface" hidden={!terminalActive}>
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
-                onActivate={setActiveRuntimeId}
+                onActivate={activateRuntime}
                 onClose={closeRuntimeTab}
                 onRuntimeChange={updateRuntime}
                 previews={launchPreviews}
@@ -762,6 +890,13 @@ export default function App(): ReactNode {
 
         <SystemStatusBar status={systemStatus} />
       </div>
+
+      {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 1 ? (
+        <RuntimeSwitcher
+          runtimes={runtimeSwitcherRuntimes}
+          selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
+        />
+      ) : null}
 
       {newSessionOpen && catalogStatus.state === 'ready' ? (
         <NewSessionDialog

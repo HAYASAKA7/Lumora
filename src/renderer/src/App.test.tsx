@@ -7,6 +7,7 @@ import {
   within
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useEffect } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
@@ -40,6 +41,37 @@ vi.mock('@xterm/xterm', () => ({
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit(): void {}
+  }
+}));
+
+vi.mock('./terminal/ManagedTerminal', () => ({
+  ManagedTerminal: ({
+    runtime,
+    onRuntimeChange
+  }: {
+    runtime: RuntimeSummary;
+    onRuntimeChange(runtime: RuntimeSummary): void;
+  }) => {
+    useEffect(() => {
+      let active = true;
+      void window.lumora.attachRuntime(runtime.id).then(
+        (attachment) => {
+          if (active) onRuntimeChange(attachment.runtime);
+        },
+        () => undefined
+      );
+      return () => {
+        active = false;
+      };
+    }, [onRuntimeChange, runtime.id]);
+    return (
+      <div className="managed-terminal-shell">
+        <div
+          aria-label={`${runtime.provider} terminal`}
+          className="managed-terminal"
+        />
+      </div>
+    );
   }
 }));
 
@@ -161,6 +193,7 @@ interface CatalogApiOverrides {
   refreshCatalog?: ReturnType<typeof vi.fn>;
   chooseWorkspace?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
+  getKeyboardSettings?: ReturnType<typeof vi.fn>;
   prepareLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
   attachRuntime?: ReturnType<typeof vi.fn>;
@@ -213,7 +246,9 @@ function setSystemInfoResult(
       ]),
       getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
       saveLaunchSettingsLayer: vi.fn().mockResolvedValue([]),
-      getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
+      getKeyboardSettings:
+        catalogApi.getKeyboardSettings ??
+        vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
       saveKeyboardSettings: vi.fn(async (value) => value),
       getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
       trustWorkspaceForLaunch: vi.fn(),
@@ -451,6 +486,134 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open terminals' }));
     expect(await screen.findByLabelText('codex terminal')).toBe(terminal);
     expect(attachRuntime).toHaveBeenCalledTimes(1);
+  });
+
+  it('cycles open terminals in MRU order and commits on modifier release', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad0'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad1',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    expect(
+      await screen.findByRole('tab', { name: /Codex working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(
+      screen.getByRole('option', { name: /Claude working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(
+      screen.getByRole('option', { name: /Codex working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    fireEvent.keyUp(window, { code: 'ControlLeft', key: 'Control' });
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Open terminals' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /Claude working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('uses a saved switcher binding and lets Escape cancel selection', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad2'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad3',
+      'claude'
+    );
+    const getKeyboardSettings = vi.fn().mockResolvedValue({
+      version: 1,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: false,
+        meta: false
+      }
+    });
+    setSystemInfoResult(undefined, undefined, {
+      getKeyboardSettings,
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Open terminals' }))
+      .not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'KeyK', key: 'k', ctrlKey: true });
+    expect(screen.getByRole('dialog', { name: 'Open terminals' }))
+      .toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Escape', key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Open terminals' }))
+      .not.toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: /Codex working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('lets the Settings recorder capture the active switcher shortcut', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad4'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad5',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const recorder = await screen.findByRole('button', {
+      name: 'Record terminal switcher shortcut'
+    });
+    fireEvent.click(recorder);
+    fireEvent.keyDown(recorder, {
+      code: 'Tab',
+      key: 'Tab',
+      ctrlKey: true
+    });
+
+    expect(recorder).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByRole('dialog', { name: 'Open terminals' }))
+      .not.toBeInTheDocument();
   });
 
   it('changes destination and exposes layered launch settings', async () => {
