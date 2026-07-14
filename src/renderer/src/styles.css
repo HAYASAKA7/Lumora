@@ -1723,6 +1723,33 @@ button {
   font-size: 0.78rem;
 }
 
+.launch-details {
+  padding: 14px;
+  margin: 18px 0;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.launch-details > summary {
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.launch-details[open] > summary {
+  margin-bottom: 14px;
+}
+
+.launch-details .launch-configuration {
+  margin: 0;
+}
+
+.launch-details .launch-preview {
+  margin-bottom: 0;
+}
+
 .launch-empty {
   padding: 18px;
   color: var(--text-muted);
