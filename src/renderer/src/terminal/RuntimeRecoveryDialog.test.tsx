@@ -138,12 +138,15 @@ interface RenderOptions {
   profiles?: readonly TerminalProfile[];
   providerScan?: ProviderScanResult | null;
   prepareLaunch?: ReturnType<typeof vi.fn>;
+  trustWorkspaceForLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
 }
 
 function renderDialog(options: RenderOptions = {}) {
   const prepareLaunch =
     options.prepareLaunch ?? vi.fn().mockResolvedValue(preview);
+  const trustWorkspaceForLaunch =
+    options.trustWorkspaceForLaunch ?? vi.fn();
   const startRuntime =
     options.startRuntime ?? vi.fn().mockResolvedValue(startedRuntime);
   const onStarted = vi.fn<
@@ -151,7 +154,7 @@ function renderDialog(options: RenderOptions = {}) {
   >();
   Object.defineProperty(window, 'lumora', {
     configurable: true,
-    value: { prepareLaunch, startRuntime }
+    value: { prepareLaunch, trustWorkspaceForLaunch, startRuntime }
   });
   render(
     <RuntimeRecoveryDialog
@@ -166,7 +169,7 @@ function renderDialog(options: RenderOptions = {}) {
       workspaces={options.workspaces ?? [workspace]}
     />
   );
-  return { prepareLaunch, startRuntime, onStarted };
+  return { prepareLaunch, trustWorkspaceForLaunch, startRuntime, onStarted };
 }
 
 describe('RuntimeRecoveryDialog', () => {
@@ -178,8 +181,10 @@ describe('RuntimeRecoveryDialog', () => {
       ''
     );
     expect(screen.getByText(/cannot reattach the previous terminal/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Prepare recovery' })
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare recovery' }));
     expect(await screen.findByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
@@ -210,7 +215,6 @@ describe('RuntimeRecoveryDialog', () => {
     });
 
     expect(screen.getAllByText('Restart as new session')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare recovery' }));
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenCalledWith({
         strategy: 'new',
@@ -236,25 +240,59 @@ describe('RuntimeRecoveryDialog', () => {
     ['provider', { providerScan: null }, 'Codex is unavailable.'],
     ['profile', { profiles: [] }, 'No terminal profile is available.']
   ] as const)('blocks preparation when the %s is unavailable', (_name, options, message) => {
-    renderDialog(options);
+    const { prepareLaunch } = renderDialog(options);
 
     expect(screen.getByText(message)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Prepare recovery' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Resume saved session' })).toBeDisabled();
+    expect(prepareLaunch).not.toHaveBeenCalled();
   });
 
   it('reports preparation and start failures inline', async () => {
     const prepareLaunch = vi
       .fn()
       .mockRejectedValueOnce(new Error('prepare'))
-      .mockResolvedValueOnce(preview);
+      .mockResolvedValue(preview);
     const startRuntime = vi.fn().mockRejectedValue(new Error('start'));
     renderDialog({ prepareLaunch, startRuntime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare recovery' }));
-    expect(await screen.findByText('The recovery preview could not be prepared.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare recovery' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('The recovery preview could not be prepared.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText('codexp');
     fireEvent.click(screen.getByRole('button', { name: 'Resume saved session' }));
     expect(await screen.findByText('The recovered terminal could not be started.')).toBeInTheDocument();
+  });
+
+  it('grants trust before starting recovery in an untrusted workspace', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trustWorkspaceForLaunch = vi.fn().mockResolvedValue({
+      workspaceId: workspace.id,
+      canonicalPath: workspace.canonicalPath,
+      trustedAt: preview.createdAt
+    });
+    const { startRuntime } = renderDialog({
+      prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+      trustWorkspaceForLaunch
+    });
+
+    const confirmation = await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    });
+    const action = screen.getByRole('button', { name: 'Resume saved session' });
+    expect(action).toBeDisabled();
+    fireEvent.click(confirmation);
+    fireEvent.click(action);
+
+    await waitFor(() =>
+      expect(trustWorkspaceForLaunch).toHaveBeenCalledWith(
+        untrustedPreview.launchToken
+      )
+    );
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenCalledWith(untrustedPreview.launchToken)
+    );
+    expect(trustWorkspaceForLaunch.mock.invocationCallOrder[0]).toBeLessThan(
+      startRuntime.mock.invocationCallOrder[0]!
+    );
   });
 });

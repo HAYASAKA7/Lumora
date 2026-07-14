@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type {
+  LaunchPrepareRequest,
   LaunchPreview,
   ProviderScanResult,
   RuntimeSummary,
@@ -8,8 +9,10 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchConfiguration } from './LaunchConfiguration';
+import { LaunchDetails } from './LaunchDetails';
 import { resolveRuntimeRecovery } from './runtime-recovery';
+import { useLaunchPreflight } from './useLaunchPreflight';
+import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface RuntimeRecoveryDialogProps {
   runtime: RuntimeSummary;
@@ -39,11 +42,14 @@ export function RuntimeRecoveryDialog({
     [profiles]
   );
   const [profileId, setProfileId] = useState('');
-  const [preview, setPreview] = useState<LaunchPreview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [trustConfirmed, setTrustConfirmed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => setPreview(null), [profileId]);
+  useEffect(() => {
+    setTrustConfirmed(false);
+    setActionError(null);
+  }, [profileId]);
   useEffect(() => {
     if (
       profileId !== '' &&
@@ -73,51 +79,68 @@ export function RuntimeRecoveryDialog({
           : availableProfiles.length === 0
             ? 'No terminal profile is available.'
             : null;
+  const request = useMemo<LaunchPrepareRequest | null>(() => {
+    if (plan === null || blockingReason !== null) return null;
+    return plan.strategy === 'resume'
+      ? {
+          strategy: 'resume',
+          sessionId: plan.session.id,
+          terminalProfileId: profileId || null,
+          cols: 100,
+          rows: 30
+        }
+      : {
+          strategy: 'new',
+          provider: plan.provider,
+          workspaceId: plan.workspaceId,
+          terminalProfileId: profileId || null,
+          cols: 100,
+          rows: 30
+        };
+  }, [blockingReason, plan, profileId]);
+  const preflight = useLaunchPreflight(request);
+  const preview = preflight.preview;
 
-  const prepare = () => {
-    if (plan === null || blockingReason !== null) return;
-    setBusy(true);
-    setError(null);
-    const request =
-      plan.strategy === 'resume'
-        ? {
-            strategy: 'resume' as const,
-            sessionId: plan.session.id,
-            terminalProfileId: profileId || null,
-            cols: 100,
-            rows: 30
-          }
-        : {
-            strategy: 'new' as const,
-            provider: plan.provider,
-            workspaceId: plan.workspaceId,
-            terminalProfileId: profileId || null,
-            cols: 100,
-            rows: 30
-          };
-    void window.lumora.prepareLaunch(request).then(
-      (value) => {
-        setPreview(value);
-        setBusy(false);
-      },
-      () => {
-        setError('The recovery preview could not be prepared.');
-        setBusy(false);
-      }
-    );
+  useEffect(() => {
+    setTrustConfirmed(false);
+  }, [preview?.launchToken]);
+
+  const retry = () => {
+    setActionError(null);
+    preflight.retry();
   };
 
   const start = () => {
-    if (preview === null) return;
-    setBusy(true);
-    setError(null);
-    void window.lumora.startRuntime(preview.launchToken).then(
-      (value) => onStarted(value, preview),
-      () => {
-        setError('The recovered terminal could not be started.');
-        setBusy(false);
+    if (
+      preview === null ||
+      preflight.status !== 'ready' ||
+      (!preview.workspaceTrusted && !trustConfirmed)
+    ) return;
+    setStarting(true);
+    setActionError(null);
+    void (async () => {
+      let confirmedPreview = preview;
+      if (!preview.workspaceTrusted) {
+        try {
+          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          confirmedPreview = { ...preview, workspaceTrusted: true };
+        } catch {
+          setActionError('Workspace trust could not be saved.');
+          setStarting(false);
+          return;
+        }
       }
-    );
+      try {
+        const recoveredRuntime = await window.lumora.startRuntime(
+          preview.launchToken
+        );
+        onStarted(recoveredRuntime, confirmedPreview);
+      } catch {
+        setActionError('The recovered terminal could not be started.');
+        setStarting(false);
+        preflight.retry();
+      }
+    })();
   };
 
   return (
@@ -172,42 +195,47 @@ export function RuntimeRecoveryDialog({
         {blockingReason === null ? null : (
           <div className="catalog-operation-error" role="alert">{blockingReason}</div>
         )}
-        {error === null ? null : (
-          <div className="catalog-operation-error" role="alert">{error}</div>
+        {actionError === null ? null : (
+          <div className="catalog-operation-error" role="alert">{actionError}</div>
         )}
 
-        {preview === null ? (
+        {preflight.status === 'preparing' ? (
+          <div className="launch-empty" role="status"><p>Preparing recovery</p></div>
+        ) : preflight.status === 'failed' ? (
+          <div className="catalog-operation-error" role="alert">
+            <span>The recovery preview could not be prepared.</span>{' '}
+            <button className="text-button" onClick={retry} type="button">Retry</button>
+          </div>
+        ) : preview === null ? (
           <div className="launch-empty">
-            <p>Prepare recovery to verify the exact executable, start command, working directory, and terminal profile.</p>
+            <p>Recovery is not currently available.</p>
           </div>
         ) : (
           <>
-            <LaunchConfiguration preview={preview} />
-            <dl className="launch-preview">
-              <div><dt>Executable</dt><dd>{preview.executablePath}</dd></div>
-              <div><dt>Arguments</dt><dd>{preview.args.length === 0 ? 'None' : preview.args.join(' ')}</dd></div>
-              <div><dt>Working directory</dt><dd>{preview.workingDirectory}</dd></div>
-              <div><dt>Environment names</dt><dd>{preview.environmentNames.join(', ')}</dd></div>
-            </dl>
+            <LaunchDetails preview={preview} />
+            {preview.workspaceTrusted || workspace === undefined ? null : (
+              <WorkspaceTrustNotice
+                confirmed={trustConfirmed}
+                onConfirmedChange={setTrustConfirmed}
+                workspace={workspace}
+              />
+            )}
           </>
         )}
 
         <footer>
           <button
-            className="secondary-button"
-            disabled={blockingReason !== null || busy}
-            onClick={prepare}
-            type="button"
-          >
-            {busy && preview === null ? 'Preparing recovery' : 'Prepare recovery'}
-          </button>
-          <button
             className="refresh-button"
-            disabled={preview === null || busy}
+            disabled={
+              preview === null ||
+              preflight.status !== 'ready' ||
+              starting ||
+              (!preview.workspaceTrusted && !trustConfirmed)
+            }
             onClick={start}
             type="button"
           >
-            {busy && preview !== null ? 'Starting recovery' : actionLabel}
+            {starting ? 'Starting recovery' : actionLabel}
           </button>
         </footer>
       </section>
