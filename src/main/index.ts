@@ -14,6 +14,7 @@ import {
   createCatalogRuntime,
   type CatalogRuntime
 } from './catalog/catalog-runtime';
+import { configureDevelopmentDataPaths } from './development-data-paths';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
@@ -55,6 +56,7 @@ let terminalRuntime: TerminalRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let shutdownStarted = false;
 
+configureDevelopmentDataPaths(app);
 app.enableSandbox();
 protocol.registerSchemesAsPrivileged([
   {
