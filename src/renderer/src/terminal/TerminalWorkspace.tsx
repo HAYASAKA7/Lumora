@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import type {
   LaunchPreview,
   RuntimeSummary,
+  SystemInfo,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { ManagedTerminal } from './ManagedTerminal';
@@ -11,6 +12,7 @@ import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 interface TerminalWorkspaceProps {
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
+  platform: SystemInfo['platform'];
   visible: boolean;
   previews: ReadonlyMap<string, LaunchPreview>;
   workspaces: readonly WorkspaceSummary[];
@@ -22,6 +24,7 @@ interface TerminalWorkspaceProps {
 export function TerminalWorkspace({
   runtimes,
   activeRuntimeId,
+  platform,
   visible,
   previews,
   workspaces,
@@ -99,6 +102,7 @@ export function TerminalWorkspace({
           >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
+              platform={platform}
               runtime={item}
               onRuntimeChange={onRuntimeChange}
             />

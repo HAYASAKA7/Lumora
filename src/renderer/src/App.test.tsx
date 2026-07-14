@@ -17,6 +17,7 @@ import type {
   ProviderScanResult,
   RuntimeEvent,
   RuntimeSummary,
+  SystemInfo,
   TerminalProfile
 } from '../../shared/contracts';
 import App from './App';
@@ -46,9 +47,11 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('./terminal/ManagedTerminal', () => ({
   ManagedTerminal: ({
+    platform,
     runtime,
     onRuntimeChange
   }: {
+    platform: SystemInfo['platform'];
     runtime: RuntimeSummary;
     onRuntimeChange(runtime: RuntimeSummary): void;
   }) => {
@@ -65,7 +68,16 @@ vi.mock('./terminal/ManagedTerminal', () => ({
       };
     }, [onRuntimeChange, runtime.id]);
     return (
-      <div className="managed-terminal-shell">
+      <div className="managed-terminal-shell" data-platform={platform}>
+        <button
+          aria-label={`${runtime.displayName} terminal input`}
+          onKeyDown={(event) => {
+            if (event.ctrlKey && event.code === 'KeyV') {
+              void window.lumora.readClipboardText();
+            }
+          }}
+          type="button"
+        />
         <div
           aria-label={`${runtime.provider} terminal`}
           className="managed-terminal"
@@ -194,6 +206,8 @@ interface CatalogApiOverrides {
   chooseWorkspace?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
   getKeyboardSettings?: ReturnType<typeof vi.fn>;
+  readClipboardText?: ReturnType<typeof vi.fn>;
+  writeClipboardText?: ReturnType<typeof vi.fn>;
   prepareLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
   attachRuntime?: ReturnType<typeof vi.fn>;
@@ -232,6 +246,10 @@ function setSystemInfoResult(
         catalogApi.refreshCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
       chooseWorkspace:
         catalogApi.chooseWorkspace ?? vi.fn().mockResolvedValue(null),
+      readClipboardText:
+        catalogApi.readClipboardText ?? vi.fn().mockResolvedValue(''),
+      writeClipboardText:
+        catalogApi.writeClipboardText ?? vi.fn().mockResolvedValue(undefined),
       getTerminalProfiles:
         catalogApi.getTerminalProfiles ?? vi.fn().mockResolvedValue([]),
       saveTerminalProfile: vi.fn().mockResolvedValue([]),
@@ -650,6 +668,57 @@ describe('App', () => {
     expect(
       screen.getByRole('tab', { name: /Codex working session/ })
     ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('gives the terminal switcher priority over a conflicting paste shortcut', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad6'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad7',
+      'claude'
+    );
+    const readClipboardText = vi.fn().mockResolvedValue('from clipboard');
+    const getKeyboardSettings = vi.fn().mockResolvedValue({
+      version: 1,
+      terminalSwitcher: {
+        code: 'KeyV',
+        control: true,
+        alt: false,
+        shift: false,
+        meta: false
+      }
+    });
+    setSystemInfoResult(undefined, undefined, {
+      getKeyboardSettings,
+      readClipboardText,
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    const terminalInput = await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+    terminalInput.focus();
+
+    fireEvent.keyDown(terminalInput, {
+      code: 'KeyV',
+      key: 'v',
+      ctrlKey: true
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Open terminals' }))
+      .toBeInTheDocument();
+    expect(readClipboardText).not.toHaveBeenCalled();
   });
 
   it('lets the Settings recorder capture the active switcher shortcut', async () => {

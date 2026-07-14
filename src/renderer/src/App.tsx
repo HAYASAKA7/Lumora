@@ -868,6 +868,11 @@ export default function App(): ReactNode {
                 onActivate={activateRuntime}
                 onClose={closeRuntimeTab}
                 onRuntimeChange={updateRuntime}
+                platform={
+                  systemStatus.state === 'ready'
+                    ? systemStatus.info.platform
+                    : 'win32'
+                }
                 previews={launchPreviews}
                 runtimes={openRuntimes}
                 visible={terminalActive}

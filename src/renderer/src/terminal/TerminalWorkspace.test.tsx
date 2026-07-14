@@ -4,13 +4,26 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   LaunchPreview,
   RuntimeSummary,
+  SystemInfo,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { TerminalWorkspace } from './TerminalWorkspace';
 
 vi.mock('./ManagedTerminal', () => ({
-  ManagedTerminal: ({ active, runtime }: { active: boolean; runtime: RuntimeSummary }) => (
-    <div data-active={active} data-testid={`managed-terminal-${runtime.id}`} />
+  ManagedTerminal: ({
+    active,
+    platform,
+    runtime
+  }: {
+    active: boolean;
+    platform: SystemInfo['platform'];
+    runtime: RuntimeSummary;
+  }) => (
+    <div
+      data-active={active}
+      data-platform={platform}
+      data-testid={`managed-terminal-${runtime.id}`}
+    />
   )
 }));
 
@@ -109,6 +122,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[runtime, secondRuntime]}
         visible
@@ -124,6 +138,8 @@ describe('TerminalWorkspace', () => {
     expect(secondTerminal.parentElement).toHaveAttribute('hidden');
     expect(firstTerminal).toHaveAttribute('data-active', 'true');
     expect(secondTerminal).toHaveAttribute('data-active', 'false');
+    expect(firstTerminal).toHaveAttribute('data-platform', 'win32');
+    expect(secondTerminal).toHaveAttribute('data-platform', 'win32');
 
     rerender(
       <TerminalWorkspace
@@ -131,6 +147,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[runtime, secondRuntime]}
         visible
@@ -155,6 +172,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[runtime, secondRuntime]}
         visible={false}
@@ -172,6 +190,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[runtime]}
         visible
@@ -194,6 +213,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map([[runtime.id, preview]])}
         runtimes={[runtime]}
         visible
@@ -227,6 +247,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[runtime]}
         visible
@@ -258,6 +279,7 @@ describe('TerminalWorkspace', () => {
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
+        platform="win32"
         previews={new Map()}
         runtimes={[
           {

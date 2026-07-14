@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
-import type { RuntimeEvent, RuntimeSummary } from '../../../shared/contracts';
+import type {
+  RuntimeEvent,
+  RuntimeSummary,
+  SystemInfo
+} from '../../../shared/contracts';
+import { classifyTerminalClipboardKey } from './terminal-clipboard';
 
 interface ManagedTerminalProps {
   active: boolean;
+  platform: SystemInfo['platform'];
   runtime: RuntimeSummary;
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
@@ -13,15 +19,18 @@ const TERMINAL_BLOCK_SIZE = '100%';
 
 export function ManagedTerminal({
   active,
+  platform,
   runtime,
   onRuntimeChange
 }: ManagedTerminalProps): ReactNode {
   const container = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
+  const platformRef = useRef(platform);
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const [error, setError] = useState<string | null>(null);
   activeRef.current = active;
+  platformRef.current = platform;
 
   useEffect(() => {
     const target = container.current;
@@ -49,6 +58,40 @@ export function ManagedTerminal({
         terminal.loadAddon(fitAddon);
         terminal.parser.registerOscHandler(52, () => true);
         terminal.open(target);
+        terminal.attachCustomKeyEventHandler((event) => {
+          const action = classifyTerminalClipboardKey(
+            event,
+            platformRef.current,
+            terminal.hasSelection()
+          );
+          if (action === 'terminal') return true;
+
+          event.preventDefault();
+          event.stopPropagation();
+          if (alive) setError(null);
+
+          if (action === 'copy') {
+            const selected = terminal.getSelection();
+            if (selected.length > 0) {
+              void window.lumora.writeClipboardText(selected).catch(() => {
+                if (alive) setError('Selected text could not be copied.');
+              });
+            }
+            return false;
+          }
+
+          void window.lumora.readClipboardText().then(
+            (text) => {
+              if (!alive || text.length === 0) return;
+              terminal.paste(text);
+              if (activeRef.current) terminal.focus();
+            },
+            () => {
+              if (alive) setError('Clipboard text could not be pasted.');
+            }
+          );
+          return false;
+        });
         fitAddon.fit();
 
         const input = terminal.onData((data) => {
