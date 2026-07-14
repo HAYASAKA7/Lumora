@@ -36,6 +36,10 @@ import {
   installWindowGuards,
   resolveRendererAssetPath
 } from './security-policy';
+import {
+  configurePackagedWindowsApplicationIdentity,
+  configurePackagedWindowsTaskbarWindow
+} from './windows-taskbar';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
@@ -66,6 +70,10 @@ let unsubscribeTerminalEvents: (() => void) | null = null;
 let shutdownStarted = false;
 
 configureDevelopmentDataPaths(app);
+configurePackagedWindowsApplicationIdentity(app, {
+  platform,
+  packaged: app.isPackaged
+});
 app.enableSandbox();
 protocol.registerSchemesAsPrivileged([
   {
@@ -96,6 +104,11 @@ async function createMainWindow(): Promise<void> {
   const window = new BrowserWindow(
     createSecureWindowOptions(preloadPath, windowIconPath)
   );
+  configurePackagedWindowsTaskbarWindow(window, {
+    platform,
+    packaged: app.isPackaged,
+    ...(windowIconPath === undefined ? {} : { iconPath: windowIconPath })
+  });
   mainWindow = window;
 
   installWindowGuards(window.webContents, developmentOrigin);

@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
+import { WINDOWS_APP_ID } from '../windows-taskbar';
+
 const repoRoot = new URL('../../../', import.meta.url);
 
 function readRepoFile(relativePath: string): Promise<string> {
@@ -30,6 +32,22 @@ function sectionValue(section: string, name: string): string | undefined {
 }
 
 describe('release packaging configuration', () => {
+  it('connects the packaged Windows taskbar identity to the installer app ID', async () => {
+    const [config, mainProcess] = await Promise.all([
+      readRepoFile('electron-builder.yml'),
+      readRepoFile('src/main/index.ts')
+    ]);
+    const configuredAppId = config.match(/^appId: (.+)$/m)?.[1];
+
+    expect(WINDOWS_APP_ID).toBe(configuredAppId);
+    expect(mainProcess).toContain(
+      'configurePackagedWindowsApplicationIdentity(app, {'
+    );
+    expect(mainProcess).toContain(
+      'configurePackagedWindowsTaskbarWindow(window, {'
+    );
+  });
+
   it('declares the package scripts and pinned electron-builder version', async () => {
     const packageJson = JSON.parse(await readRepoFile('package.json')) as {
       scripts: Record<string, string>;
