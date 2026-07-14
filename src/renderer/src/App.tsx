@@ -866,7 +866,6 @@ export default function App(): ReactNode {
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
                 onActivate={activateRuntime}
-                onClose={closeRuntimeTab}
                 onRuntimeChange={updateRuntime}
                 platform={
                   systemStatus.state === 'ready'

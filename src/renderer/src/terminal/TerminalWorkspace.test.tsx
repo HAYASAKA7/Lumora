@@ -105,6 +105,34 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('offers Stop without a manual tab close action for a live runtime', () => {
+    const liveRuntime: RuntimeSummary = {
+      ...runtime,
+      state: 'running',
+      pid: 4321,
+      endedAt: null,
+      exitCode: null
+    };
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={liveRuntime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[liveRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+    expect(
+      screen.queryByRole('button', { name: 'Close tab' })
+    ).not.toBeInTheDocument();
+  });
+
   it('keeps one mounted terminal for every open tab while switching', () => {
     const secondRuntime: RuntimeSummary = {
       ...runtime,
@@ -120,7 +148,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
@@ -145,7 +172,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={secondRuntime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
@@ -170,7 +196,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={secondRuntime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
@@ -188,7 +213,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
@@ -211,7 +235,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map([[runtime.id, preview]])}
@@ -245,7 +268,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
@@ -277,7 +299,6 @@ describe('TerminalWorkspace', () => {
       <TerminalWorkspace
         activeRuntimeId={runtime.id}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}

@@ -17,7 +17,6 @@ interface TerminalWorkspaceProps {
   previews: ReadonlyMap<string, LaunchPreview>;
   workspaces: readonly WorkspaceSummary[];
   onActivate(runtimeId: string): void;
-  onClose(runtimeId: string): void;
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
@@ -29,7 +28,6 @@ export function TerminalWorkspace({
   previews,
   workspaces,
   onActivate,
-  onClose,
   onRuntimeChange
 }: TerminalWorkspaceProps): ReactNode {
   const [stopping, setStopping] = useState(false);
@@ -88,7 +86,6 @@ export function TerminalWorkspace({
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
             {stopping ? 'Stopping' : 'Stop'}
           </button>
-          <button className="secondary-button" onClick={() => onClose(runtime.id)} type="button">Close tab</button>
         </div>
       </header>
 
