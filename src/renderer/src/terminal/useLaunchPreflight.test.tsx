@@ -85,7 +85,7 @@ describe('useLaunchPreflight', () => {
     const { result, rerender } = renderHook(
       ({ request }: { request: LaunchPrepareRequest | null }) =>
         useLaunchPreflight(request),
-      { initialProps: { request: firstRequest } }
+      { initialProps: { request: firstRequest as LaunchPrepareRequest | null } }
     );
 
     expect(result.current.status).toBe('preparing');
@@ -139,7 +139,7 @@ describe('useLaunchPreflight', () => {
     const { result, rerender } = renderHook(
       ({ request }: { request: LaunchPrepareRequest | null }) =>
         useLaunchPreflight(request),
-      { initialProps: { request: firstRequest } }
+      { initialProps: { request: firstRequest as LaunchPrepareRequest | null } }
     );
 
     rerender({ request: null });
