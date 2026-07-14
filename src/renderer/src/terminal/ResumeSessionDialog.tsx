@@ -57,6 +57,8 @@ export function ResumeSessionDialog({
 
   const canPrepare =
     availableProfiles.length > 0 &&
+    (profileId === '' ||
+      availableProfiles.some((profile) => profile.id === profileId)) &&
     workspace.available &&
     session.sourceFreshness === 'current' &&
     provider?.state === 'ready';
@@ -78,6 +80,9 @@ export function ResumeSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
   }, [preview?.launchToken]);
+  useEffect(() => {
+    if (preflight.status !== 'ready') setStarting(false);
+  }, [preflight.status]);
 
   const retry = () => {
     setActionError(null);
@@ -88,6 +93,7 @@ export function ResumeSessionDialog({
     if (
       preview === null ||
       preflight.status !== 'ready' ||
+      !preflight.isCurrentLaunchToken(preview.launchToken) ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
     setStarting(true);
@@ -99,15 +105,18 @@ export function ResumeSessionDialog({
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
+          if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
           setActionError('Workspace trust could not be saved.');
           setStarting(false);
           return;
         }
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
       }
       try {
         const runtime = await window.lumora.startRuntime(preview.launchToken);
         onStarted(runtime, confirmedPreview);
       } catch {
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
         setActionError('The provider session could not be resumed.');
         setStarting(false);
         preflight.retry();
@@ -160,6 +169,7 @@ export function ResumeSessionDialog({
           <label>
             <span>Terminal profile</span>
             <select
+              disabled={starting}
               onChange={(event) => setProfileId(event.currentTarget.value)}
               value={profileId}
             >

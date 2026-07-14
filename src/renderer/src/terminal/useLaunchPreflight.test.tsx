@@ -82,7 +82,7 @@ describe('useLaunchPreflight', () => {
       .mockReturnValueOnce(second.promise);
     installLumora(prepareLaunch);
 
-    const { result, rerender } = renderHook(
+    const { result, rerender, unmount } = renderHook(
       ({ request }: { request: LaunchPrepareRequest | null }) =>
         useLaunchPreflight(request),
       { initialProps: { request: firstRequest as LaunchPrepareRequest | null } }
@@ -98,6 +98,7 @@ describe('useLaunchPreflight', () => {
     rerender({ request: nextRequest });
     expect(result.current.preview).toBeNull();
     expect(result.current.status).toBe('preparing');
+    expect(result.current.isCurrentLaunchToken(codexPreview.launchToken)).toBe(false);
 
     await act(async () => {
       first.resolve(codexPreview);
@@ -111,6 +112,11 @@ describe('useLaunchPreflight', () => {
     });
     await waitFor(() => expect(result.current.preview).toEqual(claudePreview));
     expect(result.current.status).toBe('ready');
+    expect(result.current.isCurrentLaunchToken(claudePreview.launchToken)).toBe(true);
+
+    const isCurrentLaunchToken = result.current.isCurrentLaunchToken;
+    unmount();
+    expect(isCurrentLaunchToken(claudePreview.launchToken)).toBe(false);
   });
 
   it('retries a failed request and clears its previous error', async () => {

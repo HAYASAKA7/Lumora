@@ -80,7 +80,12 @@ export function RuntimeRecoveryDialog({
             ? 'No terminal profile is available.'
             : null;
   const request = useMemo<LaunchPrepareRequest | null>(() => {
-    if (plan === null || blockingReason !== null) return null;
+    if (
+      plan === null ||
+      blockingReason !== null ||
+      (profileId !== '' &&
+        !availableProfiles.some((profile) => profile.id === profileId))
+    ) return null;
     return plan.strategy === 'resume'
       ? {
           strategy: 'resume',
@@ -97,13 +102,16 @@ export function RuntimeRecoveryDialog({
           cols: 100,
           rows: 30
         };
-  }, [blockingReason, plan, profileId]);
+  }, [availableProfiles, blockingReason, plan, profileId]);
   const preflight = useLaunchPreflight(request);
   const preview = preflight.preview;
 
   useEffect(() => {
     setTrustConfirmed(false);
   }, [preview?.launchToken]);
+  useEffect(() => {
+    if (preflight.status !== 'ready') setStarting(false);
+  }, [preflight.status]);
 
   const retry = () => {
     setActionError(null);
@@ -114,6 +122,7 @@ export function RuntimeRecoveryDialog({
     if (
       preview === null ||
       preflight.status !== 'ready' ||
+      !preflight.isCurrentLaunchToken(preview.launchToken) ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
     setStarting(true);
@@ -125,10 +134,12 @@ export function RuntimeRecoveryDialog({
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
+          if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
           setActionError('Workspace trust could not be saved.');
           setStarting(false);
           return;
         }
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
       }
       try {
         const recoveredRuntime = await window.lumora.startRuntime(
@@ -136,6 +147,7 @@ export function RuntimeRecoveryDialog({
         );
         onStarted(recoveredRuntime, confirmedPreview);
       } catch {
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
         setActionError('The recovered terminal could not be started.');
         setStarting(false);
         preflight.retry();
@@ -181,6 +193,7 @@ export function RuntimeRecoveryDialog({
           <label>
             <span>Terminal profile</span>
             <select
+              disabled={starting}
               onChange={(event) => setProfileId(event.currentTarget.value)}
               value={profileId}
             >

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState
 } from 'react';
@@ -19,6 +20,7 @@ export type LaunchPreflightStatus =
 export interface LaunchPreflightResult {
   status: LaunchPreflightStatus;
   preview: LaunchPreview | null;
+  isCurrentLaunchToken(launchToken: string): boolean;
   retry(): void;
 }
 
@@ -39,6 +41,7 @@ export function useLaunchPreflight(
 ): LaunchPreflightResult {
   const requestKey = request === null ? null : JSON.stringify(request);
   const generation = useRef(0);
+  const currentLaunchToken = useRef<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
   const [stored, setStored] = useState<StoredPreflightState>(IDLE_STATE);
 
@@ -85,11 +88,28 @@ export function useLaunchPreflight(
     setRetryVersion((current) => current + 1);
   }, [requestKey]);
 
+  let status = stored.status;
+  let preview = stored.preview;
   if (requestKey === null) {
-    return { status: 'idle', preview: null, retry };
+    status = 'idle';
+    preview = null;
+  } else if (stored.requestKey !== requestKey) {
+    status = 'preparing';
+    preview = null;
   }
-  if (stored.requestKey !== requestKey) {
-    return { status: 'preparing', preview: null, retry };
-  }
-  return { status: stored.status, preview: stored.preview, retry };
+
+  useLayoutEffect(() => {
+    currentLaunchToken.current =
+      status === 'ready' ? preview?.launchToken ?? null : null;
+    return () => {
+      currentLaunchToken.current = null;
+    };
+  }, [preview?.launchToken, status]);
+
+  const isCurrentLaunchToken = useCallback(
+    (launchToken: string) => currentLaunchToken.current === launchToken,
+    []
+  );
+
+  return { status, preview, isCurrentLaunchToken, retry };
 }

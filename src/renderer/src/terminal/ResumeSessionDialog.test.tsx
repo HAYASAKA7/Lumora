@@ -238,6 +238,55 @@ describe('ResumeSessionDialog', () => {
     );
   });
 
+  it('does not resume an obsolete token when eligibility changes during trust', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trust = deferred<{
+      workspaceId: string;
+      canonicalPath: string;
+      trustedAt: string;
+    }>();
+    const trustWorkspaceForLaunch = vi.fn().mockReturnValue(trust.promise);
+    const startRuntime = vi.fn().mockResolvedValue(runtime);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+        trustWorkspaceForLaunch,
+        startRuntime
+      }
+    });
+    const props = {
+      onClose: vi.fn(),
+      onStarted: vi.fn(),
+      profiles: [profile, alternateProfile],
+      session,
+      workspace
+    };
+    const { rerender } = render(
+      <ResumeSessionDialog {...props} providerScan={providerScan} />
+    );
+
+    fireEvent.click(await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
+    expect(
+      screen.getByRole('combobox', { name: 'Terminal profile' })
+    ).toBeDisabled();
+
+    rerender(<ResumeSessionDialog {...props} providerScan={null} />);
+    await act(async () => {
+      trust.resolve({
+        workspaceId: workspace.id,
+        canonicalPath: workspace.canonicalPath,
+        trustedAt: preview.createdAt
+      });
+      await trust.promise;
+    });
+
+    expect(startRuntime).not.toHaveBeenCalled();
+  });
+
   it('invalidates the preview when the terminal profile changes', async () => {
     const pending = deferred<LaunchPreview>();
     const refreshedPreview: LaunchPreview = {
@@ -275,5 +324,38 @@ describe('ResumeSessionDialog', () => {
     });
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeEnabled();
+  });
+
+  it('uses a refreshed token after resuming fails', async () => {
+    const refreshedPreview: LaunchPreview = {
+      ...preview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abe'
+    };
+    const prepareLaunch = vi
+      .fn()
+      .mockResolvedValueOnce(preview)
+      .mockResolvedValueOnce(refreshedPreview);
+    const startRuntime = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('expired'))
+      .mockResolvedValueOnce(runtime);
+    renderDialog({ prepareLaunch, startRuntime });
+
+    await screen.findByText('resume native-thread');
+    fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
+    expect(
+      await screen.findByText('The provider session could not be resumed.')
+    ).toHaveAttribute('role', 'alert');
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Resume session' })).toBeEnabled()
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenLastCalledWith(
+        refreshedPreview.launchToken
+      )
+    );
   });
 });

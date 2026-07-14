@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -156,7 +156,7 @@ function renderDialog(options: RenderOptions = {}) {
     configurable: true,
     value: { prepareLaunch, trustWorkspaceForLaunch, startRuntime }
   });
-  render(
+  const rendered = render(
     <RuntimeRecoveryDialog
       onClose={vi.fn()}
       onStarted={onStarted}
@@ -169,7 +169,21 @@ function renderDialog(options: RenderOptions = {}) {
       workspaces={options.workspaces ?? [workspace]}
     />
   );
-  return { prepareLaunch, trustWorkspaceForLaunch, startRuntime, onStarted };
+  return {
+    prepareLaunch,
+    trustWorkspaceForLaunch,
+    startRuntime,
+    onStarted,
+    ...rendered
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 describe('RuntimeRecoveryDialog', () => {
@@ -293,6 +307,91 @@ describe('RuntimeRecoveryDialog', () => {
     );
     expect(trustWorkspaceForLaunch.mock.invocationCallOrder[0]).toBeLessThan(
       startRuntime.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it('does not recover an obsolete token when eligibility changes during trust', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trust = deferred<{
+      workspaceId: string;
+      canonicalPath: string;
+      trustedAt: string;
+    }>();
+    const trustWorkspaceForLaunch = vi.fn().mockReturnValue(trust.promise);
+    const { rerender, startRuntime } = renderDialog({
+      prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+      trustWorkspaceForLaunch
+    });
+
+    fireEvent.click(await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Resume saved session' })
+    );
+    expect(
+      screen.getByRole('combobox', { name: 'Terminal profile' })
+    ).toBeDisabled();
+
+    rerender(
+      <RuntimeRecoveryDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[recommendedProfile, previousProfile]}
+        providerScan={null}
+        runtime={lostRuntime}
+        sessions={[session]}
+        workspaces={[workspace]}
+      />
+    );
+    await act(async () => {
+      trust.resolve({
+        workspaceId: workspace.id,
+        canonicalPath: workspace.canonicalPath,
+        trustedAt: preview.createdAt
+      });
+      await trust.promise;
+    });
+
+    expect(startRuntime).not.toHaveBeenCalled();
+  });
+
+  it('uses a refreshed token after recovery start fails', async () => {
+    const refreshedPreview: LaunchPreview = {
+      ...preview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abf'
+    };
+    const prepareLaunch = vi
+      .fn()
+      .mockResolvedValueOnce(preview)
+      .mockResolvedValueOnce(refreshedPreview);
+    const startRuntime = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('expired'))
+      .mockResolvedValueOnce(startedRuntime);
+    renderDialog({ prepareLaunch, startRuntime });
+
+    await screen.findByText('codexp');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Resume saved session' })
+    );
+    expect(
+      await screen.findByText('The recovered terminal could not be started.')
+    ).toHaveAttribute('role', 'alert');
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Resume saved session' })
+      ).toBeEnabled()
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Resume saved session' })
+    );
+    await waitFor(() =>
+      expect(startRuntime).toHaveBeenLastCalledWith(
+        refreshedPreview.launchToken
+      )
     );
   });
 });

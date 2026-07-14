@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -95,6 +95,14 @@ const runtime: RuntimeSummary = {
   createdAt: preview.createdAt, startedAt: preview.createdAt,
   endedAt: null, exitCode: null, errorCode: null
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 describe('NewSessionDialog', () => {
   it('requires a resolved preview before starting the exact launch token', async () => {
@@ -223,6 +231,99 @@ describe('NewSessionDialog', () => {
     ).toHaveAttribute('role', 'alert');
     expect(startRuntime).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'New session' })).toBeInTheDocument();
+  });
+
+  it('prepares only the provider that is ready after the catalog loads', async () => {
+    const claudePreview: LaunchPreview = {
+      ...preview,
+      provider: 'claude',
+      executablePath: 'C:\\tools\\claude.exe',
+      command: null
+    };
+    const prepareLaunch = vi.fn().mockResolvedValue(claudePreview);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+    const props = {
+      onClose: vi.fn(),
+      onStarted: vi.fn(),
+      profiles: [profile],
+      workspaces: [workspace]
+    };
+    const { rerender } = render(
+      <NewSessionDialog {...props} providerScan={null} />
+    );
+    expect(prepareLaunch).not.toHaveBeenCalled();
+
+    rerender(
+      <NewSessionDialog
+        {...props}
+        providerScan={{ ...scan, providers: [scan.providers[1]!] }}
+      />
+    );
+
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalled());
+    expect(prepareLaunch.mock.calls).toEqual([
+      [{
+        strategy: 'new',
+        workspaceId: workspace.id,
+        provider: 'claude',
+        terminalProfileId: null,
+        cols: 100,
+        rows: 30
+      }]
+    ]);
+  });
+
+  it('does not start an obsolete token when eligibility changes during trust', async () => {
+    const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const trust = deferred<{
+      workspaceId: string;
+      canonicalPath: string;
+      trustedAt: string;
+    }>();
+    const trustWorkspaceForLaunch = vi.fn().mockReturnValue(trust.promise);
+    const startRuntime = vi.fn().mockResolvedValue(runtime);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+        trustWorkspaceForLaunch,
+        startRuntime
+      }
+    });
+    const props = {
+      onClose: vi.fn(),
+      onStarted: vi.fn(),
+      profiles: [profile],
+      workspaces: [workspace]
+    };
+    const { rerender } = render(
+      <NewSessionDialog {...props} providerScan={scan} />
+    );
+
+    fireEvent.click(await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+    expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
+
+    rerender(<NewSessionDialog {...props} providerScan={null} />);
+    await act(async () => {
+      trust.resolve({
+        workspaceId: workspace.id,
+        canonicalPath: workspace.canonicalPath,
+        trustedAt: preview.createdAt
+      });
+      await trust.promise;
+    });
+
+    expect(startRuntime).not.toHaveBeenCalled();
   });
 
   it('retries automatic preparation after an inline failure', async () => {

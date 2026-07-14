@@ -72,8 +72,20 @@ export function NewSessionDialog({
     }
   }, [provider, readyProviders]);
 
+  const selectedWorkspace = availableWorkspaces.find(
+    (workspace) => workspace.id === workspaceId
+  );
+  const selectedProviderReady = readyProviders.some(
+    (installation) => installation.provider === provider
+  );
+  const selectedProfileAvailable =
+    profileId === '' ||
+    availableProfiles.some((profile) => profile.id === profileId);
   const canPrepare =
-    workspaceId !== '' && availableProfiles.length > 0 && readyProviders.length > 0;
+    selectedWorkspace !== undefined &&
+    selectedProviderReady &&
+    availableProfiles.length > 0 &&
+    selectedProfileAvailable;
   const request = useMemo<LaunchPrepareRequest | null>(
     () => canPrepare
       ? {
@@ -89,13 +101,13 @@ export function NewSessionDialog({
   );
   const preflight = useLaunchPreflight(request);
   const preview = preflight.preview;
-  const selectedWorkspace = availableWorkspaces.find(
-    (workspace) => workspace.id === workspaceId
-  );
 
   useEffect(() => {
     setTrustConfirmed(false);
   }, [preview?.launchToken]);
+  useEffect(() => {
+    if (preflight.status !== 'ready') setStarting(false);
+  }, [preflight.status]);
 
   const retry = () => {
     setActionError(null);
@@ -106,6 +118,7 @@ export function NewSessionDialog({
     if (
       preview === null ||
       preflight.status !== 'ready' ||
+      !preflight.isCurrentLaunchToken(preview.launchToken) ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
     setStarting(true);
@@ -117,15 +130,18 @@ export function NewSessionDialog({
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
+          if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
           setActionError('Workspace trust could not be saved.');
           setStarting(false);
           return;
         }
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
       }
       try {
         const runtime = await window.lumora.startRuntime(preview.launchToken);
         onStarted(runtime, confirmedPreview);
       } catch {
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
         setActionError('The provider terminal could not be started.');
         setStarting(false);
         preflight.retry();
@@ -152,7 +168,7 @@ export function NewSessionDialog({
         <div className="launch-fields">
           <label>
             <span>Workspace</span>
-            <select onChange={(event) => setWorkspaceId(event.currentTarget.value)} value={workspaceId}>
+            <select disabled={starting} onChange={(event) => setWorkspaceId(event.currentTarget.value)} value={workspaceId}>
               {availableWorkspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.displayName}</option>
               ))}
@@ -160,7 +176,7 @@ export function NewSessionDialog({
           </label>
           <label>
             <span>Provider</span>
-            <select onChange={(event) => setProvider(event.currentTarget.value as ProviderId)} value={provider}>
+            <select disabled={starting} onChange={(event) => setProvider(event.currentTarget.value as ProviderId)} value={provider}>
               {readyProviders.map((installation) => (
                 <option key={installation.provider} value={installation.provider}>{installation.displayName}</option>
               ))}
@@ -168,7 +184,7 @@ export function NewSessionDialog({
           </label>
           <label>
             <span>Terminal profile</span>
-            <select onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
+            <select disabled={starting} onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
               <option value="">Configured default</option>
               {availableProfiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
