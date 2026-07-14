@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type {
+  LaunchPrepareRequest,
   LaunchPreview,
   ProviderScanResult,
   RuntimeSummary,
@@ -8,7 +9,8 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchConfiguration } from './LaunchConfiguration';
+import { LaunchDetails } from './LaunchDetails';
+import { useLaunchPreflight } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface ResumeSessionDialogProps {
@@ -36,14 +38,13 @@ export function ResumeSessionDialog({
     (installation) => installation.provider === session.provider
   );
   const [profileId, setProfileId] = useState('');
-  const [preview, setPreview] = useState<LaunchPreview | null>(null);
   const [trustConfirmed, setTrustConfirmed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPreview(null);
     setTrustConfirmed(false);
+    setActionError(null);
   }, [profileId]);
   useEffect(() => {
     if (
@@ -54,48 +55,52 @@ export function ResumeSessionDialog({
     }
   }, [availableProfiles, profileId]);
 
-  const prepare = () => {
-    setBusy(true);
-    setError(null);
-    setTrustConfirmed(false);
-    void window.lumora
-      .prepareLaunch({
-        strategy: 'resume',
-        sessionId: session.id,
-        terminalProfileId: profileId || null,
-        cols: 100,
-        rows: 30
-      })
-      .then(
-        (value) => {
-          setPreview(value);
-          setTrustConfirmed(false);
-          setBusy(false);
-        },
-        () => {
-          setError('The resume preview could not be prepared.');
-          setBusy(false);
+  const canPrepare =
+    availableProfiles.length > 0 &&
+    workspace.available &&
+    session.sourceFreshness === 'current' &&
+    provider?.state === 'ready';
+  const request = useMemo<LaunchPrepareRequest | null>(
+    () => canPrepare
+      ? {
+          strategy: 'resume',
+          sessionId: session.id,
+          terminalProfileId: profileId || null,
+          cols: 100,
+          rows: 30
         }
-      );
+      : null,
+    [canPrepare, profileId, session.id]
+  );
+  const preflight = useLaunchPreflight(request);
+  const preview = preflight.preview;
+
+  useEffect(() => {
+    setTrustConfirmed(false);
+  }, [preview?.launchToken]);
+
+  const retry = () => {
+    setActionError(null);
+    preflight.retry();
   };
 
   const start = () => {
     if (
       preview === null ||
+      preflight.status !== 'ready' ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
-    setBusy(true);
-    setError(null);
+    setStarting(true);
+    setActionError(null);
     void (async () => {
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
-          setPreview(confirmedPreview);
         } catch {
-          setError('Workspace trust could not be saved.');
-          setBusy(false);
+          setActionError('Workspace trust could not be saved.');
+          setStarting(false);
           return;
         }
       }
@@ -103,17 +108,12 @@ export function ResumeSessionDialog({
         const runtime = await window.lumora.startRuntime(preview.launchToken);
         onStarted(runtime, confirmedPreview);
       } catch {
-        setError('The provider session could not be resumed.');
-        setBusy(false);
+        setActionError('The provider session could not be resumed.');
+        setStarting(false);
+        preflight.retry();
       }
     })();
   };
-
-  const canPrepare =
-    availableProfiles.length > 0 &&
-    workspace.available &&
-    session.sourceFreshness === 'current' &&
-    provider?.state === 'ready';
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -173,40 +173,24 @@ export function ResumeSessionDialog({
           </label>
         </div>
 
-        {error === null ? null : (
-          <div className="catalog-operation-error" role="alert">
-            {error}
-          </div>
+        {actionError === null ? null : (
+          <div className="catalog-operation-error" role="alert">{actionError}</div>
         )}
 
-        {preview === null ? (
+        {preflight.status === 'preparing' ? (
+          <div className="launch-empty" role="status"><p>Preparing resume</p></div>
+        ) : preflight.status === 'failed' ? (
+          <div className="catalog-operation-error" role="alert">
+            <span>The resume preview could not be prepared.</span>{' '}
+            <button className="text-button" onClick={retry} type="button">Retry</button>
+          </div>
+        ) : preview === null ? (
           <div className="launch-empty">
-            <p>
-              Prepare to verify the native session arguments, executable,
-              working directory, and terminal profile.
-            </p>
+            <p>The selected session is not currently available to resume.</p>
           </div>
         ) : (
           <>
-            <LaunchConfiguration preview={preview} />
-            <dl className="launch-preview">
-              <div>
-                <dt>Executable</dt>
-                <dd>{preview.executablePath}</dd>
-              </div>
-              <div>
-                <dt>Arguments</dt>
-                <dd>{preview.args.join(' ')}</dd>
-              </div>
-              <div>
-                <dt>Working directory</dt>
-                <dd>{preview.workingDirectory}</dd>
-              </div>
-              <div>
-                <dt>Environment names</dt>
-                <dd>{preview.environmentNames.join(', ')}</dd>
-              </div>
-            </dl>
+            <LaunchDetails preview={preview} />
             {preview.workspaceTrusted ? null : (
               <WorkspaceTrustNotice
                 confirmed={trustConfirmed}
@@ -219,20 +203,17 @@ export function ResumeSessionDialog({
 
         <footer>
           <button
-            className="secondary-button"
-            disabled={!canPrepare || busy}
-            onClick={prepare}
-            type="button"
-          >
-            {busy && preview === null ? 'Preparing' : 'Prepare launch'}
-          </button>
-          <button
             className="refresh-button"
-            disabled={preview === null || busy || (!preview.workspaceTrusted && !trustConfirmed)}
+            disabled={
+              preview === null ||
+              preflight.status !== 'ready' ||
+              starting ||
+              (!preview.workspaceTrusted && !trustConfirmed)
+            }
             onClick={start}
             type="button"
           >
-            {busy && preview !== null ? 'Resuming session' : 'Resume session'}
+            {starting ? 'Resuming session' : 'Resume session'}
           </button>
         </footer>
       </section>

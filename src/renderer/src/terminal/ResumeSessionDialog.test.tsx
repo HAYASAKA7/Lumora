@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -157,6 +157,14 @@ function renderDialog(overrides: {
   return { prepareLaunch, trustWorkspaceForLaunch, startRuntime, onStarted };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('ResumeSessionDialog', () => {
   it('prepares and starts the exact selected native session', async () => {
     const {
@@ -171,8 +179,10 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByText(workspace.canonicalPath)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
+    expect(
+      screen.queryByRole('button', { name: 'Prepare launch' })
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
     expect(screen.getByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
@@ -203,7 +213,6 @@ describe('ResumeSessionDialog', () => {
       trustWorkspaceForLaunch
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
     const confirmation = await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     });
@@ -230,8 +239,17 @@ describe('ResumeSessionDialog', () => {
   });
 
   it('invalidates the preview when the terminal profile changes', async () => {
-    renderDialog();
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare launch' }));
+    const pending = deferred<LaunchPreview>();
+    const refreshedPreview: LaunchPreview = {
+      ...preview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+      terminalProfile: alternateProfile
+    };
+    const prepareLaunch = vi
+      .fn()
+      .mockResolvedValueOnce(preview)
+      .mockReturnValueOnce(pending.promise);
+    renderDialog({ prepareLaunch });
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
 
     fireEvent.change(
@@ -241,5 +259,21 @@ describe('ResumeSessionDialog', () => {
 
     expect(screen.queryByText('resume native-thread')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
+    await waitFor(() =>
+      expect(prepareLaunch).toHaveBeenLastCalledWith({
+        strategy: 'resume',
+        sessionId: session.id,
+        terminalProfileId: alternateProfile.id,
+        cols: 100,
+        rows: 30
+      })
+    );
+
+    await act(async () => {
+      pending.resolve(refreshedPreview);
+      await pending.promise;
+    });
+    expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume session' })).toBeEnabled();
   });
 });
