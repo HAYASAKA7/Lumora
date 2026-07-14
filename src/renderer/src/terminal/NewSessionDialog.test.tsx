@@ -182,6 +182,9 @@ describe('NewSessionDialog', () => {
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
 
     fireEvent.click(confirmation);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled()
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
 
     await waitFor(() =>
@@ -282,6 +285,10 @@ describe('NewSessionDialog', () => {
 
   it('does not start an obsolete token when eligibility changes during trust', async () => {
     const untrustedPreview = { ...preview, workspaceTrusted: false };
+    const refreshedPreview = {
+      ...untrustedPreview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abf'
+    };
     const trust = deferred<{
       workspaceId: string;
       canonicalPath: string;
@@ -292,7 +299,10 @@ describe('NewSessionDialog', () => {
     Object.defineProperty(window, 'lumora', {
       configurable: true,
       value: {
-        prepareLaunch: vi.fn().mockResolvedValue(untrustedPreview),
+        prepareLaunch: vi
+          .fn()
+          .mockResolvedValueOnce(untrustedPreview)
+          .mockResolvedValueOnce(refreshedPreview),
         trustWorkspaceForLaunch,
         startRuntime
       }
@@ -314,6 +324,18 @@ describe('NewSessionDialog', () => {
     expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
 
     rerender(<NewSessionDialog {...props} providerScan={null} />);
+    expect(
+      screen.getByRole('button', { name: 'Starting terminal' })
+    ).toBeDisabled();
+    rerender(<NewSessionDialog {...props} providerScan={scan} />);
+    await screen.findByRole('checkbox', {
+      name: 'I trust this workspace and want to run the provider here'
+    });
+    expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Starting terminal' })
+    ).toBeDisabled();
+
     await act(async () => {
       trust.resolve({
         workspaceId: workspace.id,
@@ -324,6 +346,9 @@ describe('NewSessionDialog', () => {
     });
 
     expect(startRuntime).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Provider' })).toBeEnabled()
+    );
   });
 
   it('retries automatic preparation after an inline failure', async () => {

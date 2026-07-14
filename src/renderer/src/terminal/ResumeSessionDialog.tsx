@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type {
   LaunchPrepareRequest,
@@ -41,6 +41,11 @@ export function ResumeSessionDialog({
   const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const launchOperation = useRef(0);
+
+  useEffect(() => () => {
+    launchOperation.current += 1;
+  }, []);
 
   useEffect(() => {
     setTrustConfirmed(false);
@@ -80,9 +85,10 @@ export function ResumeSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
   }, [preview?.launchToken]);
-  useEffect(() => {
-    if (preflight.status !== 'ready') setStarting(false);
-  }, [preflight.status]);
+
+  const finishLaunchOperation = (operation: number) => {
+    if (launchOperation.current === operation) setStarting(false);
+  };
 
   const retry = () => {
     setActionError(null);
@@ -96,6 +102,8 @@ export function ResumeSessionDialog({
       !preflight.isCurrentLaunchToken(preview.launchToken) ||
       (!preview.workspaceTrusted && !trustConfirmed)
     ) return;
+    const operation = launchOperation.current + 1;
+    launchOperation.current = operation;
     setStarting(true);
     setActionError(null);
     void (async () => {
@@ -105,20 +113,30 @@ export function ResumeSessionDialog({
           await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
-          if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
+          if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
+            finishLaunchOperation(operation);
+            return;
+          }
           setActionError('Workspace trust could not be saved.');
-          setStarting(false);
+          finishLaunchOperation(operation);
           return;
         }
-        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
+          finishLaunchOperation(operation);
+          return;
+        }
       }
       try {
         const runtime = await window.lumora.startRuntime(preview.launchToken);
+        finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);
       } catch {
-        if (!preflight.isCurrentLaunchToken(preview.launchToken)) return;
+        if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
+          finishLaunchOperation(operation);
+          return;
+        }
         setActionError('The provider session could not be resumed.');
-        setStarting(false);
+        finishLaunchOperation(operation);
         preflight.retry();
       }
     })();
