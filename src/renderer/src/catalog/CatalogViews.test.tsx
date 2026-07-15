@@ -437,6 +437,9 @@ describe('CatalogHomeSummary', () => {
   it('shows persisted counts, diagnostics, and recent normalized sessions', () => {
     render(
       <CatalogHomeSummary
+        onResume={vi.fn()}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
         status={{ state: 'ready', snapshot: catalogSnapshot }}
       />
     );
@@ -449,6 +452,40 @@ describe('CatalogHomeSummary', () => {
     expect(
       screen.getByText('Native Codex and Claude Code terminals owned by Lumora')
     ).toBeInTheDocument();
+  });
+
+  it('offers guarded resume actions for the three recent sessions', () => {
+    const onResume = vi.fn();
+    const fourthSession = {
+      ...catalogSnapshot.sessions[0]!,
+      id: 'g'.repeat(64),
+      title: 'Older session outside the Home limit'
+    };
+    render(
+      <CatalogHomeSummary
+        onResume={onResume}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        status={{
+          state: 'ready',
+          snapshot: {
+            ...catalogSnapshot,
+            sessions: [...catalogSnapshot.sessions, fourthSession]
+          }
+        }}
+      />
+    );
+
+    const actions = screen.getAllByRole('button', { name: 'Resume' });
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toHaveAttribute('title', 'Resume this session');
+    expect(actions[0]).toBeEnabled();
+    expect(actions[2]).toHaveAttribute('title', 'Session source is stale.');
+    expect(actions[2]).toBeDisabled();
+    expect(screen.queryByText(fourthSession.title)).not.toBeInTheDocument();
+
+    fireEvent.click(actions[0]!);
+    expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
   });
 
   it('combines lost runtimes with diagnostics and offers three recent recoveries', () => {
@@ -485,6 +522,9 @@ describe('CatalogHomeSummary', () => {
     render(
       <CatalogHomeSummary
         onRecover={onRecover}
+        onResume={vi.fn()}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
         runtimes={lost}
         status={{
           state: 'ready',

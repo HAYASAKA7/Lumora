@@ -1336,6 +1336,7 @@ button {
 
 .recent-session-list li {
   display: flex;
+  align-items: center;
   min-width: 0;
   justify-content: space-between;
   gap: 12px;
@@ -1343,17 +1344,31 @@ button {
   border-top: 1px solid #edf0f4;
 }
 
-.recent-session-list strong {
+.recent-session-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.recent-session-copy strong {
   overflow: hidden;
   color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.recent-session-list span {
-  flex: 0 0 auto;
+.recent-session-provider {
   color: var(--text-soft);
   font-size: 0.72rem;
+}
+
+.recent-session-resume {
+  flex: 0 0 auto;
+}
+
+.recent-session-resume:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .runtime-recovery-list {

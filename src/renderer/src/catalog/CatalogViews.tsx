@@ -338,13 +338,19 @@ export function SessionsView({
 export function CatalogHomeSummary({
   status,
   providerSummary,
+  providerScan,
+  profiles,
   runtimes = [],
-  onRecover
+  onRecover,
+  onResume
 }: {
   status: CatalogViewStatus;
   providerSummary?: string;
+  providerScan: ProviderScanResult | null;
+  profiles: readonly TerminalProfile[];
   runtimes?: readonly RuntimeSummary[];
   onRecover?(runtime: RuntimeSummary): void;
+  onResume(session: SessionSummary): void;
 }): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -365,6 +371,9 @@ export function CatalogHomeSummary({
 
   const { snapshot } = status;
   const recentSessions = snapshot.sessions.slice(0, 3);
+  const workspaces = new Map(
+    snapshot.workspaces.map((workspace) => [workspace.id, workspace])
+  );
   const liveRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
@@ -452,12 +461,33 @@ export function CatalogHomeSummary({
           <p className="card-description">No provider sessions discovered yet.</p>
         ) : (
           <ul className="recent-session-list">
-            {recentSessions.map((session) => (
-              <li key={session.id}>
-                <strong>{session.title}</strong>
-                <span>{PROVIDER_LABELS[session.provider]}</span>
-              </li>
-            ))}
+            {recentSessions.map((session) => {
+              const disabledReason = resolveSessionResumeDisabledReason({
+                session,
+                workspace: workspaces.get(session.workspaceId),
+                providerScan,
+                profiles
+              });
+              return (
+                <li key={session.id}>
+                  <span className="recent-session-copy">
+                    <strong title={session.title}>{session.title}</strong>
+                    <span className="recent-session-provider">
+                      {PROVIDER_LABELS[session.provider]}
+                    </span>
+                  </span>
+                  <button
+                    className="text-button recent-session-resume"
+                    disabled={disabledReason !== null}
+                    onClick={() => onResume(session)}
+                    title={disabledReason ?? 'Resume this session'}
+                    type="button"
+                  >
+                    Resume
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </article>

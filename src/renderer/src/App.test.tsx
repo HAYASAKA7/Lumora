@@ -864,6 +864,31 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens the shared resume dialog from Home recent sessions', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined))
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
+    expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
+    expect(within(dialog).getByText('Codex')).toBeInTheDocument();
+    expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+  });
+
   it('opens and completes a native resume from the session catalog', async () => {
     const profile: TerminalProfile = {
       id: 'c'.repeat(64),

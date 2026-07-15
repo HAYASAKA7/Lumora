@@ -874,6 +874,20 @@ export default function App(): ReactNode {
                   setResumeIntent(null);
                   setRecoveryRuntime(runtime);
                 }}
+                onResume={(session) => {
+                  if (catalogStatus.state !== 'ready') return;
+                  const workspace = catalogStatus.snapshot.workspaces.find(
+                    (candidate) => candidate.id === session.workspaceId
+                  );
+                  if (workspace === undefined) return;
+                  setNewSessionOpen(false);
+                  setRecoveryRuntime(null);
+                  setResumeIntent({ session, workspace });
+                }}
+                profiles={terminalProfiles}
+                providerScan={
+                  providerStatus.state === 'ready' ? providerStatus.scan : null
+                }
                 providerSummary={providerSummary(providerStatus)}
                 runtimes={runtimes}
                 status={catalogStatus}
