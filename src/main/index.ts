@@ -8,7 +8,8 @@ import {
   ipcMain,
   Menu,
   net,
-  protocol
+  protocol,
+  screen
 } from 'electron';
 
 import { IPC_CHANNELS, PlatformSchema } from '../shared/contracts';
@@ -42,6 +43,11 @@ import {
   configurePackagedWindowsApplicationIdentity,
   configurePackagedWindowsTaskbarWindow
 } from './windows-taskbar';
+import {
+  createWindowStateManager,
+  loadWindowRestore,
+  type WindowStateManager
+} from './window-state';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
@@ -69,6 +75,8 @@ let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
+let activeWindowStateManager: WindowStateManager | null = null;
+let pendingWindowStateFlush: Promise<void> = Promise.resolve();
 let shutdownStarted = false;
 
 configureDevelopmentDataPaths(app);
@@ -103,9 +111,20 @@ function registerApplicationProtocol(): void {
 }
 
 async function createMainWindow(): Promise<void> {
-  const window = new BrowserWindow(
-    createSecureWindowOptions(preloadPath, windowIconPath)
+  await pendingWindowStateFlush;
+  const statePath = join(app.getPath('userData'), 'window-state.json');
+  const restore = await loadWindowRestore({
+    statePath,
+    workAreas: screen.getAllDisplays().map((display) => display.workArea)
+  });
+  const secureWindowOptions = createSecureWindowOptions(
+    preloadPath,
+    windowIconPath
   );
+  const window = new BrowserWindow({
+    ...secureWindowOptions,
+    ...(restore.normalBounds === null ? {} : restore.normalBounds)
+  });
   configurePackagedWindowsTaskbarWindow(window, {
     platform,
     packaged: app.isPackaged,
@@ -114,8 +133,17 @@ async function createMainWindow(): Promise<void> {
   mainWindow = window;
 
   installWindowGuards(window.webContents, developmentOrigin);
+  activeWindowStateManager = createWindowStateManager({
+    window,
+    statePath,
+    initialNormalBounds: restore.normalBounds ?? window.getBounds()
+  });
+  if (restore.maximized) {
+    window.maximize();
+  }
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
+    void flushWindowState();
     if (mainWindow === window) {
       mainWindow = null;
     }
@@ -127,6 +155,16 @@ async function createMainWindow(): Promise<void> {
   }
 
   await window.loadURL('app://lumora/index.html');
+}
+
+function flushWindowState(): Promise<void> {
+  const flush = activeWindowStateManager?.dispose() ?? Promise.resolve();
+  activeWindowStateManager = null;
+  pendingWindowStateFlush = Promise.all([
+    pendingWindowStateFlush,
+    flush
+  ]).then(() => undefined);
+  return pendingWindowStateFlush;
 }
 
 void app.whenReady().then(async () => {
@@ -193,21 +231,27 @@ void app.whenReady().then(async () => {
 });
 
 app.on('before-quit', (event) => {
-  if (terminalRuntime === null || shutdownStarted) {
+  if (shutdownStarted) {
     return;
   }
   event.preventDefault();
   shutdownStarted = true;
   const runtime = terminalRuntime;
-  void runtime.shutdown().finally(() => {
+  void (async () => {
+    await Promise.all([
+      runtime?.shutdown() ?? Promise.resolve(),
+      flushWindowState()
+    ]);
     unsubscribeTerminalEvents?.();
     unsubscribeTerminalEvents = null;
-    runtime.close();
-    terminalRuntime = null;
+    runtime?.close();
+    if (terminalRuntime === runtime) {
+      terminalRuntime = null;
+    }
     catalogRuntime?.close();
     catalogRuntime = null;
     app.quit();
-  });
+  })();
 });
 
 app.on('will-quit', () => {
