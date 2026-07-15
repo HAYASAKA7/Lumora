@@ -92,7 +92,10 @@ export function WorkspacesView({
       ) : (
         <div className="workspace-list">
           {workspaces.map((workspace) => (
-            <article className="workspace-card" key={workspace.id}>
+            <article
+              className="workspace-card"
+              key={workspace.id}
+            >
               <header>
                 <div className="workspace-heading">
                   <h3>{workspace.displayName}</h3>
@@ -122,13 +125,11 @@ export function WorkspacesView({
                 )}
               </div>
               <button
-                aria-label={`View sessions for ${workspace.displayName}`}
-                className="secondary-button workspace-open-button"
+                aria-label={`Open sessions for ${workspace.displayName} at ${workspace.canonicalPath}`}
+                className="workspace-card-action"
                 onClick={() => onOpenWorkspace(workspace.id)}
                 type="button"
-              >
-                View sessions
-              </button>
+              />
             </article>
           ))}
         </div>

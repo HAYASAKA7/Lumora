@@ -1328,7 +1328,9 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+      await screen.findByRole('button', {
+        name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+      })
     );
 
     await waitFor(() =>
@@ -1363,7 +1365,9 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+      await screen.findByRole('button', {
+        name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+      })
     );
     fireEvent.click(
       await screen.findByRole('button', { name: 'Refresh sessions' })
@@ -1392,7 +1396,9 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+      await screen.findByRole('button', {
+        name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+      })
     );
     expect(screen.getByText('Loading workspace sessions')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Back to workspaces' }));
@@ -1400,7 +1406,9 @@ describe('App', () => {
     await act(async () => detail.resolve(readyCatalog));
 
     expect(
-      screen.getByRole('button', { name: 'View sessions for Lumora' })
+      screen.getByRole('button', {
+        name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+      })
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: 'Lumora sessions' })

@@ -161,7 +161,7 @@ describe('WorkspacesView', () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
-  it('opens the selected workspace session history', () => {
+  it('opens the selected workspace session history from the card', () => {
     const onOpenWorkspace = vi.fn();
     render(
       <WorkspacesView
@@ -173,13 +173,40 @@ describe('WorkspacesView', () => {
       />
     );
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'View sessions for Lumora' })
+    const action = screen.getByRole('button', {
+      name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+    });
+    expect(action.tagName).toBe('BUTTON');
+    expect(action.closest('article')).toContainElement(
+      screen.getByRole('heading', { name: 'Lumora' })
     );
+    fireEvent.click(action);
 
-    expect(onOpenWorkspace).toHaveBeenCalledOnce();
     expect(onOpenWorkspace).toHaveBeenCalledWith(
       catalogSnapshot.workspaces[0]!.id
+    );
+    expect(screen.queryByText('View sessions')).not.toBeInTheDocument();
+  });
+
+  it('keeps unavailable workspace cards natively navigable', () => {
+    const onOpenWorkspace = vi.fn();
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={onOpenWorkspace}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    const action = screen.getByRole('button', {
+      name: 'Open sessions for Archived docs at D:\\Archive\\docs'
+    });
+    expect(action.tagName).toBe('BUTTON');
+    fireEvent.click(action);
+    expect(onOpenWorkspace).toHaveBeenCalledWith(
+      catalogSnapshot.workspaces[1]!.id
     );
   });
 
