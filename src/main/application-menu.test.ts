@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import type { MenuItemConstructorOptions } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -40,5 +43,19 @@ describe('configureApplicationMenu', () => {
     expect(controller.setApplicationMenu).toHaveBeenCalledWith(
       controller.builtMenu
     );
+  });
+
+  it('configures the application menu before creating the first window', () => {
+    const mainSource = readFileSync(
+      fileURLToPath(new URL('./index.ts', import.meta.url)),
+      'utf8'
+    );
+    const configurationIndex = mainSource.indexOf(
+      'configureApplicationMenu(Menu, { platform });'
+    );
+    const firstWindowIndex = mainSource.indexOf('await createMainWindow();');
+
+    expect(configurationIndex).toBeGreaterThan(-1);
+    expect(firstWindowIndex).toBeGreaterThan(configurationIndex);
   });
 });

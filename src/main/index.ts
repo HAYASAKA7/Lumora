@@ -6,11 +6,13 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   net,
   protocol
 } from 'electron';
 
 import { IPC_CHANNELS, PlatformSchema } from '../shared/contracts';
+import { configureApplicationMenu } from './application-menu';
 import {
   createCatalogRuntime,
   type CatalogRuntime
@@ -128,6 +130,7 @@ async function createMainWindow(): Promise<void> {
 }
 
 void app.whenReady().then(async () => {
+  configureApplicationMenu(Menu, { platform });
   registerApplicationProtocol();
   catalogRuntime = createCatalogRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
