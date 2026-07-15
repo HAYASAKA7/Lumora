@@ -6,6 +6,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEffect } from 'react';
 
@@ -21,6 +22,8 @@ import type {
   TerminalProfile
 } from '../../shared/contracts';
 import App from './App';
+
+const stylesheet = readFileSync('src/renderer/src/styles.css', 'utf8');
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
@@ -347,6 +350,24 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Collapse sidebar' })
     ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('uses the centered 79 px collapsed icon rail contract', () => {
+    const collapsedRule = stylesheet.match(
+      /\.app-shell\.sidebar-collapsed\s*\{([^}]*)\}/
+    )?.[1];
+
+    expect(collapsedRule).toContain(
+      'grid-template-columns: 79px minmax(0, 1fr)'
+    );
+  });
+
+  it('does not add a left stripe to the selected desktop navigation item', () => {
+    const selectedRule = stylesheet.match(
+      /\.nav-item\[aria-current="page"\]\s*\{([^}]*)\}/
+    )?.[1];
+
+    expect(selectedRule).not.toContain('box-shadow');
   });
 
   it('opens on Home and exposes the complete primary navigation', () => {

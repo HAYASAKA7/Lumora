@@ -67,7 +67,7 @@ button {
 }
 
 .app-shell.sidebar-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 79px minmax(0, 1fr);
 }
 
 .skip-link {
@@ -230,7 +230,6 @@ button {
   color: #fff;
   background: #182a42;
   border-color: rgba(122, 164, 221, 0.16);
-  box-shadow: inset 3px 0 0 var(--blue);
 }
 
 .icon {
