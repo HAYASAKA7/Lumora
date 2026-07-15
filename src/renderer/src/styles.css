@@ -687,6 +687,49 @@ button {
   gap: 18px;
 }
 
+.settings-category-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.settings-category-tab {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.settings-category-tab:hover {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.settings-category-tab[aria-selected='true'] {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.settings-category-panel {
+  min-width: 0;
+}
+
+.settings-category-panel[hidden] {
+  display: none;
+}
+
 .keyboard-settings-panel {
   display: grid;
   gap: 18px;
