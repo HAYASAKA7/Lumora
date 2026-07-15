@@ -40,6 +40,7 @@ describe('configureApplicationMenu', () => {
       { role: 'editMenu' },
       { role: 'windowMenu' }
     ]);
+    expect(controller.setApplicationMenu).toHaveBeenCalledOnce();
     expect(controller.setApplicationMenu).toHaveBeenCalledWith(
       controller.builtMenu
     );
