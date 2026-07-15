@@ -238,19 +238,24 @@ app.on('before-quit', (event) => {
   shutdownStarted = true;
   const runtime = terminalRuntime;
   void (async () => {
-    await Promise.all([
-      runtime?.shutdown() ?? Promise.resolve(),
-      flushWindowState()
-    ]);
-    unsubscribeTerminalEvents?.();
-    unsubscribeTerminalEvents = null;
-    runtime?.close();
-    if (terminalRuntime === runtime) {
-      terminalRuntime = null;
+    try {
+      await Promise.all([
+        runtime?.shutdown() ?? Promise.resolve(),
+        flushWindowState()
+      ]);
+    } catch (error) {
+      console.error('Unable to complete Lumora shutdown cleanly.', error);
+    } finally {
+      unsubscribeTerminalEvents?.();
+      unsubscribeTerminalEvents = null;
+      runtime?.close();
+      if (terminalRuntime === runtime) {
+        terminalRuntime = null;
+      }
+      catalogRuntime?.close();
+      catalogRuntime = null;
+      app.quit();
     }
-    catalogRuntime?.close();
-    catalogRuntime = null;
-    app.quit();
   })();
 });
 

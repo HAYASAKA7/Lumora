@@ -50,4 +50,16 @@ describe('window-state main-process integration', () => {
       source.lastIndexOf('app.quit()')
     );
   });
+
+  it('still completes application cleanup when asynchronous shutdown rejects', () => {
+    const awaitShutdown = source.indexOf('await Promise.all([');
+    const quit = source.lastIndexOf('app.quit()');
+    const shutdownBlock = source.slice(
+      source.lastIndexOf('void (async () => {', awaitShutdown),
+      quit
+    );
+
+    expect(shutdownBlock).toContain('try {');
+    expect(shutdownBlock).toContain('} finally {');
+  });
 });
