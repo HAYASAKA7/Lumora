@@ -251,6 +251,36 @@ describe('WorkspaceSessionsView', () => {
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
   });
 
+  it('renders workspace history in batches of forty', () => {
+    const sessions = Array.from({ length: 45 }, (_, index) => ({
+      ...snapshot.sessions[0]!,
+      id: (index + 200).toString(16).padStart(64, '0'),
+      nativeId: `workspace-session-${index + 1}`,
+      title: `Workspace session ${index + 1}`
+    }));
+    render(
+      <WorkspaceSessionsView
+        isRefreshing={false}
+        onBack={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        operationError={null}
+        profiles={[profile]}
+        providerScan={providerScan}
+        status={{
+          state: 'ready',
+          snapshot: { ...snapshot, sessions }
+        }}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
+    fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(45);
+  });
+
   it('refreshes the complete workspace history from the detail toolbar', () => {
     const onRefresh = vi.fn();
     render(

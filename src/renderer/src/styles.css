@@ -1015,6 +1015,17 @@ button {
   padding-top: 18px;
 }
 
+.workspace-card,
+.workspace-session-card {
+  contain: layout style;
+}
+
+.progressive-list-control {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+}
+
 .workspace-card {
   position: relative;
   min-width: 0;

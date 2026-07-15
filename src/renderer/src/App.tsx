@@ -646,6 +646,42 @@ export default function App(): ReactNode {
     [activateRuntime, updateRuntime]
   );
 
+  const resumeCatalogSession = useCallback(
+    (session: SessionSummary) => {
+      if (catalogStatus.state !== 'ready') {
+        return;
+      }
+      const workspace = catalogStatus.snapshot.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace === undefined) {
+        return;
+      }
+      setNewSessionOpen(false);
+      setRecoveryRuntime(null);
+      setResumeIntent({ session, workspace });
+    },
+    [catalogStatus]
+  );
+
+  const resumeWorkspaceSession = useCallback(
+    (session: SessionSummary) => {
+      if (workspaceDetailStatus.state !== 'ready') {
+        return;
+      }
+      const workspace = workspaceDetailStatus.snapshot.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace === undefined) {
+        return;
+      }
+      setNewSessionOpen(false);
+      setRecoveryRuntime(null);
+      setResumeIntent({ session, workspace });
+    },
+    [workspaceDetailStatus]
+  );
+
   const openRuntimes = openRuntimeIds
     .map((id) => runtimes.find((runtime) => runtime.id === id))
     .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
@@ -874,16 +910,7 @@ export default function App(): ReactNode {
                   setResumeIntent(null);
                   setRecoveryRuntime(runtime);
                 }}
-                onResume={(session) => {
-                  if (catalogStatus.state !== 'ready') return;
-                  const workspace = catalogStatus.snapshot.workspaces.find(
-                    (candidate) => candidate.id === session.workspaceId
-                  );
-                  if (workspace === undefined) return;
-                  setNewSessionOpen(false);
-                  setRecoveryRuntime(null);
-                  setResumeIntent({ session, workspace });
-                }}
+                onResume={resumeCatalogSession}
                 profiles={terminalProfiles}
                 providerScan={
                   providerStatus.state === 'ready' ? providerStatus.scan : null
@@ -906,19 +933,7 @@ export default function App(): ReactNode {
                   isRefreshing={isWorkspaceDetailRefreshing}
                   onBack={closeWorkspaceDetail}
                   onRefresh={refreshWorkspaceDetail}
-                  onResume={(session) => {
-                    if (workspaceDetailStatus.state !== 'ready') {
-                      return;
-                    }
-                    const workspace = workspaceDetailStatus.snapshot.workspaces.find(
-                      (candidate) => candidate.id === session.workspaceId
-                    );
-                    if (workspace !== undefined) {
-                      setNewSessionOpen(false);
-                      setRecoveryRuntime(null);
-                      setResumeIntent({ session, workspace });
-                    }
-                  }}
+                  onResume={resumeWorkspaceSession}
                   onRetry={() => openWorkspaceDetail(selectedWorkspaceId)}
                   operationError={workspaceDetailOperationError}
                   profiles={terminalProfiles}
@@ -934,19 +949,7 @@ export default function App(): ReactNode {
                 isRefreshing={isCatalogRefreshing}
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
-                onResume={(session) => {
-                  if (catalogStatus.state !== 'ready') {
-                    return;
-                  }
-                  const workspace = catalogStatus.snapshot.workspaces.find(
-                    (candidate) => candidate.id === session.workspaceId
-                  );
-                  if (workspace !== undefined) {
-                    setNewSessionOpen(false);
-                    setRecoveryRuntime(null);
-                    setResumeIntent({ session, workspace });
-                  }
-                }}
+                onResume={resumeCatalogSession}
                 onSearchChange={setSessionSearch}
                 provider={sessionProvider}
                 providerScan={

@@ -1,13 +1,20 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 import type {
   ProviderId,
   ProviderScanResult,
   SessionSummary,
-  TerminalProfile
+  TerminalProfile,
+  WorkspaceSummary
 } from '../../../shared/contracts';
 import type { CatalogViewStatus } from './CatalogViews';
+import {
+  ProgressiveListControl,
+  useProgressiveList
+} from './progressive-list';
 import { resolveSessionResumeDisabledReason } from './session-resume';
+
+const SESSION_BATCH_SIZE = 40;
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
   codex: 'Codex',
@@ -27,6 +34,61 @@ interface WorkspaceSessionsViewProps {
   operationError: string | null;
 }
 
+const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
+  session,
+  workspace,
+  providerScan,
+  profiles,
+  onResume
+}: {
+  session: SessionSummary;
+  workspace: WorkspaceSummary;
+  providerScan: ProviderScanResult | null;
+  profiles: readonly TerminalProfile[];
+  onResume(session: SessionSummary): void;
+}): ReactNode {
+  const disabledReason = resolveSessionResumeDisabledReason({
+    session,
+    workspace,
+    providerScan,
+    profiles
+  });
+  return (
+    <article className="workspace-session-card">
+      <div className="workspace-session-copy">
+        <div className="workspace-session-heading">
+          <h3>{session.title}</h3>
+          <span className={`provider-badge provider-${session.provider}`}>
+            {PROVIDER_LABELS[session.provider]}
+          </span>
+        </div>
+        <div className="workspace-metadata">
+          <span>
+            Updated{' '}
+            <time dateTime={session.updatedAt}>
+              {new Date(session.updatedAt).toLocaleString()}
+            </time>
+          </span>
+          {session.sourceFreshness === 'stale' ? (
+            <span className="source-stale">Stale source</span>
+          ) : (
+            <span className="source-current">Current</span>
+          )}
+        </div>
+      </div>
+      <button
+        className="secondary-button"
+        disabled={disabledReason !== null}
+        onClick={() => onResume(session)}
+        title={disabledReason ?? 'Resume this session'}
+        type="button"
+      >
+        Resume
+      </button>
+    </article>
+  );
+});
+
 export function WorkspaceSessionsView({
   workspaceId,
   status,
@@ -39,6 +101,19 @@ export function WorkspaceSessionsView({
   onResume,
   operationError
 }: WorkspaceSessionsViewProps): ReactNode {
+  const sessionCount =
+    status.state === 'ready'
+      ? status.snapshot.sessions.filter(
+          (session) => session.workspaceId === workspaceId
+        ).length
+      : 0;
+  const progress = useProgressiveList({
+    itemCount: sessionCount,
+    resetKey: workspaceId,
+    initialCount: SESSION_BATCH_SIZE,
+    batchSize: SESSION_BATCH_SIZE
+  });
+
   if (status.state === 'loading') {
     return (
       <section className="catalog-panel workspace-detail">
@@ -147,52 +222,25 @@ export function WorkspaceSessionsView({
           <p>Refresh after using Codex or Claude Code in this folder.</p>
         </div>
       ) : (
-        <div className="workspace-session-list">
-          {sessions.map((session) => {
-            const disabledReason = resolveSessionResumeDisabledReason({
-              session,
-              workspace,
-              providerScan,
-              profiles
-            });
-            return (
-              <article className="workspace-session-card" key={session.id}>
-                <div className="workspace-session-copy">
-                  <div className="workspace-session-heading">
-                    <h3>{session.title}</h3>
-                    <span
-                      className={`provider-badge provider-${session.provider}`}
-                    >
-                      {PROVIDER_LABELS[session.provider]}
-                    </span>
-                  </div>
-                  <div className="workspace-metadata">
-                    <span>
-                      Updated{' '}
-                      <time dateTime={session.updatedAt}>
-                        {new Date(session.updatedAt).toLocaleString()}
-                      </time>
-                    </span>
-                    {session.sourceFreshness === 'stale' ? (
-                      <span className="source-stale">Stale source</span>
-                    ) : (
-                      <span className="source-current">Current</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  className="secondary-button"
-                  disabled={disabledReason !== null}
-                  onClick={() => onResume(session)}
-                  title={disabledReason ?? 'Resume this session'}
-                  type="button"
-                >
-                  Resume
-                </button>
-              </article>
-            );
-          })}
-        </div>
+        <>
+          <div className="workspace-session-list">
+            {sessions.slice(0, progress.visibleCount).map((session) => (
+              <WorkspaceSessionCard
+                key={session.id}
+                onResume={onResume}
+                profiles={profiles}
+                providerScan={providerScan}
+                session={session}
+                workspace={workspace}
+              />
+            ))}
+          </div>
+          <ProgressiveListControl
+            hasMore={progress.hasMore}
+            label="Load more sessions"
+            onLoadMore={progress.showMore}
+          />
+        </>
       )}
     </section>
   );
