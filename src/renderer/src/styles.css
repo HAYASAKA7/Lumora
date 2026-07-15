@@ -63,6 +63,11 @@ button {
   min-height: 620px;
   overflow: hidden;
   background: var(--navy-950);
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .skip-link {
@@ -88,6 +93,7 @@ button {
   min-width: 0;
   flex-direction: column;
   padding: 26px 18px 20px;
+  overflow: hidden;
   color: #d8e2ef;
   background: var(--navy-900);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -114,9 +120,14 @@ button {
 
 .brand {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 12px;
   padding: 0 8px 26px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
 }
 
 .brand-mark {
@@ -130,6 +141,18 @@ button {
 .brand strong,
 .brand small {
   display: block;
+}
+
+.brand-copy,
+.nav-label-text,
+.nav-item-label,
+.sidebar-note-copy {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 120ms ease;
 }
 
 .brand strong {
@@ -162,8 +185,22 @@ button {
 }
 
 .nav-label {
+  position: relative;
+  min-height: 22px;
   padding: 0 11px 9px;
+  overflow: hidden;
   color: #677b95;
+}
+
+.nav-label-divider {
+  position: absolute;
+  top: 7px;
+  left: 11px;
+  width: 19px;
+  height: 1px;
+  background: #677b95;
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
 .nav-item {
@@ -237,6 +274,17 @@ button {
   margin-top: 2px;
   color: #7f91a8;
   font-size: 0.7rem;
+}
+
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .nav-label-text,
+.sidebar-collapsed .nav-item-label,
+.sidebar-collapsed .sidebar-note-copy {
+  opacity: 0;
+}
+
+.sidebar-collapsed .nav-label-divider {
+  opacity: 1;
 }
 
 .workspace-frame {
@@ -1379,6 +1427,11 @@ button {
     grid-template-rows: auto minmax(0, 1fr);
     height: 100vh;
     min-height: 640px;
+  }
+
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .sidebar {
