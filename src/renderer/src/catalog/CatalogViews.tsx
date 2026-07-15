@@ -8,6 +8,7 @@ import type {
   TerminalProfile,
   RuntimeSummary
 } from '../../../shared/contracts';
+import { resolveSessionResumeDisabledReason } from './session-resume';
 import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
 
 export type CatalogViewStatus =
@@ -20,13 +21,15 @@ interface WorkspacesViewProps {
   isRefreshing: boolean;
   onRefresh(): void;
   onAddWorkspace(): void;
+  onOpenWorkspace(workspaceId: string): void;
 }
 
 export function WorkspacesView({
   status,
   isRefreshing,
   onRefresh,
-  onAddWorkspace
+  onAddWorkspace,
+  onOpenWorkspace
 }: WorkspacesViewProps): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -118,6 +121,14 @@ export function WorkspacesView({
                   </span>
                 )}
               </div>
+              <button
+                aria-label={`View sessions for ${workspace.displayName}`}
+                className="secondary-button workspace-open-button"
+                onClick={() => onOpenWorkspace(workspace.id)}
+                type="button"
+              >
+                View sessions
+              </button>
             </article>
           ))}
         </div>
@@ -269,19 +280,12 @@ export function SessionsView({
             <tbody>
               {snapshot.sessions.map((session) => {
                 const workspace = workspaces.get(session.workspaceId);
-                const provider = providerScan?.providers.find(
-                  (installation) => installation.provider === session.provider
-                );
-                const disabledReason =
-                  session.sourceFreshness !== 'current'
-                    ? 'Session source is stale.'
-                    : workspace === undefined || !workspace.available
-                      ? 'Workspace is unavailable.'
-                      : provider?.state !== 'ready'
-                        ? 'Provider is unavailable.'
-                        : !profiles.some((profile) => profile.available)
-                          ? 'No terminal profile is available.'
-                          : null;
+                const disabledReason = resolveSessionResumeDisabledReason({
+                  session,
+                  workspace,
+                  providerScan,
+                  profiles
+                });
                 return (
                   <tr key={session.id}>
                     <td>

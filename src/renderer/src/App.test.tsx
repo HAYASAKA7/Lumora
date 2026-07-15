@@ -1251,6 +1251,137 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Lumora' })).toBeInTheDocument();
   });
 
+  it('loads complete workspace history and resumes from the workspace detail', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const detailCatalog: CatalogSnapshot = {
+      ...readyCatalog,
+      workspaces: [
+        {
+          ...readyCatalog.workspaces[0]!,
+          canonicalPath: 'D:\\Projects\\AI\\Lumora-fresh'
+        }
+      ]
+    };
+    let unfilteredReads = 0;
+    const getCatalog = vi.fn(async (query: { text: string }) => {
+      if (query.text === 'hidden') {
+        return { ...readyCatalog, sessions: [] };
+      }
+      unfilteredReads += 1;
+      return unfilteredReads === 1 ? readyCatalog : detailCatalog;
+    });
+    const refreshCatalog = vi
+      .fn()
+      .mockResolvedValueOnce(readyCatalog)
+      .mockResolvedValue(detailCatalog);
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog,
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined)),
+      refreshCatalog
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
+      target: { value: 'hidden' }
+    });
+    await waitFor(() =>
+      expect(getCatalog).toHaveBeenCalledWith({ text: 'hidden', provider: null })
+    );
+    expect(screen.getByText('No sessions match these filters')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+    );
+
+    await waitFor(() =>
+      expect(getCatalog).toHaveBeenCalledWith({ text: '', provider: null })
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Lumora sessions' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+
+    refreshCatalog.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh sessions' }));
+    await waitFor(() =>
+      expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
+    expect(dialog).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('D:\\Projects\\AI\\Lumora-fresh')
+    ).toBeInTheDocument();
+  });
+
+  it('keeps workspace-detail refresh errors inside the detail route', async () => {
+    const refreshCatalog = vi
+      .fn()
+      .mockResolvedValueOnce(readyCatalog)
+      .mockRejectedValueOnce(new Error('detail scan failed'));
+    setSystemInfoResult(undefined, undefined, { refreshCatalog });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Refresh sessions' })
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Workspace sessions refresh failed. Last saved data is still shown.'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workspaces' }));
+
+    expect(
+      screen.queryByText(
+        'Workspace sessions refresh failed. Last saved data is still shown.'
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it('ignores a workspace-detail response after returning to the list', async () => {
+    const detail = deferred<CatalogSnapshot>();
+    const getCatalog = vi
+      .fn()
+      .mockResolvedValueOnce(readyCatalog)
+      .mockImplementation(() => detail.promise);
+    setSystemInfoResult(undefined, undefined, { getCatalog });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View sessions for Lumora' })
+    );
+    expect(screen.getByText('Loading workspace sessions')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workspaces' }));
+
+    await act(async () => detail.resolve(readyCatalog));
+
+    expect(
+      screen.getByRole('button', { name: 'View sessions for Lumora' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Lumora sessions' })
+    ).not.toBeInTheDocument();
+  });
+
   it('debounces session search and applies provider filters immediately', async () => {
     const getCatalog = vi
       .fn()

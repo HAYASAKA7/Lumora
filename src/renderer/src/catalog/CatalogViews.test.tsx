@@ -120,6 +120,7 @@ describe('WorkspacesView', () => {
       <WorkspacesView
         isRefreshing={false}
         onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
         onRefresh={vi.fn()}
         status={{ state: 'loading' }}
       />
@@ -135,6 +136,7 @@ describe('WorkspacesView', () => {
       <WorkspacesView
         isRefreshing={false}
         onAddWorkspace={onAddWorkspace}
+        onOpenWorkspace={vi.fn()}
         onRefresh={onRefresh}
         status={{ state: 'ready', snapshot: catalogSnapshot }}
       />
@@ -159,11 +161,34 @@ describe('WorkspacesView', () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  it('opens the selected workspace session history', () => {
+    const onOpenWorkspace = vi.fn();
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={onOpenWorkspace}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View sessions for Lumora' })
+    );
+
+    expect(onOpenWorkspace).toHaveBeenCalledOnce();
+    expect(onOpenWorkspace).toHaveBeenCalledWith(
+      catalogSnapshot.workspaces[0]!.id
+    );
+  });
+
   it('shows honest empty and recoverable failure states', () => {
     const { rerender } = render(
       <WorkspacesView
         isRefreshing={false}
         onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
         onRefresh={vi.fn()}
         status={{
           state: 'ready',
@@ -179,6 +204,7 @@ describe('WorkspacesView', () => {
       <WorkspacesView
         isRefreshing={false}
         onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
         onRefresh={onRefresh}
         status={{ state: 'error' }}
       />
@@ -302,6 +328,108 @@ describe('SessionsView', () => {
 
     fireEvent.click(buttons[0]!);
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
+  });
+
+  it('explains each unavailable resume dependency', () => {
+    const currentSession = catalogSnapshot.sessions[0]!;
+    const unavailableWorkspaceSnapshot: CatalogSnapshot = {
+      ...catalogSnapshot,
+      workspaces: [
+        { ...catalogSnapshot.workspaces[0]!, available: false }
+      ],
+      sessions: [currentSession]
+    };
+    const { rerender } = render(
+      <SessionsView
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
+        queryText=""
+        status={{ state: 'ready', snapshot: unavailableWorkspaceSnapshot }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+      'title',
+      'Workspace is unavailable.'
+    );
+
+    rerender(
+      <SessionsView
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={{
+          ...providerScan,
+          providers: providerScan.providers.map((installation) =>
+            installation.provider === 'codex'
+              ? {
+                  ...installation,
+                  executablePath: null,
+                  issue: {
+                    code: 'PROVIDER_NOT_FOUND' as const,
+                    message: 'Codex was not found on PATH.',
+                    recovery: 'Install Codex or add it to PATH.',
+                    retryable: true
+                  },
+                  state: 'not_found' as const,
+                  version: null
+                }
+              : installation
+          )
+        }}
+        profiles={[terminalProfile]}
+        queryText=""
+        status={{
+          state: 'ready',
+          snapshot: {
+            ...catalogSnapshot,
+            workspaces: [catalogSnapshot.workspaces[0]!],
+            sessions: [currentSession]
+          }
+        }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+      'title',
+      'Provider is unavailable.'
+    );
+
+    rerender(
+      <SessionsView
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[{ ...terminalProfile, available: false }]}
+        queryText=""
+        status={{
+          state: 'ready',
+          snapshot: {
+            ...catalogSnapshot,
+            workspaces: [catalogSnapshot.workspaces[0]!],
+            sessions: [currentSession]
+          }
+        }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+      'title',
+      'No terminal profile is available.'
+    );
   });
 });
 

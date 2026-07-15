@@ -1092,6 +1092,96 @@ button {
   font-size: 0.72rem;
 }
 
+.workspace-open-button {
+  margin-top: 16px;
+}
+
+.workspace-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.workspace-detail > .catalog-state,
+.workspace-detail > .catalog-empty {
+  max-width: none;
+}
+
+.workspace-detail-toolbar,
+.workspace-detail-header,
+.workspace-session-card,
+.workspace-session-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.workspace-detail-toolbar,
+.workspace-detail-header,
+.workspace-session-card {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-detail-header {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.workspace-detail-header h2,
+.workspace-session-heading h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.workspace-detail-header h2 {
+  margin-top: 6px;
+  font-size: 1.2rem;
+  letter-spacing: -0.015em;
+}
+
+.workspace-detail > .workspace-path {
+  margin-top: -8px;
+}
+
+.workspace-detail-metadata {
+  margin-top: -9px;
+}
+
+.workspace-session-list {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.workspace-session-card {
+  padding: 16px;
+  background: #fbfcfe;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.workspace-session-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.workspace-session-heading {
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.workspace-session-heading h3 {
+  font-size: 0.94rem;
+  line-height: 1.4;
+}
+
+.workspace-session-card > .secondary-button {
+  flex: 0 0 auto;
+}
+
 .session-toolbar {
   align-items: flex-end;
   gap: 12px;
@@ -1550,6 +1640,21 @@ button {
     overflow: visible;
     text-overflow: initial;
     white-space: normal;
+  }
+
+  .workspace-detail-toolbar,
+  .workspace-detail-header,
+  .workspace-session-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-detail-toolbar .catalog-actions {
+    align-items: center;
+  }
+
+  .workspace-session-card > .secondary-button {
+    width: 100%;
   }
 
   .session-table-wrap {

@@ -16,7 +16,8 @@ import type {
   ProviderId,
   RuntimeSummary,
   SessionSummary,
-  SystemInfo
+  SystemInfo,
+  WorkspaceSummary
 } from '../../shared/contracts';
 import {
   CatalogHomeSummary,
@@ -24,6 +25,7 @@ import {
   WorkspacesView,
   type CatalogViewStatus
 } from './catalog/CatalogViews';
+import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
   isRequiredModifierKey,
@@ -77,6 +79,11 @@ type SystemStatus =
   | { state: 'loading' }
   | { state: 'ready'; info: SystemInfo }
   | { state: 'error' };
+
+interface ResumeIntent {
+  session: SessionSummary;
+  workspace: WorkspaceSummary;
+}
 
 const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
 
@@ -243,6 +250,15 @@ export default function App(): ReactNode {
   const [catalogStatus, setCatalogStatus] = useState<CatalogViewStatus>({
     state: 'loading'
   });
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+    null
+  );
+  const [workspaceDetailStatus, setWorkspaceDetailStatus] =
+    useState<CatalogViewStatus>({ state: 'loading' });
+  const [isWorkspaceDetailRefreshing, setIsWorkspaceDetailRefreshing] =
+    useState(false);
+  const [workspaceDetailOperationError, setWorkspaceDetailOperationError] =
+    useState<string | null>(null);
   const [isCatalogRefreshing, setIsCatalogRefreshing] = useState(false);
   const [catalogOperationError, setCatalogOperationError] = useState<
     string | null
@@ -269,11 +285,12 @@ export default function App(): ReactNode {
   const [runtimeSwitcher, setRuntimeSwitcher] =
     useState<RuntimeSwitcherState | null>(null);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
-  const [resumeSession, setResumeSession] = useState<SessionSummary | null>(null);
+  const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
     useState<RuntimeSummary | null>(null);
   const providerRequestId = useRef(0);
   const catalogRequestId = useRef(0);
+  const workspaceDetailRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
   const mainContentRef = useRef<HTMLElement | null>(null);
 
@@ -286,7 +303,7 @@ export default function App(): ReactNode {
     if (mainContentRef.current !== null) {
       mainContentRef.current.scrollTop = 0;
     }
-  }, [activeRouteId, activeRuntimeId, settingsCategory]);
+  }, [activeRouteId, activeRuntimeId, selectedWorkspaceId, settingsCategory]);
 
   const refreshProviders = useCallback(() => {
     const requestId = providerRequestId.current + 1;
@@ -554,6 +571,62 @@ export default function App(): ReactNode {
     );
   }, []);
 
+  const openWorkspaceDetail = useCallback((workspaceId: string) => {
+    const requestId = workspaceDetailRequestId.current + 1;
+    workspaceDetailRequestId.current = requestId;
+    setSelectedWorkspaceId(workspaceId);
+    setWorkspaceDetailStatus({ state: 'loading' });
+    setIsWorkspaceDetailRefreshing(false);
+    setWorkspaceDetailOperationError(null);
+
+    void window.lumora.getCatalog(EMPTY_CATALOG_QUERY).then(
+      (snapshot) => {
+        if (workspaceDetailRequestId.current === requestId) {
+          setWorkspaceDetailStatus({ state: 'ready', snapshot });
+        }
+      },
+      () => {
+        if (workspaceDetailRequestId.current === requestId) {
+          setWorkspaceDetailStatus({ state: 'error' });
+        }
+      }
+    );
+  }, []);
+
+  const closeWorkspaceDetail = useCallback(() => {
+    workspaceDetailRequestId.current += 1;
+    setIsWorkspaceDetailRefreshing(false);
+    setWorkspaceDetailOperationError(null);
+    setSelectedWorkspaceId(null);
+  }, []);
+
+  const refreshWorkspaceDetail = useCallback(() => {
+    if (selectedWorkspaceId === null) {
+      return;
+    }
+
+    const requestId = workspaceDetailRequestId.current + 1;
+    workspaceDetailRequestId.current = requestId;
+    setIsWorkspaceDetailRefreshing(true);
+    setWorkspaceDetailOperationError(null);
+    void window.lumora.refreshCatalog(EMPTY_CATALOG_QUERY).then(
+      (snapshot) => {
+        if (workspaceDetailRequestId.current === requestId) {
+          setWorkspaceDetailStatus({ state: 'ready', snapshot });
+          setIsWorkspaceDetailRefreshing(false);
+        }
+      },
+      () => {
+        if (workspaceDetailRequestId.current === requestId) {
+          setWorkspaceDetailOperationError(
+            'Workspace sessions refresh failed. Last saved data is still shown.'
+          );
+          setIsWorkspaceDetailRefreshing(false);
+        }
+      }
+    );
+  }, [selectedWorkspaceId]);
+
   const handleRuntimeStarted = useCallback(
     (runtime: RuntimeSummary, preview: LaunchPreview) => {
       updateRuntime(runtime);
@@ -567,7 +640,7 @@ export default function App(): ReactNode {
       });
       activateRuntime(runtime.id);
       setNewSessionOpen(false);
-      setResumeSession(null);
+      setResumeIntent(null);
       setRecoveryRuntime(null);
     },
     [activateRuntime, updateRuntime]
@@ -585,13 +658,6 @@ export default function App(): ReactNode {
     : runtimeSwitcher.order
         .map((id) => openRuntimes.find((runtime) => runtime.id === id))
         .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
-  const resumeWorkspace =
-    resumeSession === null || catalogStatus.state !== 'ready'
-      ? null
-      : (catalogStatus.snapshot.workspaces.find(
-          (workspace) => workspace.id === resumeSession.workspaceId
-        ) ?? null);
-
   const openLiveTerminals = useCallback(() => {
     const liveIds = liveRuntimes.map((runtime) => runtime.id);
     setOpenRuntimeIds((current) => [
@@ -729,6 +795,7 @@ export default function App(): ReactNode {
               className="nav-item"
               key={route.id}
               onClick={() => {
+                closeWorkspaceDetail();
                 setActiveRouteId(route.id);
                 setActiveRuntimeId(null);
                 setSidebarExpanded(true);
@@ -767,7 +834,7 @@ export default function App(): ReactNode {
               <button
                 className="refresh-button"
                 onClick={() => {
-                  setResumeSession(null);
+                  setResumeIntent(null);
                   setRecoveryRuntime(null);
                   setNewSessionOpen(true);
                 }}
@@ -804,7 +871,7 @@ export default function App(): ReactNode {
               <CatalogHomeSummary
                 onRecover={(runtime) => {
                   setNewSessionOpen(false);
-                  setResumeSession(null);
+                  setResumeIntent(null);
                   setRecoveryRuntime(runtime);
                 }}
                 providerSummary={providerSummary(providerStatus)}
@@ -812,21 +879,59 @@ export default function App(): ReactNode {
                 status={catalogStatus}
               />
             ) : activeRoute.id === 'workspaces' ? (
-              <WorkspacesView
-                isRefreshing={isCatalogRefreshing}
-                onAddWorkspace={addWorkspace}
-                onRefresh={refreshCatalog}
-                status={catalogStatus}
-              />
+              selectedWorkspaceId === null ? (
+                <WorkspacesView
+                  isRefreshing={isCatalogRefreshing}
+                  onAddWorkspace={addWorkspace}
+                  onOpenWorkspace={openWorkspaceDetail}
+                  onRefresh={refreshCatalog}
+                  status={catalogStatus}
+                />
+              ) : (
+                <WorkspaceSessionsView
+                  isRefreshing={isWorkspaceDetailRefreshing}
+                  onBack={closeWorkspaceDetail}
+                  onRefresh={refreshWorkspaceDetail}
+                  onResume={(session) => {
+                    if (workspaceDetailStatus.state !== 'ready') {
+                      return;
+                    }
+                    const workspace = workspaceDetailStatus.snapshot.workspaces.find(
+                      (candidate) => candidate.id === session.workspaceId
+                    );
+                    if (workspace !== undefined) {
+                      setNewSessionOpen(false);
+                      setRecoveryRuntime(null);
+                      setResumeIntent({ session, workspace });
+                    }
+                  }}
+                  onRetry={() => openWorkspaceDetail(selectedWorkspaceId)}
+                  operationError={workspaceDetailOperationError}
+                  profiles={terminalProfiles}
+                  providerScan={
+                    providerStatus.state === 'ready' ? providerStatus.scan : null
+                  }
+                  status={workspaceDetailStatus}
+                  workspaceId={selectedWorkspaceId}
+                />
+              )
             ) : activeRoute.id === 'sessions' ? (
               <SessionsView
                 isRefreshing={isCatalogRefreshing}
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
                 onResume={(session) => {
-                  setNewSessionOpen(false);
-                  setRecoveryRuntime(null);
-                  setResumeSession(session);
+                  if (catalogStatus.state !== 'ready') {
+                    return;
+                  }
+                  const workspace = catalogStatus.snapshot.workspaces.find(
+                    (candidate) => candidate.id === session.workspaceId
+                  );
+                  if (workspace !== undefined) {
+                    setNewSessionOpen(false);
+                    setRecoveryRuntime(null);
+                    setResumeIntent({ session, workspace });
+                  }
                 }}
                 onSearchChange={setSessionSearch}
                 provider={sessionProvider}
@@ -917,16 +1022,16 @@ export default function App(): ReactNode {
           workspaces={catalogStatus.snapshot.workspaces}
         />
       ) : null}
-      {resumeSession !== null && resumeWorkspace !== null ? (
+      {resumeIntent !== null ? (
         <ResumeSessionDialog
-          onClose={() => setResumeSession(null)}
+          onClose={() => setResumeIntent(null)}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}
           providerScan={
             providerStatus.state === 'ready' ? providerStatus.scan : null
           }
-          session={resumeSession}
-          workspace={resumeWorkspace}
+          session={resumeIntent.session}
+          workspace={resumeIntent.workspace}
         />
       ) : null}
       {recoveryRuntime !== null && catalogStatus.state === 'ready' ? (
