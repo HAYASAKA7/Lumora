@@ -114,6 +114,24 @@ const terminalProfile: TerminalProfile = {
   recommended: true
 };
 
+function repeatedWorkspaces(count: number): CatalogSnapshot['workspaces'] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...catalogSnapshot.workspaces[0]!,
+    id: index.toString(16).padStart(64, '0'),
+    displayName: `Workspace ${index + 1}`,
+    canonicalPath: `D:\\Projects\\Workspace-${index + 1}`
+  }));
+}
+
+function repeatedSessions(count: number): CatalogSnapshot['sessions'] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...catalogSnapshot.sessions[0]!,
+    id: (index + 100).toString(16).padStart(64, '0'),
+    nativeId: `session-${index + 1}`,
+    title: `Session ${index + 1}`
+  }));
+}
+
 describe('WorkspacesView', () => {
   it('announces the initial catalog load', () => {
     render(
@@ -208,6 +226,33 @@ describe('WorkspacesView', () => {
     expect(onOpenWorkspace).toHaveBeenCalledWith(
       catalogSnapshot.workspaces[1]!.id
     );
+  });
+
+  it('renders workspaces in batches of twenty', () => {
+    const workspaces = repeatedWorkspaces(25);
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{
+          state: 'ready',
+          snapshot: { ...catalogSnapshot, workspaces }
+        }}
+      />
+    );
+
+    expect(
+      screen.getAllByRole('button', { name: /Open sessions for Workspace/ })
+    ).toHaveLength(20);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Load more workspaces' })
+    );
+    expect(
+      screen.getAllByRole('button', { name: /Open sessions for Workspace/ })
+    ).toHaveLength(25);
   });
 
   it('shows honest empty and recoverable failure states', () => {
@@ -355,6 +400,46 @@ describe('SessionsView', () => {
 
     fireEvent.click(buttons[0]!);
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
+  });
+
+  it('renders sessions in batches of forty and resets for a new query', () => {
+    const sessions = repeatedSessions(45);
+    const sharedProps = {
+      isRefreshing: false,
+      onProviderChange: vi.fn(),
+      onRefresh: vi.fn(),
+      onResume: vi.fn(),
+      onSearchChange: vi.fn(),
+      provider: null,
+      providerScan,
+      profiles: [terminalProfile]
+    };
+    const { rerender } = render(
+      <SessionsView
+        {...sharedProps}
+        queryText=""
+        status={{
+          state: 'ready',
+          snapshot: { ...catalogSnapshot, sessions }
+        }}
+      />
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
+    fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(45);
+
+    rerender(
+      <SessionsView
+        {...sharedProps}
+        queryText="new"
+        status={{
+          state: 'ready',
+          snapshot: { ...catalogSnapshot, sessions }
+        }}
+      />
+    );
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
   });
 
   it('explains each unavailable resume dependency', () => {
