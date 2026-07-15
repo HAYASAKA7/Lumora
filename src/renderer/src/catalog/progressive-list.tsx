@@ -36,6 +36,15 @@ export function useProgressiveList({
     resetKey,
     requestedCount: boundedInitialCount
   }));
+
+  useEffect(() => {
+    setProgress((current) =>
+      current.resetKey === resetKey
+        ? current
+        : { resetKey, requestedCount: boundedInitialCount }
+    );
+  }, [boundedInitialCount, resetKey]);
+
   const requestedCount =
     progress.resetKey === resetKey
       ? progress.requestedCount

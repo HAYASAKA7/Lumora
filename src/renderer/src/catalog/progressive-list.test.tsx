@@ -33,6 +33,9 @@ describe('useProgressiveList', () => {
 
     rerender({ itemCount: 55, resetKey: 'filtered' });
     expect(result.current).toMatchObject({ visibleCount: 20, hasMore: true });
+
+    rerender({ itemCount: 55, resetKey: 'all' });
+    expect(result.current).toMatchObject({ visibleCount: 20, hasMore: true });
   });
 });
 
