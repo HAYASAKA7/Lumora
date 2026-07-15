@@ -61,7 +61,7 @@ function Harness({
       onRefreshProviders={onRefreshProviders}
       platform="win32"
       profiles={[]}
-      providerStatus="ready"
+      providerStatus={{ state: 'loading' }}
       sessions={[]}
       workspaces={[]}
     />

@@ -82,9 +82,11 @@ export function SettingsView({
     }
 
     if (nextIndex === null) return;
+    const nextCategory = SETTINGS_CATEGORIES[nextIndex];
+    if (nextCategory === undefined) return;
 
     event.preventDefault();
-    selectAndFocus(SETTINGS_CATEGORIES[nextIndex].id);
+    selectAndFocus(nextCategory.id);
   };
 
   return (
