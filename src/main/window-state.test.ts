@@ -134,6 +134,32 @@ describe('resolveWindowRestore', () => {
     });
   });
 
+  it('breaks equal display intersections independently of enumeration order', () => {
+    const leftDisplay = { x: -1280, y: 0, width: 1280, height: 1024 };
+    const rightDisplay = { x: 0, y: 0, width: 1280, height: 1024 };
+    const centeredState = {
+      ...validState,
+      normalBounds: {
+        x: -380,
+        y: 100,
+        width: MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      }
+    };
+
+    const leftFirst = resolveWindowRestore(centeredState, [
+      leftDisplay,
+      rightDisplay
+    ]);
+    const rightFirst = resolveWindowRestore(centeredState, [
+      rightDisplay,
+      leftDisplay
+    ]);
+
+    expect(leftFirst).toEqual(rightFirst);
+    expect(leftFirst.normalBounds?.x).toBe(-760);
+  });
+
   it('falls back for off-screen bounds and undersized display work areas', () => {
     const offScreenState = {
       ...validState,
@@ -384,11 +410,20 @@ describe('createWindowStateManager', () => {
       maximized: true
     });
 
-    const restoredBounds = { x: 50, y: 60, width: 1000, height: 720 };
+    const transientBounds = { x: 0, y: 0, width: 1920, height: 1040 };
     window.setFullScreen(false);
     window.setMaximized(false);
-    window.setBounds(restoredBounds);
+    window.setBounds(transientBounds);
     window.emit('unmaximize');
+    await manager.flush();
+    expect(writtenState(fileSystem)).toEqual({
+      version: 1,
+      normalBounds: validState.normalBounds,
+      maximized: false
+    });
+
+    const restoredBounds = { x: 50, y: 60, width: 1000, height: 720 };
+    window.setBounds(restoredBounds);
     window.emit('resize');
     await manager.flush();
     expect(writtenState(fileSystem)).toEqual({

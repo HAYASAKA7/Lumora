@@ -111,7 +111,14 @@ export function resolveWindowRestore(
       ({ intersection: visible }) =>
         visible.width >= 64 && visible.height >= 32
     )
-    .sort((left, right) => right.intersection.area - left.intersection.area);
+    .sort(
+      (left, right) =>
+        right.intersection.area - left.intersection.area ||
+        left.workArea.x - right.workArea.x ||
+        left.workArea.y - right.workArea.y ||
+        left.workArea.width - right.workArea.width ||
+        left.workArea.height - right.workArea.height
+    );
   const selected = candidates[0]?.workArea;
 
   if (selected === undefined) {
@@ -232,7 +239,7 @@ export function createWindowStateManager({
     }, debounceMs);
   };
 
-  const captureWindowState = (): void => {
+  const captureGeometry = (): void => {
     const maximized = window.isMaximized();
     if (!maximized && !window.isMinimized() && !window.isFullScreen()) {
       latestState = {
@@ -244,14 +251,18 @@ export function createWindowStateManager({
     scheduleWrite();
   };
 
-  const events: readonly TrackedWindowEvent[] = [
-    'move',
-    'resize',
-    'maximize',
-    'unmaximize'
-  ];
-  for (const event of events) {
-    window.on(event, captureWindowState);
+  const captureMaximized = (): void => {
+    latestState = { ...latestState, maximized: window.isMaximized() };
+    scheduleWrite();
+  };
+
+  const geometryEvents = ['move', 'resize'] as const;
+  const maximizationEvents = ['maximize', 'unmaximize'] as const;
+  for (const event of geometryEvents) {
+    window.on(event, captureGeometry);
+  }
+  for (const event of maximizationEvents) {
+    window.on(event, captureMaximized);
   }
 
   const flush = (): Promise<void> => {
@@ -266,8 +277,11 @@ export function createWindowStateManager({
     if (disposal !== null) {
       return disposal;
     }
-    for (const event of events) {
-      window.off(event, captureWindowState);
+    for (const event of geometryEvents) {
+      window.off(event, captureGeometry);
+    }
+    for (const event of maximizationEvents) {
+      window.off(event, captureMaximized);
     }
     disposal = flush();
     return disposal;

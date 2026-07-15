@@ -14,7 +14,7 @@ describe('window-state main-process integration', () => {
     );
     expect(source).toContain('screen.getAllDisplays()');
     expect(source.indexOf('await loadWindowRestore(')).toBeGreaterThan(
-      source.indexOf('async function createMainWindow')
+      source.indexOf('async function prepareMainWindow')
     );
   });
 
@@ -39,6 +39,27 @@ describe('window-state main-process integration', () => {
     expect(attachManager).toBeGreaterThan(createWindow);
     expect(maximize).toBeGreaterThan(attachManager);
     expect(readyToShow).toBeGreaterThan(maximize);
+  });
+
+  it('serializes main-window preparation and blocks commitment during shutdown', () => {
+    expect(source).toContain('createSingleWindowCreationGate({');
+    expect(source).toContain(
+      'canCreate: () => !shutdownStarted && mainWindow === null'
+    );
+    expect(source).toContain('mainWindowCreation.ensureCreated()');
+    expect(source).not.toContain('void createMainWindow()');
+  });
+
+  it('binds closed-window persistence to that window manager', () => {
+    expect(source).toContain(
+      'const windowStateManager = createWindowStateManager({'
+    );
+    expect(source).toContain(
+      'if (activeWindowStateManager === windowStateManager)'
+    );
+    expect(source).toContain(
+      'queueWindowStateFlush(windowStateManager.dispose())'
+    );
   });
 
   it('includes final window persistence in orderly asynchronous shutdown', () => {

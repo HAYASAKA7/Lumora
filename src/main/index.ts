@@ -39,6 +39,7 @@ import {
   installWindowGuards,
   resolveRendererAssetPath
 } from './security-policy';
+import { createSingleWindowCreationGate } from './single-window-creation';
 import {
   configurePackagedWindowsApplicationIdentity,
   configurePackagedWindowsTaskbarWindow
@@ -110,13 +111,20 @@ function registerApplicationProtocol(): void {
   });
 }
 
-async function createMainWindow(): Promise<void> {
+async function prepareMainWindow() {
   await pendingWindowStateFlush;
   const statePath = join(app.getPath('userData'), 'window-state.json');
   const restore = await loadWindowRestore({
     statePath,
     workAreas: screen.getAllDisplays().map((display) => display.workArea)
   });
+  return { statePath, restore };
+}
+
+async function createMainWindow({
+  statePath,
+  restore
+}: Awaited<ReturnType<typeof prepareMainWindow>>): Promise<void> {
   const secureWindowOptions = createSecureWindowOptions(
     preloadPath,
     windowIconPath
@@ -133,17 +141,21 @@ async function createMainWindow(): Promise<void> {
   mainWindow = window;
 
   installWindowGuards(window.webContents, developmentOrigin);
-  activeWindowStateManager = createWindowStateManager({
+  const windowStateManager = createWindowStateManager({
     window,
     statePath,
     initialNormalBounds: restore.normalBounds ?? window.getBounds()
   });
+  activeWindowStateManager = windowStateManager;
   if (restore.maximized) {
     window.maximize();
   }
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
-    void flushWindowState();
+    if (activeWindowStateManager === windowStateManager) {
+      activeWindowStateManager = null;
+    }
+    void queueWindowStateFlush(windowStateManager.dispose());
     if (mainWindow === window) {
       mainWindow = null;
     }
@@ -157,15 +169,25 @@ async function createMainWindow(): Promise<void> {
   await window.loadURL('app://lumora/index.html');
 }
 
-function flushWindowState(): Promise<void> {
-  const flush = activeWindowStateManager?.dispose() ?? Promise.resolve();
-  activeWindowStateManager = null;
+function queueWindowStateFlush(flush: Promise<void>): Promise<void> {
   pendingWindowStateFlush = Promise.all([
     pendingWindowStateFlush,
     flush
   ]).then(() => undefined);
   return pendingWindowStateFlush;
 }
+
+function flushWindowState(): Promise<void> {
+  const flush = activeWindowStateManager?.dispose() ?? Promise.resolve();
+  activeWindowStateManager = null;
+  return queueWindowStateFlush(flush);
+}
+
+const mainWindowCreation = createSingleWindowCreationGate({
+  canCreate: () => !shutdownStarted && mainWindow === null,
+  prepare: prepareMainWindow,
+  create: createMainWindow
+});
 
 void app.whenReady().then(async () => {
   configureApplicationMenu(Menu, { platform });
@@ -221,11 +243,11 @@ void app.whenReady().then(async () => {
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
-  await createMainWindow();
+  await mainWindowCreation.ensureCreated();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      void createMainWindow();
+      void mainWindowCreation.ensureCreated();
     }
   });
 });
