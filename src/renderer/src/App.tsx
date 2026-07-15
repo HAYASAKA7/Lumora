@@ -24,17 +24,15 @@ import {
   WorkspacesView,
   type CatalogViewStatus
 } from './catalog/CatalogViews';
-import {
-  ProviderSettings,
-  type ProviderScanStatus
-} from './providers/ProviderSettings';
+import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
   isRequiredModifierKey,
   keyboardEventMatchesChord
 } from './keyboard/shortcut';
-import { LaunchSettingsPanel } from './settings/LaunchSettingsPanel';
-import { KeyboardShortcutsPanel } from './settings/KeyboardShortcutsPanel';
-import { WorkspaceTrustPanel } from './settings/WorkspaceTrustPanel';
+import {
+  SettingsView,
+  type SettingsCategory
+} from './settings/SettingsView';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -264,6 +262,8 @@ export default function App(): ReactNode {
   const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings>(
     DEFAULT_KEYBOARD_SETTINGS
   );
+  const [settingsCategory, setSettingsCategory] =
+    useState<SettingsCategory>('providers');
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
     useState<RuntimeSwitcherState | null>(null);
@@ -285,7 +285,7 @@ export default function App(): ReactNode {
     if (mainContentRef.current !== null) {
       mainContentRef.current.scrollTop = 0;
     }
-  }, [activeRouteId, activeRuntimeId]);
+  }, [activeRouteId, activeRuntimeId, settingsCategory]);
 
   const refreshProviders = useCallback(() => {
     const requestId = providerRequestId.current + 1;
@@ -828,32 +828,30 @@ export default function App(): ReactNode {
                 status={catalogStatus}
               />
             ) : activeRoute.id === 'settings' ? (
-              <div className="settings-layout">
-                <ProviderSettings
-                  onRefresh={refreshProviders}
-                  status={providerStatus}
-                />
-                <KeyboardShortcutsPanel
-                  onChange={setKeyboardSettings}
-                  platform={
-                    systemStatus.state === 'ready'
-                      ? systemStatus.info.platform
-                      : 'win32'
-                  }
-                />
-                {catalogStatus.state === 'ready' ? (
-                  <>
-                    <WorkspaceTrustPanel
-                      workspaces={catalogStatus.snapshot.workspaces}
-                    />
-                    <LaunchSettingsPanel
-                      profiles={terminalProfiles}
-                      sessions={catalogStatus.snapshot.sessions}
-                      workspaces={catalogStatus.snapshot.workspaces}
-                    />
-                  </>
-                ) : null}
-              </div>
+              <SettingsView
+                activeCategory={settingsCategory}
+                catalogReady={catalogStatus.state === 'ready'}
+                onCategoryChange={setSettingsCategory}
+                onKeyboardSettingsChange={setKeyboardSettings}
+                onRefreshProviders={refreshProviders}
+                platform={
+                  systemStatus.state === 'ready'
+                    ? systemStatus.info.platform
+                    : 'win32'
+                }
+                profiles={terminalProfiles}
+                providerStatus={providerStatus}
+                sessions={
+                  catalogStatus.state === 'ready'
+                    ? catalogStatus.snapshot.sessions
+                    : []
+                }
+                workspaces={
+                  catalogStatus.state === 'ready'
+                    ? catalogStatus.snapshot.workspaces
+                    : []
+                }
+              />
             ) : activeRoute.id === 'profiles' ? (
               <TerminalProfiles onProfilesChange={setTerminalProfiles} />
             ) : (

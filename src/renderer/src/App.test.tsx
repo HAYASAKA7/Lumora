@@ -333,6 +333,42 @@ describe('App', () => {
     await waitFor(() => expect(main.scrollTop).toBe(0));
   });
 
+  it('restores the selected Settings category after route navigation', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const securityTab = await screen.findByRole('tab', { name: 'Security' });
+    fireEvent.click(securityTab);
+    expect(securityTab).toHaveAttribute('aria-selected', 'true');
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace trust' })
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect(screen.getByRole('tab', { name: 'Security' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Workspace trust' })
+    ).toBeVisible();
+  });
+
+  it('resets Settings scroll when its category changes', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const main = document.getElementById('main-content');
+    expect(main).not.toBeNull();
+    if (main === null) throw new Error('main content missing');
+    main.scrollTop = 480;
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Launch' }));
+
+    await waitFor(() => expect(main.scrollTop).toBe(0));
+  });
+
   it('closes the active terminal tab when its runtime completes', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ac0'
@@ -741,6 +777,7 @@ describe('App', () => {
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Keyboard' }));
     const recorder = await screen.findByRole('button', {
       name: 'Record terminal switcher shortcut'
     });
@@ -766,6 +803,7 @@ describe('App', () => {
       'aria-current',
       'page'
     );
+    fireEvent.click(await screen.findByRole('tab', { name: 'Launch' }));
     expect(
       await screen.findByRole('heading', { name: 'Launch defaults' })
     ).toBeInTheDocument();
@@ -1069,16 +1107,19 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: 'Provider installations' })
     ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('heading', { name: 'Workspace trust' })
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole('heading', { name: 'Keyboard shortcuts' })
-    ).toBeInTheDocument();
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
     expect(screen.getByText('2.3.4 (Claude Code)')).toBeInTheDocument();
     expect(screen.getByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(screen.getByText('C:\\tools\\claude.exe')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace trust' })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Keyboard' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Keyboard shortcuts' })
+    ).toBeInTheDocument();
   });
 
   it('shows an actionable provider diagnostic without hiding healthy providers', async () => {
