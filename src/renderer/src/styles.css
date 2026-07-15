@@ -186,7 +186,7 @@ button {
 
 .nav-label {
   position: relative;
-  min-height: 22px;
+  min-height: 24px;
   padding: 0 11px 9px;
   overflow: hidden;
   color: #677b95;
@@ -196,7 +196,7 @@ button {
   position: absolute;
   top: 7px;
   left: 11px;
-  width: 19px;
+  width: 18px;
   height: 1px;
   background: #677b95;
   opacity: 0;
