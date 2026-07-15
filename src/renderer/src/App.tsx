@@ -742,13 +742,6 @@ export default function App(): ReactNode {
           ))}
         </nav>
 
-        <div className="sidebar-note">
-          <span className="sidebar-note-dot" aria-hidden="true" />
-          <span className="sidebar-note-copy">
-            <strong>Discovery mode</strong>
-            <small>Codex + Claude Code</small>
-          </span>
-        </div>
       </aside>
 
       <div className="workspace-frame">

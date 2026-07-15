@@ -112,8 +112,7 @@ button {
 }
 
 .brand,
-.primary-nav,
-.sidebar-note {
+.primary-nav {
   position: relative;
   z-index: 1;
 }
@@ -145,8 +144,7 @@ button {
 
 .brand-copy,
 .nav-label-text,
-.nav-item-label,
-.sidebar-note-copy {
+.nav-item-label {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -238,47 +236,9 @@ button {
   flex: 0 0 auto;
 }
 
-.sidebar-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
-}
-
-.sidebar-note-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  background: #63d7b4;
-  border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(99, 215, 180, 0.1);
-}
-
-.sidebar-note strong,
-.sidebar-note small {
-  display: block;
-}
-
-.sidebar-note strong {
-  color: #dce7f3;
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.sidebar-note small {
-  margin-top: 2px;
-  color: #7f91a8;
-  font-size: 0.7rem;
-}
-
 .sidebar-collapsed .brand-copy,
 .sidebar-collapsed .nav-label-text,
-.sidebar-collapsed .nav-item-label,
-.sidebar-collapsed .sidebar-note-copy {
+.sidebar-collapsed .nav-item-label {
   opacity: 0;
 }
 
@@ -1448,8 +1408,7 @@ button {
   }
 
   .brand small,
-  .nav-label,
-  .sidebar-note {
+  .nav-label {
     display: none;
   }
 

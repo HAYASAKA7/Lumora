@@ -9,6 +9,10 @@ const stylesheet = readFileSync(
 );
 
 describe('sidebar style contract', () => {
+  it('does not retain styling for the removed static discovery badge', () => {
+    expect(stylesheet).not.toContain('.sidebar-note');
+  });
+
   it('uses the centered 79 px collapsed icon rail', () => {
     const collapsedRule = stylesheet.match(
       /\.app-shell\.sidebar-collapsed\s*\{([^}]*)\}/

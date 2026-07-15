@@ -301,6 +301,13 @@ describe('App', () => {
     expect(mark).toHaveAttribute('src', lumoraBrandMarkUrl);
   });
 
+  it('does not show a static discovery badge in the sidebar', () => {
+    render(<App />);
+
+    expect(screen.queryByText('Discovery mode')).not.toBeInTheDocument();
+    expect(document.querySelector('.sidebar-note')).not.toBeInTheDocument();
+  });
+
   it('collapses and expands the sidebar without remounting navigation icons', () => {
     render(<App />);
 
