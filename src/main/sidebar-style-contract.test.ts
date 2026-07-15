@@ -20,18 +20,26 @@ describe('sidebar style contract', () => {
   });
 
   it('keeps selected navigation treatment without the desktop left stripe', () => {
-    const selectedRules = [
-      ...stylesheet.matchAll(
-        /\.nav-item\[aria-current="page"\]\s*\{([^}]*)\}/g
-      )
-    ].map((match) => match[1]);
+    const selectedRulePattern =
+      /\.nav-item\[aria-current="page"\]\s*\{([^}]*)\}/;
+    const desktopSelectedRule = stylesheet.match(selectedRulePattern)?.[1];
+    const compactMediaStart = stylesheet.indexOf('@media (max-width: 900px)');
+    const compactMediaEnd = stylesheet.indexOf(
+      '@media (max-width: 680px)',
+      compactMediaStart
+    );
+    const compactMedia = stylesheet.slice(compactMediaStart, compactMediaEnd);
+    const compactSelectedRule = compactMedia.match(selectedRulePattern)?.[1];
 
-    expect(selectedRules).toHaveLength(2);
-    expect(selectedRules[0]).toContain('background: #182a42');
-    expect(selectedRules[0]).toContain(
+    expect(compactMediaStart).toBeGreaterThanOrEqual(0);
+    expect(compactMediaEnd).toBeGreaterThan(compactMediaStart);
+    expect(desktopSelectedRule).toContain('background: #182a42');
+    expect(desktopSelectedRule).toContain(
       'border-color: rgba(122, 164, 221, 0.16)'
     );
-    expect(selectedRules[0]).not.toContain('box-shadow');
-    expect(selectedRules[1]).toContain('box-shadow: inset 0 -2px 0 var(--blue)');
+    expect(desktopSelectedRule).not.toContain('box-shadow');
+    expect(compactSelectedRule).toContain(
+      'box-shadow: inset 0 -2px 0 var(--blue)'
+    );
   });
 });
