@@ -264,6 +264,7 @@ export default function App(): ReactNode {
   );
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('providers');
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
     useState<RuntimeSwitcherState | null>(null);
@@ -691,23 +692,37 @@ export default function App(): ReactNode {
     runtimeSwitcher
   ]);
 
+  const sidebarToggleLabel = sidebarExpanded
+    ? 'Collapse sidebar'
+    : 'Expand sidebar';
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}`}>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
 
       <aside className="sidebar">
-        <div className="brand">
+        <button
+          aria-expanded={sidebarExpanded}
+          aria-label={sidebarToggleLabel}
+          className="brand"
+          onClick={() => setSidebarExpanded((expanded) => !expanded)}
+          title={sidebarToggleLabel}
+          type="button"
+        >
           <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
-          <span>
+          <span className="brand-copy">
             <strong>Lumora</strong>
             <small>Agent workspace manager</small>
           </span>
-        </div>
+        </button>
 
         <nav className="primary-nav" aria-label="Primary navigation">
-          <p className="nav-label">Workspace</p>
+          <p className="nav-label">
+            <span className="nav-label-text">Workspace</span>
+            <span aria-hidden="true" className="nav-label-divider" />
+          </p>
           {ROUTES.map((route) => (
             <button
               aria-current={activeRouteId === route.id ? 'page' : undefined}
@@ -716,18 +731,20 @@ export default function App(): ReactNode {
               onClick={() => {
                 setActiveRouteId(route.id);
                 setActiveRuntimeId(null);
+                setSidebarExpanded(true);
               }}
+              title={sidebarExpanded ? undefined : route.label}
               type="button"
             >
               <Icon name={route.icon} />
-              <span>{route.label}</span>
+              <span className="nav-item-label">{route.label}</span>
             </button>
           ))}
         </nav>
 
         <div className="sidebar-note">
           <span className="sidebar-note-dot" aria-hidden="true" />
-          <span>
+          <span className="sidebar-note-copy">
             <strong>Discovery mode</strong>
             <small>Codex + Claude Code</small>
           </span>

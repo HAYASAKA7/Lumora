@@ -290,15 +290,63 @@ describe('App', () => {
   it('uses the canonical Lumora brand artwork in the sidebar', () => {
     render(<App />);
 
-    const brand = screen
-      .getByText('Agent workspace manager')
-      .closest('.brand');
-    const mark = brand?.querySelector<HTMLImageElement>('img.brand-mark');
+    const brand = screen.getByRole('button', { name: 'Collapse sidebar' });
+    const mark = brand.querySelector<HTMLImageElement>('img.brand-mark');
 
-    expect(brand?.querySelector('strong')).toHaveTextContent('Lumora');
+    expect(brand).toHaveClass('brand');
+    expect(brand).toHaveAttribute('aria-expanded', 'true');
+    expect(brand.querySelector('strong')).toHaveTextContent('Lumora');
     expect(mark).not.toBeNull();
     expect(mark).toHaveAttribute('alt', '');
     expect(mark).toHaveAttribute('src', lumoraBrandMarkUrl);
+  });
+
+  it('collapses and expands the sidebar without remounting navigation icons', () => {
+    render(<App />);
+
+    const shell = document.querySelector('.app-shell');
+    const home = screen.getByRole('button', { name: 'Home' });
+    const homeIcon = home.querySelector('.icon');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+
+    const expand = screen.getByRole('button', { name: 'Expand sidebar' });
+    expect(shell).toHaveClass('sidebar-collapsed');
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    expect(expand).toHaveAttribute('title', 'Expand sidebar');
+    expect(home).toHaveAttribute('title', 'Home');
+    expect(home.querySelector('.icon')).toBe(homeIcon);
+    expect(document.querySelector('.nav-label-divider')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+
+    fireEvent.click(expand);
+
+    expect(shell).not.toHaveClass('sidebar-collapsed');
+    expect(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(home).not.toHaveAttribute('title');
+    expect(home.querySelector('.icon')).toBe(homeIcon);
+  });
+
+  it('expands while navigating from a collapsed sidebar', () => {
+    render(<App />);
+
+    const shell = document.querySelector('.app-shell');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(shell).not.toHaveClass('sidebar-collapsed');
+    expect(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('opens on Home and exposes the complete primary navigation', () => {
