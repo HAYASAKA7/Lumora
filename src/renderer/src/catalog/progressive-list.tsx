@@ -95,13 +95,14 @@ export function ProgressiveListControl({
       return undefined;
     }
 
+    const scrollRoot = target.closest<HTMLElement>('.main-content');
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
           onLoadMore();
         }
       },
-      { rootMargin: '600px 0px' }
+      { root: scrollRoot, rootMargin: '600px 0px' }
     );
     observer.observe(target);
     return () => observer.disconnect();

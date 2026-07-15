@@ -62,10 +62,15 @@ describe('ProgressiveListControl', () => {
     const disconnect = vi.fn();
     const observe = vi.fn();
     let observerCallback: IntersectionObserverCallback = () => undefined;
+    let observerOptions: IntersectionObserverInit | undefined;
 
     class Observer {
-      constructor(callback: IntersectionObserverCallback) {
+      constructor(
+        callback: IntersectionObserverCallback,
+        options?: IntersectionObserverInit
+      ) {
         observerCallback = callback;
+        observerOptions = options;
       }
 
       observe = observe;
@@ -75,14 +80,20 @@ describe('ProgressiveListControl', () => {
     vi.stubGlobal('IntersectionObserver', Observer);
     const onLoadMore = vi.fn();
     const { unmount } = render(
-      <ProgressiveListControl
-        hasMore
-        label="Load more sessions"
-        onLoadMore={onLoadMore}
-      />
+      <main className="main-content">
+        <ProgressiveListControl
+          hasMore
+          label="Load more sessions"
+          onLoadMore={onLoadMore}
+        />
+      </main>
     );
 
     expect(observe).toHaveBeenCalledOnce();
+    expect(observerOptions).toMatchObject({
+      root: screen.getByRole('main'),
+      rootMargin: '600px 0px'
+    });
     act(() => {
       observerCallback(
         [{ isIntersecting: true } as IntersectionObserverEntry],
