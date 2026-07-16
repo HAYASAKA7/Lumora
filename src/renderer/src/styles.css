@@ -1327,12 +1327,12 @@ button {
 
 .session-table th,
 .session-table td {
-  padding: 12px 14px;
   border-bottom: 1px solid #edf0f4;
   vertical-align: middle;
 }
 
 .session-table th {
+  padding: 12px 14px;
   color: var(--text-soft);
   font-size: 0.66rem;
   letter-spacing: 0.07em;
@@ -1340,6 +1340,7 @@ button {
 }
 
 .session-table td {
+  padding: 16px 14px;
   color: var(--text-muted);
   font-size: 0.78rem;
 }
