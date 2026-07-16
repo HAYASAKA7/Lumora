@@ -54,7 +54,9 @@ describe('configureApplicationMenu', () => {
     const configurationIndex = mainSource.indexOf(
       'configureApplicationMenu(Menu, { platform });'
     );
-    const firstWindowIndex = mainSource.indexOf('await createMainWindow();');
+    const firstWindowIndex = mainSource.indexOf(
+      'await mainWindowCreation.ensureCreated();'
+    );
 
     expect(configurationIndex).toBeGreaterThan(-1);
     expect(firstWindowIndex).toBeGreaterThan(configurationIndex);
