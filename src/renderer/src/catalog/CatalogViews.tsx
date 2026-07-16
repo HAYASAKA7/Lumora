@@ -212,8 +212,21 @@ const SessionRow = memo(function SessionRow({
     profiles
   });
   return (
-    <tr>
+    <tr
+      className={`session-row${
+        disabledReason === null ? '' : ' session-row-unavailable'
+      }`}
+      title={disabledReason ?? undefined}
+    >
       <td>
+        <button
+          aria-label={`Resume ${session.title}`}
+          className="session-row-action"
+          disabled={disabledReason !== null}
+          onClick={() => onResume(session)}
+          title={disabledReason ?? 'Resume this session'}
+          type="button"
+        />
         <strong>{session.title}</strong>
       </td>
       <td>
@@ -237,17 +250,6 @@ const SessionRow = memo(function SessionRow({
         ) : (
           <span className="source-current">Current</span>
         )}
-      </td>
-      <td className="session-action-cell">
-        <button
-          className="secondary-button"
-          disabled={disabledReason !== null}
-          onClick={() => onResume(session)}
-          title={disabledReason ?? 'Resume this session'}
-          type="button"
-        >
-          Resume
-        </button>
       </td>
     </tr>
   );
@@ -382,7 +384,6 @@ export function SessionsView({
                   <th scope="col">Workspace</th>
                   <th scope="col">Updated</th>
                   <th scope="col">Source</th>
-                  <th scope="col">Action</th>
                 </tr>
               </thead>
               <tbody>

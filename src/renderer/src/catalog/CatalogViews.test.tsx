@@ -392,13 +392,27 @@ describe('SessionsView', () => {
       />
     );
 
-    const buttons = screen.getAllByRole('button', { name: 'Resume' });
-    expect(buttons[0]).toBeEnabled();
-    expect(buttons[1]).toBeEnabled();
-    expect(buttons[2]).toBeDisabled();
-    expect(buttons[2]).toHaveAttribute('title', 'Session source is stale.');
+    expect(
+      screen.queryByRole('columnheader', { name: 'Action' })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Resume')).not.toBeInTheDocument();
 
-    fireEvent.click(buttons[0]!);
+    const currentAction = screen.getByRole('button', {
+      name: 'Resume Catalog implementation'
+    });
+    const secondAction = screen.getByRole('button', {
+      name: 'Resume Untitled session'
+    });
+    const staleAction = screen.getByRole('button', {
+      name: 'Resume Documentation cleanup'
+    });
+    expect(currentAction).toBeEnabled();
+    expect(currentAction).toBeEmptyDOMElement();
+    expect(secondAction).toBeEnabled();
+    expect(staleAction).toBeDisabled();
+    expect(staleAction).toHaveAttribute('title', 'Session source is stale.');
+
+    fireEvent.click(currentAction);
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
   });
 
@@ -414,7 +428,7 @@ describe('SessionsView', () => {
       providerScan,
       profiles: [terminalProfile]
     };
-    const { rerender } = render(
+    const { container, rerender } = render(
       <SessionsView
         {...sharedProps}
         queryText=""
@@ -425,9 +439,9 @@ describe('SessionsView', () => {
       />
     );
 
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
+    expect(container.querySelectorAll('.session-row-action')).toHaveLength(40);
     fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(45);
+    expect(container.querySelectorAll('.session-row-action')).toHaveLength(45);
 
     rerender(
       <SessionsView
@@ -439,7 +453,7 @@ describe('SessionsView', () => {
         }}
       />
     );
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
+    expect(container.querySelectorAll('.session-row-action')).toHaveLength(40);
   });
 
   it('explains each unavailable resume dependency', () => {
@@ -466,7 +480,9 @@ describe('SessionsView', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+    expect(screen.getByRole('button', {
+      name: 'Resume Catalog implementation'
+    })).toHaveAttribute(
       'title',
       'Workspace is unavailable.'
     );
@@ -511,7 +527,9 @@ describe('SessionsView', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+    expect(screen.getByRole('button', {
+      name: 'Resume Catalog implementation'
+    })).toHaveAttribute(
       'title',
       'Provider is unavailable.'
     );
@@ -538,7 +556,9 @@ describe('SessionsView', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+    expect(screen.getByRole('button', {
+      name: 'Resume Catalog implementation'
+    })).toHaveAttribute(
       'title',
       'No terminal profile is available.'
     );
