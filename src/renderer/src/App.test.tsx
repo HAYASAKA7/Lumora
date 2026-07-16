@@ -972,7 +972,11 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Resume Catalog implementation'
+      })
+    );
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Codex')).toBeInTheDocument();
@@ -1347,7 +1351,11 @@ describe('App', () => {
       expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null })
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Resume Catalog implementation'
+      })
+    );
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(dialog).toBeInTheDocument();
     expect(
