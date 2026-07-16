@@ -23,6 +23,23 @@ describe('sidebar style contract', () => {
     );
   });
 
+  it('lets primary page surfaces resize with the workspace track', () => {
+    const dashboardRule = stylesheet.match(
+      /\.dashboard-grid\s*\{([^}]*)\}/
+    )?.[1];
+    const providerRule = stylesheet.match(
+      /\.provider-panel\s*\{([^}]*)\}/
+    )?.[1];
+    const catalogRule = stylesheet.match(
+      /\.catalog-state,\s*\.catalog-operation-error,\s*\.catalog-panel\s*\{([^}]*)\}/
+    )?.[1];
+
+    for (const rule of [dashboardRule, providerRule, catalogRule]) {
+      expect(rule).toContain('width: 100%');
+      expect(rule).not.toMatch(/\bmax-width\s*:/);
+    }
+  });
+
   it('keeps selected navigation treatment without the desktop left stripe', () => {
     const selectedRulePattern =
       /\.nav-item\[aria-current="page"\]\s*\{([^}]*)\}/;
