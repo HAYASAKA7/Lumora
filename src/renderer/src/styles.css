@@ -1764,10 +1764,6 @@ button {
     align-items: center;
   }
 
-  .workspace-session-card > .secondary-button {
-    width: 100%;
-  }
-
   .session-table-wrap {
     overflow: visible;
     border: 0;
@@ -1823,7 +1819,6 @@ button {
   .session-table td:nth-child(3)::before { content: "Workspace"; }
   .session-table td:nth-child(4)::before { content: "Updated"; }
   .session-table td:nth-child(5)::before { content: "Source"; }
-  .session-table td:nth-child(6)::before { content: "Action"; }
 }
 
 @media (prefers-reduced-motion: reduce) {

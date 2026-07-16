@@ -414,6 +414,8 @@ describe('SessionsView', () => {
 
     fireEvent.click(currentAction);
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
+    fireEvent.click(staleAction);
+    expect(onResume).toHaveBeenCalledTimes(1);
   });
 
   it('renders sessions in batches of forty and resets for a new query', () => {
