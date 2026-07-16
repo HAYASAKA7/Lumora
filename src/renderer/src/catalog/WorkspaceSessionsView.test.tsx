@@ -112,7 +112,14 @@ describe('WorkspaceSessionsView', () => {
     expect(screen.getByText('Workspace drill-down')).toBeInTheDocument();
     expect(screen.queryByText('Other workspace session')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(screen.queryByText('Resume')).not.toBeInTheDocument();
+    const action = screen.getByRole('button', {
+      name: 'Resume Workspace drill-down'
+    });
+    expect(action).toBeEnabled();
+    expect(action).toBeEmptyDOMElement();
+
+    fireEvent.click(action);
     expect(onResume).toHaveBeenCalledWith(snapshot.sessions[0]);
   });
 
@@ -156,12 +163,13 @@ describe('WorkspaceSessionsView', () => {
   });
 
   it('blocks resume when the selected workspace is unavailable', () => {
+    const onResume = vi.fn();
     render(
       <WorkspaceSessionsView
         isRefreshing={false}
         onBack={vi.fn()}
         onRefresh={vi.fn()}
-        onResume={vi.fn()}
+        onResume={onResume}
         onRetry={vi.fn()}
         operationError={null}
         profiles={[profile]}
@@ -181,11 +189,16 @@ describe('WorkspaceSessionsView', () => {
     );
 
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Resume' })).toHaveAttribute(
+    const action = screen.getByRole('button', {
+      name: 'Resume Workspace drill-down'
+    });
+    expect(action).toBeDisabled();
+    expect(action).toHaveAttribute(
       'title',
       'Workspace is unavailable.'
     );
+    fireEvent.click(action);
+    expect(onResume).not.toHaveBeenCalled();
   });
 
   it('keeps navigation available if the workspace disappeared', () => {
@@ -248,7 +261,9 @@ describe('WorkspaceSessionsView', () => {
     expect(
       screen.getByRole('heading', { name: 'No sessions in this workspace' })
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /^Resume / })
+    ).not.toBeInTheDocument();
   });
 
   it('renders workspace history in batches of forty', () => {
@@ -258,7 +273,7 @@ describe('WorkspaceSessionsView', () => {
       nativeId: `workspace-session-${index + 1}`,
       title: `Workspace session ${index + 1}`
     }));
-    render(
+    const { container } = render(
       <WorkspaceSessionsView
         isRefreshing={false}
         onBack={vi.fn()}
@@ -276,9 +291,13 @@ describe('WorkspaceSessionsView', () => {
       />
     );
 
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(40);
+    expect(
+      container.querySelectorAll('.workspace-session-action')
+    ).toHaveLength(40);
     fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(45);
+    expect(
+      container.querySelectorAll('.workspace-session-action')
+    ).toHaveLength(45);
   });
 
   it('refreshes the complete workspace history from the detail toolbar', () => {

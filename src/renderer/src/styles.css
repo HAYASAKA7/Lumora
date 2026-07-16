@@ -1195,10 +1195,28 @@ button {
 }
 
 .workspace-session-card {
+  position: relative;
   padding: 16px;
   background: #fbfcfe;
   border: 1px solid var(--line);
   border-radius: 10px;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.workspace-session-card:not(.workspace-session-card-unavailable):hover,
+.workspace-session-card:not(.workspace-session-card-unavailable):focus-within {
+  background: #fff;
+  border-color: #aebed2;
+  box-shadow: 0 10px 24px rgba(20, 37, 62, 0.1);
+  transform: translateY(-2px);
+}
+
+.workspace-session-card-unavailable {
+  opacity: 0.58;
 }
 
 .workspace-session-copy {
@@ -1216,8 +1234,24 @@ button {
   line-height: 1.4;
 }
 
-.workspace-session-card > .secondary-button {
-  flex: 0 0 auto;
+.workspace-session-action {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+}
+
+.workspace-session-action:disabled {
+  cursor: not-allowed;
+}
+
+.workspace-session-action:focus-visible {
+  outline: 2px solid rgba(35, 111, 183, 0.34);
+  outline-offset: 2px;
 }
 
 .session-toolbar {

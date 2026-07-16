@@ -54,7 +54,12 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
     profiles
   });
   return (
-    <article className="workspace-session-card">
+    <article
+      className={`workspace-session-card${
+        disabledReason === null ? '' : ' workspace-session-card-unavailable'
+      }`}
+      title={disabledReason ?? undefined}
+    >
       <div className="workspace-session-copy">
         <div className="workspace-session-heading">
           <h3>{session.title}</h3>
@@ -77,14 +82,13 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         </div>
       </div>
       <button
-        className="secondary-button"
+        aria-label={`Resume ${session.title}`}
+        className="workspace-session-action"
         disabled={disabledReason !== null}
         onClick={() => onResume(session)}
         title={disabledReason ?? 'Resume this session'}
         type="button"
-      >
-        Resume
-      </button>
+      />
     </article>
   );
 });
