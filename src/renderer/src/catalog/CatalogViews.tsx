@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from 'react';
 
 import type {
+  CatalogProviderId,
   CatalogSnapshot,
-  ProviderId,
   ProviderScanResult,
   SessionSummary,
   TerminalProfile,
@@ -15,6 +15,7 @@ import {
   useProgressiveList
 } from './progressive-list';
 import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
+import { providerDefinition } from '../../../shared/provider-definitions';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -178,16 +179,16 @@ interface SessionsViewProps {
   status: CatalogViewStatus;
   isRefreshing: boolean;
   queryText: string;
-  provider: ProviderId | null;
+  provider: CatalogProviderId | null;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onSearchChange(value: string): void;
-  onProviderChange(value: ProviderId | null): void;
+  onProviderChange(value: CatalogProviderId | null): void;
   onRefresh(): void;
   onResume(session: SessionSummary): void;
 }
 
-const PROVIDER_LABELS: Record<ProviderId, string> = {
+const PROVIDER_LABELS: Record<CatalogProviderId, string> = {
   codex: 'Codex',
   claude: 'Claude Code'
 };
@@ -323,7 +324,7 @@ export function SessionsView({
               onProviderChange(
                 event.currentTarget.value === ''
                   ? null
-                  : (event.currentTarget.value as ProviderId)
+                  : (event.currentTarget.value as CatalogProviderId)
               )
             }
             value={provider ?? ''}
@@ -505,7 +506,9 @@ export function CatalogHomeSummary({
               return (
                 <li className="runtime-recovery-item" key={runtime.id}>
                   <span className="runtime-recovery-message">
-                    <strong>{PROVIDER_LABELS[runtime.provider]}</strong>
+                    <strong>
+                      {providerDefinition(runtime.provider).displayName}
+                    </strong>
                     <small>
                       {recovery?.strategy === 'resume'
                         ? 'Resume saved session'

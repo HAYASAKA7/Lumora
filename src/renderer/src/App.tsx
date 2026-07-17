@@ -10,10 +10,10 @@ import {
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
+  CatalogProviderId,
   CatalogQuery,
   KeyboardSettings,
   LaunchPreview,
-  ProviderId,
   RuntimeSummary,
   SessionSummary,
   SystemInfo,
@@ -271,7 +271,8 @@ export default function App(): ReactNode {
   >(null);
   const [sessionSearch, setSessionSearch] = useState('');
   const [debouncedSessionSearch, setDebouncedSessionSearch] = useState('');
-  const [sessionProvider, setSessionProvider] = useState<ProviderId | null>(null);
+  const [sessionProvider, setSessionProvider] =
+    useState<CatalogProviderId | null>(null);
   const [terminalProfiles, setTerminalProfiles] = useState<
     Awaited<ReturnType<typeof window.lumora.getTerminalProfiles>>
   >([]);

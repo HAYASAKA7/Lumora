@@ -46,6 +46,19 @@ function setLumora(overrides: Record<string, unknown> = {}) {
     getProviderLaunchConfigs: vi.fn().mockResolvedValue(defaults),
     saveProviderLaunchConfig: vi.fn().mockResolvedValue(defaults),
     checkProviderUpdates: vi.fn().mockResolvedValue(availableUpdates),
+    installProvider: vi.fn().mockResolvedValue({
+      provider: 'gemini',
+      completedAt: '2026-07-17T04:02:00.000Z',
+      installation: {
+        provider: 'gemini',
+        displayName: 'Gemini CLI',
+        state: 'ready',
+        executablePath: 'C:\\tools\\gemini.cmd',
+        version: '1.0.0',
+        issue: null
+      }
+    }),
+    openProviderInstallGuide: vi.fn().mockResolvedValue(undefined),
     updateProvider: vi.fn().mockResolvedValue({
       provider: 'codex',
       completedAt: '2026-07-17T04:02:00.000Z',
@@ -58,6 +71,14 @@ function setLumora(overrides: Record<string, unknown> = {}) {
     value
   });
   return value;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 describe('ProviderSettings', () => {
@@ -217,5 +238,122 @@ describe('ProviderSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(onRefresh).toHaveBeenCalledOnce();
     await waitFor(() => expect(checkProviderUpdates).toHaveBeenCalledTimes(2));
+  });
+
+  it('confirms allowlisted installs and opens guides for other providers', async () => {
+    const wideScan: ProviderScanResult = {
+      ...scan,
+      providers: [
+        ...scan.providers,
+        {
+          provider: 'gemini',
+          displayName: 'Gemini CLI',
+          state: 'not_found',
+          executablePath: null,
+          version: null,
+          issue: {
+            code: 'PROVIDER_NOT_FOUND',
+            message: 'Gemini CLI was not found on PATH.',
+            recovery: 'Install Gemini CLI or add it to PATH, then refresh.',
+            retryable: true
+          }
+        },
+        {
+          provider: 'aider',
+          displayName: 'Aider',
+          state: 'not_found',
+          executablePath: null,
+          version: null,
+          issue: {
+            code: 'PROVIDER_NOT_FOUND',
+            message: 'Aider was not found on PATH.',
+            recovery: 'Install Aider or add it to PATH, then refresh.',
+            retryable: true
+          }
+        }
+      ]
+    };
+    const lumora = setLumora();
+    const onRefresh = vi.fn();
+    render(
+      <ProviderSettings
+        onRefresh={onRefresh}
+        status={{ state: 'ready', scan: wideScan }}
+      />
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Installed providers' })
+    ).toBeVisible();
+    expect(
+      screen.getByRole('heading', { name: 'Available providers' })
+    ).toBeVisible();
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Install Gemini CLI' })
+    );
+    expect(
+      screen.getByText('Install Gemini CLI globally with npm?')
+    ).toBeVisible();
+    expect(lumora.installProvider).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm install Gemini CLI' })
+    );
+    await waitFor(() =>
+      expect(lumora.installProvider).toHaveBeenCalledWith('gemini')
+    );
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open Aider installation guide' })
+    );
+    expect(lumora.openProviderInstallGuide).toHaveBeenCalledWith('aider');
+    expect(screen.getByLabelText('Gemini CLI start command')).toHaveValue('');
+  });
+
+  it('tracks simultaneous provider installs independently', async () => {
+    const geminiInstall = deferred<Awaited<ReturnType<typeof window.lumora.installProvider>>>();
+    const crushInstall = deferred<Awaited<ReturnType<typeof window.lumora.installProvider>>>();
+    const installProvider = vi.fn((provider: string) =>
+      provider === 'gemini' ? geminiInstall.promise : crushInstall.promise
+    );
+    setLumora({ installProvider });
+    const missing = (provider: 'gemini' | 'crush', displayName: string) => ({
+      provider,
+      displayName,
+      state: 'not_found' as const,
+      executablePath: null,
+      version: null,
+      issue: {
+        code: 'PROVIDER_NOT_FOUND' as const,
+        message: `${displayName} is missing.`,
+        recovery: `Install ${displayName}.`,
+        retryable: true
+      }
+    });
+
+    render(
+      <ProviderSettings
+        onRefresh={vi.fn()}
+        status={{
+          state: 'ready',
+          scan: {
+            scannedAt: scan.scannedAt,
+            providers: [
+              missing('gemini', 'Gemini CLI'),
+              missing('crush', 'Crush')
+            ]
+          }
+        }}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Install Gemini CLI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install Gemini CLI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install Crush' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install Crush' }));
+
+    expect(screen.getByRole('button', { name: 'Install Gemini CLI' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Install Crush' })).toBeDisabled();
   });
 });

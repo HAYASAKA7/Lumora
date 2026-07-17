@@ -82,7 +82,9 @@ function createHarness(
     installation: validScan.providers.find(
       (installation) => installation.provider === provider
     )
-  })
+  }),
+  install: (provider: ProviderId) => Promise<unknown> = update,
+  openExternal: (url: string) => Promise<unknown> = async () => undefined
 ) {
   const handlers = new Map<string, InvokeHandler>();
   const ipc = {
@@ -94,7 +96,8 @@ function createHarness(
   registerProviderIpc({
     ipc,
     registry: { scan },
-    updates: { check, update },
+    updates: { check, update, install },
+    openExternal,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
@@ -113,12 +116,62 @@ describe('registerProviderIpc', () => {
     expect(registeredChannels).toEqual([
       IPC_CHANNELS.providerScan,
       IPC_CHANNELS.providerUpdatesCheck,
-      IPC_CHANNELS.providerUpdateRun
+      IPC_CHANNELS.providerUpdateRun,
+      IPC_CHANNELS.providerInstallRun,
+      IPC_CHANNELS.providerInstallGuideOpen
     ]);
     const result = await handler({
       senderFrame: { url: 'app://lumora/index.html' }
     });
     expect(ProviderScanResultSchema.parse(result)).toEqual(validScan);
+  });
+
+  it('installs validated providers and opens only shipped guide URLs', async () => {
+    const install = vi.fn(async (provider: ProviderId) => ({
+      provider,
+      completedAt: '2026-07-17T02:02:00.000Z',
+      installation: {
+        provider,
+        displayName: 'Gemini CLI',
+        state: 'ready',
+        executablePath: '/usr/bin/gemini',
+        version: '1.2.3',
+        issue: null
+      }
+    }));
+    const openExternal = vi.fn(async () => undefined);
+    const { handlers } = createHarness(
+      async () => validScan,
+      undefined,
+      async () => validUpdateCheck,
+      undefined,
+      install,
+      openExternal
+    );
+    const event = { senderFrame: { url: 'app://lumora/index.html' } };
+
+    await expect(
+      handlers.get(IPC_CHANNELS.providerInstallRun)!(event, {
+        provider: 'gemini'
+      })
+    ).resolves.toMatchObject({ provider: 'gemini' });
+    await expect(
+      handlers.get(IPC_CHANNELS.providerInstallGuideOpen)!(event, {
+        provider: 'aider'
+      })
+    ).resolves.toEqual({ opened: true });
+    expect(install).toHaveBeenCalledWith('gemini');
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://aider.chat/docs/install.html'
+    );
+
+    await expect(
+      handlers.get(IPC_CHANNELS.providerInstallGuideOpen)!(event, {
+        provider: 'unknown-agent',
+        url: 'https://evil.example'
+      })
+    ).rejects.toBeDefined();
+    expect(openExternal).toHaveBeenCalledOnce();
   });
 
   it('validates update checks and accepts only a provider ID for execution', async () => {

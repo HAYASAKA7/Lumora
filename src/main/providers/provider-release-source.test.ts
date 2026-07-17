@@ -19,11 +19,23 @@ describe('createProviderReleaseSource', () => {
 
     await expect(source.latestVersion('codex')).resolves.toBe('1.2.3');
     await expect(source.latestVersion('claude')).resolves.toBe('2.3.4');
+    await expect(source.latestVersion('gemini')).resolves.toBe('2.3.4');
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
       'https://registry.npmjs.org/@openai%2Fcodex/latest',
-      'https://registry.npmjs.org/@anthropic-ai%2Fclaude-code/latest'
+      'https://registry.npmjs.org/@anthropic-ai%2Fclaude-code/latest',
+      'https://registry.npmjs.org/@google%2Fgemini-cli/latest'
     ]);
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: 'GET' });
+  });
+
+  it('does not invent release sources for guide-only providers', async () => {
+    const fetch = vi.fn();
+    const source = createProviderReleaseSource({ fetch });
+
+    await expect(source.latestVersion('amp')).rejects.toBeInstanceOf(
+      ProviderReleaseError
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it.each([

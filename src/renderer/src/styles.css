@@ -692,6 +692,18 @@ button {
   padding-top: 20px;
 }
 
+.provider-group + .provider-group {
+  margin-top: 26px;
+}
+
+.provider-group > h3 {
+  margin: 20px 0 -6px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .provider-card {
   min-width: 0;
   padding: 19px;
@@ -711,7 +723,7 @@ button {
   gap: 16px;
 }
 
-.provider-card h3 {
+.provider-card h4 {
   margin: 5px 0 0;
   color: var(--text);
   font-size: 1rem;
@@ -2775,4 +2787,27 @@ button {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+.provider-install-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.provider-install-actions > button {
+  justify-self: start;
+}
+
+.provider-install-confirmation {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.provider-install-confirmation > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }

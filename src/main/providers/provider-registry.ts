@@ -8,24 +8,18 @@ import {
   type ProviderAdapter
 } from './provider-adapter';
 
-interface ProviderRegistryAdapters {
-  codex: ProviderAdapter;
-  claude: ProviderAdapter;
-}
-
 type Clock = () => Date;
 
 export class ProviderRegistry {
   constructor(
-    private readonly adapters: ProviderRegistryAdapters,
+    private readonly adapters: readonly ProviderAdapter[],
     private readonly now: Clock = () => new Date()
   ) {}
 
   async scan(): Promise<ProviderScanResult> {
-    const providers = await Promise.all([
-      this.scanIsolated(this.adapters.codex),
-      this.scanIsolated(this.adapters.claude)
-    ]);
+    const providers = await Promise.all(
+      this.adapters.map((adapter) => this.scanIsolated(adapter))
+    );
 
     return ProviderScanResultSchema.parse({
       scannedAt: this.now().toISOString(),

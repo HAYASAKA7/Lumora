@@ -71,6 +71,19 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.providerUpdatesCheck);
       return ProviderUpdateCheckResultSchema.parse(value);
     },
+    async installProvider(provider) {
+      const request = ProviderUpdateRequestSchema.parse({ provider });
+      const value = await invoke(IPC_CHANNELS.providerInstallRun, request);
+      return ProviderUpdateResultSchema.parse(value);
+    },
+    async openProviderInstallGuide(provider) {
+      const request = ProviderUpdateRequestSchema.parse({ provider });
+      const value = await invoke(
+        IPC_CHANNELS.providerInstallGuideOpen,
+        request
+      );
+      ExternalOpenResultSchema.parse(value);
+    },
     async updateProvider(provider) {
       const request = ProviderUpdateRequestSchema.parse({ provider });
       const value = await invoke(IPC_CHANNELS.providerUpdateRun, request);

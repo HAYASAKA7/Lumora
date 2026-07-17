@@ -1,5 +1,6 @@
 import {
   IPC_CHANNELS,
+  ExternalOpenResultSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
   ProviderUpdateRequestSchema,
@@ -9,6 +10,7 @@ import {
   type ProviderUpdateCheckResult,
   type ProviderUpdateResult
 } from '../../shared/contracts';
+import { providerDefinition } from '../../shared/provider-definitions';
 import { isTrustedRendererUrl } from '../security-policy';
 
 interface IpcInvokeEventLike {
@@ -31,6 +33,7 @@ interface ProviderRegistryLike {
 
 interface ProviderUpdatesLike {
   check(): Promise<unknown>;
+  install(provider: ProviderId): Promise<unknown>;
   update(provider: ProviderId): Promise<unknown>;
 }
 
@@ -38,6 +41,7 @@ interface RegisterProviderIpcDependencies {
   ipc: IpcRegistrar;
   registry: ProviderRegistryLike;
   updates: ProviderUpdatesLike;
+  openExternal(url: string): Promise<unknown>;
   developmentOrigin?: string;
 }
 
@@ -54,6 +58,7 @@ export function registerProviderIpc({
   ipc,
   registry,
   updates,
+  openExternal,
   developmentOrigin
 }: RegisterProviderIpcDependencies): void {
   const assertTrusted = (event: IpcInvokeEventLike): void => {
@@ -89,6 +94,29 @@ export function registerProviderIpc({
       return ProviderUpdateResultSchema.parse(
         await updates.update(request.provider)
       );
+    }
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.providerInstallRun,
+    async (event, input): Promise<ProviderUpdateResult> => {
+      assertTrusted(event);
+      const request = ProviderUpdateRequestSchema.parse(input);
+      return ProviderUpdateResultSchema.parse(
+        await updates.install(request.provider)
+      );
+    }
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.providerInstallGuideOpen,
+    async (event, input) => {
+      assertTrusted(event);
+      const request = ProviderUpdateRequestSchema.parse(input);
+      await openExternal(
+        providerDefinition(request.provider).installGuideUrl
+      );
+      return ExternalOpenResultSchema.parse({ opened: true });
     }
   );
 }

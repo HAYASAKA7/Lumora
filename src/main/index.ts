@@ -29,12 +29,11 @@ import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
 import { findExecutable } from './platform/executable-locator';
 import { probeVersion } from './platform/version-probe';
-import { createClaudeAdapter } from './providers/claude-adapter';
-import { createCodexAdapter } from './providers/codex-adapter';
+import { createProviderAdapters } from './providers/provider-adapter';
 import { createProviderReleaseSource } from './providers/provider-release-source';
+import { runProviderLifecycle } from './providers/provider-lifecycle-runner';
 import { ProviderRegistry } from './providers/provider-registry';
 import { createProviderUpdateService } from './providers/provider-update-service';
-import { updateProviderExecutable } from './providers/provider-updater';
 import { getRuntimePaths } from './runtime-paths';
 import {
   createTerminalRuntime,
@@ -70,27 +69,31 @@ const { preloadPath, rendererRoot, windowIconPath } = getRuntimePaths(
 const providerDependencies = {
   findExecutable: (command: string) =>
     findExecutable(command, { platform, env: process.env }),
-  probeVersion: (executablePath: string) =>
-    probeVersion(executablePath, { platform, env: process.env })
+  probeVersion: (executablePath: string, args: readonly string[]) =>
+    probeVersion(executablePath, { platform, env: process.env, args })
 };
-const providerRegistry = new ProviderRegistry({
-  codex: createCodexAdapter(providerDependencies),
-  claude: createClaudeAdapter(providerDependencies)
-});
+const providerRegistry = new ProviderRegistry(
+  createProviderAdapters(providerDependencies)
+);
 const providerReleaseSource = createProviderReleaseSource({
   fetch: (input, init) => net.fetch(input, init)
 });
 const providerUpdateService = createProviderUpdateService({
   registry: providerRegistry,
   releases: providerReleaseSource,
-  runUpdate: (executablePath) =>
-    updateProviderExecutable(executablePath, {
+  runLifecycle: (provider) =>
+    runProviderLifecycle(provider, {
       platform,
-      env: process.env
+      env: process.env,
+      findExecutable: providerDependencies.findExecutable
     })
 });
 const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
-  providerDependencies
+  {
+    findExecutable: providerDependencies.findExecutable,
+    probeVersion: (executablePath) =>
+      providerDependencies.probeVersion(executablePath, ['--version'])
+  }
 );
 
 let mainWindow: BrowserWindow | null = null;
@@ -244,6 +247,7 @@ void app.whenReady().then(async () => {
     ipc: ipcMain,
     registry: providerRegistry,
     updates: providerUpdateService,
+    openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerCatalogIpc({

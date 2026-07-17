@@ -22,7 +22,8 @@ describe('unsigned MVP release documentation', () => {
       'macOS Apple Silicon arm64',
       'SmartScreen',
       'Gatekeeper',
-      'OpenAI Codex CLI and Claude Code',
+      'Codex, Claude Code, Gemini CLI',
+      'Saved-session discovery and resume',
       'custom CLI start command',
       'session tab closes automatically'
     ];

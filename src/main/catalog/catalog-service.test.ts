@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type {
   CatalogDiagnostic,
+  CatalogProviderId,
   CatalogProviderStatus,
   CatalogQuery,
-  ProviderId,
   ProviderInstallation,
   ProviderScanResult
 } from '../../shared/contracts';
@@ -15,7 +15,7 @@ import type {
 } from '../providers/session-discovery';
 import { CatalogService } from './catalog-service';
 
-function ready(provider: ProviderId): ProviderInstallation {
+function ready(provider: CatalogProviderId): ProviderInstallation {
   return {
     provider,
     displayName: provider === 'codex' ? 'Codex' : 'Claude Code',
@@ -26,7 +26,7 @@ function ready(provider: ProviderId): ProviderInstallation {
   };
 }
 
-function missing(provider: ProviderId): ProviderInstallation {
+function missing(provider: CatalogProviderId): ProviderInstallation {
   const displayName = provider === 'codex' ? 'Codex' : 'Claude Code';
   return {
     provider,
@@ -54,7 +54,7 @@ function scan(
 }
 
 function record(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   nativeId: string,
   workspacePath = `/work/${provider}`
 ): ProviderSessionRecord {
@@ -70,7 +70,7 @@ function record(
 }
 
 function discovery(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   sessions: readonly ProviderSessionRecord[],
   invalidCount = 0,
   unchangedCount = 0

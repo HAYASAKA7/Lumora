@@ -6,7 +6,7 @@ import type {
   CatalogDiagnostic,
   CatalogProviderStatus,
   CatalogQuery,
-  ProviderId
+  CatalogProviderId
 } from '../../shared/contracts';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
 import type { CatalogCandidate } from '../catalog/catalog-candidate';
@@ -112,7 +112,8 @@ describe('catalog migrations', () => {
       { version: 6 },
       { version: 7 },
       { version: 8 },
-      { version: 9 }
+      { version: 9 },
+      { version: 10 }
     ]);
     expect(
       database
@@ -449,7 +450,7 @@ describe('CatalogRepository', () => {
 
   it('orders equal timestamps by provider and native identity', () => {
     const repository = createRepository();
-    const add = (provider: ProviderId, nativeId: string) =>
+    const add = (provider: CatalogProviderId, nativeId: string) =>
       repository.applyProviderScan({
         provider,
         scanId: `${provider}-${nativeId}`,

@@ -9,15 +9,16 @@ import {
   type ProviderUpdateStatus
 } from '../../shared/contracts';
 import type { ProviderReleaseSource } from './provider-release-source';
+import { providerDefinition } from '../../shared/provider-definitions';
 import {
   compareSemanticVersions,
   extractSemanticVersion
 } from './provider-version';
 
-const PROVIDERS = [
-  { provider: 'codex', displayName: 'Codex' },
-  { provider: 'claude', displayName: 'Claude Code' }
-] as const;
+type ProviderIdentity = Pick<
+  ProviderInstallation,
+  'provider' | 'displayName'
+>;
 
 interface ProviderRegistryLike {
   scan(): Promise<ProviderScanResult>;
@@ -25,12 +26,16 @@ interface ProviderRegistryLike {
 
 export interface ProviderUpdateService {
   check(): Promise<ProviderUpdateCheckResult>;
+  install(provider: ProviderId): Promise<ProviderUpdateResult>;
   update(provider: ProviderId): Promise<ProviderUpdateResult>;
 }
 
 export class ProviderUpdateServiceError extends Error {
   constructor(
-    readonly code: 'PROVIDER_NOT_READY' | 'PROVIDER_UPDATE_IN_PROGRESS',
+    readonly code:
+      | 'PROVIDER_NOT_READY'
+      | 'PROVIDER_ALREADY_INSTALLED'
+      | 'PROVIDER_UPDATE_IN_PROGRESS',
     message: string
   ) {
     super(message);
@@ -39,7 +44,7 @@ export class ProviderUpdateServiceError extends Error {
 }
 
 function unavailable(
-  identity: (typeof PROVIDERS)[number],
+  identity: ProviderIdentity,
   values: Pick<ProviderUpdateStatus, 'installedVersion' | 'latestVersion'>,
   issue: Extract<ProviderUpdateStatus, { state: 'unavailable' }>['issue']
 ): ProviderUpdateStatus {
@@ -47,7 +52,7 @@ function unavailable(
 }
 
 async function checkProvider(
-  identity: (typeof PROVIDERS)[number],
+  identity: ProviderIdentity,
   installation: ProviderInstallation | undefined,
   releases: ProviderReleaseSource
 ): Promise<ProviderUpdateStatus> {
@@ -74,6 +79,19 @@ async function checkProvider(
         message: `${identity.displayName}'s installed version could not be compared.`,
         recovery: `Run ${identity.provider} --version, then refresh.`,
         retryable: true
+      }
+    );
+  }
+
+  if (providerDefinition(identity.provider).npmPackage === null) {
+    return unavailable(
+      identity,
+      { installedVersion: installed.raw, latestVersion: null },
+      {
+        code: 'PROVIDER_RELEASE_UNAVAILABLE',
+        message: `${identity.displayName}'s latest version is managed by its official installer.`,
+        recovery: `Use the official ${identity.displayName} installation guide to check for updates.`,
+        retryable: false
       }
     );
   }
@@ -123,26 +141,66 @@ async function checkProvider(
 export function createProviderUpdateService({
   registry,
   releases,
-  runUpdate,
+  runLifecycle,
   now = () => new Date()
 }: {
   registry: ProviderRegistryLike;
   releases: ProviderReleaseSource;
-  runUpdate(executablePath: string): Promise<void>;
+  runLifecycle(provider: ProviderId): Promise<void>;
   now?: () => Date;
 }): ProviderUpdateService {
-  const updating = new Set<ProviderId>();
+  const running = new Set<ProviderId>();
+
+  const withLock = async (
+    provider: ProviderId,
+    action: () => Promise<ProviderUpdateResult>
+  ): Promise<ProviderUpdateResult> => {
+    if (running.has(provider)) {
+      throw new ProviderUpdateServiceError(
+        'PROVIDER_UPDATE_IN_PROGRESS',
+        'This provider already has a lifecycle operation in progress.'
+      );
+    }
+    running.add(provider);
+    try {
+      return await action();
+    } finally {
+      running.delete(provider);
+    }
+  };
+
+  const resultAfterLifecycle = async (
+    provider: ProviderId
+  ): Promise<ProviderUpdateResult> => {
+    await runLifecycle(provider);
+    const after = await registry.scan();
+    const installation = after.providers.find(
+      (candidate) => candidate.provider === provider
+    );
+    if (installation === undefined || installation.state !== 'ready') {
+      throw new ProviderUpdateServiceError(
+        'PROVIDER_NOT_READY',
+        'The provider could not be detected after the lifecycle operation.'
+      );
+    }
+    return ProviderUpdateResultSchema.parse({
+      provider,
+      completedAt: now().toISOString(),
+      installation
+    });
+  };
 
   return Object.freeze({
     async check(): Promise<ProviderUpdateCheckResult> {
       const scan = await registry.scan();
       const providers = await Promise.all(
-        PROVIDERS.map((identity) =>
+        scan.providers.map((installation) =>
           checkProvider(
-            identity,
-            scan.providers.find(
-              (installation) => installation.provider === identity.provider
-            ),
+            {
+              provider: installation.provider,
+              displayName: installation.displayName
+            },
+            installation,
             releases
           )
         )
@@ -153,16 +211,30 @@ export function createProviderUpdateService({
       });
     },
 
-    async update(provider: ProviderId): Promise<ProviderUpdateResult> {
-      if (updating.has(provider)) {
-        throw new ProviderUpdateServiceError(
-          'PROVIDER_UPDATE_IN_PROGRESS',
-          'This provider is already being updated.'
+    async install(provider: ProviderId): Promise<ProviderUpdateResult> {
+      return withLock(provider, async () => {
+        const before = await registry.scan();
+        const installation = before.providers.find(
+          (candidate) => candidate.provider === provider
         );
-      }
-      updating.add(provider);
+        if (installation === undefined) {
+          throw new ProviderUpdateServiceError(
+            'PROVIDER_NOT_READY',
+            'The provider is not registered.'
+          );
+        }
+        if (installation.state === 'ready') {
+          throw new ProviderUpdateServiceError(
+            'PROVIDER_ALREADY_INSTALLED',
+            'The provider is already installed.'
+          );
+        }
+        return resultAfterLifecycle(provider);
+      });
+    },
 
-      try {
+    async update(provider: ProviderId): Promise<ProviderUpdateResult> {
+      return withLock(provider, async () => {
         const before = await registry.scan();
         const installation = before.providers.find(
           (candidate) => candidate.provider === provider
@@ -174,27 +246,8 @@ export function createProviderUpdateService({
           );
         }
 
-        await runUpdate(installation.executablePath);
-
-        const after = await registry.scan();
-        const updated = after.providers.find(
-          (candidate) => candidate.provider === provider
-        );
-        if (updated === undefined) {
-          throw new ProviderUpdateServiceError(
-            'PROVIDER_NOT_READY',
-            'The updated provider could not be found.'
-          );
-        }
-
-        return ProviderUpdateResultSchema.parse({
-          provider,
-          completedAt: now().toISOString(),
-          installation: updated
-        });
-      } finally {
-        updating.delete(provider);
-      }
+        return resultAfterLifecycle(provider);
+      });
     }
   });
 }

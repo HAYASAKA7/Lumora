@@ -25,6 +25,7 @@ import {
   type TerminalProfile,
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
+import { PROVIDER_DEFINITIONS } from '../../shared/provider-definitions';
 
 const KEYBOARD_SETTINGS_PREFERENCE_KEY = 'keyboardShortcuts.v1';
 
@@ -458,10 +459,12 @@ export class TerminalRepository {
         layer.settings.providerCommands?.[layer.targetId]
       ])
     );
-    return ProviderLaunchConfigListSchema.parse([
-      { provider: 'codex', command: commands.get('codex') ?? null },
-      { provider: 'claude', command: commands.get('claude') ?? null }
-    ]);
+    return ProviderLaunchConfigListSchema.parse(
+      PROVIDER_DEFINITIONS.map(({ provider }) => ({
+        provider,
+        command: commands.get(provider) ?? null
+      }))
+    );
   }
 
   saveProviderLaunchConfig(

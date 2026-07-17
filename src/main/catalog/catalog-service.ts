@@ -1,10 +1,10 @@
 import {
   CatalogQuerySchema,
   type CatalogDiagnostic,
+  type CatalogProviderId,
   type CatalogProviderStatus,
   type CatalogQuery,
   type CatalogSnapshot,
-  type ProviderId,
   type ProviderInstallation,
   type ProviderScanResult
 } from '../../shared/contracts';
@@ -21,7 +21,7 @@ type ReadyProviderInstallation = Extract<
 >;
 
 interface ProviderScanWrite {
-  provider: ProviderId;
+  provider: CatalogProviderId;
   scanId: string;
   scannedAt: string;
   candidates: readonly CatalogCandidate[];
@@ -73,7 +73,7 @@ const PROVIDER_ORDER = ['codex', 'claude'] as const;
 const EMPTY_QUERY: CatalogQuery = { text: '', provider: null };
 
 function emptyStatus(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   state: CatalogProviderStatus['state']
 ): CatalogProviderStatus {
   return {
@@ -87,7 +87,7 @@ function emptyStatus(
 
 function providerUnavailableDiagnostic(
   installation: ProviderInstallation | undefined,
-  provider: ProviderId,
+  provider: CatalogProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
   const displayName = provider === 'codex' ? 'Codex' : 'Claude Code';
@@ -105,7 +105,7 @@ function providerUnavailableDiagnostic(
 }
 
 function discoveryFailureDiagnostic(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
   return provider === 'codex'
@@ -130,7 +130,7 @@ function discoveryFailureDiagnostic(
 }
 
 function invalidSourceDiagnostic(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   affectedCount: number,
   scannedAt: string
 ): CatalogDiagnostic {
@@ -149,7 +149,7 @@ function invalidSourceDiagnostic(
 }
 
 function databaseFailureDiagnostic(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
   return {
@@ -193,7 +193,7 @@ export class CatalogService {
     const installations = new Map(
       scan.providers.map((installation) => [installation.provider, installation])
     );
-    const outcomes = new Map<ProviderId, DiscoveryOutcome>();
+    const outcomes = new Map<CatalogProviderId, DiscoveryOutcome>();
 
     await Promise.all(
       PROVIDER_ORDER.map(async (provider) => {

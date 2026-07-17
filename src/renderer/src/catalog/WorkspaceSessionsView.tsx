@@ -1,7 +1,7 @@
 import { memo, type ReactNode } from 'react';
 
 import type {
-  ProviderId,
+  CatalogProviderId,
   ProviderScanResult,
   SessionSummary,
   TerminalProfile,
@@ -16,7 +16,7 @@ import { resolveSessionResumeDisabledReason } from './session-resume';
 
 const SESSION_BATCH_SIZE = 40;
 
-const PROVIDER_LABELS: Record<ProviderId, string> = {
+const PROVIDER_LABELS: Record<CatalogProviderId, string> = {
   codex: 'Codex',
   claude: 'Claude Code'
 };

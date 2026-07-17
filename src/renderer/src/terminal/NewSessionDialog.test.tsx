@@ -286,6 +286,60 @@ describe('NewSessionDialog', () => {
     ]);
   });
 
+  it('prepares a new session for a wider registered provider', async () => {
+    const geminiPreview: LaunchPreview = {
+      ...preview,
+      provider: 'gemini',
+      executablePath: 'C:\\tools\\gemini.cmd',
+      command: null
+    };
+    const prepareLaunch = vi.fn().mockResolvedValue(geminiPreview);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={{
+          scannedAt: scan.scannedAt,
+          providers: [
+            {
+              provider: 'gemini',
+              displayName: 'Gemini CLI',
+              state: 'ready',
+              executablePath: 'C:\\tools\\gemini.cmd',
+              version: '0.1.0',
+              issue: null
+            }
+          ]
+        }}
+        workspaces={[workspace]}
+      />
+    );
+
+    await waitFor(() =>
+      expect(prepareLaunch).toHaveBeenCalledWith({
+        strategy: 'new',
+        workspaceId: workspace.id,
+        provider: 'gemini',
+        terminalProfileId: null,
+        cols: 100,
+        rows: 30
+      })
+    );
+    expect(screen.getByRole('option', { name: 'Gemini CLI' })).toHaveValue(
+      'gemini'
+    );
+  });
+
   it('does not start an obsolete token when eligibility changes during trust', async () => {
     const untrustedPreview = { ...preview, workspaceTrusted: false };
     const refreshedPreview = {

@@ -170,16 +170,30 @@ describe('createLumoraApi', () => {
     };
     const api = createLumoraApi(async (channel, ...args) => {
       invocations.push({ channel, args });
-      return channel === IPC_CHANNELS.providerUpdatesCheck ? check : update;
+      if (channel === IPC_CHANNELS.providerUpdatesCheck) return check;
+      if (channel === IPC_CHANNELS.providerInstallGuideOpen) {
+        return { opened: true };
+      }
+      return update;
     });
 
     await expect(api.checkProviderUpdates()).resolves.toEqual(check);
     await expect(api.updateProvider('claude')).resolves.toEqual(update);
+    await expect(api.installProvider('claude')).resolves.toEqual(update);
+    await expect(api.openProviderInstallGuide('aider')).resolves.toBeUndefined();
     expect(invocations).toEqual([
       { channel: IPC_CHANNELS.providerUpdatesCheck, args: [] },
       {
         channel: IPC_CHANNELS.providerUpdateRun,
         args: [{ provider: 'claude' }]
+      },
+      {
+        channel: IPC_CHANNELS.providerInstallRun,
+        args: [{ provider: 'claude' }]
+      },
+      {
+        channel: IPC_CHANNELS.providerInstallGuideOpen,
+        args: [{ provider: 'aider' }]
       }
     ]);
   });
@@ -188,7 +202,9 @@ describe('createLumoraApi', () => {
     const invoke = vi.fn(async () => ({ unexpected: true }));
     const api = createLumoraApi(invoke);
 
-    await expect(api.updateProvider('gemini' as 'codex')).rejects.toBeDefined();
+    await expect(
+      api.updateProvider('unknown-agent' as 'codex')
+    ).rejects.toBeDefined();
     expect(invoke).not.toHaveBeenCalled();
     await expect(api.checkProviderUpdates()).rejects.toBeDefined();
   });

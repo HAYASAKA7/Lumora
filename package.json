@@ -2,7 +2,7 @@
   "name": "agent-workspace-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Local control plane for Codex and Claude Code sessions",
+  "description": "Local workspace and terminal manager for native AI-agent CLIs",
   "main": "./out/main/index.js",
   "type": "module",
   "engines": {

@@ -2,6 +2,10 @@ import type {
   ProviderId,
   ProviderInstallation
 } from '../../shared/contracts';
+import {
+  PROVIDER_DEFINITIONS,
+  type ProviderDefinition
+} from '../../shared/provider-definitions';
 
 export interface ProviderAdapter {
   readonly provider: ProviderId;
@@ -11,13 +15,10 @@ export interface ProviderAdapter {
 
 export interface ProviderScanDependencies {
   findExecutable(command: string): Promise<string | null>;
-  probeVersion(executablePath: string): Promise<string>;
-}
-
-interface ProviderDefinition {
-  provider: ProviderId;
-  displayName: string;
-  command: string;
+  probeVersion(
+    executablePath: string,
+    args: readonly string[]
+  ): Promise<string>;
 }
 
 type ProviderIdentity = Pick<ProviderAdapter, 'provider' | 'displayName'>;
@@ -46,7 +47,7 @@ export function createProviderAdapter(
   definition: ProviderDefinition,
   dependencies: ProviderScanDependencies
 ): ProviderAdapter {
-  const { provider, displayName, command } = definition;
+  const { provider, displayName, command, versionArgs } = definition;
 
   return Object.freeze({
     provider,
@@ -76,7 +77,10 @@ export function createProviderAdapter(
       }
 
       try {
-        const version = await dependencies.probeVersion(executablePath);
+        const version = await dependencies.probeVersion(
+          executablePath,
+          versionArgs
+        );
         return {
           provider,
           displayName,
@@ -95,11 +99,21 @@ export function createProviderAdapter(
           issue: {
             code: 'PROVIDER_VERSION_PROBE_FAILED',
             message: `Lumora found ${displayName} but could not read its version.`,
-            recovery: `Run ${command} --version in a terminal, then refresh.`,
+            recovery: `Run ${command} ${versionArgs.join(' ')} in a terminal, then refresh.`,
             retryable: true
           }
         };
       }
     }
   });
+}
+
+export function createProviderAdapters(
+  dependencies: ProviderScanDependencies
+): readonly ProviderAdapter[] {
+  return Object.freeze(
+    PROVIDER_DEFINITIONS.map((definition) =>
+      createProviderAdapter(definition, dependencies)
+    )
+  );
 }

@@ -141,4 +141,36 @@ describe('LaunchSettingsPanel', () => {
       })
     );
   });
+
+  it('offers launch-command settings for every registered provider', async () => {
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
+        saveLaunchSettingsLayer: vi.fn().mockResolvedValue([])
+      }
+    });
+    render(
+      <LaunchSettingsPanel
+        profiles={[profile]}
+        sessions={[session]}
+        workspaces={[workspace]}
+      />
+    );
+
+    await screen.findByText('Launch defaults');
+    fireEvent.change(screen.getByLabelText('Settings scope'), {
+      target: { value: 'provider' }
+    });
+
+    expect(
+      screen.getByRole('option', { name: 'Gemini CLI' })
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Scope target'), {
+      target: { value: 'gemini' }
+    });
+    expect(
+      await screen.findByLabelText('Gemini CLI command mode')
+    ).toBeInTheDocument();
+  });
 });

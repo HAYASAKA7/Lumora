@@ -122,14 +122,15 @@ function harness(overrides: {
     isWorkspaceTrusted: vi.fn(() => trusted),
     trustWorkspace
   };
+  const captureSessionBaseline = vi.fn(async () => {
+    if (overrides.baseline instanceof Error) throw overrides.baseline;
+    return overrides.baseline ?? [];
+  });
   const service = new LaunchService({
     repository,
     scanProviders: vi.fn(async () => overrides.scan ?? scan),
     isExecutablePath: vi.fn(async () => true),
-    captureSessionBaseline: vi.fn(async () => {
-      if (overrides.baseline instanceof Error) throw overrides.baseline;
-      return overrides.baseline ?? [];
-    }),
+    captureSessionBaseline,
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
     clock: () => now,
@@ -138,6 +139,7 @@ function harness(overrides: {
   return {
     service,
     repository,
+    captureSessionBaseline,
     setNow(value: string) {
       now = new Date(value);
     },
@@ -196,12 +198,32 @@ describe('LaunchService', () => {
 
   it.each([
     ['codex', 'New Codex session'],
-    ['claude', 'New Claude Code session']
+    ['claude', 'New Claude Code session'],
+    ['gemini', 'New Gemini CLI session']
   ] as const)('uses the provider fallback for a new %s runtime', async (
     provider,
     displayName
   ) => {
-    const { service } = harness({ trusted: true });
+    const providerScan: ProviderScanResult = {
+      ...scan,
+      providers: provider === 'gemini'
+        ? [
+            ...scan.providers,
+            {
+              provider: 'gemini',
+              displayName: 'Gemini CLI',
+              state: 'ready',
+              executablePath: '/usr/local/bin/gemini',
+              version: '1.0.0',
+              issue: null
+            }
+          ]
+        : scan.providers
+    };
+    const { service, captureSessionBaseline } = harness({
+      trusted: true,
+      scan: providerScan
+    });
     const preview = await service.prepare({
       strategy: 'new',
       provider,
@@ -214,6 +236,9 @@ describe('LaunchService', () => {
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
       displayName
     });
+    expect(captureSessionBaseline).toHaveBeenCalledTimes(
+      provider === 'gemini' ? 0 : 1
+    );
   });
 
   it('rejects missing and stale sessions', async () => {

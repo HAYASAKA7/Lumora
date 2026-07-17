@@ -43,7 +43,22 @@ export type DeveloperEnvironmentScanResult = z.infer<
   typeof DeveloperEnvironmentScanResultSchema
 >;
 
-export const ProviderIdSchema = z.enum(['codex', 'claude']);
+export const PROVIDER_IDS = [
+  'codex',
+  'claude',
+  'gemini',
+  'antigravity',
+  'opencode',
+  'cursor',
+  'copilot',
+  'qwen',
+  'amp',
+  'crush',
+  'goose',
+  'aider'
+] as const;
+export const ProviderIdSchema = z.enum(PROVIDER_IDS);
+export const CatalogProviderIdSchema = z.enum(['codex', 'claude']);
 export const ProviderStateSchema = z.enum([
   'ready',
   'not_found',
@@ -105,7 +120,7 @@ export const ProviderInstallationSchema = z.discriminatedUnion('state', [
 
 export const ProviderScanResultSchema = z.strictObject({
   scannedAt: z.iso.datetime(),
-  providers: z.array(ProviderInstallationSchema).length(2)
+  providers: z.array(ProviderInstallationSchema).max(PROVIDER_IDS.length)
 });
 
 const ProviderUpdateComparableFields = {
@@ -144,7 +159,7 @@ export const ProviderUpdateStatusSchema = z.discriminatedUnion('state', [
 
 export const ProviderUpdateCheckResultSchema = z.strictObject({
   checkedAt: z.iso.datetime(),
-  providers: z.array(ProviderUpdateStatusSchema).length(2)
+  providers: z.array(ProviderUpdateStatusSchema).max(PROVIDER_IDS.length)
 });
 
 export const ProviderUpdateRequestSchema = z.strictObject({
@@ -158,6 +173,7 @@ export const ProviderUpdateResultSchema = z.strictObject({
 });
 
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
+export type CatalogProviderId = z.infer<typeof CatalogProviderIdSchema>;
 export type ProviderInstallation = z.infer<
   typeof ProviderInstallationSchema
 >;
@@ -190,7 +206,7 @@ export const ProviderLaunchConfigSchema = z.strictObject({
 export const ProviderLaunchConfigInputSchema = ProviderLaunchConfigSchema;
 export const ProviderLaunchConfigListSchema = z
   .array(ProviderLaunchConfigSchema)
-  .length(2);
+  .max(PROVIDER_IDS.length);
 
 export type ProviderLaunchConfig = z.infer<
   typeof ProviderLaunchConfigSchema
@@ -252,7 +268,7 @@ export const WorkspaceTrustRevokeRequestSchema = z.strictObject({
 export const SessionSummarySchema = z.strictObject({
   id: StableIdSchema,
   nativeId: z.string().trim().min(1).max(256),
-  provider: ProviderIdSchema,
+  provider: CatalogProviderIdSchema,
   workspaceId: StableIdSchema,
   title: z.string().trim().min(1).max(256),
   createdAt: z.iso.datetime(),
@@ -271,7 +287,7 @@ export const CatalogDiagnosticCodeSchema = z.enum([
 
 export const CatalogDiagnosticSchema = z.strictObject({
   code: CatalogDiagnosticCodeSchema,
-  provider: ProviderIdSchema.nullable(),
+  provider: CatalogProviderIdSchema.nullable(),
   affectedCount: z.number().int().nonnegative(),
   message: z.string().trim().min(1).max(512),
   recovery: z.string().trim().min(1).max(512),
@@ -286,7 +302,7 @@ export const CatalogProviderStateSchema = z.enum([
 ]);
 
 export const CatalogProviderStatusSchema = z.strictObject({
-  provider: ProviderIdSchema,
+  provider: CatalogProviderIdSchema,
   state: CatalogProviderStateSchema,
   discoveredCount: z.number().int().nonnegative(),
   unchangedCount: z.number().int().nonnegative(),
@@ -303,7 +319,7 @@ export const CatalogSnapshotSchema = z.strictObject({
 
 export const CatalogQuerySchema = z.strictObject({
   text: z.string().trim().max(120),
-  provider: ProviderIdSchema.nullable()
+  provider: CatalogProviderIdSchema.nullable()
 });
 
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
@@ -361,10 +377,10 @@ export type CustomTerminalProfileInput = z.infer<
   typeof CustomTerminalProfileInputSchema
 >;
 
-const ProviderCommandOverridesSchema = z.strictObject({
-  codex: ProviderLaunchCommandSchema.nullable().optional(),
-  claude: ProviderLaunchCommandSchema.nullable().optional()
-});
+const ProviderCommandOverridesSchema = z.partialRecord(
+  ProviderIdSchema,
+  ProviderLaunchCommandSchema.nullable()
+);
 
 export const LaunchSettingsValueSchema = z.strictObject({
   terminalProfileId: TerminalProfileIdSchema.nullable().optional(),
@@ -412,16 +428,11 @@ function validateProviderLayer(
   if (layer.scope !== 'provider' || layer.settings.providerCommands === undefined) {
     return;
   }
-  const unexpectedProvider = layer.targetId === 'codex' ? 'claude' : 'codex';
-  if (
-    Object.prototype.hasOwnProperty.call(
-      layer.settings.providerCommands,
-      unexpectedProvider
-    )
-  ) {
+  for (const provider of Object.keys(layer.settings.providerCommands)) {
+    if (provider === layer.targetId) continue;
     context.addIssue({
       code: 'custom',
-      path: ['settings', 'providerCommands', unexpectedProvider],
+      path: ['settings', 'providerCommands', provider],
       message: 'Provider layers can only configure their own provider.'
     });
   }
@@ -767,6 +778,8 @@ export const IPC_CHANNELS = {
   providerScan: 'lumora:providers:scan',
   providerUpdatesCheck: 'lumora:providers:updates:check',
   providerUpdateRun: 'lumora:providers:update:run',
+  providerInstallRun: 'lumora:providers:install:run',
+  providerInstallGuideOpen: 'lumora:providers:install-guide:open',
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
   workspaceChoose: 'lumora:workspace:choose',
@@ -800,6 +813,8 @@ export interface LumoraApi {
   openNodeDownloadPage(): Promise<void>;
   scanProviders(): Promise<ProviderScanResult>;
   checkProviderUpdates(): Promise<ProviderUpdateCheckResult>;
+  installProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
+  openProviderInstallGuide(provider: ProviderId): Promise<void>;
   updateProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;

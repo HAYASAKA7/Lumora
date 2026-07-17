@@ -38,7 +38,7 @@ describe('ProviderUpdateService.check', () => {
           provider === 'codex' ? '1.3.0' : '1.9.9'
         )
       },
-      runUpdate: vi.fn(),
+      runLifecycle: vi.fn(),
       now: () => new Date('2026-07-17T02:00:00.000Z')
     });
 
@@ -83,7 +83,7 @@ describe('ProviderUpdateService.check', () => {
     const notReady = createProviderUpdateService({
       registry: { scan: async () => scan([{ ...codex, version: 'unknown' }, missingClaude]) },
       releases,
-      runUpdate: vi.fn()
+      runLifecycle: vi.fn()
     });
 
     const result = await notReady.check();
@@ -105,7 +105,7 @@ describe('ProviderUpdateService.check', () => {
           return '2.0.0';
         }
       },
-      runUpdate: vi.fn()
+      runLifecycle: vi.fn()
     });
     const isolated = await releaseFailure.check();
     expect(isolated.providers[0]).toMatchObject({
@@ -128,11 +128,11 @@ describe('ProviderUpdateService.update', () => {
         .mockResolvedValueOnce(scan())
         .mockResolvedValueOnce(scan([updatedCodex, claude]))
     };
-    const runUpdate = vi.fn(async () => undefined);
+    const runLifecycle = vi.fn(async () => undefined);
     const service = createProviderUpdateService({
       registry,
       releases: { latestVersion: vi.fn() },
-      runUpdate,
+      runLifecycle,
       now: () => new Date('2026-07-17T03:00:00.000Z')
     });
 
@@ -141,12 +141,12 @@ describe('ProviderUpdateService.update', () => {
       completedAt: '2026-07-17T03:00:00.000Z',
       installation: updatedCodex
     });
-    expect(runUpdate).toHaveBeenCalledWith('/usr/bin/codex');
+    expect(runLifecycle).toHaveBeenCalledWith('codex');
     expect(registry.scan).toHaveBeenCalledTimes(2);
   });
 
   it('rejects unavailable providers before running an updater', async () => {
-    const runUpdate = vi.fn();
+    const runLifecycle = vi.fn();
     const service = createProviderUpdateService({
       registry: {
         scan: async () => scan([codex, {
@@ -156,29 +156,29 @@ describe('ProviderUpdateService.update', () => {
         }])
       },
       releases: { latestVersion: vi.fn() },
-      runUpdate
+      runLifecycle
     });
 
     await expect(service.update('claude')).rejects.toMatchObject({
       code: 'PROVIDER_NOT_READY'
     });
-    expect(runUpdate).not.toHaveBeenCalled();
+    expect(runLifecycle).not.toHaveBeenCalled();
   });
 
   it('locks each provider while allowing the other provider to update', async () => {
     let releaseCodex!: () => void;
     const codexPending = new Promise<void>((resolve) => { releaseCodex = resolve; });
-    const runUpdate = vi.fn(async (path: string) => {
-      if (path.endsWith('codex')) await codexPending;
+    const runLifecycle = vi.fn(async (provider: string) => {
+      if (provider === 'codex') await codexPending;
     });
     const service = createProviderUpdateService({
       registry: { scan: async () => scan() },
       releases: { latestVersion: vi.fn() },
-      runUpdate
+      runLifecycle
     });
 
     const first = service.update('codex');
-    await vi.waitFor(() => expect(runUpdate).toHaveBeenCalledWith('/usr/bin/codex'));
+    await vi.waitFor(() => expect(runLifecycle).toHaveBeenCalledWith('codex'));
     await expect(service.update('codex')).rejects.toMatchObject({
       code: 'PROVIDER_UPDATE_IN_PROGRESS'
     });
@@ -187,5 +187,96 @@ describe('ProviderUpdateService.update', () => {
     });
     releaseCodex();
     await expect(first).resolves.toMatchObject({ provider: 'codex' });
+  });
+
+  it('directs guide-only providers to their official update instructions', async () => {
+    const aider: ProviderInstallation = {
+      provider: 'aider',
+      displayName: 'Aider',
+      state: 'ready',
+      executablePath: '/usr/bin/aider',
+      version: 'aider 0.82.0',
+      issue: null
+    };
+    const releases = { latestVersion: vi.fn() };
+    const service = createProviderUpdateService({
+      registry: { scan: async () => scan([aider]) },
+      releases,
+      runLifecycle: vi.fn()
+    });
+
+    await expect(service.check()).resolves.toMatchObject({
+      providers: [
+        {
+          provider: 'aider',
+          state: 'unavailable',
+          issue: {
+            code: 'PROVIDER_RELEASE_UNAVAILABLE',
+            recovery: 'Use the official Aider installation guide to check for updates.',
+            retryable: false
+          }
+        }
+      ]
+    });
+    expect(releases.latestVersion).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProviderUpdateService.install', () => {
+  it('installs a missing npm provider and returns its fresh scan', async () => {
+    const missingGemini: ProviderInstallation = {
+      provider: 'gemini',
+      displayName: 'Gemini CLI',
+      state: 'not_found',
+      executablePath: null,
+      version: null,
+      issue: {
+        code: 'PROVIDER_NOT_FOUND',
+        message: 'missing',
+        recovery: 'install',
+        retryable: true
+      }
+    };
+    const readyGemini: ProviderInstallation = {
+      provider: 'gemini',
+      displayName: 'Gemini CLI',
+      state: 'ready',
+      executablePath: '/usr/bin/gemini',
+      version: '1.2.3',
+      issue: null
+    };
+    const registry = {
+      scan: vi.fn()
+        .mockResolvedValueOnce(scan([missingGemini]))
+        .mockResolvedValueOnce(scan([readyGemini]))
+    };
+    const runLifecycle = vi.fn(async () => undefined);
+    const service = createProviderUpdateService({
+      registry,
+      releases: { latestVersion: vi.fn() },
+      runLifecycle,
+      now: () => new Date('2026-07-17T03:10:00.000Z')
+    });
+
+    await expect(service.install('gemini')).resolves.toEqual({
+      provider: 'gemini',
+      completedAt: '2026-07-17T03:10:00.000Z',
+      installation: readyGemini
+    });
+    expect(runLifecycle).toHaveBeenCalledWith('gemini');
+  });
+
+  it('does not reinstall a provider that is already ready', async () => {
+    const runLifecycle = vi.fn();
+    const service = createProviderUpdateService({
+      registry: { scan: async () => scan([codex]) },
+      releases: { latestVersion: vi.fn() },
+      runLifecycle
+    });
+
+    await expect(service.install('codex')).rejects.toMatchObject({
+      code: 'PROVIDER_ALREADY_INSTALLED'
+    });
+    expect(runLifecycle).not.toHaveBeenCalled();
   });
 });

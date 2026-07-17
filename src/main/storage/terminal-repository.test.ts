@@ -7,7 +7,11 @@ import {
   type RuntimeSummary,
   type TerminalProfile
 } from '../../shared/contracts';
-import { migrateCatalogDatabase } from './migrations';
+import {
+  CATALOG_MIGRATIONS,
+  migrateCatalogDatabase,
+  runMigrations
+} from './migrations';
 import { TerminalRepository } from './terminal-repository';
 
 const timestamp = '2026-07-11T04:00:00.000Z';
@@ -218,33 +222,33 @@ describe('TerminalRepository', () => {
     const configurable = repository as unknown as {
       listProviderLaunchConfigs(): unknown;
       saveProviderLaunchConfig(
-        input: { provider: 'codex' | 'claude'; command: string | null },
+        input: { provider: 'codex' | 'claude' | 'gemini'; command: string | null },
         timestamp: string
       ): unknown;
-      getProviderLaunchCommand(provider: 'codex' | 'claude'): string | null;
+      getProviderLaunchCommand(
+        provider: 'codex' | 'claude' | 'gemini'
+      ): string | null;
     };
 
-    expect(configurable.listProviderLaunchConfigs()).toEqual([
-      { provider: 'codex', command: null },
-      { provider: 'claude', command: null }
-    ]);
-
-    expect(
-      configurable.saveProviderLaunchConfig(
-        { provider: 'codex', command: 'codexp' },
-        timestamp
-      )
-    ).toEqual([
-      { provider: 'codex', command: 'codexp' },
-      { provider: 'claude', command: null }
-    ]);
-    expect(configurable.getProviderLaunchCommand('codex')).toBe('codexp');
+    expect(configurable.listProviderLaunchConfigs()).toHaveLength(12);
+    expect(configurable.listProviderLaunchConfigs()).toContainEqual({
+      provider: 'gemini',
+      command: null
+    });
 
     configurable.saveProviderLaunchConfig(
-      { provider: 'codex', command: null },
+      { provider: 'gemini', command: 'gemini-preview' },
+      timestamp
+    );
+    expect(configurable.getProviderLaunchCommand('gemini')).toBe(
+      'gemini-preview'
+    );
+
+    configurable.saveProviderLaunchConfig(
+      { provider: 'gemini', command: null },
       '2026-07-11T05:00:00.000Z'
     );
-    expect(configurable.getProviderLaunchCommand('codex')).toBeNull();
+    expect(configurable.getProviderLaunchCommand('gemini')).toBeNull();
   });
 
   it('persists ordered launch setting layers and deletes empty overrides', () => {
@@ -366,7 +370,10 @@ describe('TerminalRepository', () => {
           (provider, command, updated_at) VALUES ('codex', 'codexp', ?)`
       ).run(timestamp);
 
-      migrateCatalogDatabase(legacy);
+      runMigrations(
+        legacy,
+        CATALOG_MIGRATIONS.filter(({ version }) => version === 6)
+      );
 
       const row = legacy.prepare(
         `SELECT scope, target_id, settings_json

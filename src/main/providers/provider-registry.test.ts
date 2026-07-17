@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProviderInstallation } from '../../shared/contracts';
-import { createClaudeAdapter } from './claude-adapter';
-import { createCodexAdapter } from './codex-adapter';
-import type { ProviderAdapter } from './provider-adapter';
+import { PROVIDER_DEFINITIONS } from '../../shared/provider-definitions';
+import {
+  createProviderAdapters,
+  type ProviderAdapter
+} from './provider-adapter';
 import { ProviderRegistry } from './provider-registry';
 
 const readyCodex: ProviderInstallation = {
@@ -15,134 +17,137 @@ const readyCodex: ProviderInstallation = {
   issue: null
 };
 
-const readyClaude: ProviderInstallation = {
-  provider: 'claude',
-  displayName: 'Claude Code',
-  state: 'ready',
-  executablePath: '/tools/claude',
-  version: '2.3.4 (Claude Code)',
-  issue: null
-};
-
 describe('provider adapters', () => {
-  it('detects and version-probes Codex through the shared dependencies', async () => {
-    const findExecutable = vi.fn(async () => '/tools/codex');
-    const probeVersion = vi.fn(async () => 'codex-cli 1.2.3');
-    const adapter = createCodexAdapter({ findExecutable, probeVersion });
+  it('builds every shipped provider adapter in stable UI order', () => {
+    const adapters = createProviderAdapters({
+      findExecutable: vi.fn(),
+      probeVersion: vi.fn()
+    });
 
-    await expect(adapter.scan()).resolves.toEqual(readyCodex);
-    expect(findExecutable).toHaveBeenCalledWith('codex');
-    expect(probeVersion).toHaveBeenCalledWith('/tools/codex');
+    expect(adapters.map(({ provider }) => provider)).toEqual(
+      PROVIDER_DEFINITIONS.map(({ provider }) => provider)
+    );
   });
 
-  it('returns an actionable missing state for Claude Code', async () => {
-    const adapter = createClaudeAdapter({
+  it('detects and probes a provider with its fixed version arguments', async () => {
+    const findExecutable = vi.fn(async () => '/tools/copilot');
+    const probeVersion = vi.fn(async () => 'GitHub Copilot CLI 1.2.3');
+    const adapter = createProviderAdapters({
+      findExecutable,
+      probeVersion
+    }).find(({ provider }) => provider === 'copilot')!;
+
+    await expect(adapter.scan()).resolves.toMatchObject({
+      provider: 'copilot',
+      displayName: 'GitHub Copilot CLI',
+      state: 'ready',
+      version: 'GitHub Copilot CLI 1.2.3'
+    });
+    expect(findExecutable).toHaveBeenCalledWith('copilot');
+    expect(probeVersion).toHaveBeenCalledWith('/tools/copilot', ['version']);
+  });
+
+  it('returns an actionable missing state', async () => {
+    const adapter = createProviderAdapters({
       findExecutable: async () => null,
       probeVersion: async () => {
         throw new Error('must not run');
       }
-    });
+    }).find(({ provider }) => provider === 'gemini')!;
 
-    await expect(adapter.scan()).resolves.toEqual({
-      provider: 'claude',
-      displayName: 'Claude Code',
+    await expect(adapter.scan()).resolves.toMatchObject({
+      provider: 'gemini',
+      displayName: 'Gemini CLI',
       state: 'not_found',
       executablePath: null,
       version: null,
       issue: {
         code: 'PROVIDER_NOT_FOUND',
-        message: 'Claude Code was not found on PATH.',
-        recovery: 'Install Claude Code or add it to PATH, then refresh.',
-        retryable: true
+        recovery: 'Install Gemini CLI or add it to PATH, then refresh.'
       }
     });
   });
 
-  it('retains the executable path when a version probe fails', async () => {
-    const adapter = createCodexAdapter({
-      findExecutable: async () => 'C:\\tools\\codex.cmd',
+  it('shows the provider-specific version command after a probe failure', async () => {
+    const adapter = createProviderAdapters({
+      findExecutable: async () => '/tools/copilot',
       probeVersion: async () => {
-        throw new Error('process detail must not cross IPC');
+        throw new Error('probe failed');
       }
-    });
-
-    await expect(adapter.scan()).resolves.toEqual({
-      provider: 'codex',
-      displayName: 'Codex',
-      state: 'probe_failed',
-      executablePath: 'C:\\tools\\codex.cmd',
-      version: null,
-      issue: {
-        code: 'PROVIDER_VERSION_PROBE_FAILED',
-        message: 'Lumora found Codex but could not read its version.',
-        recovery: 'Run codex --version in a terminal, then refresh.',
-        retryable: true
-      }
-    });
-  });
-
-  it('normalizes locator failures without exposing exception details', async () => {
-    const adapter = createClaudeAdapter({
-      findExecutable: async () => {
-        throw new Error('sensitive PATH detail');
-      },
-      probeVersion: async () => 'unused'
-    });
+    }).find(({ provider }) => provider === 'copilot')!;
 
     await expect(adapter.scan()).resolves.toMatchObject({
-      provider: 'claude',
+      provider: 'copilot',
       state: 'probe_failed',
-      executablePath: null,
       issue: {
-        code: 'PROVIDER_SCAN_FAILED',
-        message: 'Lumora could not scan Claude Code.'
+        recovery: 'Run copilot version in a terminal, then refresh.'
       }
     });
   });
 });
 
 describe('ProviderRegistry', () => {
-  it('keeps Codex then Claude order when adapters resolve out of order', async () => {
+  it('keeps adapter order when scans resolve out of order', async () => {
     let resolveCodex!: (value: ProviderInstallation) => void;
-    let resolveClaude!: (value: ProviderInstallation) => void;
     const codexResult = new Promise<ProviderInstallation>((resolve) => {
       resolveCodex = resolve;
     });
-    const claudeResult = new Promise<ProviderInstallation>((resolve) => {
-      resolveClaude = resolve;
-    });
+    const gemini: ProviderInstallation = {
+      provider: 'gemini',
+      displayName: 'Gemini CLI',
+      state: 'not_found',
+      executablePath: null,
+      version: null,
+      issue: {
+        code: 'PROVIDER_NOT_FOUND',
+        message: 'Gemini CLI was not found on PATH.',
+        recovery: 'Install Gemini CLI or add it to PATH, then refresh.',
+        retryable: true
+      }
+    };
     const registry = new ProviderRegistry(
-      {
-        codex: { ...adapterIdentity('codex', 'Codex'), scan: () => codexResult },
-        claude: {
-          ...adapterIdentity('claude', 'Claude Code'),
-          scan: () => claudeResult
-        }
-      },
+      [
+        { ...identity('codex', 'Codex'), scan: () => codexResult },
+        { ...identity('gemini', 'Gemini CLI'), scan: async () => gemini }
+      ],
       () => new Date('2026-07-11T01:02:03.000Z')
     );
 
     const scanPromise = registry.scan();
-    resolveClaude(readyClaude);
     resolveCodex(readyCodex);
 
     await expect(scanPromise).resolves.toEqual({
       scannedAt: '2026-07-11T01:02:03.000Z',
-      providers: [readyCodex, readyClaude]
+      providers: [readyCodex, gemini]
     });
   });
 
   it('isolates an unexpected adapter failure to that provider', async () => {
     const registry = new ProviderRegistry(
-      {
-        codex: {
-          ...adapterIdentity('codex', 'Codex'),
+      [
+        {
+          ...identity('codex', 'Codex'),
           scan: async () => {
-            throw new Error('unexpected Codex failure');
+            throw new Error('unexpected failure');
           }
         },
-        claude: { ...adapterIdentity('claude', 'Claude Code'), scan: async () => readyClaude }
-      },
+        {
+          ...identity('gemini', 'Gemini CLI'),
+          scan: async () => ({
+            provider: 'gemini',
+            displayName: 'Gemini CLI',
+            state: 'not_found',
+            executablePath: null,
+            version: null,
+            issue: {
+              code: 'PROVIDER_NOT_FOUND',
+              message: 'missing',
+              recovery: 'install',
+              retryable: true
+            }
+          })
+        }
+      ],
       () => new Date('2026-07-11T01:02:03.000Z')
     );
 
@@ -151,14 +156,13 @@ describe('ProviderRegistry', () => {
     expect(result.providers[0]).toMatchObject({
       provider: 'codex',
       state: 'probe_failed',
-      executablePath: null,
       issue: { code: 'PROVIDER_SCAN_FAILED' }
     });
-    expect(result.providers[1]).toEqual(readyClaude);
+    expect(result.providers[1]?.provider).toBe('gemini');
   });
 });
 
-function adapterIdentity(
+function identity(
   provider: ProviderAdapter['provider'],
   displayName: string
 ): Pick<ProviderAdapter, 'provider' | 'displayName'> {

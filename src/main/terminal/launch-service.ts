@@ -13,6 +13,10 @@ import {
   type TerminalProfile,
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
+import {
+  isCatalogProvider,
+  providerDefinition
+} from '../../shared/provider-definitions';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { buildResumeArguments } from '../providers/launch-command';
@@ -164,8 +168,7 @@ export class LaunchService {
       workspaceId = request.workspaceId;
       sessionId = null;
       nativeSessionId = null;
-      displayName =
-        provider === 'codex' ? 'New Codex session' : 'New Claude Code session';
+      displayName = `New ${providerDefinition(provider).displayName} session`;
       args = [];
     } else {
       const session = this.dependencies.repository.getSession(request.sessionId);
@@ -212,7 +215,7 @@ export class LaunchService {
     const environment = environmentWithProfile(this.dependencies.env, profile);
     const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
-    if (request.strategy === 'new') {
+    if (request.strategy === 'new' && isCatalogProvider(provider)) {
       try {
         reconciliationBaselineNativeIds = normalizeSessionBaseline(
           await this.dependencies.captureSessionBaseline(provider, workspace.id)

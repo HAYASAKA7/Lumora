@@ -10,6 +10,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
 
 type CommandMode = 'inherit' | 'detected' | 'custom';
 type ProfileChoice = 'inherit' | 'automatic' | string;
@@ -19,15 +20,24 @@ interface CommandDraft {
   command: string;
 }
 
-const PROVIDERS: readonly ProviderId[] = ['codex', 'claude'];
-const PROVIDER_LABELS: Record<ProviderId, string> = {
-  codex: 'Codex',
-  claude: 'Claude Code'
-};
-const EMPTY_COMMANDS: Record<ProviderId, CommandDraft> = {
-  codex: { mode: 'inherit', command: '' },
-  claude: { mode: 'inherit', command: '' }
-};
+const PROVIDERS: readonly ProviderId[] = PROVIDER_DEFINITIONS.map(
+  (definition) => definition.provider
+);
+const PROVIDER_LABELS = Object.fromEntries(
+  PROVIDER_DEFINITIONS.map((definition) => [
+    definition.provider,
+    definition.displayName
+  ])
+) as Readonly<Record<ProviderId, string>>;
+
+function emptyCommands(): Record<ProviderId, CommandDraft> {
+  return Object.fromEntries(
+    PROVIDERS.map((provider) => [
+      provider,
+      { mode: 'inherit' as const, command: '' }
+    ])
+  ) as Record<ProviderId, CommandDraft>;
+}
 
 function commandDraft(
   settings: LaunchSettingsValue,
@@ -87,7 +97,7 @@ export function LaunchSettingsPanel({
   const [profileChoice, setProfileChoice] =
     useState<ProfileChoice>('inherit');
   const [commands, setCommands] =
-    useState<Record<ProviderId, CommandDraft>>(EMPTY_COMMANDS);
+    useState<Record<ProviderId, CommandDraft>>(emptyCommands);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,10 +153,11 @@ export function LaunchSettingsPanel({
           ? 'automatic'
           : settings.terminalProfileId
     );
-    setCommands({
-      codex: commandDraft(settings, 'codex'),
-      claude: commandDraft(settings, 'claude')
-    });
+    setCommands(
+      Object.fromEntries(
+        PROVIDERS.map((provider) => [provider, commandDraft(settings, provider)])
+      ) as Record<ProviderId, CommandDraft>
+    );
   }, [selectedLayer]);
 
   const applicableProviders = useMemo<ProviderId[]>(() => {

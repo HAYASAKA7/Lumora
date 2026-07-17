@@ -1,7 +1,7 @@
-import type { ProviderId } from '../../shared/contracts';
+import type { CatalogProviderId } from '../../shared/contracts';
 
 export function buildResumeArguments(
-  provider: ProviderId,
+  provider: CatalogProviderId,
   nativeSessionId: string
 ): string[] {
   return provider === 'codex'

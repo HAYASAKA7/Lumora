@@ -26,7 +26,7 @@ const runtime: RuntimeSummary = {
 const session: SessionSummary = {
   id: runtime.sessionId!,
   nativeId: runtime.nativeSessionId!,
-  provider: runtime.provider,
+  provider: 'codex',
   workspaceId: runtime.workspaceId,
   title: 'Recovered work',
   createdAt: '2026-07-12T01:00:00.000Z',

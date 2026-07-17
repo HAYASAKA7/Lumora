@@ -15,6 +15,7 @@ import {
   LaunchSettingsLayerSchema,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  ProviderIdSchema,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
@@ -54,6 +55,31 @@ const missingClaude = {
     retryable: true
   }
 } as const;
+
+describe('ProviderIdSchema', () => {
+  it('accepts every provider in the wider lifecycle catalog', () => {
+    expect(
+      [
+        'codex',
+        'claude',
+        'gemini',
+        'antigravity',
+        'opencode',
+        'cursor',
+        'copilot',
+        'qwen',
+        'amp',
+        'crush',
+        'goose',
+        'aider'
+      ].map((provider) => ProviderIdSchema.parse(provider))
+    ).toHaveLength(12);
+  });
+
+  it('rejects provider identifiers that Lumora did not ship', () => {
+    expect(ProviderIdSchema.safeParse('unknown-agent').success).toBe(false);
+  });
+});
 
 describe('SystemInfoSchema', () => {
   it('accepts and preserves a complete supported system payload', () => {
@@ -190,7 +216,7 @@ describe('provider discovery contracts', () => {
     expect(ProviderInstallationSchema.parse(missingClaude)).toEqual(missingClaude);
   });
 
-  it('accepts a complete two-provider scan with an ISO timestamp', () => {
+  it('accepts a provider scan with an ISO timestamp', () => {
     const scan = {
       scannedAt: '2026-07-11T00:00:00.000Z',
       providers: [readyCodex, missingClaude]
@@ -217,7 +243,7 @@ describe('provider discovery contracts', () => {
     expect(
       ProviderInstallationSchema.safeParse({
         ...readyCodex,
-        provider: 'gemini'
+        provider: 'unknown-agent'
       }).success
     ).toBe(false);
 

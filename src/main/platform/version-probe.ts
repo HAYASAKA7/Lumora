@@ -24,6 +24,7 @@ type ExecuteVersionCommand = (
 interface VersionInvocationOptions {
   platform: SupportedPlatform;
   env: Environment;
+  args?: readonly string[];
 }
 
 interface ProbeVersionOptions extends VersionInvocationOptions {
@@ -51,9 +52,15 @@ function readWindowsEnvironmentValue(
 
 export function buildVersionInvocation(
   executablePath: string,
-  { platform, env }: VersionInvocationOptions
+  { platform, env, args = ['--version'] }: VersionInvocationOptions
 ): VersionInvocation {
   const pathApi = platform === 'win32' ? win32 : posix;
+  if (
+    args.length === 0 ||
+    args.some((argument) => !/^[a-z0-9-]+$/i.test(argument))
+  ) {
+    throw new VersionProbeError('The provider version arguments are invalid.');
+  }
   if (!pathApi.isAbsolute(executablePath)) {
     throw new VersionProbeError('The provider executable path must be absolute.');
   }
@@ -62,7 +69,7 @@ export function buildVersionInvocation(
     platform === 'win32' && /\.(?:cmd|bat)$/i.test(executablePath);
 
   if (!isWindowsWrapper) {
-    return { file: executablePath, args: ['--version'] };
+    return { file: executablePath, args };
   }
 
   if (/["\r\n%]/.test(executablePath)) {
@@ -77,7 +84,7 @@ export function buildVersionInvocation(
   return {
     file: commandProcessor,
     windowsVerbatimArguments: true,
-    args: ['/d', '/s', '/c', `""${executablePath}" --version"`]
+    args: ['/d', '/s', '/c', `""${executablePath}" ${args.join(' ')}"`]
   };
 }
 
@@ -123,9 +130,13 @@ function firstOutputLine(output: string): string | null {
 
 export async function probeVersion(
   executablePath: string,
-  { platform, env, execute }: ProbeVersionOptions
+  { platform, env, args, execute }: ProbeVersionOptions
 ): Promise<string> {
-  const invocation = buildVersionInvocation(executablePath, { platform, env });
+  const invocation = buildVersionInvocation(executablePath, {
+    platform,
+    env,
+    ...(args === undefined ? {} : { args })
+  });
 
   let output: VersionCommandOutput;
   try {

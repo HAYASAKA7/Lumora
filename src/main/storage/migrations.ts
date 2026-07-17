@@ -197,6 +197,86 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         updated_at TEXT NOT NULL
       ) STRICT`
     ]
+  },
+  {
+    version: 10,
+    statements: [
+      `CREATE TEMP TABLE runtime_reconciliation_backup (
+        runtime_id TEXT PRIMARY KEY,
+        baseline_native_ids_json TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO runtime_reconciliation_backup (
+        runtime_id, baseline_native_ids_json
+      ) SELECT runtime_id, baseline_native_ids_json FROM runtime_reconciliation`,
+      'DROP TABLE runtime_reconciliation',
+      `CREATE TABLE runtime_instance_wide (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        terminal_profile_id TEXT NOT NULL REFERENCES terminal_profile(id),
+        launch_hash TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (
+          state IN ('launching', 'running', 'completed', 'failed', 'runtime_lost', 'launch_failed')
+        ),
+        pid INTEGER,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        ended_at TEXT,
+        exit_code INTEGER,
+        error_code TEXT CHECK (
+          error_code IS NULL OR error_code IN (
+            'PTY_SPAWN_FAILED', 'PTY_RUNTIME_FAILED', 'PTY_RUNTIME_LOST'
+          )
+        ),
+        strategy TEXT NOT NULL DEFAULT 'new' CHECK (strategy IN ('new', 'resume')),
+        session_id TEXT REFERENCES session(id) ON DELETE SET NULL,
+        native_session_id TEXT,
+        reconciliation_state TEXT NOT NULL DEFAULT 'unresolved' CHECK (
+          reconciliation_state IN (
+            'not_required', 'pending', 'linked', 'ambiguous', 'unresolved'
+          )
+        ),
+        display_name TEXT NOT NULL DEFAULT 'New Codex session'
+      ) STRICT`,
+      `INSERT INTO runtime_instance_wide (
+        id, provider, workspace_id, terminal_profile_id, launch_hash, state,
+        pid, created_at, started_at, ended_at, exit_code, error_code,
+        strategy, session_id, native_session_id, reconciliation_state,
+        display_name
+      ) SELECT
+        id, provider, workspace_id, terminal_profile_id, launch_hash, state,
+        pid, created_at, started_at, ended_at, exit_code, error_code,
+        strategy, session_id, native_session_id, reconciliation_state,
+        display_name
+      FROM runtime_instance`,
+      'DROP TABLE runtime_instance',
+      'ALTER TABLE runtime_instance_wide RENAME TO runtime_instance',
+      'CREATE INDEX runtime_instance_state_idx ON runtime_instance (state)',
+      'CREATE INDEX runtime_instance_workspace_idx ON runtime_instance (workspace_id)',
+      'CREATE INDEX runtime_instance_created_idx ON runtime_instance (created_at DESC)',
+      'CREATE INDEX runtime_instance_session_idx ON runtime_instance (session_id)',
+      `CREATE TABLE runtime_reconciliation (
+        runtime_id TEXT PRIMARY KEY REFERENCES runtime_instance(id) ON DELETE CASCADE,
+        baseline_native_ids_json TEXT NOT NULL CHECK (
+          json_valid(baseline_native_ids_json)
+        )
+      ) STRICT`,
+      `INSERT INTO runtime_reconciliation (
+        runtime_id, baseline_native_ids_json
+      ) SELECT runtime_id, baseline_native_ids_json
+      FROM runtime_reconciliation_backup`,
+      'DROP TABLE runtime_reconciliation_backup',
+      `CREATE TABLE provider_launch_config_wide (
+        provider TEXT PRIMARY KEY,
+        command TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO provider_launch_config_wide (
+        provider, command, updated_at
+      ) SELECT provider, command, updated_at FROM provider_launch_config`,
+      'DROP TABLE provider_launch_config',
+      'ALTER TABLE provider_launch_config_wide RENAME TO provider_launch_config'
+    ]
   }
 ];
 

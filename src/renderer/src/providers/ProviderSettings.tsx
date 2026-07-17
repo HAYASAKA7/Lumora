@@ -14,6 +14,7 @@ import type {
   ProviderUpdateCheckResult,
   ProviderUpdateStatus
 } from '../../../shared/contracts';
+import { providerDefinition } from '../../../shared/provider-definitions';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -54,9 +55,13 @@ function ProviderCard({
   release,
   releaseChecking,
   onCommandChange,
+  onInstall,
+  onOpenGuide,
   onResetCommand,
   onSaveCommand,
   onUpdate,
+  installing,
+  installError,
   saving,
   updateError,
   updating
@@ -66,19 +71,25 @@ function ProviderCard({
   release: ProviderUpdateStatus | null;
   releaseChecking: boolean;
   onCommandChange(command: string): void;
+  onInstall(): void;
+  onOpenGuide(): void;
   onResetCommand(): void;
   onSaveCommand(): void;
   onUpdate(): void;
+  installing: boolean;
+  installError: string | null;
   saving: boolean;
   updateError: string | null;
   updating: boolean;
 }): ReactNode {
+  const [confirmingInstall, setConfirmingInstall] = useState(false);
+  const definition = providerDefinition(installation.provider);
   return (
     <article className={`provider-card provider-card-${installation.state}`}>
       <header className="provider-card-header">
         <div>
           <p className="card-label">Native CLI</p>
-          <h3>{installation.displayName}</h3>
+          <h4>{installation.displayName}</h4>
         </div>
         <span className={`provider-state provider-state-${installation.state}`}>
           <span aria-hidden="true" />
@@ -103,6 +114,65 @@ function ProviderCard({
           <p className="provider-recovery">{installation.issue.recovery}</p>
           {installation.executablePath === null ? null : (
             <p className="provider-path">{installation.executablePath}</p>
+          )}
+        </div>
+      )}
+
+      {installation.state === 'ready' ? null : (
+        <div className="provider-install-actions">
+          {definition.npmPackage === null ? (
+            <button
+              aria-label={`Open ${installation.displayName} installation guide`}
+              className="secondary-button"
+              disabled={installing}
+              onClick={onOpenGuide}
+              type="button"
+            >
+              Installation guide
+            </button>
+          ) : confirmingInstall ? (
+            <div className="provider-install-confirmation">
+              <p>
+                Install {installation.displayName} globally with npm?
+              </p>
+              <div>
+                <button
+                  aria-label={`Confirm install ${installation.displayName}`}
+                  className="refresh-button"
+                  disabled={installing}
+                  onClick={() => {
+                    setConfirmingInstall(false);
+                    onInstall();
+                  }}
+                  type="button"
+                >
+                  {installing ? 'Installing…' : 'Confirm install'}
+                </button>
+                <button
+                  className="text-button"
+                  disabled={installing}
+                  onClick={() => setConfirmingInstall(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              aria-label={`Install ${installation.displayName}`}
+              className="secondary-button"
+              disabled={installing}
+              onClick={() => setConfirmingInstall(true)}
+              type="button"
+            >
+              {installing ? 'Installing…' : 'Install'}
+            </button>
+          )}
+          {installError === null ? null : (
+            <p className="provider-update-error" role="alert">
+              {installError}
+            </p>
           )}
         </div>
       )}
@@ -201,10 +271,9 @@ export function ProviderSettings({
   status: ProviderScanStatus;
   onRefresh: () => void;
 }): ReactNode {
-  const [commands, setCommands] = useState<Record<ProviderId, string>>({
-    codex: '',
-    claude: ''
-  });
+  const [commands, setCommands] = useState<
+    Partial<Record<ProviderId, string>>
+  >({});
   const [savingProvider, setSavingProvider] = useState<ProviderId | null>(null);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [updatesStatus, setUpdatesStatus] = useState<ProviderUpdatesStatus>({
@@ -214,6 +283,12 @@ export function ProviderSettings({
     null
   );
   const [updateErrors, setUpdateErrors] = useState<
+    Partial<Record<ProviderId, string>>
+  >({});
+  const [installingProviders, setInstallingProviders] = useState<
+    ReadonlySet<ProviderId>
+  >(() => new Set());
+  const [installErrors, setInstallErrors] = useState<
     Partial<Record<ProviderId, string>>
   >({});
   const updatesRequestId = useRef(0);
@@ -297,10 +372,86 @@ export function ProviderSettings({
     );
   };
 
+  const installProvider = (provider: ProviderId, displayName: string) => {
+    setInstallingProviders((current) => new Set(current).add(provider));
+    setInstallErrors((current) => ({ ...current, [provider]: undefined }));
+    const finish = () => setInstallingProviders((current) => {
+      const next = new Set(current);
+      next.delete(provider);
+      return next;
+    });
+    void window.lumora.installProvider(provider).then(
+      async () => {
+        onRefresh();
+        await refreshUpdates();
+        finish();
+      },
+      () => {
+        setInstallErrors((current) => ({
+          ...current,
+          [provider]: `${displayName} could not be installed. Open its installation guide or try again.`
+        }));
+        finish();
+      }
+    );
+  };
+
+  const openInstallGuide = (provider: ProviderId, displayName: string) => {
+    setInstallErrors((current) => ({ ...current, [provider]: undefined }));
+    void window.lumora.openProviderInstallGuide(provider).catch(() => {
+      setInstallErrors((current) => ({
+        ...current,
+        [provider]: `${displayName}'s installation guide could not be opened.`
+      }));
+    });
+  };
+
   const refreshAll = () => {
     onRefresh();
     void refreshUpdates();
   };
+
+  const renderProviderCard = (installation: ProviderInstallation) => (
+    <ProviderCard
+      command={commands[installation.provider] ?? ''}
+      installError={installErrors[installation.provider] ?? null}
+      installation={installation}
+      installing={installingProviders.has(installation.provider)}
+      key={installation.provider}
+      release={
+        updatesStatus.state === 'ready'
+          ? updatesStatus.check.providers.find(
+              (provider) => provider.provider === installation.provider
+            ) ?? null
+          : null
+      }
+      releaseChecking={updatesStatus.state === 'loading'}
+      onCommandChange={(command) => setCommands((current) => ({
+        ...current,
+        [installation.provider]: command
+      }))}
+      onInstall={() => installProvider(
+        installation.provider,
+        installation.displayName
+      )}
+      onOpenGuide={() => openInstallGuide(
+        installation.provider,
+        installation.displayName
+      )}
+      onResetCommand={() => saveCommand(installation.provider, null)}
+      onSaveCommand={() => saveCommand(
+        installation.provider,
+        commands[installation.provider]?.trim() || null
+      )}
+      onUpdate={() => updateProvider(
+        installation.provider,
+        installation.displayName
+      )}
+      saving={savingProvider === installation.provider}
+      updateError={updateErrors[installation.provider] ?? null}
+      updating={updatingProvider === installation.provider}
+    />
+  );
 
   return (
     <section className="provider-panel" aria-labelledby="provider-panel-title">
@@ -310,7 +461,7 @@ export function ProviderSettings({
           <h2 id="provider-panel-title">Provider installations</h2>
           <p>
             Lumora reads the effective PATH and checks public release metadata.
-            It only modifies a provider after you explicitly choose Update.
+            It only modifies a provider after you explicitly confirm an action.
           </p>
         </div>
         <button
@@ -318,7 +469,8 @@ export function ProviderSettings({
           disabled={
             status.state === 'loading' ||
             updatesStatus.state === 'loading' ||
-            updatingProvider !== null
+            updatingProvider !== null ||
+            installingProviders.size > 0
           }
           onClick={refreshAll}
           type="button"
@@ -331,7 +483,7 @@ export function ProviderSettings({
       {status.state === 'loading' ? (
         <div className="provider-panel-state" role="status">
           <span className="status-dot" aria-hidden="true" />
-          Scanning Codex and Claude Code
+          Scanning provider installations
         </div>
       ) : status.state === 'error' ? (
         <div className="provider-panel-state provider-panel-error" role="alert">
@@ -343,39 +495,32 @@ export function ProviderSettings({
         </div>
       ) : (
         <>
-          <div className="provider-grid">
-            {status.scan.providers.map((installation) => (
-              <ProviderCard
-                command={commands[installation.provider]}
-                installation={installation}
-                key={installation.provider}
-                release={
-                  updatesStatus.state === 'ready'
-                    ? updatesStatus.check.providers.find(
-                        (provider) => provider.provider === installation.provider
-                      ) ?? null
-                    : null
-                }
-                releaseChecking={updatesStatus.state === 'loading'}
-                onCommandChange={(command) => setCommands((current) => ({
-                  ...current,
-                  [installation.provider]: command
-                }))}
-                onResetCommand={() => saveCommand(installation.provider, null)}
-                onSaveCommand={() => saveCommand(
-                  installation.provider,
-                  commands[installation.provider].trim() || null
-                )}
-                onUpdate={() => updateProvider(
-                  installation.provider,
-                  installation.displayName
-                )}
-                saving={savingProvider === installation.provider}
-                updateError={updateErrors[installation.provider] ?? null}
-                updating={updatingProvider === installation.provider}
-              />
-            ))}
-          </div>
+          {status.scan.providers.some((provider) => provider.state === 'ready') ? (
+            <section
+              aria-labelledby="installed-providers-title"
+              className="provider-group"
+            >
+              <h3 id="installed-providers-title">Installed providers</h3>
+              <div className="provider-grid">
+                {status.scan.providers
+                  .filter((provider) => provider.state === 'ready')
+                  .map(renderProviderCard)}
+              </div>
+            </section>
+          ) : null}
+          {status.scan.providers.some((provider) => provider.state !== 'ready') ? (
+            <section
+              aria-labelledby="available-providers-title"
+              className="provider-group"
+            >
+              <h3 id="available-providers-title">Available providers</h3>
+              <div className="provider-grid">
+                {status.scan.providers
+                  .filter((provider) => provider.state !== 'ready')
+                  .map(renderProviderCard)}
+              </div>
+            </section>
+          ) : null}
           <p className="provider-scan-time">
             Last checked{' '}
             <time dateTime={status.scan.scannedAt}>

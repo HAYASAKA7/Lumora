@@ -1,15 +1,11 @@
 import type { ProviderId } from '../../shared/contracts';
+import { providerDefinition } from '../../shared/provider-definitions';
 
 type FetchResponse = Pick<Response, 'ok' | 'text'>;
 type FetchRelease = (
   input: string,
   init: RequestInit
 ) => Promise<FetchResponse>;
-
-const PACKAGE_URLS: Readonly<Record<ProviderId, string>> = Object.freeze({
-  codex: 'https://registry.npmjs.org/@openai%2Fcodex/latest',
-  claude: 'https://registry.npmjs.org/@anthropic-ai%2Fclaude-code/latest'
-});
 
 const MAX_RESPONSE_LENGTH = 32 * 1024;
 
@@ -35,11 +31,15 @@ export function createProviderReleaseSource({
 }): ProviderReleaseSource {
   return Object.freeze({
     async latestVersion(provider: ProviderId): Promise<string> {
+      const packageName = providerDefinition(provider).npmPackage;
+      if (packageName === null) throw new ProviderReleaseError();
+      const packageUrl =
+        `https://registry.npmjs.org/${packageName.replace('/', '%2F')}/latest`;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const response = await fetch(PACKAGE_URLS[provider], {
+        const response = await fetch(packageUrl, {
           method: 'GET',
           headers: { accept: 'application/json' },
           signal: controller.signal

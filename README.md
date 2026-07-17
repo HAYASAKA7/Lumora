@@ -1,9 +1,9 @@
 # Lumora
 
-Lumora is a local desktop workspace and session manager for OpenAI Codex CLI
-and Claude Code. It brings provider discovery, saved sessions, launch settings,
-and native CLI terminals into one Electron application without replacing the
-providers' own session formats or permission models.
+Lumora is a local desktop workspace and session manager for native AI-agent
+CLIs. It brings provider discovery, saved sessions, launch settings, lifecycle
+guidance, and native CLI terminals into one Electron application without
+replacing providers' own session formats or permission models.
 
 <!-- SCREENSHOT: Add docs/screenshots/home.png (Home and workspace overview) -->
 
@@ -18,10 +18,12 @@ and production bundles on all three operating systems.
 
 ## Features
 
-- Detect OpenAI Codex CLI and Claude Code installations and versions.
+- Detect twelve supported agent CLIs and their installed versions.
+- Install or update allowlisted npm-based providers after explicit
+  confirmation, and open official instructions for other providers.
 - Discover provider-owned session metadata without modifying provider files.
 - Group and search sessions by workspace and provider.
-- Start new Codex and Claude Code sessions in managed terminal tabs.
+- Start any detected supported provider in a managed terminal tab.
 - Resume a selected native provider session using its provider identity.
 - Close an exited session's terminal tab automatically.
 - Detect common shells and support custom terminal profiles.
@@ -40,7 +42,10 @@ and production bundles on all three operating systems.
 | Category | First-version support |
 | --- | --- |
 | Desktop | Windows 10/11, macOS, Linux |
-| Providers | OpenAI Codex CLI, Claude Code |
+| New sessions, detection, versions, and custom commands | Codex, Claude Code, Gemini CLI, Antigravity, OpenCode, Cursor CLI, GitHub Copilot CLI, Qwen Code, Amp, Crush, goose, Aider |
+| Saved-session discovery and resume | Codex, Claude Code |
+| Confirmed one-click npm install/update | Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, Qwen Code, Crush |
+| Official installation guide | Antigravity, Cursor CLI, Amp, goose, Aider |
 | Terminal host | Native local shell through `node-pty` and xterm.js |
 
 Lumora uses the provider's official CLI behavior. Authentication, approvals,
@@ -50,7 +55,8 @@ sandboxing, and usage limits remain provider-owned.
 
 - Node.js 22 or newer. The repository's `.nvmrc` selects Node.js 26.2.0.
 - npm.
-- OpenAI Codex CLI, Claude Code, or both.
+- At least one supported provider CLI, either installed manually or through an
+  available confirmed install action in Provider Settings.
 - Provider commands available on `PATH` so Lumora can discover and probe them.
 
 Confirm the provider commands in a terminal before starting Lumora:
@@ -58,9 +64,10 @@ Confirm the provider commands in a terminal before starting Lumora:
 ```powershell
 codex --version
 claude --version
+gemini --version
 ```
 
-Either provider may be unavailable; Lumora reports each provider independently.
+Every provider is optional; Lumora reports each provider independently.
 
 ## Install and run
 
@@ -125,8 +132,7 @@ before launching it, for example with `chmod +x Lumora-*.AppImage`.
 For each target, complete this manual smoke-test checklist:
 
 1. Confirm the application launches and displays the Lumora app icon.
-2. Confirm OpenAI Codex CLI and Claude Code discovery reports installed
-   providers correctly.
+2. Confirm provider discovery reports installed and missing CLIs correctly.
 3. Start a session using a custom CLI start command.
 4. Check terminal input, output, and resize behavior without duplicate rendering
    or scrolling the page outside the fixed terminal UI.
@@ -171,8 +177,8 @@ Sandboxed React renderer + xterm.js
                   |
         Electron main process
         /          |           \
- provider adapters |       platform services
-  Codex / Claude   |    Windows / macOS / Linux
+ provider registry |       platform services
+  native agent CLIs|    Windows / macOS / Linux
                    |
             node-pty runtime host
                    |
@@ -189,7 +195,7 @@ bodies into its catalog and does not provide cloud synchronization.
 
 Workspace trust decisions are also stored in local SQLite as a workspace ID,
 canonical path, and timestamp. They do not add an operating-system security
-boundary: Codex or Claude Code still runs with the permissions of the user who
+boundary: the selected provider still runs with the permissions of the user who
 started Lumora. Trust is a persistent, revocable consent gate that prevents an
 unapproved workspace launch; it is not a provider sandbox or filesystem
 isolation mechanism.
@@ -202,8 +208,10 @@ isolation mechanism.
   runtimes are reported honestly and can be resumed or restarted.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
-- WSL-specific orchestration, third-party providers, cloud sync, and transcript
-  full-text indexing are outside the current MVP.
+- Saved-session discovery and native resume are currently limited to Codex and
+  Claude Code; other registered providers support new-session launch only.
+- WSL-specific orchestration, cloud sync, and transcript full-text indexing are
+  outside the current MVP.
 
 The detailed MVP architecture and acceptance criteria are documented in
 [`docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md`](docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md).
