@@ -14,12 +14,11 @@ import {
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import {
-  isCatalogProvider,
   providerDefinition
 } from '../../shared/provider-definitions';
+import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
-import { buildResumeArguments } from '../providers/launch-command';
 import { resolveLaunchSettings } from './launch-settings';
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -40,6 +39,7 @@ interface LaunchRepository {
 
 interface LaunchServiceDependencies {
   repository: LaunchRepository;
+  sessionCatalogRegistry: SessionCatalogRegistry;
   scanProviders(): Promise<ProviderScanResult>;
   isExecutablePath(path: string): Promise<boolean>;
   captureSessionBaseline(
@@ -180,7 +180,11 @@ export class LaunchService {
       sessionId = session.id;
       nativeSessionId = session.nativeId;
       displayName = session.title;
-      args = buildResumeArguments(provider, nativeSessionId);
+      const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
+      if (adapter === null) {
+        throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+      }
+      args = [...adapter.buildResumeArguments(nativeSessionId)];
     }
     const workspace = this.dependencies.repository.getWorkspace(
       workspaceId
@@ -215,7 +219,10 @@ export class LaunchService {
     const environment = environmentWithProfile(this.dependencies.env, profile);
     const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
-    if (request.strategy === 'new' && isCatalogProvider(provider)) {
+    if (
+      request.strategy === 'new' &&
+      this.dependencies.sessionCatalogRegistry.get(provider) !== null
+    ) {
       try {
         reconciliationBaselineNativeIds = normalizeSessionBaseline(
           await this.dependencies.captureSessionBaseline(provider, workspace.id)

@@ -228,6 +228,7 @@ void app.whenReady().then(async () => {
     platform,
     env: process.env,
     scanProviders: () => providerRegistry.scan(),
+    sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog()
   });
   registerSystemIpc({

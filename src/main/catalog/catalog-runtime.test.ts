@@ -61,6 +61,15 @@ describe('createCatalogRuntime', () => {
       available: true,
       origin: 'manual'
     });
+    expect(runtime.registry.providers()).toEqual([
+      'codex',
+      'claude',
+      'gemini',
+      'opencode',
+      'copilot',
+      'qwen'
+    ]);
+    expect(runtime.registry.get('aider')).toBeNull();
     expect(runtime.close).not.toThrow();
     expect(runtime.close).not.toThrow();
   });

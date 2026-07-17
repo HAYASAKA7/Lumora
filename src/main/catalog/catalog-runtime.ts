@@ -1,13 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { join, resolve } from 'node:path';
 
 import type {
   ProviderScanResult,
-  SystemInfo
+  SystemInfo,
+  ProviderId
 } from '../../shared/contracts';
 import { canonicalizeWorkspacePath } from '../platform/workspace-path';
 import { discoverClaudeSessions } from '../providers/claude-session-source';
+import { discoverCopilotSessions } from '../providers/copilot-session-source';
 import { discoverCodexSessions } from '../providers/codex-app-server';
+import { discoverJsonSessions } from '../providers/json-session-source';
+import { buildResumeArguments } from '../providers/launch-command';
+import { discoverOpenCodeSessions } from '../providers/opencode-session-source';
+import {
+  createSessionCatalogRegistry,
+  type SessionCatalogAdapter,
+  type SessionCatalogRegistry
+} from '../providers/session-catalog-adapter';
 import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
@@ -21,12 +32,25 @@ interface CreateCatalogRuntimeOptions {
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
   clock?: () => Date;
-  createScanId?: () => string;
+  createScanId?: (provider: ProviderId) => string;
 }
 
 export interface CatalogRuntime {
   service: CatalogService;
+  registry: SessionCatalogRegistry;
   close(): void;
+}
+
+function environmentHome(
+  env: Environment,
+  name: string,
+  fallback: string
+): string {
+  const matching = Object.keys(env).find(
+    (candidate) => candidate.toLocaleLowerCase() === name.toLocaleLowerCase()
+  );
+  const configured = matching === undefined ? undefined : env[matching]?.trim();
+  return configured ? resolve(configured) : fallback;
 }
 
 export function createCatalogRuntime({
@@ -36,7 +60,7 @@ export function createCatalogRuntime({
   env,
   scanProviders,
   clock = () => new Date(),
-  createScanId = randomUUID
+  createScanId = () => randomUUID()
 }: CreateCatalogRuntimeOptions): CatalogRuntime {
   const database = new DatabaseSync(databasePath);
   try {
@@ -47,21 +71,60 @@ export function createCatalogRuntime({
   }
 
   const repository = new CatalogRepository(database);
-  const service = new CatalogService({
-    scanProviders,
-    discoverCodex: (installation) =>
+  const lookupSource = async (provider: ProviderId, sourceKey: string) =>
+    repository.findSource(provider, sourceKey);
+  const adapter = (
+    provider: ProviderId,
+    discover: SessionCatalogAdapter['discover']
+  ): SessionCatalogAdapter => ({
+    provider,
+    discover,
+    buildResumeArguments: (nativeSessionId) =>
+      buildResumeArguments(provider, nativeSessionId)
+  });
+  const registry = createSessionCatalogRegistry([
+    adapter('codex', (installation) =>
       discoverCodexSessions({
         executablePath: installation.executablePath,
         platform,
         env
-      }),
-    discoverClaude: () =>
-      discoverClaudeSessions({
-        homeDirectory,
-        env,
-        lookupSource: async (provider, sourceKey) =>
-          repository.findSource(provider, sourceKey)
-      }),
+      })
+    ),
+    adapter('claude', () =>
+      discoverClaudeSessions({ homeDirectory, env, lookupSource })
+    ),
+    adapter('gemini', () =>
+      discoverJsonSessions({
+        provider: 'gemini',
+        storageRoot: join(
+          environmentHome(env, 'GEMINI_CLI_HOME', homeDirectory),
+          '.gemini',
+          'tmp'
+        ),
+        lookupSource
+      })
+    ),
+    adapter('opencode', (installation) =>
+      discoverOpenCodeSessions({ installation, env })
+    ),
+    adapter('copilot', () =>
+      discoverCopilotSessions({ homeDirectory, env, lookupSource })
+    ),
+    adapter('qwen', () =>
+      discoverJsonSessions({
+        provider: 'qwen',
+        storageRoot: join(
+          environmentHome(env, 'QWEN_CODE_HOME', homeDirectory),
+          '.qwen',
+          'projects'
+        ),
+        lookupSource
+      })
+    )
+  ]);
+  const service = new CatalogService({
+    scanProviders,
+    registry,
     canonicalizeWorkspace: (path) =>
       canonicalizeWorkspacePath(path, { platform }),
     repository,
@@ -72,6 +135,7 @@ export function createCatalogRuntime({
 
   return {
     service,
+    registry,
     close() {
       if (closed) {
         return;

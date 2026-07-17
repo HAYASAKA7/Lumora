@@ -30,6 +30,7 @@ import {
 import { findExecutable, isExecutableFile } from '../platform/executable-locator';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
+import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
 import { LaunchService } from './launch-service';
 import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
@@ -43,6 +44,7 @@ interface CreateTerminalRuntimeOptions {
   platform: SystemInfo['platform'];
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
+  sessionCatalogRegistry: SessionCatalogRegistry;
   refreshCatalog?(): Promise<unknown>;
   clock?: () => Date;
   createProfileId?: () => string;
@@ -81,6 +83,7 @@ export async function createTerminalRuntime({
   platform,
   env,
   scanProviders,
+  sessionCatalogRegistry,
   refreshCatalog,
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
@@ -108,6 +111,7 @@ export async function createTerminalRuntime({
 
   const launchService = new LaunchService({
     repository,
+    sessionCatalogRegistry,
     scanProviders,
     isExecutablePath: (path) => isExecutableFile(path, platform),
     captureSessionBaseline: async (provider, workspaceId) => {

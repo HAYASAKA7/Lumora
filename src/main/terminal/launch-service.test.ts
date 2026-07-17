@@ -6,6 +6,12 @@ import type {
   TerminalProfile
 } from '../../shared/contracts';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
+import { buildResumeArguments } from '../providers/launch-command';
+import {
+  createSessionCatalogRegistry,
+  type SessionCatalogAdapter
+} from '../providers/session-catalog-adapter';
+import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
 import { LaunchService, TerminalLaunchError } from './launch-service';
 
 const workspaceId = 'a'.repeat(64);
@@ -32,25 +38,26 @@ const profile: TerminalProfile = {
 };
 const scan: ProviderScanResult = {
   scannedAt: '2026-07-11T04:00:00.000Z',
-  providers: [
-    {
-      provider: 'codex',
-      displayName: 'Codex',
-      state: 'ready',
-      executablePath: '/usr/local/bin/codex',
-      version: '1.0.0',
-      issue: null
-    },
-    {
-      provider: 'claude',
-      displayName: 'Claude Code',
-      state: 'ready',
-      executablePath: '/usr/local/bin/claude',
-      version: '2.0.0',
-      issue: null
-    }
-  ]
+  providers: SESSION_PROVIDER_IDS.map((provider) => ({
+    provider,
+    displayName: provider,
+    state: 'ready' as const,
+    executablePath: `/usr/local/bin/${provider}`,
+    version: '1.0.0',
+    issue: null
+  }))
 };
+
+const sessionCatalogRegistry = createSessionCatalogRegistry(
+  SESSION_PROVIDER_IDS.map(
+    (provider): SessionCatalogAdapter => ({
+      provider,
+      discover: vi.fn(),
+      buildResumeArguments: (nativeSessionId) =>
+        buildResumeArguments(provider, nativeSessionId)
+    })
+  )
+);
 
 function captureLaunchError(action: () => unknown): TerminalLaunchError {
   try {
@@ -94,8 +101,12 @@ function harness(overrides: {
       : [
           {
             scope: 'provider',
-            targetId: 'codex',
-            settings: { providerCommands: { codex: overrides.command } },
+            targetId: currentSession?.provider ?? 'codex',
+            settings: {
+              providerCommands: {
+                [currentSession?.provider ?? 'codex']: overrides.command
+              }
+            },
             updatedAt: '2026-07-11T04:00:00.000Z'
           } as LaunchSettingsLayer
         ]);
@@ -128,6 +139,7 @@ function harness(overrides: {
   });
   const service = new LaunchService({
     repository,
+    sessionCatalogRegistry,
     scanProviders: vi.fn(async () => overrides.scan ?? scan),
     isExecutablePath: vi.fn(async () => true),
     captureSessionBaseline,
@@ -161,7 +173,11 @@ function harness(overrides: {
 describe('LaunchService', () => {
   it.each([
     ['codex', ['resume', nativeId]],
-    ['claude', ['--resume', nativeId]]
+    ['claude', ['--resume', nativeId]],
+    ['gemini', ['--resume', nativeId]],
+    ['opencode', ['--session', nativeId]],
+    ['copilot', ['--session-id', nativeId]],
+    ['qwen', ['--resume', nativeId]]
   ] as const)('prepares a native %s resume', async (provider, args) => {
     const { service } = harness({ session: { ...session, provider } });
 
@@ -236,9 +252,7 @@ describe('LaunchService', () => {
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
       displayName
     });
-    expect(captureSessionBaseline).toHaveBeenCalledTimes(
-      provider === 'gemini' ? 0 : 1
-    );
+    expect(captureSessionBaseline).toHaveBeenCalledTimes(1);
   });
 
   it('rejects missing and stale sessions', async () => {
@@ -281,8 +295,11 @@ describe('LaunchService', () => {
     });
   });
 
-  it('captures the configured provider command for a resume launch', async () => {
-    const preview = await harness({ command: 'codexp' }).service.prepare({
+  it('appends exact resume arguments to a configured provider command', async () => {
+    const preview = await harness({
+      command: 'opencodex --profile work',
+      session: { ...session, provider: 'opencode', nativeId: 'ses_01JABC' }
+    }).service.prepare({
       strategy: 'resume',
       sessionId,
       terminalProfileId: profileId,
@@ -292,8 +309,9 @@ describe('LaunchService', () => {
 
     expect(preview).toMatchObject({
       strategy: 'resume',
-      command: 'codexp',
-      args: ['resume', nativeId]
+      provider: 'opencode',
+      command: 'opencodex --profile work',
+      args: ['--session', 'ses_01JABC']
     });
   });
 
