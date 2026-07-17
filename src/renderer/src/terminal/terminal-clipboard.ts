@@ -1,6 +1,6 @@
 import type { SystemInfo } from '../../../shared/contracts';
 
-export type TerminalClipboardAction = 'copy' | 'paste' | 'terminal';
+export type TerminalClipboardAction = 'copy' | 'interrupt' | 'paste' | 'terminal';
 
 export function classifyTerminalClipboardKey(
   event: KeyboardEvent,
@@ -13,6 +13,12 @@ export function classifyTerminalClipboardKey(
   if (controlAlias && event.code === 'KeyC') return 'copy';
   if (controlAlias && event.code === 'KeyV') return 'paste';
 
+  const interruptChord =
+    event.code === 'KeyC' && event.ctrlKey && !event.shiftKey && !event.metaKey;
+  if (interruptChord) {
+    return platform !== 'darwin' && hasSelection ? 'copy' : 'interrupt';
+  }
+
   if (platform === 'darwin') {
     if (!event.ctrlKey && !event.shiftKey && event.metaKey) {
       if (event.code === 'KeyC') return 'copy';
@@ -22,7 +28,6 @@ export function classifyTerminalClipboardKey(
   }
 
   if (event.ctrlKey && !event.shiftKey && !event.metaKey) {
-    if (event.code === 'KeyC') return hasSelection ? 'copy' : 'terminal';
     if (event.code === 'KeyV') return 'paste';
   }
   return 'terminal';

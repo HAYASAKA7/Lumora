@@ -18,7 +18,7 @@ interface ClipboardCase {
   platform: Platform;
   event: KeyboardEvent;
   hasSelection: boolean;
-  expected: 'copy' | 'paste' | 'terminal';
+  expected: 'copy' | 'interrupt' | 'paste' | 'terminal';
 }
 
 const cases: ClipboardCase[] = [
@@ -30,11 +30,11 @@ const cases: ClipboardCase[] = [
     expected: 'copy'
   },
   {
-    name: 'preserves Windows Ctrl+C interrupt without a selection',
+    name: 'classifies Windows Ctrl+C as an interrupt without a selection',
     platform: 'win32',
     event: key('KeyC', { ctrlKey: true }),
     hasSelection: false,
-    expected: 'terminal'
+    expected: 'interrupt'
   },
   {
     name: 'copies a Linux Ctrl+C selection',
@@ -44,11 +44,11 @@ const cases: ClipboardCase[] = [
     expected: 'copy'
   },
   {
-    name: 'preserves Linux Ctrl+C interrupt without a selection',
+    name: 'classifies Linux Ctrl+C as an interrupt without a selection',
     platform: 'linux',
     event: key('KeyC', { ctrlKey: true }),
     hasSelection: false,
-    expected: 'terminal'
+    expected: 'interrupt'
   },
   {
     name: 'pastes with Windows Ctrl+V',
@@ -86,11 +86,18 @@ const cases: ClipboardCase[] = [
     expected: 'paste'
   },
   {
-    name: 'leaves macOS plain Ctrl+C to the terminal even with a selection',
+    name: 'classifies macOS plain Ctrl+C as an interrupt even with a selection',
     platform: 'darwin',
     event: key('KeyC', { ctrlKey: true }),
     hasSelection: true,
-    expected: 'terminal'
+    expected: 'interrupt'
+  },
+  {
+    name: 'classifies macOS plain Ctrl+C as an interrupt without a selection',
+    platform: 'darwin',
+    event: key('KeyC', { ctrlKey: true }),
+    hasSelection: false,
+    expected: 'interrupt'
   },
   {
     name: 'leaves macOS plain Ctrl+V to the terminal',
