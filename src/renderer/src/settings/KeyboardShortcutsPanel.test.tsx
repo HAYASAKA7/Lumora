@@ -51,7 +51,7 @@ describe('KeyboardShortcutsPanel', () => {
       version: 1,
       terminalSwitcher: expect.objectContaining({ code: 'KeyK' })
     });
-    expect(screen.getByRole('status')).toHaveTextContent('Shortcut saved');
+    expect(await screen.findByRole('status')).toHaveTextContent('Shortcut saved');
   });
 
   it('does not save Windows Alt+Tab', async () => {
