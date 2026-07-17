@@ -24,7 +24,7 @@ extraMetadata:
 
 win:
   executableName: Lumora
-  icon: windows/Lumora.ico
+  icon: windows/LumoraTransparent.ico
   target:
     - target: nsis
       arch:
@@ -34,6 +34,9 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  installerIcon: windows/LumoraTransparent.ico
+  uninstallerIcon: windows/LumoraTransparent.ico
+  installerHeaderIcon: windows/LumoraTransparent.ico
 
 mac:
   executableName: Lumora

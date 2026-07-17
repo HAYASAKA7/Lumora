@@ -90,11 +90,14 @@ describe('release packaging configuration', () => {
     expect(extraMetadata).toContain('  desktopName: app.lumora.desktop');
 
     expect(win).toContain('  executableName: Lumora');
-    expect(win).toContain('  icon: windows/Lumora.ico');
+    expect(win).toContain('  icon: windows/LumoraTransparent.ico');
     expect(win).toMatch(/  target:\n    - target: nsis\n      arch:\n        - x64/);
     expect(nsis).toContain('  oneClick: false');
     expect(nsis).toContain('  perMachine: false');
     expect(nsis).toContain('  allowToChangeInstallationDirectory: true');
+    expect(nsis).toContain('  installerIcon: windows/LumoraTransparent.ico');
+    expect(nsis).toContain('  uninstallerIcon: windows/LumoraTransparent.ico');
+    expect(nsis).toContain('  installerHeaderIcon: windows/LumoraTransparent.ico');
 
     expect(mac).toContain('  executableName: Lumora');
     expect(mac).toContain('  icon: macos/Lumora.icns');
@@ -118,7 +121,7 @@ describe('release packaging configuration', () => {
         (icon) => `${buildResources}/${icon}`
       )
     ).toEqual([
-      'resources/icons/lumora/windows/Lumora.ico',
+      'resources/icons/lumora/windows/LumoraTransparent.ico',
       'resources/icons/lumora/macos/Lumora.icns',
       'resources/icons/lumora/linux/lumora.png'
     ]);
