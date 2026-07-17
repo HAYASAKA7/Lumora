@@ -350,11 +350,6 @@ export default function App(): ReactNode {
     );
   }, []);
 
-  const refreshProviderSettings = useCallback(() => {
-    refreshProviders();
-    refreshEnvironment();
-  }, [refreshEnvironment, refreshProviders]);
-
   const openNodeDownload = useCallback(
     () => window.lumora.openNodeDownloadPage(),
     []
@@ -1018,7 +1013,8 @@ export default function App(): ReactNode {
                 onCategoryChange={setSettingsCategory}
                 onKeyboardSettingsChange={setKeyboardSettings}
                 onOpenNodeDownload={openNodeDownload}
-                onRefreshProviders={refreshProviderSettings}
+                onRefreshEnvironment={refreshEnvironment}
+                onRefreshProviders={refreshProviders}
                 platform={
                   systemStatus.state === 'ready'
                     ? systemStatus.info.platform

@@ -104,6 +104,7 @@ describe('DeveloperEnvironmentPanel', () => {
     render(
       <DeveloperEnvironmentPanel
         onOpenNodeDownload={vi.fn()}
+        onRefresh={vi.fn()}
         status={{ state: 'ready', scan: healthy }}
       />
     );
@@ -121,6 +122,7 @@ describe('DeveloperEnvironmentPanel', () => {
     render(
       <DeveloperEnvironmentPanel
         onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
+        onRefresh={vi.fn()}
         status={{
           state: 'ready',
           scan: {
@@ -149,6 +151,7 @@ describe('DeveloperEnvironmentPanel', () => {
     const { rerender } = render(
       <DeveloperEnvironmentPanel
         onOpenNodeDownload={vi.fn()}
+        onRefresh={vi.fn()}
         status={{ state: 'loading' }}
       />
     );
@@ -159,11 +162,39 @@ describe('DeveloperEnvironmentPanel', () => {
     rerender(
       <DeveloperEnvironmentPanel
         onOpenNodeDownload={vi.fn()}
+        onRefresh={vi.fn()}
         status={{ state: 'error' }}
       />
     );
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Developer tool details are unavailable'
     );
+  });
+
+  it('allows a newer refresh while an environment scan is still pending', () => {
+    const onRefresh = vi.fn();
+    const { rerender } = render(
+      <DeveloperEnvironmentPanel
+        onOpenNodeDownload={vi.fn()}
+        onRefresh={onRefresh}
+        status={{ state: 'ready', scan: healthy }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh environment' }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+
+    rerender(
+      <DeveloperEnvironmentPanel
+        onOpenNodeDownload={vi.fn()}
+        onRefresh={onRefresh}
+        status={{ state: 'loading' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Refresh environment' })
+    ).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh environment' }));
+    expect(onRefresh).toHaveBeenCalledTimes(2);
   });
 });

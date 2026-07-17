@@ -7,17 +7,20 @@ import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnviron
 import { SettingsView, type SettingsCategory } from './SettingsView';
 
 vi.mock('../providers/ProviderSettings', () => ({
-  ProviderSettings: ({
-    environmentStatus,
-    onRefresh
+  ProviderSettings: ({ onRefresh }: { onRefresh: () => void }) => (
+    <button onClick={onRefresh}>Providers content</button>
+  )
+}));
+
+vi.mock('../environment/DeveloperEnvironment', () => ({
+  DeveloperEnvironmentPanel: ({
+    onRefresh,
+    status
   }: {
-    environmentStatus: DeveloperEnvironmentStatus;
     onRefresh: () => void;
+    status: DeveloperEnvironmentStatus;
   }) => (
-    <>
-      <button onClick={onRefresh}>Providers content</button>
-      <span>Environment {environmentStatus.state}</span>
-    </>
+    <button onClick={onRefresh}>Environment {status.state}</button>
   )
 }));
 
@@ -51,6 +54,7 @@ const KEYBOARD_SETTINGS: KeyboardSettings = {
 interface HarnessProps {
   catalogReady?: boolean;
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
+  onRefreshEnvironment?: () => void;
   onRefreshProviders?: () => void;
   environmentStatus?: DeveloperEnvironmentStatus;
 }
@@ -59,6 +63,7 @@ function Harness({
   catalogReady = true,
   environmentStatus = { state: 'loading' },
   onKeyboardSettingsChange = vi.fn(),
+  onRefreshEnvironment = vi.fn(),
   onRefreshProviders = vi.fn()
 }: HarnessProps) {
   const [activeCategory, setActiveCategory] =
@@ -72,6 +77,7 @@ function Harness({
       onCategoryChange={setActiveCategory}
       onKeyboardSettingsChange={onKeyboardSettingsChange}
       onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
+      onRefreshEnvironment={onRefreshEnvironment}
       onRefreshProviders={onRefreshProviders}
       platform="win32"
       profiles={[]}
@@ -89,6 +95,7 @@ describe('SettingsView', () => {
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'Providers',
+      'Environment',
       'Launch',
       'Security',
       'Keyboard'
@@ -110,7 +117,7 @@ describe('SettingsView', () => {
     }
 
     expect(screen.getByText('Providers content')).toBeVisible();
-    expect(screen.getByText('Environment loading')).toBeVisible();
+    expect(screen.getByText('Environment loading')).toBeInTheDocument();
     expect(screen.getByText('Launch content')).toBeInTheDocument();
     expect(screen.getByText('Security content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
@@ -139,11 +146,11 @@ describe('SettingsView', () => {
 
     providers.focus();
     expect(fireEvent.keyDown(providers, { key: 'ArrowRight' })).toBe(false);
-    const launch = screen.getByRole('tab', { name: 'Launch' });
-    expect(launch).toHaveFocus();
-    expect(launch).toHaveAttribute('aria-selected', 'true');
+    const environment = screen.getByRole('tab', { name: 'Environment' });
+    expect(environment).toHaveFocus();
+    expect(environment).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(launch, { key: 'Home' });
+    fireEvent.keyDown(environment, { key: 'Home' });
     expect(providers).toHaveFocus();
     expect(providers).toHaveAttribute('aria-selected', 'true');
 
@@ -164,6 +171,7 @@ describe('SettingsView', () => {
     render(<Harness catalogReady={false} />);
 
     expect(document.getElementById('settings-panel-providers')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-environment')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-launch')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-keyboard')).toBeInTheDocument();
@@ -175,19 +183,24 @@ describe('SettingsView', () => {
 
   it('passes provider and keyboard changes to its callers', () => {
     const onRefreshProviders = vi.fn();
+    const onRefreshEnvironment = vi.fn();
     const onKeyboardSettingsChange = vi.fn();
     render(
       <Harness
         onKeyboardSettingsChange={onKeyboardSettingsChange}
+        onRefreshEnvironment={onRefreshEnvironment}
         onRefreshProviders={onRefreshProviders}
       />
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Providers content' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Environment loading' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Keyboard' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keyboard content' }));
 
     expect(onRefreshProviders).toHaveBeenCalledOnce();
+    expect(onRefreshEnvironment).toHaveBeenCalledOnce();
     expect(onKeyboardSettingsChange).toHaveBeenCalledWith(KEYBOARD_SETTINGS);
   });
 });

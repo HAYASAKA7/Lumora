@@ -11,13 +11,17 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from '../providers/ProviderSettings';
-import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
+import {
+  DeveloperEnvironmentPanel,
+  type DeveloperEnvironmentStatus
+} from '../environment/DeveloperEnvironment';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 
 export type SettingsCategory =
   | 'providers'
+  | 'environment'
   | 'launch'
   | 'security'
   | 'keyboard';
@@ -29,6 +33,7 @@ interface SettingsViewProps {
   onCategoryChange: (category: SettingsCategory) => void;
   onKeyboardSettingsChange: (settings: KeyboardSettings) => void;
   onOpenNodeDownload: () => Promise<void>;
+  onRefreshEnvironment: () => void;
   onRefreshProviders: () => void;
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
@@ -39,6 +44,7 @@ interface SettingsViewProps {
 
 const SETTINGS_CATEGORIES = [
   { id: 'providers', label: 'Providers' },
+  { id: 'environment', label: 'Environment' },
   { id: 'launch', label: 'Launch' },
   { id: 'security', label: 'Security' },
   { id: 'keyboard', label: 'Keyboard' }
@@ -51,6 +57,7 @@ export function SettingsView({
   onCategoryChange,
   onKeyboardSettingsChange,
   onOpenNodeDownload,
+  onRefreshEnvironment,
   onRefreshProviders,
   platform,
   profiles,
@@ -137,10 +144,22 @@ export function SettingsView({
         role="tabpanel"
       >
         <ProviderSettings
-          environmentStatus={environmentStatus}
-          onOpenNodeDownload={onOpenNodeDownload}
           onRefresh={onRefreshProviders}
           status={providerStatus}
+        />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-environment"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'environment'}
+        id="settings-panel-environment"
+        role="tabpanel"
+      >
+        <DeveloperEnvironmentPanel
+          onOpenNodeDownload={onOpenNodeDownload}
+          onRefresh={onRefreshEnvironment}
+          status={environmentStatus}
         />
       </section>
 

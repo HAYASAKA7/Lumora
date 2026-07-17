@@ -15,6 +15,10 @@ interface EnvironmentComponentProps {
   onOpenNodeDownload(): Promise<void>;
 }
 
+interface EnvironmentPanelProps extends EnvironmentComponentProps {
+  onRefresh(): void;
+}
+
 const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
   ready: 'Detected',
   not_found: 'Not found',
@@ -178,8 +182,9 @@ function DeveloperToolCard({
 
 export function DeveloperEnvironmentPanel({
   status,
-  onOpenNodeDownload
-}: EnvironmentComponentProps): ReactNode {
+  onOpenNodeDownload,
+  onRefresh
+}: EnvironmentPanelProps): ReactNode {
   const { opening, openError, openDownload } = useNodeDownload(
     onOpenNodeDownload
   );
@@ -192,6 +197,14 @@ export function DeveloperEnvironmentPanel({
           <h2 id="developer-tools-title">Developer tools</h2>
           <p>Lumora checks the external Node.js and npm available on PATH.</p>
         </div>
+        <button
+          aria-label="Refresh environment"
+          className="refresh-button"
+          onClick={onRefresh}
+          type="button"
+        >
+          Refresh
+        </button>
       </div>
 
       {status.state === 'loading' ? (

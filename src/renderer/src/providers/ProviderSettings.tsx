@@ -6,10 +6,6 @@ import type {
   ProviderLaunchConfig,
   ProviderScanResult
 } from '../../../shared/contracts';
-import {
-  DeveloperEnvironmentPanel,
-  type DeveloperEnvironmentStatus
-} from '../environment/DeveloperEnvironment';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -130,13 +126,9 @@ function ProviderCard({
 }
 
 export function ProviderSettings({
-  environmentStatus,
-  onOpenNodeDownload,
   status,
   onRefresh
 }: {
-  environmentStatus: DeveloperEnvironmentStatus;
-  onOpenNodeDownload: () => Promise<void>;
   status: ProviderScanStatus;
   onRefresh: () => void;
 }): ReactNode {
@@ -185,12 +177,7 @@ export function ProviderSettings({
   };
 
   return (
-    <div className="provider-settings-stack">
-      <DeveloperEnvironmentPanel
-        onOpenNodeDownload={onOpenNodeDownload}
-        status={environmentStatus}
-      />
-      <section className="provider-panel" aria-labelledby="provider-panel-title">
+    <section className="provider-panel" aria-labelledby="provider-panel-title">
       <div className="provider-panel-header">
         <div>
           <p className="card-label">Local provider registry</p>
@@ -256,7 +243,6 @@ export function ProviderSettings({
           )}
         </>
       )}
-      </section>
-    </div>
+    </section>
   );
 }

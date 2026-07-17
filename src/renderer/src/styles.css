@@ -480,11 +480,6 @@ button {
   box-shadow: 0 8px 24px rgba(20, 37, 62, 0.045);
 }
 
-.provider-settings-stack {
-  display: grid;
-  gap: 18px;
-}
-
 .developer-environment-warning {
   display: flex;
   align-items: center;
@@ -529,6 +524,10 @@ button {
 }
 
 .developer-environment-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
   padding-bottom: 22px;
   border-bottom: 1px solid #edf0f4;
 }
@@ -1864,7 +1863,8 @@ button {
     width: 100%;
   }
 
-  .provider-panel-header {
+  .provider-panel-header,
+  .developer-environment-panel-header {
     flex-direction: column;
   }
 

@@ -1266,6 +1266,16 @@ describe('App', () => {
     expect(screen.getByText('2.3.4 (Claude Code)')).toBeInTheDocument();
     expect(screen.getByText('C:\\tools\\codex.exe')).toBeInTheDocument();
     expect(screen.getByText('C:\\tools\\claude.exe')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Developer tools' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    expect(
+      screen.getByRole('heading', { name: 'Developer tools' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('v24.18.0')).toBeInTheDocument();
+    expect(screen.getByText('11.6.2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
     expect(
@@ -1312,7 +1322,10 @@ describe('App', () => {
       .fn()
       .mockResolvedValueOnce(degradedProviderScan)
       .mockResolvedValueOnce(readyProviderScan);
-    setSystemInfoResult(undefined, scanProviders);
+    const scanDeveloperEnvironment = vi
+      .fn()
+      .mockResolvedValue(readyEnvironmentScan);
+    setSystemInfoResult(undefined, scanProviders, { scanDeveloperEnvironment });
     render(<App />);
 
     expect(await screen.findByText('1 of 2 providers ready')).toBeInTheDocument();
@@ -1321,24 +1334,30 @@ describe('App', () => {
 
     expect(await screen.findByText('2.3.4 (Claude Code)')).toBeInTheDocument();
     expect(scanProviders).toHaveBeenCalledTimes(2);
+    expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes developer prerequisites with provider results', async () => {
+  it('refreshes developer prerequisites independently', async () => {
     const scanDeveloperEnvironment = vi
       .fn()
       .mockResolvedValueOnce(missingNodeEnvironmentScan)
       .mockResolvedValueOnce(readyEnvironmentScan);
-    setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
+    const scanProviders = vi.fn().mockResolvedValue(readyProviderScan);
+    setSystemInfoResult(undefined, scanProviders, { scanDeveloperEnvironment });
     render(<App />);
 
     expect(
       await screen.findByText('Node.js and npm were not found.')
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Refresh environment' })
+    );
 
     expect(await screen.findByText('v24.18.0')).toBeInTheDocument();
     expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(2);
+    expect(scanProviders).toHaveBeenCalledTimes(1);
   });
 
   it('ignores stale prerequisite results after a newer refresh', async () => {
@@ -1352,7 +1371,10 @@ describe('App', () => {
 
     await waitFor(() => expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Refresh environment' })
+    );
     expect(await screen.findByText('v24.18.0')).toBeInTheDocument();
 
     await act(async () => firstScan.resolve(missingNodeEnvironmentScan));
