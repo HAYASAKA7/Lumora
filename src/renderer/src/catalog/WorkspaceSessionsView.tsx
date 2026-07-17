@@ -1,7 +1,6 @@
 import { memo, type ReactNode } from 'react';
 
 import type {
-  CatalogProviderId,
   ProviderScanResult,
   SessionSummary,
   TerminalProfile,
@@ -13,13 +12,12 @@ import {
   useProgressiveList
 } from './progressive-list';
 import { resolveSessionResumeDisabledReason } from './session-resume';
+import {
+  SESSION_PROVIDER_IDS,
+  providerDefinition
+} from '../../../shared/provider-definitions';
 
 const SESSION_BATCH_SIZE = 40;
-
-const PROVIDER_LABELS: Record<CatalogProviderId, string> = {
-  codex: 'Codex',
-  claude: 'Claude Code'
-};
 
 interface WorkspaceSessionsViewProps {
   workspaceId: string;
@@ -64,7 +62,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         <div className="workspace-session-heading">
           <h3>{session.title}</h3>
           <span className={`provider-badge provider-${session.provider}`}>
-            {PROVIDER_LABELS[session.provider]}
+            {providerDefinition(session.provider).displayName}
           </span>
         </div>
         <div className="workspace-metadata">
@@ -216,14 +214,20 @@ export function WorkspaceSessionsView({
           {workspace.sessionCount}{' '}
           {workspace.sessionCount === 1 ? 'session' : 'sessions'}
         </span>
-        <span>Codex {workspace.providerCounts.codex}</span>
-        <span>Claude {workspace.providerCounts.claude}</span>
+        {SESSION_PROVIDER_IDS.filter(
+          (provider) => (workspace.providerCounts[provider] ?? 0) > 0
+        ).map((provider) => (
+          <span key={provider}>
+            {providerDefinition(provider).displayName}{' '}
+            {workspace.providerCounts[provider]}
+          </span>
+        ))}
       </div>
 
       {sessions.length === 0 ? (
         <div className="catalog-empty">
           <h3>No sessions in this workspace</h3>
-          <p>Refresh after using Codex or Claude Code in this folder.</p>
+          <p>Refresh after using a supported agent in this folder.</p>
         </div>
       ) : (
         <>

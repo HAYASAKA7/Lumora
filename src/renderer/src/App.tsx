@@ -10,8 +10,8 @@ import {
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
-  CatalogProviderId,
   CatalogQuery,
+  ProviderId,
   KeyboardSettings,
   LaunchPreview,
   RuntimeSummary,
@@ -105,7 +105,7 @@ const ROUTES = [
     label: 'Workspaces',
     eyebrow: 'Workspace index',
     description:
-      'Organize repositories and see their Codex and Claude sessions in one dependable hierarchy.',
+      'Organize repositories and see supported agent sessions in one dependable hierarchy.',
     icon: 'workspace'
   },
   {
@@ -272,7 +272,7 @@ export default function App(): ReactNode {
   const [sessionSearch, setSessionSearch] = useState('');
   const [debouncedSessionSearch, setDebouncedSessionSearch] = useState('');
   const [sessionProvider, setSessionProvider] =
-    useState<CatalogProviderId | null>(null);
+    useState<ProviderId | null>(null);
   const [terminalProfiles, setTerminalProfiles] = useState<
     Awaited<ReturnType<typeof window.lumora.getTerminalProfiles>>
   >([]);
@@ -555,6 +555,18 @@ export default function App(): ReactNode {
       }
     );
   }, [debouncedSessionSearch, sessionProvider]);
+
+  useEffect(() => {
+    if (
+      catalogStatus.state === 'ready' &&
+      sessionProvider !== null &&
+      !catalogStatus.snapshot.providerFacets.some(
+        ({ provider }) => provider === sessionProvider
+      )
+    ) {
+      setSessionProvider(null);
+    }
+  }, [catalogStatus, sessionProvider]);
 
   const refreshCatalog = useCallback(() => {
     const requestId = catalogRequestId.current + 1;

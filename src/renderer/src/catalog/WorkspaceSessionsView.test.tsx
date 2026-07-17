@@ -59,6 +59,10 @@ const snapshot: CatalogSnapshot = {
     }
   ],
   providerStatus: [],
+  providerFacets: [
+    { provider: 'codex', sessionCount: 1 },
+    { provider: 'claude', sessionCount: 1 }
+  ],
   diagnostics: []
 };
 const providerScan: ProviderScanResult = {
@@ -108,7 +112,7 @@ describe('WorkspaceSessionsView', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('1 session')).toBeInTheDocument();
     expect(screen.getByText('Codex 1')).toBeInTheDocument();
-    expect(screen.getByText('Claude 0')).toBeInTheDocument();
+    expect(screen.queryByText('Claude Code 0')).not.toBeInTheDocument();
     expect(screen.getByText('Workspace drill-down')).toBeInTheDocument();
     expect(screen.queryByText('Other workspace session')).not.toBeInTheDocument();
 

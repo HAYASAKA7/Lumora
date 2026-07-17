@@ -37,6 +37,7 @@ const validSnapshot: CatalogSnapshot = {
       invalidCount: 0
     }
   ],
+  providerFacets: [],
   diagnostics: []
 };
 

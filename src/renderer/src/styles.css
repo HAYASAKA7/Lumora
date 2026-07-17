@@ -729,6 +729,13 @@ button {
   font-size: 1rem;
 }
 
+.provider-session-capability {
+  margin: 12px 0 0;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
 .provider-state {
   display: inline-flex;
   flex: 0 0 auto;

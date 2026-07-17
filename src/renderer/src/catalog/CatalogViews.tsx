@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from 'react';
 
 import type {
-  CatalogProviderId,
   CatalogSnapshot,
+  ProviderId,
   ProviderScanResult,
   SessionSummary,
   TerminalProfile,
@@ -15,7 +15,10 @@ import {
   useProgressiveList
 } from './progressive-list';
 import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
-import { providerDefinition } from '../../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  providerDefinition
+} from '../../../shared/provider-definitions';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -59,8 +62,14 @@ const WorkspaceCard = memo(function WorkspaceCard({
           {workspace.sessionCount}{' '}
           {workspace.sessionCount === 1 ? 'session' : 'sessions'}
         </span>
-        <span>Codex {workspace.providerCounts.codex}</span>
-        <span>Claude {workspace.providerCounts.claude}</span>
+        {SESSION_PROVIDER_IDS.filter(
+          (provider) => (workspace.providerCounts[provider] ?? 0) > 0
+        ).map((provider) => (
+          <span key={provider}>
+            {providerDefinition(provider).displayName}{' '}
+            {workspace.providerCounts[provider]}
+          </span>
+        ))}
         {workspace.lastActivityAt === null ? null : (
           <span>
             Last activity{' '}
@@ -179,19 +188,14 @@ interface SessionsViewProps {
   status: CatalogViewStatus;
   isRefreshing: boolean;
   queryText: string;
-  provider: CatalogProviderId | null;
+  provider: ProviderId | null;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onSearchChange(value: string): void;
-  onProviderChange(value: CatalogProviderId | null): void;
+  onProviderChange(value: ProviderId | null): void;
   onRefresh(): void;
   onResume(session: SessionSummary): void;
 }
-
-const PROVIDER_LABELS: Record<CatalogProviderId, string> = {
-  codex: 'Codex',
-  claude: 'Claude Code'
-};
 
 const SessionRow = memo(function SessionRow({
   session,
@@ -232,7 +236,7 @@ const SessionRow = memo(function SessionRow({
       </td>
       <td>
         <span className={`provider-badge provider-${session.provider}`}>
-          {PROVIDER_LABELS[session.provider]}
+          {providerDefinition(session.provider).displayName}
         </span>
       </td>
       <td>
@@ -324,14 +328,17 @@ export function SessionsView({
               onProviderChange(
                 event.currentTarget.value === ''
                   ? null
-                  : (event.currentTarget.value as CatalogProviderId)
+                  : (event.currentTarget.value as ProviderId)
               )
             }
             value={provider ?? ''}
           >
             <option value="">All providers</option>
-            <option value="codex">Codex</option>
-            <option value="claude">Claude Code</option>
+            {snapshot.providerFacets.map(({ provider, sessionCount }) => (
+              <option key={provider} value={provider}>
+                {providerDefinition(provider).displayName} ({sessionCount})
+              </option>
+            ))}
           </select>
         </label>
         <button
@@ -371,7 +378,7 @@ export function SessionsView({
           <p>
             {hasFilters
               ? 'Change the search or provider filter to broaden the results.'
-              : 'Refresh after using Codex or Claude Code in a workspace.'}
+              : 'Refresh after using a supported agent in a workspace.'}
           </p>
         </div>
       ) : (
@@ -471,7 +478,7 @@ export function CatalogHomeSummary({
             : `${liveRuntimes.length} running ${liveRuntimes.length === 1 ? 'agent' : 'agents'}`}
         </strong>
         <p className="card-description">
-          Native Codex and Claude Code terminals owned by Lumora
+          Native agent terminals owned by Lumora
         </p>
       </article>
 
@@ -554,7 +561,7 @@ export function CatalogHomeSummary({
                   <span className="recent-session-copy">
                     <strong title={session.title}>{session.title}</strong>
                     <span className="recent-session-provider">
-                      {PROVIDER_LABELS[session.provider]}
+                      {providerDefinition(session.provider).displayName}
                     </span>
                   </span>
                   <button

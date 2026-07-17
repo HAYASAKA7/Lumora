@@ -88,6 +88,10 @@ const catalogSnapshot: CatalogSnapshot = {
       invalidCount: 0
     }
   ],
+  providerFacets: [
+    { provider: 'codex', sessionCount: 2 },
+    { provider: 'claude', sessionCount: 1 }
+  ],
   diagnostics: []
 };
 const providerScan: ProviderScanResult = {
@@ -133,6 +137,35 @@ function repeatedSessions(count: number): CatalogSnapshot['sessions'] {
 }
 
 describe('WorkspacesView', () => {
+  it('renders only nonzero counts for complete session providers', () => {
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{
+          state: 'ready',
+          snapshot: {
+            ...catalogSnapshot,
+            workspaces: [
+              {
+                ...catalogSnapshot.workspaces[0]!,
+                sessionCount: 3,
+                providerCounts: { gemini: 1, opencode: 2 }
+              }
+            ],
+            sessions: []
+          }
+        }}
+      />
+    );
+
+    expect(screen.getByText('Gemini CLI 1')).toBeInTheDocument();
+    expect(screen.getByText('OpenCode 2')).toBeInTheDocument();
+    expect(screen.queryByText('Codex 0')).not.toBeInTheDocument();
+  });
+
   it('announces the initial catalog load', () => {
     render(
       <WorkspacesView
@@ -165,7 +198,7 @@ describe('WorkspacesView', () => {
     expect(screen.getByText('Manual')).toBeInTheDocument();
     expect(screen.getByText('2 sessions')).toBeInTheDocument();
     expect(screen.getAllByText('Codex 1')).toHaveLength(2);
-    expect(screen.getByText('Claude 1')).toBeInTheDocument();
+    expect(screen.getByText('Claude Code 1')).toBeInTheDocument();
 
     expect(
       screen.getByRole('heading', { name: 'Archived docs' })
@@ -288,6 +321,42 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('builds provider filters only from installed providers with sessions', () => {
+    render(
+      <SessionsView
+        isRefreshing={false}
+        onResume={vi.fn()}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
+        queryText=""
+        status={{
+          state: 'ready',
+          snapshot: {
+            ...catalogSnapshot,
+            sessions: [],
+            providerFacets: [
+              { provider: 'gemini', sessionCount: 2 },
+              { provider: 'opencode', sessionCount: 1 }
+            ]
+          }
+        }}
+      />
+    );
+
+    expect(
+      screen.getByRole('option', { name: 'Gemini CLI (2)' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'OpenCode (1)' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Aider/ })).toBeNull();
+    expect(screen.queryByRole('option', { name: /Codex/ })).toBeNull();
+  });
+
   it('renders normalized session rows and partial provider diagnostics', () => {
     const snapshot: CatalogSnapshot = {
       ...catalogSnapshot,
@@ -584,7 +653,7 @@ describe('CatalogHomeSummary', () => {
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
     expect(screen.getByText('Untitled session')).toBeInTheDocument();
     expect(
-      screen.getByText('Native Codex and Claude Code terminals owned by Lumora')
+      screen.getByText('Native agent terminals owned by Lumora')
     ).toBeInTheDocument();
   });
 

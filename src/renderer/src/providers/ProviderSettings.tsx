@@ -96,6 +96,10 @@ function ProviderCard({
           {PROVIDER_STATE_LABELS[installation.state]}
         </span>
       </header>
+      <p className="provider-session-capability">
+        Saved sessions:{' '}
+        {definition.sessionSupport === 'complete' ? 'Supported' : 'Not available'}
+      </p>
 
       {installation.state === 'ready' ? (
         <dl className="provider-details">

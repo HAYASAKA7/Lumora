@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -82,6 +82,56 @@ function deferred<T>() {
 }
 
 describe('ProviderSettings', () => {
+  it('shows saved-session capability for complete and launch-only providers', async () => {
+    setLumora();
+    const capabilityScan: ProviderScanResult = {
+      ...scan,
+      providers: [
+        {
+          provider: 'gemini',
+          displayName: 'Gemini CLI',
+          state: 'ready',
+          executablePath: 'C:\\tools\\gemini.cmd',
+          version: '1.0.0',
+          issue: null
+        },
+        {
+          provider: 'aider',
+          displayName: 'Aider',
+          state: 'not_found',
+          executablePath: null,
+          version: null,
+          issue: {
+            code: 'PROVIDER_NOT_FOUND',
+            message: 'Aider was not found.',
+            recovery: 'Install Aider, then refresh.',
+            retryable: true
+          }
+        }
+      ]
+    };
+
+    render(
+      <ProviderSettings
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', scan: capabilityScan }}
+      />
+    );
+
+    const geminiCard = screen
+      .getByRole('heading', { name: 'Gemini CLI' })
+      .closest('article');
+    const aiderCard = screen
+      .getByRole('heading', { name: 'Aider' })
+      .closest('article');
+    expect(geminiCard).not.toBeNull();
+    expect(aiderCard).not.toBeNull();
+    expect(within(geminiCard!).getByText('Saved sessions: Supported'))
+      .toBeInTheDocument();
+    expect(within(aiderCard!).getByText('Saved sessions: Not available'))
+      .toBeInTheDocument();
+  });
+
   it('saves and resets a provider start command', async () => {
     const saveProviderLaunchConfig = vi.fn(
       async (input: { provider: 'codex' | 'claude'; command: string | null }) =>

@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
+  CatalogQuery,
   CatalogSnapshot,
   DeveloperEnvironmentScanResult,
   LaunchPreview,
@@ -192,6 +193,10 @@ const readyCatalog: CatalogSnapshot = {
       unchangedCount: 0,
       invalidCount: 0
     }
+  ],
+  providerFacets: [
+    { provider: 'codex', sessionCount: 1 },
+    { provider: 'claude', sessionCount: 1 }
   ],
   diagnostics: []
 };
@@ -1558,7 +1563,14 @@ describe('App', () => {
     const getCatalog = vi
       .fn()
       .mockResolvedValueOnce(readyCatalog)
-      .mockImplementation(async () => ({ ...readyCatalog, sessions: [] }));
+      .mockImplementation(async (query: CatalogQuery) => ({
+        ...readyCatalog,
+        sessions: [],
+        providerFacets:
+          query.provider === 'claude'
+            ? [{ provider: 'codex' as const, sessionCount: 1 }]
+            : readyCatalog.providerFacets
+      }));
     setSystemInfoResult(undefined, undefined, { getCatalog });
     render(<App />);
 
@@ -1578,6 +1590,15 @@ describe('App', () => {
       expect(getCatalog).toHaveBeenCalledWith({
         text: 'catalog',
         provider: 'claude'
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Provider' })).toHaveValue('')
+    );
+    await waitFor(() =>
+      expect(getCatalog).toHaveBeenCalledWith({
+        text: 'catalog',
+        provider: null
       })
     );
     expect(screen.getByText('No sessions match these filters')).toBeInTheDocument();
