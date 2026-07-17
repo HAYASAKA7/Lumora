@@ -480,6 +480,159 @@ button {
   box-shadow: 0 8px 24px rgba(20, 37, 62, 0.045);
 }
 
+.provider-settings-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.developer-environment-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  color: #744f00;
+  background: #fff8e5;
+  border: 1px solid #ecd79e;
+  border-radius: 10px;
+}
+
+.developer-environment-warning strong {
+  color: #5e4000;
+}
+
+.developer-environment-warning p,
+.developer-environment-open-error,
+.developer-environment-footer p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.developer-environment-actions {
+  flex: 0 0 auto;
+}
+
+.developer-environment-open-error {
+  max-width: 240px;
+  color: var(--warning);
+  font-size: 0.76rem;
+}
+
+.developer-environment-panel {
+  width: 100%;
+  padding: 24px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(20, 37, 62, 0.045);
+}
+
+.developer-environment-panel-header {
+  padding-bottom: 22px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.developer-environment-panel-header h2 {
+  margin: 6px 0 8px;
+  color: var(--text);
+  font-size: 1.2rem;
+  letter-spacing: -0.015em;
+}
+
+.developer-environment-panel-header p:last-child {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.developer-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 20px;
+}
+
+.developer-tool-card {
+  min-width: 0;
+  padding: 19px;
+  background: #fbfcfe;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.developer-tool-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.developer-tool-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.developer-tool-state {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.developer-tool-state-ready {
+  color: #157a5d;
+  background: #eaf7f2;
+}
+
+.developer-tool-state-not_found,
+.developer-tool-state-probe_failed {
+  color: #9a6700;
+  background: #fff5d6;
+}
+
+.developer-tool-details {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.developer-tool-details div {
+  min-width: 0;
+}
+
+.developer-tool-details dt {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.developer-tool-details dd,
+.developer-tool-card > p {
+  margin: 4px 0 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.developer-tool-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.developer-environment-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 18px;
+}
+
 .provider-panel-header {
   display: flex;
   align-items: flex-start;
@@ -1691,6 +1844,24 @@ button {
 
   .provider-panel {
     padding: 20px;
+  }
+
+  .developer-environment-panel {
+    padding: 20px;
+  }
+
+  .developer-environment-warning,
+  .developer-environment-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .developer-tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .developer-environment-actions .secondary-button {
+    width: 100%;
   }
 
   .provider-panel-header {

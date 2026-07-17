@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProviderLaunchConfig, ProviderScanResult } from '../../../shared/contracts';
+import type {
+  DeveloperEnvironmentScanResult,
+  ProviderLaunchConfig,
+  ProviderScanResult
+} from '../../../shared/contracts';
 import { ProviderSettings } from './ProviderSettings';
 
 const scan: ProviderScanResult = {
@@ -23,6 +27,20 @@ const defaults: ProviderLaunchConfig[] = [
   { provider: 'claude', command: null }
 ];
 
+const environmentScan: DeveloperEnvironmentScanResult = {
+  checkedAt: '2026-07-17T01:00:00.000Z',
+  node: {
+    state: 'ready',
+    executablePath: 'C:\\tools\\node.exe',
+    version: 'v24.18.0'
+  },
+  npm: {
+    state: 'ready',
+    executablePath: 'C:\\tools\\npm.cmd',
+    version: '11.6.2'
+  }
+};
+
 describe('ProviderSettings', () => {
   it('saves and resets a provider start command', async () => {
     const saveProviderLaunchConfig = vi.fn(
@@ -41,11 +59,16 @@ describe('ProviderSettings', () => {
 
     render(
       <ProviderSettings
+        environmentStatus={{ state: 'ready', scan: environmentScan }}
+        onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
         onRefresh={vi.fn()}
         status={{ state: 'ready', scan }}
       />
     );
 
+    expect(
+      screen.getByRole('heading', { name: 'Developer tools' })
+    ).toBeInTheDocument();
     const input = await screen.findByLabelText('Codex start command');
     expect(
       screen.getAllByText(/Provider layer override/).length

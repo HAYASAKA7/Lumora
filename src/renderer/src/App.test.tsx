@@ -13,6 +13,7 @@ import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-sy
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
   CatalogSnapshot,
+  DeveloperEnvironmentScanResult,
   LaunchPreview,
   ProviderScanResult,
   RuntimeEvent,
@@ -129,6 +130,26 @@ const degradedProviderScan: ProviderScanResult = {
   ]
 };
 
+const readyEnvironmentScan: DeveloperEnvironmentScanResult = {
+  checkedAt: '2026-07-17T01:02:03.000Z',
+  node: {
+    state: 'ready',
+    executablePath: 'C:\\tools\\node.exe',
+    version: 'v24.18.0'
+  },
+  npm: {
+    state: 'ready',
+    executablePath: 'C:\\tools\\npm.cmd',
+    version: '11.6.2'
+  }
+};
+
+const missingNodeEnvironmentScan: DeveloperEnvironmentScanResult = {
+  checkedAt: '2026-07-17T01:03:00.000Z',
+  node: { state: 'not_found', executablePath: null, version: null },
+  npm: { state: 'not_found', executablePath: null, version: null }
+};
+
 const readyCatalog: CatalogSnapshot = {
   refreshedAt: '2026-07-11T04:00:00.000Z',
   workspaces: [
@@ -201,6 +222,8 @@ function runningRuntime(
 }
 
 interface CatalogApiOverrides {
+  scanDeveloperEnvironment?: ReturnType<typeof vi.fn>;
+  openNodeDownloadPage?: ReturnType<typeof vi.fn>;
   getCatalog?: ReturnType<typeof vi.fn>;
   refreshCatalog?: ReturnType<typeof vi.fn>;
   chooseWorkspace?: ReturnType<typeof vi.fn>;
@@ -241,6 +264,12 @@ function setSystemInfoResult(
     value: {
       getSystemInfo: result,
       scanProviders,
+      scanDeveloperEnvironment:
+        catalogApi.scanDeveloperEnvironment ??
+        vi.fn().mockResolvedValue(readyEnvironmentScan),
+      openNodeDownloadPage:
+        catalogApi.openNodeDownloadPage ??
+        vi.fn().mockResolvedValue(undefined),
       getCatalog: catalogApi.getCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
       refreshCatalog:
         catalogApi.refreshCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
@@ -1184,6 +1213,48 @@ describe('App', () => {
     expect(await screen.findByText('2 of 2 providers ready')).toBeInTheDocument();
   });
 
+  it('checks developer prerequisites at startup without warning when ready', async () => {
+    const scanDeveloperEnvironment = vi
+      .fn()
+      .mockResolvedValue(readyEnvironmentScan);
+    setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
+
+    render(<App />);
+
+    await waitFor(() => expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText('Node.js and npm were not found.')
+    ).not.toBeInTheDocument();
+  });
+
+  it('warns about missing prerequisites without blocking the application', async () => {
+    setSystemInfoResult(undefined, undefined, {
+      scanDeveloperEnvironment: vi.fn().mockResolvedValue(missingNodeEnvironmentScan)
+    });
+
+    render(<App />);
+
+    expect(
+      await screen.findByText('Node.js and npm were not found.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+  });
+
+  it('opens the official Node.js download page from the warning', async () => {
+    const openNodeDownloadPage = vi.fn().mockResolvedValue(undefined);
+    setSystemInfoResult(undefined, undefined, {
+      scanDeveloperEnvironment: vi.fn().mockResolvedValue(missingNodeEnvironmentScan),
+      openNodeDownloadPage
+    });
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Download Node.js' })
+    );
+
+    await waitFor(() => expect(openNodeDownloadPage).toHaveBeenCalledTimes(1));
+  });
+
   it('lists detected providers, versions, and paths in Settings', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -1250,6 +1321,44 @@ describe('App', () => {
 
     expect(await screen.findByText('2.3.4 (Claude Code)')).toBeInTheDocument();
     expect(scanProviders).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes developer prerequisites with provider results', async () => {
+    const scanDeveloperEnvironment = vi
+      .fn()
+      .mockResolvedValueOnce(missingNodeEnvironmentScan)
+      .mockResolvedValueOnce(readyEnvironmentScan);
+    setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
+    render(<App />);
+
+    expect(
+      await screen.findByText('Node.js and npm were not found.')
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(await screen.findByText('v24.18.0')).toBeInTheDocument();
+    expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores stale prerequisite results after a newer refresh', async () => {
+    const firstScan = deferred<DeveloperEnvironmentScanResult>();
+    const scanDeveloperEnvironment = vi
+      .fn()
+      .mockReturnValueOnce(firstScan.promise)
+      .mockResolvedValueOnce(readyEnvironmentScan);
+    setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
+    render(<App />);
+
+    await waitFor(() => expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByText('v24.18.0')).toBeInTheDocument();
+
+    await act(async () => firstScan.resolve(missingNodeEnvironmentScan));
+    expect(
+      screen.queryByText('Node.js and npm were not found.')
+    ).not.toBeInTheDocument();
   });
 
   it('renders persisted catalog data before background refresh completes', async () => {

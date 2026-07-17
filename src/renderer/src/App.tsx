@@ -28,6 +28,10 @@ import {
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
+  DeveloperEnvironmentNotice,
+  type DeveloperEnvironmentStatus
+} from './environment/DeveloperEnvironment';
+import {
   isRequiredModifierKey,
   keyboardEventMatchesChord
 } from './keyboard/shortcut';
@@ -247,6 +251,8 @@ export default function App(): ReactNode {
   const [providerStatus, setProviderStatus] = useState<ProviderScanStatus>({
     state: 'loading'
   });
+  const [environmentStatus, setEnvironmentStatus] =
+    useState<DeveloperEnvironmentStatus>({ state: 'loading' });
   const [catalogStatus, setCatalogStatus] = useState<CatalogViewStatus>({
     state: 'loading'
   });
@@ -289,6 +295,7 @@ export default function App(): ReactNode {
   const [recoveryRuntime, setRecoveryRuntime] =
     useState<RuntimeSummary | null>(null);
   const providerRequestId = useRef(0);
+  const environmentRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const workspaceDetailRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
@@ -323,6 +330,35 @@ export default function App(): ReactNode {
       }
     );
   }, []);
+
+  const refreshEnvironment = useCallback(() => {
+    const requestId = environmentRequestId.current + 1;
+    environmentRequestId.current = requestId;
+    setEnvironmentStatus({ state: 'loading' });
+
+    void window.lumora.scanDeveloperEnvironment().then(
+      (scan) => {
+        if (environmentRequestId.current === requestId) {
+          setEnvironmentStatus({ state: 'ready', scan });
+        }
+      },
+      () => {
+        if (environmentRequestId.current === requestId) {
+          setEnvironmentStatus({ state: 'error' });
+        }
+      }
+    );
+  }, []);
+
+  const refreshProviderSettings = useCallback(() => {
+    refreshProviders();
+    refreshEnvironment();
+  }, [refreshEnvironment, refreshProviders]);
+
+  const openNodeDownload = useCallback(
+    () => window.lumora.openNodeDownloadPage(),
+    []
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -365,6 +401,14 @@ export default function App(): ReactNode {
       providerRequestId.current += 1;
     };
   }, [refreshProviders]);
+
+  useEffect(() => {
+    refreshEnvironment();
+
+    return () => {
+      environmentRequestId.current += 1;
+    };
+  }, [refreshEnvironment]);
 
   const updateRuntime = useCallback((runtime: RuntimeSummary) => {
     setRuntimes((current) => {
@@ -902,6 +946,13 @@ export default function App(): ReactNode {
             </div>
           )}
 
+          {terminalActive ? null : (
+            <DeveloperEnvironmentNotice
+              onOpenNodeDownload={openNodeDownload}
+              status={environmentStatus}
+            />
+          )}
+
           <div className="route-surface" hidden={terminalActive}>
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
@@ -963,9 +1014,11 @@ export default function App(): ReactNode {
               <SettingsView
                 activeCategory={settingsCategory}
                 catalogReady={catalogStatus.state === 'ready'}
+                environmentStatus={environmentStatus}
                 onCategoryChange={setSettingsCategory}
                 onKeyboardSettingsChange={setKeyboardSettings}
-                onRefreshProviders={refreshProviders}
+                onOpenNodeDownload={openNodeDownload}
+                onRefreshProviders={refreshProviderSettings}
                 platform={
                   systemStatus.state === 'ready'
                     ? systemStatus.info.platform

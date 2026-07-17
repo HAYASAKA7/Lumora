@@ -3,11 +3,21 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { KeyboardSettings } from '../../../shared/contracts';
+import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
 import { SettingsView, type SettingsCategory } from './SettingsView';
 
 vi.mock('../providers/ProviderSettings', () => ({
-  ProviderSettings: ({ onRefresh }: { onRefresh: () => void }) => (
-    <button onClick={onRefresh}>Providers content</button>
+  ProviderSettings: ({
+    environmentStatus,
+    onRefresh
+  }: {
+    environmentStatus: DeveloperEnvironmentStatus;
+    onRefresh: () => void;
+  }) => (
+    <>
+      <button onClick={onRefresh}>Providers content</button>
+      <span>Environment {environmentStatus.state}</span>
+    </>
   )
 }));
 
@@ -42,10 +52,12 @@ interface HarnessProps {
   catalogReady?: boolean;
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
   onRefreshProviders?: () => void;
+  environmentStatus?: DeveloperEnvironmentStatus;
 }
 
 function Harness({
   catalogReady = true,
+  environmentStatus = { state: 'loading' },
   onKeyboardSettingsChange = vi.fn(),
   onRefreshProviders = vi.fn()
 }: HarnessProps) {
@@ -56,8 +68,10 @@ function Harness({
     <SettingsView
       activeCategory={activeCategory}
       catalogReady={catalogReady}
+      environmentStatus={environmentStatus}
       onCategoryChange={setActiveCategory}
       onKeyboardSettingsChange={onKeyboardSettingsChange}
+      onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
       onRefreshProviders={onRefreshProviders}
       platform="win32"
       profiles={[]}
@@ -96,6 +110,7 @@ describe('SettingsView', () => {
     }
 
     expect(screen.getByText('Providers content')).toBeVisible();
+    expect(screen.getByText('Environment loading')).toBeVisible();
     expect(screen.getByText('Launch content')).toBeInTheDocument();
     expect(screen.getByText('Security content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();

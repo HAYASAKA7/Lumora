@@ -11,6 +11,7 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from '../providers/ProviderSettings';
+import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
@@ -24,8 +25,10 @@ export type SettingsCategory =
 interface SettingsViewProps {
   activeCategory: SettingsCategory;
   catalogReady: boolean;
+  environmentStatus: DeveloperEnvironmentStatus;
   onCategoryChange: (category: SettingsCategory) => void;
   onKeyboardSettingsChange: (settings: KeyboardSettings) => void;
+  onOpenNodeDownload: () => Promise<void>;
   onRefreshProviders: () => void;
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
@@ -44,8 +47,10 @@ const SETTINGS_CATEGORIES = [
 export function SettingsView({
   activeCategory,
   catalogReady,
+  environmentStatus,
   onCategoryChange,
   onKeyboardSettingsChange,
+  onOpenNodeDownload,
   onRefreshProviders,
   platform,
   profiles,
@@ -132,6 +137,8 @@ export function SettingsView({
         role="tabpanel"
       >
         <ProviderSettings
+          environmentStatus={environmentStatus}
+          onOpenNodeDownload={onOpenNodeDownload}
           onRefresh={onRefreshProviders}
           status={providerStatus}
         />
