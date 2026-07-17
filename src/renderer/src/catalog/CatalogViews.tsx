@@ -187,14 +187,22 @@ export function WorkspacesView({
 interface SessionsViewProps {
   status: CatalogViewStatus;
   isRefreshing: boolean;
+  dismissedDiagnosticIds: ReadonlySet<string>;
   queryText: string;
   provider: ProviderId | null;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
+  onDismissDiagnostic(identity: string): void;
   onRefresh(): void;
   onResume(session: SessionSummary): void;
+}
+
+function diagnosticIdentity(
+  diagnostic: CatalogSnapshot['diagnostics'][number]
+): string {
+  return `${diagnostic.code}:${diagnostic.provider ?? 'catalog'}`;
 }
 
 const SessionRow = memo(function SessionRow({
@@ -263,12 +271,14 @@ const SessionRow = memo(function SessionRow({
 export function SessionsView({
   status,
   isRefreshing,
+  dismissedDiagnosticIds,
   queryText,
   provider,
   providerScan,
   profiles,
   onSearchChange,
   onProviderChange,
+  onDismissDiagnostic,
   onRefresh,
   onResume
 }: SessionsViewProps): ReactNode {
@@ -351,16 +361,35 @@ export function SessionsView({
         </button>
       </div>
 
-      {snapshot.diagnostics.map((diagnostic, index) => (
-        <div
-          className="catalog-diagnostic"
-          key={`${diagnostic.code}-${diagnostic.provider ?? 'catalog'}-${index}`}
-          role="alert"
-        >
-          <strong>{diagnostic.message}</strong>
-          <span>{diagnostic.recovery}</span>
-        </div>
-      ))}
+      {snapshot.diagnostics
+        .filter(
+          (diagnostic) =>
+            !dismissedDiagnosticIds.has(diagnosticIdentity(diagnostic))
+        )
+        .map((diagnostic, index) => {
+          const identity = diagnosticIdentity(diagnostic);
+          return (
+            <div
+              className="catalog-diagnostic"
+              key={`${identity}-${index}`}
+              role="alert"
+            >
+              <div className="catalog-diagnostic-content">
+                <strong>{diagnostic.message}</strong>
+                <span>{diagnostic.recovery}</span>
+              </div>
+              <button
+                aria-label={`Dismiss warning: ${diagnostic.message}`}
+                className="catalog-diagnostic-dismiss"
+                onClick={() => onDismissDiagnostic(identity)}
+                title="Dismiss warning"
+                type="button"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          );
+        })}
 
       <div className="catalog-result-heading">
         <p className="card-label">Normalized provider metadata</p>

@@ -273,6 +273,8 @@ export default function App(): ReactNode {
   const [debouncedSessionSearch, setDebouncedSessionSearch] = useState('');
   const [sessionProvider, setSessionProvider] =
     useState<ProviderId | null>(null);
+  const [dismissedSessionDiagnostics, setDismissedSessionDiagnostics] =
+    useState<ReadonlySet<string>>(() => new Set());
   const [terminalProfiles, setTerminalProfiles] = useState<
     Awaited<ReturnType<typeof window.lumora.getTerminalProfiles>>
   >([]);
@@ -849,6 +851,14 @@ export default function App(): ReactNode {
   const sidebarToggleLabel = sidebarExpanded
     ? 'Collapse sidebar'
     : 'Expand sidebar';
+  const dismissSessionDiagnostic = useCallback((identity: string) => {
+    setDismissedSessionDiagnostics((current) => {
+      if (current.has(identity)) return current;
+      const next = new Set(current);
+      next.add(identity);
+      return next;
+    });
+  }, []);
 
   return (
     <div className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}`}>
@@ -1005,7 +1015,9 @@ export default function App(): ReactNode {
               )
             ) : activeRoute.id === 'sessions' ? (
               <SessionsView
+                dismissedDiagnosticIds={dismissedSessionDiagnostics}
                 isRefreshing={isCatalogRefreshing}
+                onDismissDiagnostic={dismissSessionDiagnostic}
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
                 onResume={resumeCatalogSession}

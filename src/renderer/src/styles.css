@@ -1521,6 +1521,7 @@ button {
 
 .catalog-diagnostic {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px;
   padding: 12px 14px;
   margin-top: 14px;
@@ -1531,9 +1532,40 @@ button {
   line-height: 1.45;
 }
 
-.catalog-diagnostic span {
+.catalog-diagnostic-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.catalog-diagnostic-content span {
   color: #76614a;
   font-size: 0.78rem;
+}
+
+.catalog-diagnostic-dismiss {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #86500c;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  place-items: center;
+}
+
+.catalog-diagnostic-dismiss:hover {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.catalog-diagnostic-dismiss:focus-visible {
+  outline: 2px solid var(--warning);
+  outline-offset: 2px;
 }
 
 .catalog-result-heading {

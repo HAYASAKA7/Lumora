@@ -118,6 +118,11 @@ const terminalProfile: TerminalProfile = {
   recommended: true
 };
 
+const diagnosticProps = {
+  dismissedDiagnosticIds: new Set<string>(),
+  onDismissDiagnostic: vi.fn()
+};
+
 function repeatedWorkspaces(count: number): CatalogSnapshot['workspaces'] {
   return Array.from({ length: count }, (_, index) => ({
     ...catalogSnapshot.workspaces[0]!,
@@ -324,6 +329,7 @@ describe('SessionsView', () => {
   it('builds provider filters only from installed providers with sessions', () => {
     render(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onResume={vi.fn()}
         onProviderChange={vi.fn()}
@@ -374,6 +380,7 @@ describe('SessionsView', () => {
     };
     render(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onResume={vi.fn()}
         onProviderChange={vi.fn()}
@@ -408,12 +415,68 @@ describe('SessionsView', () => {
     );
   });
 
+  it('dismisses one provider warning without affecting another warning', () => {
+    const onDismissDiagnostic = vi.fn();
+    const snapshot: CatalogSnapshot = {
+      ...catalogSnapshot,
+      diagnostics: [
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'claude',
+          affectedCount: 1,
+          message: 'One Claude warning.',
+          recovery: 'Refresh after Claude finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        },
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'codex',
+          affectedCount: 1,
+          message: 'One Codex warning.',
+          recovery: 'Refresh after Codex finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        }
+      ]
+    };
+
+    render(
+      <SessionsView
+        dismissedDiagnosticIds={new Set()}
+        isRefreshing={false}
+        onDismissDiagnostic={onDismissDiagnostic}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        profiles={[terminalProfile]}
+        provider={null}
+        providerScan={providerScan}
+        queryText=""
+        status={{ state: 'ready', snapshot }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Dismiss warning: One Claude warning.'
+      })
+    );
+
+    expect(onDismissDiagnostic).toHaveBeenCalledWith(
+      'CATALOG_SOURCE_INVALID:claude'
+    );
+    expect(screen.getByText('One Codex warning.')).toBeInTheDocument();
+  });
+
   it('forwards search, filter, and refresh controls and explains no matches', () => {
     const onSearchChange = vi.fn();
     const onProviderChange = vi.fn();
     const onRefresh = vi.fn();
     render(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onResume={vi.fn()}
         onProviderChange={onProviderChange}
@@ -448,6 +511,7 @@ describe('SessionsView', () => {
     const onResume = vi.fn();
     render(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onProviderChange={vi.fn()}
         onRefresh={vi.fn()}
@@ -490,6 +554,7 @@ describe('SessionsView', () => {
   it('renders sessions in batches of forty and resets for a new query', () => {
     const sessions = repeatedSessions(45);
     const sharedProps = {
+      ...diagnosticProps,
       isRefreshing: false,
       onProviderChange: vi.fn(),
       onRefresh: vi.fn(),
@@ -538,6 +603,7 @@ describe('SessionsView', () => {
     };
     const { rerender } = render(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onProviderChange={vi.fn()}
         onRefresh={vi.fn()}
@@ -560,6 +626,7 @@ describe('SessionsView', () => {
 
     rerender(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onProviderChange={vi.fn()}
         onRefresh={vi.fn()}
@@ -607,6 +674,7 @@ describe('SessionsView', () => {
 
     rerender(
       <SessionsView
+        {...diagnosticProps}
         isRefreshing={false}
         onProviderChange={vi.fn()}
         onRefresh={vi.fn()}

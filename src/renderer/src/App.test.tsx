@@ -422,6 +422,44 @@ describe('App', () => {
     await waitFor(() => expect(main.scrollTop).toBe(0));
   });
 
+  it('keeps a dismissed session warning hidden across route navigation', async () => {
+    const catalogWithWarning = {
+      ...readyCatalog,
+      diagnostics: [
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'claude',
+          affectedCount: 1,
+          message: 'One Claude warning.',
+          recovery: 'Refresh after Claude finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        }
+      ]
+    } satisfies CatalogSnapshot;
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning)
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Dismiss warning: One Claude warning.'
+      })
+    );
+    expect(screen.queryByText('One Claude warning.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+
+    expect(
+      screen.getByRole('heading', { name: 'All sessions' })
+    ).toBeInTheDocument();
+    expect(screen.queryByText('One Claude warning.')).not.toBeInTheDocument();
+  });
+
   it('restores the selected Settings category after route navigation', async () => {
     render(<App />);
 
