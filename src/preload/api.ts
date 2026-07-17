@@ -4,6 +4,8 @@ import {
   ClipboardTextSchema,
   ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
+  DeveloperEnvironmentScanResultSchema,
+  ExternalOpenResultSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
   LaunchPrepareRequestSchema,
@@ -49,6 +51,14 @@ export function createLumoraApi(
     async getSystemInfo() {
       const value = await invoke(IPC_CHANNELS.systemInfo);
       return SystemInfoSchema.parse(value);
+    },
+    async scanDeveloperEnvironment() {
+      const value = await invoke(IPC_CHANNELS.environmentScan);
+      return DeveloperEnvironmentScanResultSchema.parse(value);
+    },
+    async openNodeDownloadPage() {
+      const value = await invoke(IPC_CHANNELS.nodeDownloadOpen);
+      ExternalOpenResultSchema.parse(value);
     },
     async scanProviders() {
       const value = await invoke(IPC_CHANNELS.providerScan);

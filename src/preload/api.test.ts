@@ -43,6 +43,49 @@ describe('createLumoraApi', () => {
     expect(Object.isFrozen(api)).toBe(true);
   });
 
+  it('uses narrow environment channels and validates their responses', async () => {
+    const environmentScan = {
+      checkedAt: '2026-07-17T01:00:00.000Z',
+      node: {
+        state: 'ready',
+        executablePath: '/usr/bin/node',
+        version: 'v24.18.0'
+      },
+      npm: {
+        state: 'not_found',
+        executablePath: null,
+        version: null
+      }
+    } as const;
+    const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      if (channel === IPC_CHANNELS.environmentScan) return environmentScan;
+      return { opened: true };
+    });
+
+    await expect(api.scanDeveloperEnvironment()).resolves.toEqual(
+      environmentScan
+    );
+    await expect(api.openNodeDownloadPage()).resolves.toBeUndefined();
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.environmentScan, args: [] },
+      { channel: IPC_CHANNELS.nodeDownloadOpen, args: [] }
+    ]);
+  });
+
+  it('rejects malformed environment and browser-open responses', async () => {
+    const invalidScanApi = createLumoraApi(async () => ({
+      checkedAt: 'invalid',
+      node: { state: 'ready', executablePath: null, version: '1.0.0' },
+      npm: { state: 'not_found', executablePath: null, version: null }
+    }));
+    const invalidOpenApi = createLumoraApi(async () => ({ opened: false }));
+
+    await expect(invalidScanApi.scanDeveloperEnvironment()).rejects.toBeDefined();
+    await expect(invalidOpenApi.openNodeDownloadPage()).rejects.toBeDefined();
+  });
+
   it('invokes only the provider-scan channel and validates the response', async () => {
     const invokedChannels: string[] = [];
     const scan = {

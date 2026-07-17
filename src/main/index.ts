@@ -9,7 +9,8 @@ import {
   Menu,
   net,
   protocol,
-  screen
+  screen,
+  shell
 } from 'electron';
 
 import { IPC_CHANNELS, PlatformSchema } from '../shared/contracts';
@@ -19,8 +20,10 @@ import {
   type CatalogRuntime
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
+import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
+import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
@@ -71,6 +74,9 @@ const providerRegistry = new ProviderRegistry({
   codex: createCodexAdapter(providerDependencies),
   claude: createClaudeAdapter(providerDependencies)
 });
+const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
+  providerDependencies
+);
 
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
@@ -211,6 +217,12 @@ void app.whenReady().then(async () => {
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerEnvironmentIpc({
+    ipc: ipcMain,
+    scanner: developerEnvironmentScanner,
+    openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerProviderIpc({
