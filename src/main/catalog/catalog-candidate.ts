@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { CatalogProviderIdSchema } from '../../shared/contracts';
+import { ProviderIdSchema } from '../../shared/contracts';
 
 const StableIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -13,7 +13,7 @@ export const CatalogSourceFingerprintSchema = z.strictObject({
 
 export const CatalogCandidateSchema = z
   .strictObject({
-    provider: CatalogProviderIdSchema,
+    provider: ProviderIdSchema,
     nativeId: z.string().trim().min(1).max(256),
     workspace: z.strictObject({
       id: StableIdSchema,

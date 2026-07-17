@@ -2,10 +2,7 @@ import { posix, win32 } from 'node:path';
 
 import { z } from 'zod';
 
-import {
-  CatalogProviderIdSchema,
-  type CatalogProviderId
-} from '../../shared/contracts';
+import { ProviderIdSchema, type ProviderId } from '../../shared/contracts';
 import { CatalogSourceFingerprintSchema } from '../catalog/catalog-candidate';
 
 export function isPortableAbsolutePath(value: string): boolean {
@@ -13,7 +10,7 @@ export function isPortableAbsolutePath(value: string): boolean {
 }
 
 export const ProviderSessionRecordSchema = z.strictObject({
-  provider: CatalogProviderIdSchema,
+  provider: ProviderIdSchema,
   nativeId: z.string().trim().min(1).max(256),
   workspacePath: z
     .string()
@@ -32,7 +29,7 @@ export const ProviderSessionRecordSchema = z.strictObject({
 export type ProviderSessionRecord = z.infer<typeof ProviderSessionRecordSchema>;
 
 export interface ProviderSessionDiscoveryResult {
-  provider: CatalogProviderId;
+  provider: ProviderId;
   sessions: readonly ProviderSessionRecord[];
   discoveredCount: number;
   unchangedCount: number;

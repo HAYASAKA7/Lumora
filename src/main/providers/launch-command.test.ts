@@ -16,4 +16,19 @@ describe('buildResumeArguments', () => {
       'session-456'
     ]);
   });
+
+  it.each([
+    ['gemini', ['--resume', 'native-1']],
+    ['opencode', ['--session', 'native-1']],
+    ['copilot', ['--session-id', 'native-1']],
+    ['qwen', ['--resume', 'native-1']]
+  ] as const)('builds atomic %s resume arguments', (provider, expected) => {
+    expect(buildResumeArguments(provider, 'native-1')).toEqual(expected);
+  });
+
+  it('rejects launch-only providers', () => {
+    expect(() => buildResumeArguments('aider', 'native-1')).toThrow(
+      'Aider does not support exact session resume in Lumora.'
+    );
+  });
 });

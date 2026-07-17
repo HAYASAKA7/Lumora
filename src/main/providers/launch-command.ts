@@ -1,10 +1,26 @@
-import type { CatalogProviderId } from '../../shared/contracts';
+import type { ProviderId } from '../../shared/contracts';
+import { providerDefinition } from '../../shared/provider-definitions';
+
+const RESUME_ARGUMENTS: Partial<
+  Record<ProviderId, (nativeSessionId: string) => string[]>
+> = {
+  codex: (nativeSessionId) => ['resume', nativeSessionId],
+  claude: (nativeSessionId) => ['--resume', nativeSessionId],
+  gemini: (nativeSessionId) => ['--resume', nativeSessionId],
+  opencode: (nativeSessionId) => ['--session', nativeSessionId],
+  copilot: (nativeSessionId) => ['--session-id', nativeSessionId],
+  qwen: (nativeSessionId) => ['--resume', nativeSessionId]
+};
 
 export function buildResumeArguments(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   nativeSessionId: string
 ): string[] {
-  return provider === 'codex'
-    ? ['resume', nativeSessionId]
-    : ['--resume', nativeSessionId];
+  const buildArguments = RESUME_ARGUMENTS[provider];
+  if (!buildArguments) {
+    throw new Error(
+      `${providerDefinition(provider).displayName} does not support exact session resume in Lumora.`
+    );
+  }
+  return buildArguments(nativeSessionId);
 }
