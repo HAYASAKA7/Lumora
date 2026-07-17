@@ -84,4 +84,99 @@ describe('provider lifecycle migration', () => {
       ).get()
     ).toEqual({ command: 'codexp' });
   });
+
+  it('preserves catalog data and allows all registered provider ids', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 10)
+    );
+    const timestamp = '2026-07-17T04:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const sessionId = 'b'.repeat(64);
+    const profileId = 'd'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abe';
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'native-1', ?, 'Existing', 'existing', ?, ?, 'saved', 'current')`
+    ).run(sessionId, workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session_source (
+        provider, source_key, session_id, size, modified_at_ms,
+        last_seen_scan_id, stale
+      ) VALUES ('codex', 'source-1', ?, NULL, NULL, 'scan-1', 0)`
+    ).run(sessionId);
+    database.prepare(
+      `INSERT INTO scan_error (
+        provider, code, affected_count, message, recovery, retryable, scanned_at
+      ) VALUES ('claude', 'TEST', 1, 'message', 'retry', 1, ?)`
+    ).run(timestamp);
+    database.prepare(
+      `INSERT INTO terminal_profile (
+        id, kind, name, shell_family, executable_path, args_json,
+        available, recommended, created_at, updated_at
+      ) VALUES (?, 'detected', 'Bash', 'bash', '/bin/bash', '[]',
+        1, 1, ?, ?)`
+    ).run(profileId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO runtime_instance (
+        id, provider, workspace_id, terminal_profile_id, launch_hash, state,
+        created_at, session_id
+      ) VALUES (?, 'codex', ?, ?, ?, 'completed', ?, ?)`
+    ).run(
+      runtimeId,
+      workspaceId,
+      profileId,
+      'e'.repeat(64),
+      timestamp,
+      sessionId
+    );
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(() =>
+      database!.prepare(
+        `INSERT INTO session (
+          id, provider, native_id, workspace_id, title, normalized_title,
+          created_at, updated_at, lifecycle, source_freshness
+        ) VALUES (?, 'gemini', 'native-2', ?, 'Gemini', 'gemini', ?, ?, 'saved', 'current')`
+      ).run('c'.repeat(64), workspaceId, timestamp, timestamp)
+    ).not.toThrow();
+    expect(() =>
+      database!.prepare(
+        `INSERT INTO session_source (
+          provider, source_key, session_id, size, modified_at_ms,
+          last_seen_scan_id, stale
+        ) VALUES ('opencode', 'source-2', ?, NULL, NULL, 'scan-2', 0)`
+      ).run(sessionId)
+    ).not.toThrow();
+    expect(() =>
+      database!.prepare(
+        `INSERT INTO scan_error (
+          provider, code, affected_count, message, recovery, retryable, scanned_at
+        ) VALUES ('qwen', 'TEST', 1, 'message', 'retry', 1, ?)`
+      ).run(timestamp)
+    ).not.toThrow();
+    expect(
+      database.prepare(
+        `SELECT provider, native_id FROM session ORDER BY native_id`
+      ).all()
+    ).toEqual([
+      { provider: 'codex', native_id: 'native-1' },
+      { provider: 'gemini', native_id: 'native-2' }
+    ]);
+    expect(
+      database.prepare(
+        'SELECT session_id FROM runtime_instance WHERE id = ?'
+      ).get(runtimeId)
+    ).toEqual({ session_id: sessionId });
+  });
 });

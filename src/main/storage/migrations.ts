@@ -277,6 +277,91 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       'DROP TABLE provider_launch_config',
       'ALTER TABLE provider_launch_config_wide RENAME TO provider_launch_config'
     ]
+  },
+  {
+    version: 11,
+    statements: [
+      'PRAGMA defer_foreign_keys = ON',
+      `CREATE TABLE session_wide (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        native_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL REFERENCES workspace(id),
+        title TEXT NOT NULL,
+        normalized_title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        lifecycle TEXT NOT NULL,
+        source_freshness TEXT NOT NULL CHECK (source_freshness IN ('current', 'stale')),
+        UNIQUE (provider, native_id)
+      ) STRICT`,
+      `INSERT INTO session_wide (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) SELECT
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      FROM session`,
+      `CREATE TABLE session_source_wide (
+        provider TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        session_id TEXT NOT NULL REFERENCES session_wide(id) ON DELETE CASCADE,
+        size INTEGER,
+        modified_at_ms INTEGER,
+        last_seen_scan_id TEXT NOT NULL,
+        stale INTEGER NOT NULL DEFAULT 0 CHECK (stale IN (0, 1)),
+        PRIMARY KEY (provider, source_key),
+        CHECK ((size IS NULL) = (modified_at_ms IS NULL))
+      ) STRICT`,
+      `INSERT INTO session_source_wide (
+        provider, source_key, session_id, size, modified_at_ms,
+        last_seen_scan_id, stale
+      ) SELECT
+        provider, source_key, session_id, size, modified_at_ms,
+        last_seen_scan_id, stale
+      FROM session_source`,
+      `CREATE TABLE scan_error_wide (
+        id INTEGER PRIMARY KEY,
+        provider TEXT,
+        code TEXT NOT NULL,
+        affected_count INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        recovery TEXT NOT NULL,
+        retryable INTEGER NOT NULL CHECK (retryable IN (0, 1)),
+        scanned_at TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO scan_error_wide (
+        id, provider, code, affected_count, message, recovery,
+        retryable, scanned_at
+      ) SELECT
+        id, provider, code, affected_count, message, recovery,
+        retryable, scanned_at
+      FROM scan_error`,
+      `CREATE TEMP TABLE runtime_session_backup (
+        runtime_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO runtime_session_backup (runtime_id, session_id)
+       SELECT id, session_id FROM runtime_instance WHERE session_id IS NOT NULL`,
+      'DROP TABLE session_source',
+      'DROP TABLE session',
+      'DROP TABLE scan_error',
+      'ALTER TABLE session_wide RENAME TO session',
+      'ALTER TABLE session_source_wide RENAME TO session_source',
+      'ALTER TABLE scan_error_wide RENAME TO scan_error',
+      `UPDATE runtime_instance
+       SET session_id = (
+         SELECT backup.session_id FROM runtime_session_backup backup
+         WHERE backup.runtime_id = runtime_instance.id
+       )
+       WHERE id IN (SELECT runtime_id FROM runtime_session_backup)`,
+      'DROP TABLE runtime_session_backup',
+      'CREATE INDEX session_workspace_idx ON session (workspace_id)',
+      'CREATE INDEX session_provider_idx ON session (provider)',
+      'CREATE INDEX session_updated_idx ON session (updated_at DESC)',
+      'CREATE INDEX session_title_idx ON session (normalized_title)',
+      'CREATE INDEX session_source_session_idx ON session_source (session_id)'
+    ]
   }
 ];
 

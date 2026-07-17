@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import {
   CatalogSnapshotSchema,
+  ProviderIdSchema,
   type CatalogDiagnostic,
   type CatalogProviderStatus,
   type CatalogQuery,
@@ -9,6 +10,7 @@ import {
   type ProviderId,
   type WorkspaceOrigin
 } from '../../shared/contracts';
+import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
 import {
   CatalogCandidateSchema,
   createSessionId,
@@ -27,7 +29,8 @@ interface ProviderScanWrite {
 interface SnapshotOptions {
   query: CatalogQuery;
   refreshedAt: string;
-  providerStatus: readonly [CatalogProviderStatus, CatalogProviderStatus];
+  providerStatus: readonly CatalogProviderStatus[];
+  availableProviders: readonly ProviderId[];
   diagnostics: readonly CatalogDiagnostic[];
 }
 
@@ -43,10 +46,18 @@ interface WorkspaceRow {
   display_name: string;
   available: number;
   origin: WorkspaceOrigin;
-  session_count: number;
-  codex_count: number;
-  claude_count: number;
   last_activity_at: string | null;
+}
+
+interface ProviderCountRow {
+  workspace_id: string;
+  provider: ProviderId;
+  session_count: number;
+}
+
+interface ProviderFacetRow {
+  provider: ProviderId;
+  session_count: number;
 }
 
 interface SessionRow {
@@ -126,6 +137,7 @@ export class CatalogRepository {
     scannedAt,
     candidates
   }: ProviderScanWrite): void {
+    ProviderIdSchema.parse(provider);
     const validatedCandidates = candidates
       .map((value) => CatalogCandidateSchema.parse(value))
       .map((value) => {
@@ -238,6 +250,7 @@ export class CatalogRepository {
   }
 
   findSource(provider: ProviderId, sourceKey: string): StoredCatalogSource | null {
+    ProviderIdSchema.parse(provider);
     const row = this.database
       .prepare(
         `SELECT
@@ -285,38 +298,87 @@ export class CatalogRepository {
     query,
     refreshedAt,
     providerStatus,
+    availableProviders,
     diagnostics
   }: SnapshotOptions): CatalogSnapshot {
+    const visibleProviders = [
+      ...new Set(availableProviders.map((provider) => ProviderIdSchema.parse(provider)))
+    ];
+    const providerPlaceholders = visibleProviders.map(() => '?').join(', ');
+    const currentProviderCondition =
+      visibleProviders.length === 0
+        ? '0'
+        : `session.provider IN (${providerPlaceholders})`;
+
+    const providerCountsByWorkspace = new Map<
+      string,
+      Partial<Record<ProviderId, number>>
+    >();
+    for (const row of this.database
+      .prepare(
+        `SELECT session.workspace_id, session.provider,
+          COUNT(*) AS session_count
+        FROM session
+        WHERE session.source_freshness = 'current'
+          AND ${currentProviderCondition}
+        GROUP BY session.workspace_id, session.provider`
+      )
+      .all(...visibleProviders) as unknown as ProviderCountRow[]) {
+      const counts = providerCountsByWorkspace.get(row.workspace_id) ?? {};
+      counts[row.provider] = row.session_count;
+      providerCountsByWorkspace.set(row.workspace_id, counts);
+    }
+
     const workspaces = (
       this.database
         .prepare(
           `SELECT
             workspace.id, workspace.identity_key, workspace.canonical_path,
             workspace.display_name, workspace.available, workspace.origin,
-            COUNT(session.id) AS session_count,
-            COALESCE(SUM(CASE WHEN session.provider = 'codex' THEN 1 ELSE 0 END), 0) AS codex_count,
-            COALESCE(SUM(CASE WHEN session.provider = 'claude' THEN 1 ELSE 0 END), 0) AS claude_count,
             MAX(session.updated_at) AS last_activity_at
           FROM workspace
           LEFT JOIN session ON session.workspace_id = workspace.id
+            AND session.source_freshness = 'current'
+            AND ${currentProviderCondition}
           GROUP BY workspace.id
           ORDER BY last_activity_at IS NULL, last_activity_at DESC,
             workspace.display_name COLLATE NOCASE, workspace.id`
         )
-        .all() as unknown as WorkspaceRow[]
-    ).map((row) => ({
-      id: row.id,
-      displayName: row.display_name,
-      canonicalPath: row.canonical_path,
-      available: row.available === 1,
-      origin: row.origin,
-      sessionCount: row.session_count,
-      providerCounts: {
-        codex: row.codex_count,
-        claude: row.claude_count
-      },
-      lastActivityAt: row.last_activity_at
-    }));
+        .all(...visibleProviders) as unknown as WorkspaceRow[]
+    ).map((row) => {
+      const providerCounts = providerCountsByWorkspace.get(row.id) ?? {};
+      return {
+        id: row.id,
+        displayName: row.display_name,
+        canonicalPath: row.canonical_path,
+        available: row.available === 1,
+        origin: row.origin,
+        sessionCount: Object.values(providerCounts).reduce(
+          (total, count) => total + (count ?? 0),
+          0
+        ),
+        providerCounts,
+        lastActivityAt: row.last_activity_at
+      };
+    });
+
+    const facetCounts = new Map<ProviderId, number>(
+      (
+        this.database
+          .prepare(
+            `SELECT session.provider, COUNT(*) AS session_count
+             FROM session
+             WHERE session.source_freshness = 'current'
+               AND ${currentProviderCondition}
+             GROUP BY session.provider`
+          )
+          .all(...visibleProviders) as unknown as ProviderFacetRow[]
+      ).map((row) => [row.provider, row.session_count])
+    );
+    const providerFacets = SESSION_PROVIDER_IDS.flatMap((provider) => {
+      const sessionCount = facetCounts.get(provider);
+      return sessionCount === undefined ? [] : [{ provider, sessionCount }];
+    });
 
     const normalizedText = normalizedSearchValue(query.text);
     const pattern = `%${escapeLike(normalizedText)}%`;
@@ -336,6 +398,7 @@ export class CatalogRepository {
             LOWER(workspace.canonical_path) LIKE ? ESCAPE '\\'
           )
           AND (? IS NULL OR session.provider = ?)
+          AND ${currentProviderCondition}
           ORDER BY session.updated_at DESC, session.provider, session.native_id
           LIMIT 25000`
         )
@@ -345,7 +408,8 @@ export class CatalogRepository {
           pattern,
           pattern,
           query.provider,
-          query.provider
+          query.provider,
+          ...visibleProviders
         ) as unknown as SessionRow[]
     ).map((row) => ({
       id: row.id,
@@ -364,6 +428,7 @@ export class CatalogRepository {
       workspaces,
       sessions,
       providerStatus: [...providerStatus],
+      providerFacets,
       diagnostics: [...diagnostics]
     });
   }

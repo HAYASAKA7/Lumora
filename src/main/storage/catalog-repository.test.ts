@@ -6,7 +6,7 @@ import type {
   CatalogDiagnostic,
   CatalogProviderStatus,
   CatalogQuery,
-  CatalogProviderId
+  ProviderId
 } from '../../shared/contracts';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
 import type { CatalogCandidate } from '../catalog/catalog-candidate';
@@ -61,7 +61,7 @@ function candidate(overrides: Partial<CatalogCandidate> = {}): CatalogCandidate 
   };
 }
 
-const providerStatus: readonly [CatalogProviderStatus, CatalogProviderStatus] = [
+const providerStatus: readonly CatalogProviderStatus[] = [
   {
     provider: 'codex',
     state: 'ready',
@@ -83,12 +83,14 @@ const emptyQuery: CatalogQuery = { text: '', provider: null };
 function snapshot(
   repository: CatalogRepository,
   query: CatalogQuery = emptyQuery,
-  diagnostics: readonly CatalogDiagnostic[] = []
+  diagnostics: readonly CatalogDiagnostic[] = [],
+  availableProviders: readonly ProviderId[] = ['codex', 'claude']
 ) {
   return repository.getSnapshot({
     query,
     refreshedAt: '2026-07-11T03:00:00.000Z',
     providerStatus,
+    availableProviders,
     diagnostics
   });
 }
@@ -113,7 +115,8 @@ describe('catalog migrations', () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
-      { version: 10 }
+      { version: 10 },
+      { version: 11 }
     ]);
     expect(
       database
@@ -349,7 +352,7 @@ describe('CatalogRepository', () => {
     });
     expect(result.workspaces[0]).toMatchObject({
       sessionCount: 1,
-      providerCounts: { codex: 1, claude: 0 }
+      providerCounts: { codex: 1 }
     });
   });
 
@@ -450,7 +453,7 @@ describe('CatalogRepository', () => {
 
   it('orders equal timestamps by provider and native identity', () => {
     const repository = createRepository();
-    const add = (provider: CatalogProviderId, nativeId: string) =>
+    const add = (provider: ProviderId, nativeId: string) =>
       repository.applyProviderScan({
         provider,
         scanId: `${provider}-${nativeId}`,
@@ -473,5 +476,75 @@ describe('CatalogRepository', () => {
         (session) => `${session.provider}:${session.nativeId}`
       )
     ).toEqual(['claude:z-session', 'codex:a-session', 'codex:b-session']);
+  });
+
+  it('aggregates dynamic provider counts and installed provider facets', () => {
+    const repository = createRepository();
+    const sharedWorkspace = workspace('a');
+    const add = (provider: ProviderId, nativeId: string) =>
+      repository.applyProviderScan({
+        provider,
+        scanId: `${provider}-scan`,
+        scannedAt: '2026-07-11T03:00:00.000Z',
+        candidates: [
+          candidate({
+            provider,
+            nativeId,
+            workspace: sharedWorkspace,
+            source: { key: `${provider}:${nativeId}`, fingerprint: null }
+          })
+        ]
+      });
+
+    add('codex', 'codex-1');
+    add('gemini', 'gemini-1');
+    add('opencode', 'opencode-1');
+    add('qwen', 'qwen-1');
+
+    const result = snapshot(
+      repository,
+      { text: 'catalog', provider: null },
+      [],
+      ['codex', 'gemini', 'opencode']
+    );
+    expect(result.workspaces[0]).toMatchObject({
+      sessionCount: 3,
+      providerCounts: { codex: 1, gemini: 1, opencode: 1 }
+    });
+    expect(result.providerFacets).toEqual([
+      { provider: 'codex', sessionCount: 1 },
+      { provider: 'gemini', sessionCount: 1 },
+      { provider: 'opencode', sessionCount: 1 }
+    ]);
+    expect(result.sessions.map(({ provider }) => provider)).toEqual([
+      'codex',
+      'gemini',
+      'opencode'
+    ]);
+  });
+
+  it('keeps unavailable provider rows internally but hides them from snapshots', () => {
+    const repository = createRepository();
+    repository.applyProviderScan({
+      provider: 'gemini',
+      scanId: 'gemini-scan',
+      scannedAt: '2026-07-11T03:00:00.000Z',
+      candidates: [
+        candidate({
+          provider: 'gemini',
+          nativeId: 'gemini-1',
+          source: { key: 'gemini:1', fingerprint: null }
+        })
+      ]
+    });
+
+    const hidden = snapshot(repository, emptyQuery, [], ['codex']);
+    expect(hidden.sessions).toEqual([]);
+    expect(hidden.providerFacets).toEqual([]);
+    expect(hidden.workspaces[0]).toMatchObject({
+      sessionCount: 0,
+      providerCounts: {}
+    });
+    expect(repository.findSource('gemini', 'gemini:1')).not.toBeNull();
   });
 });
