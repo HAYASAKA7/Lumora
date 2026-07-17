@@ -10,6 +10,39 @@ export const SystemInfoSchema = z.strictObject({
 
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
 
+export const DeveloperToolStatusSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('ready'),
+    executablePath: z.string().min(1),
+    version: z.string().min(1)
+  }),
+  z.strictObject({
+    state: z.literal('not_found'),
+    executablePath: z.null(),
+    version: z.null()
+  }),
+  z.strictObject({
+    state: z.literal('probe_failed'),
+    executablePath: z.string().min(1),
+    version: z.null()
+  })
+]);
+
+export const DeveloperEnvironmentScanResultSchema = z.strictObject({
+  checkedAt: z.iso.datetime(),
+  node: DeveloperToolStatusSchema,
+  npm: DeveloperToolStatusSchema
+});
+
+export const ExternalOpenResultSchema = z.strictObject({
+  opened: z.literal(true)
+});
+
+export type DeveloperToolStatus = z.infer<typeof DeveloperToolStatusSchema>;
+export type DeveloperEnvironmentScanResult = z.infer<
+  typeof DeveloperEnvironmentScanResultSchema
+>;
+
 export const ProviderIdSchema = z.enum(['codex', 'claude']);
 export const ProviderStateSchema = z.enum([
   'ready',
@@ -670,6 +703,8 @@ export type ClipboardText = z.infer<typeof ClipboardTextSchema>;
 
 export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
+  environmentScan: 'lumora:environment:scan',
+  nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
@@ -700,6 +735,8 @@ export const IPC_CHANNELS = {
 
 export interface LumoraApi {
   getSystemInfo(): Promise<SystemInfo>;
+  scanDeveloperEnvironment(): Promise<DeveloperEnvironmentScanResult>;
+  openNodeDownloadPage(): Promise<void>;
   scanProviders(): Promise<ProviderScanResult>;
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;

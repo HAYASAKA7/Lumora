@@ -7,6 +7,7 @@ import {
   ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
   DEFAULT_KEYBOARD_SETTINGS,
+  DeveloperEnvironmentScanResultSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
   KeyboardShortcutChordSchema,
@@ -81,6 +82,60 @@ describe('SystemInfoSchema', () => {
         secret: 'must-not-cross-ipc'
       }).success
     ).toBe(false);
+  });
+});
+
+describe('developer environment contracts', () => {
+  const environmentScan = {
+    checkedAt: '2026-07-17T01:00:00.000Z',
+    node: {
+      state: 'ready',
+      executablePath: 'C:\\Program Files\\nodejs\\node.EXE',
+      version: 'v24.18.0'
+    },
+    npm: {
+      state: 'not_found',
+      executablePath: null,
+      version: null
+    }
+  } as const;
+
+  it('accepts consistent ready and missing tool states', () => {
+    expect(DeveloperEnvironmentScanResultSchema.parse(environmentScan)).toEqual(
+      environmentScan
+    );
+  });
+
+  it('rejects inconsistent tool states and malformed envelopes', () => {
+    expect(
+      DeveloperEnvironmentScanResultSchema.safeParse({
+        ...environmentScan,
+        node: { state: 'ready', executablePath: null, version: 'v24.18.0' }
+      }).success
+    ).toBe(false);
+    expect(
+      DeveloperEnvironmentScanResultSchema.safeParse({
+        ...environmentScan,
+        npm: {
+          state: 'probe_failed',
+          executablePath: '/usr/local/bin/npm',
+          version: 'untrusted version'
+        }
+      }).success
+    ).toBe(false);
+    expect(
+      DeveloperEnvironmentScanResultSchema.safeParse({
+        ...environmentScan,
+        checkedAt: 'today'
+      }).success
+    ).toBe(false);
+  });
+
+  it('defines narrow environment channels', () => {
+    expect(IPC_CHANNELS.environmentScan).toBe('lumora:environment:scan');
+    expect(IPC_CHANNELS.nodeDownloadOpen).toBe(
+      'lumora:environment:node-download:open'
+    );
   });
 });
 
