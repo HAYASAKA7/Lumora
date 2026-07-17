@@ -58,7 +58,6 @@ export const PROVIDER_IDS = [
   'aider'
 ] as const;
 export const ProviderIdSchema = z.enum(PROVIDER_IDS);
-export const CatalogProviderIdSchema = z.enum(['codex', 'claude']);
 export const ProviderStateSchema = z.enum([
   'ready',
   'not_found',
@@ -173,7 +172,6 @@ export const ProviderUpdateResultSchema = z.strictObject({
 });
 
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
-export type CatalogProviderId = z.infer<typeof CatalogProviderIdSchema>;
 export type ProviderInstallation = z.infer<
   typeof ProviderInstallationSchema
 >;
@@ -231,10 +229,10 @@ export const SessionLifecycleSchema = z.enum([
 ]);
 export const SessionSourceFreshnessSchema = z.enum(['current', 'stale']);
 
-export const ProviderCountsSchema = z.strictObject({
-  codex: z.number().int().nonnegative(),
-  claude: z.number().int().nonnegative()
-});
+export const ProviderCountsSchema = z.partialRecord(
+  ProviderIdSchema,
+  z.number().int().nonnegative()
+);
 
 export const WorkspaceSummarySchema = z.strictObject({
   id: StableIdSchema,
@@ -268,7 +266,7 @@ export const WorkspaceTrustRevokeRequestSchema = z.strictObject({
 export const SessionSummarySchema = z.strictObject({
   id: StableIdSchema,
   nativeId: z.string().trim().min(1).max(256),
-  provider: CatalogProviderIdSchema,
+  provider: ProviderIdSchema,
   workspaceId: StableIdSchema,
   title: z.string().trim().min(1).max(256),
   createdAt: z.iso.datetime(),
@@ -287,7 +285,7 @@ export const CatalogDiagnosticCodeSchema = z.enum([
 
 export const CatalogDiagnosticSchema = z.strictObject({
   code: CatalogDiagnosticCodeSchema,
-  provider: CatalogProviderIdSchema.nullable(),
+  provider: ProviderIdSchema.nullable(),
   affectedCount: z.number().int().nonnegative(),
   message: z.string().trim().min(1).max(512),
   recovery: z.string().trim().min(1).max(512),
@@ -302,24 +300,30 @@ export const CatalogProviderStateSchema = z.enum([
 ]);
 
 export const CatalogProviderStatusSchema = z.strictObject({
-  provider: CatalogProviderIdSchema,
+  provider: ProviderIdSchema,
   state: CatalogProviderStateSchema,
   discoveredCount: z.number().int().nonnegative(),
   unchangedCount: z.number().int().nonnegative(),
   invalidCount: z.number().int().nonnegative()
 });
 
+export const CatalogProviderFacetSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  sessionCount: z.number().int().positive()
+});
+
 export const CatalogSnapshotSchema = z.strictObject({
   refreshedAt: z.iso.datetime(),
   workspaces: z.array(WorkspaceSummarySchema).max(25_000),
   sessions: z.array(SessionSummarySchema).max(25_000),
-  providerStatus: z.array(CatalogProviderStatusSchema).length(2),
+  providerStatus: z.array(CatalogProviderStatusSchema).max(PROVIDER_IDS.length),
+  providerFacets: z.array(CatalogProviderFacetSchema).max(PROVIDER_IDS.length),
   diagnostics: z.array(CatalogDiagnosticSchema).max(100)
 });
 
 export const CatalogQuerySchema = z.strictObject({
   text: z.string().trim().max(120),
-  provider: CatalogProviderIdSchema.nullable()
+  provider: ProviderIdSchema.nullable()
 });
 
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
@@ -331,6 +335,9 @@ export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 export type CatalogDiagnostic = z.infer<typeof CatalogDiagnosticSchema>;
 export type CatalogProviderStatus = z.infer<
   typeof CatalogProviderStatusSchema
+>;
+export type CatalogProviderFacet = z.infer<
+  typeof CatalogProviderFacetSchema
 >;
 export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
 export type CatalogQuery = z.infer<typeof CatalogQuerySchema>;

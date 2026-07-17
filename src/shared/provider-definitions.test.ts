@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PROVIDER_DEFINITIONS,
+  SESSION_PROVIDER_IDS,
+  hasCompleteSessionSupport,
   providerDefinition
 } from './provider-definitions';
 
@@ -25,7 +27,7 @@ describe('provider definitions', () => {
       displayName: 'Gemini CLI',
       command: 'gemini',
       npmPackage: '@google/gemini-cli',
-      catalogSupport: false
+      sessionSupport: 'complete'
     });
     expect(providerDefinition('antigravity')).toMatchObject({
       command: 'agy',
@@ -33,11 +35,17 @@ describe('provider definitions', () => {
     });
   });
 
-  it('keeps saved-session catalog support limited to Codex and Claude Code', () => {
-    expect(
-      PROVIDER_DEFINITIONS
-        .filter(({ catalogSupport }) => catalogSupport)
-        .map(({ provider }) => provider)
-    ).toEqual(['codex', 'claude']);
+  it('requires discovery and exact resume for complete session support', () => {
+    expect(SESSION_PROVIDER_IDS).toEqual([
+      'codex',
+      'claude',
+      'gemini',
+      'opencode',
+      'copilot',
+      'qwen'
+    ]);
+    expect(hasCompleteSessionSupport('gemini')).toBe(true);
+    expect(hasCompleteSessionSupport('cursor')).toBe(false);
+    expect(providerDefinition('aider').sessionSupport).toBe('launch_only');
   });
 });

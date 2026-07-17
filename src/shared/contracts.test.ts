@@ -403,6 +403,7 @@ describe('catalog contracts', () => {
         invalidCount: 0
       }
     ],
+    providerFacets: [{ provider: 'codex', sessionCount: 1 }],
     diagnostics: [
       {
         code: 'CATALOG_PROVIDER_UNAVAILABLE',
@@ -418,6 +419,50 @@ describe('catalog contracts', () => {
 
   it('accepts a complete normalized catalog snapshot', () => {
     expect(CatalogSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it('accepts dynamic session providers, partial counts, and nonzero facets', () => {
+    const dynamic = {
+      ...snapshot,
+      workspaces: [
+        {
+          ...workspace,
+          sessionCount: 3,
+          providerCounts: { codex: 1, gemini: 2 }
+        }
+      ],
+      sessions: [{ ...session, provider: 'gemini' }],
+      providerStatus: [
+        snapshot.providerStatus[0],
+        {
+          provider: 'gemini',
+          state: 'ready',
+          discoveredCount: 2,
+          unchangedCount: 0,
+          invalidCount: 0
+        }
+      ],
+      providerFacets: [
+        { provider: 'codex', sessionCount: 1 },
+        { provider: 'gemini', sessionCount: 2 }
+      ]
+    } as const;
+
+    expect(CatalogSnapshotSchema.parse(dynamic)).toEqual(dynamic);
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...dynamic,
+        workspaces: [
+          { ...dynamic.workspaces[0], providerCounts: { unknown: 1 } }
+        ]
+      }).success
+    ).toBe(false);
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...dynamic,
+        providerFacets: [{ provider: 'gemini', sessionCount: 0 }]
+      }).success
+    ).toBe(false);
   });
 
   it('rejects source paths, transcript data, and unknown states', () => {
@@ -483,7 +528,7 @@ describe('catalog contracts', () => {
     ).toBe(false);
     expect(
       CatalogQuerySchema.safeParse({ text: '', provider: 'gemini' }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('defines narrowed catalog IPC channels', () => {
