@@ -7,7 +7,10 @@ import {
 
 describe('createProviderReleaseSource', () => {
   it('reads validated versions from fixed provider package URLs', async () => {
-    const fetch = vi.fn(async (url: string | URL | Request) =>
+    const fetch = vi.fn(async (
+      url: string | URL | Request,
+      _init?: RequestInit
+    ) =>
       new Response(JSON.stringify({
         version: String(url).includes('openai') ? '1.2.3' : '2.3.4'
       }), { status: 200 })

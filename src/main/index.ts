@@ -31,7 +31,10 @@ import { findExecutable } from './platform/executable-locator';
 import { probeVersion } from './platform/version-probe';
 import { createClaudeAdapter } from './providers/claude-adapter';
 import { createCodexAdapter } from './providers/codex-adapter';
+import { createProviderReleaseSource } from './providers/provider-release-source';
 import { ProviderRegistry } from './providers/provider-registry';
+import { createProviderUpdateService } from './providers/provider-update-service';
+import { updateProviderExecutable } from './providers/provider-updater';
 import { getRuntimePaths } from './runtime-paths';
 import {
   createTerminalRuntime,
@@ -73,6 +76,18 @@ const providerDependencies = {
 const providerRegistry = new ProviderRegistry({
   codex: createCodexAdapter(providerDependencies),
   claude: createClaudeAdapter(providerDependencies)
+});
+const providerReleaseSource = createProviderReleaseSource({
+  fetch: (input, init) => net.fetch(input, init)
+});
+const providerUpdateService = createProviderUpdateService({
+  registry: providerRegistry,
+  releases: providerReleaseSource,
+  runUpdate: (executablePath) =>
+    updateProviderExecutable(executablePath, {
+      platform,
+      env: process.env
+    })
 });
 const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
   providerDependencies
@@ -228,6 +243,7 @@ void app.whenReady().then(async () => {
   registerProviderIpc({
     ipc: ipcMain,
     registry: providerRegistry,
+    updates: providerUpdateService,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerCatalogIpc({

@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   IPC_CHANNELS,
   ProviderScanResultSchema,
+  ProviderUpdateCheckResultSchema,
+  type ProviderId,
   type ProviderScanResult
 } from '../../shared/contracts';
 import { registerProviderIpc } from './register-provider-ipc';
@@ -11,7 +13,10 @@ interface InvokeEventStub {
   senderFrame: { url: string } | null;
 }
 
-type InvokeHandler = (event: InvokeEventStub) => Promise<unknown> | unknown;
+type InvokeHandler = (
+  event: InvokeEventStub,
+  ...args: readonly unknown[]
+) => Promise<unknown> | unknown;
 
 const validScan: ProviderScanResult = {
   scannedAt: '2026-07-11T01:02:03.000Z',
@@ -40,9 +45,44 @@ const validScan: ProviderScanResult = {
   ]
 };
 
+const validUpdateCheck = {
+  checkedAt: '2026-07-17T02:00:00.000Z',
+  providers: [
+    {
+      provider: 'codex' as const,
+      displayName: 'Codex',
+      state: 'update_available' as const,
+      installedVersion: '1.2.3',
+      latestVersion: '1.3.0',
+      issue: null
+    },
+    {
+      provider: 'claude' as const,
+      displayName: 'Claude Code',
+      state: 'unavailable' as const,
+      installedVersion: null,
+      latestVersion: null,
+      issue: {
+        code: 'PROVIDER_NOT_READY' as const,
+        message: 'Claude Code is not ready.',
+        recovery: 'Install Claude Code, then refresh.',
+        retryable: true
+      }
+    }
+  ]
+};
+
 function createHarness(
   scan: () => Promise<unknown> = async () => validScan,
-  developmentOrigin?: string
+  developmentOrigin?: string,
+  check: () => Promise<unknown> = async () => validUpdateCheck,
+  update: (provider: ProviderId) => Promise<unknown> = async (provider) => ({
+    provider,
+    completedAt: '2026-07-17T02:01:00.000Z',
+    installation: validScan.providers.find(
+      (installation) => installation.provider === provider
+    )
+  })
 ) {
   const handlers = new Map<string, InvokeHandler>();
   const ipc = {
@@ -54,6 +94,7 @@ function createHarness(
   registerProviderIpc({
     ipc,
     registry: { scan },
+    updates: { check, update },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
@@ -62,18 +103,58 @@ function createHarness(
     throw new Error('Provider scan handler was not registered');
   }
 
-  return { handler, registeredChannels: [...handlers.keys()] };
+  return { handler, handlers, registeredChannels: [...handlers.keys()] };
 }
 
 describe('registerProviderIpc', () => {
   it('registers one scan operation and validates its response', async () => {
     const { handler, registeredChannels } = createHarness();
 
-    expect(registeredChannels).toEqual([IPC_CHANNELS.providerScan]);
+    expect(registeredChannels).toEqual([
+      IPC_CHANNELS.providerScan,
+      IPC_CHANNELS.providerUpdatesCheck,
+      IPC_CHANNELS.providerUpdateRun
+    ]);
     const result = await handler({
       senderFrame: { url: 'app://lumora/index.html' }
     });
     expect(ProviderScanResultSchema.parse(result)).toEqual(validScan);
+  });
+
+  it('validates update checks and accepts only a provider ID for execution', async () => {
+    const update = vi.fn(async (provider: ProviderId) => ({
+      provider,
+      completedAt: '2026-07-17T02:01:00.000Z',
+      installation: validScan.providers[0]
+    }));
+    const { handlers } = createHarness(
+      async () => validScan,
+      undefined,
+      async () => validUpdateCheck,
+      update
+    );
+    const event = { senderFrame: { url: 'app://lumora/index.html' } };
+
+    const checkResult = await handlers.get(IPC_CHANNELS.providerUpdatesCheck)!(
+      event
+    );
+    expect(ProviderUpdateCheckResultSchema.parse(checkResult)).toEqual(
+      validUpdateCheck
+    );
+    await expect(
+      handlers.get(IPC_CHANNELS.providerUpdateRun)!(event, {
+        provider: 'codex'
+      })
+    ).resolves.toMatchObject({ provider: 'codex' });
+    expect(update).toHaveBeenCalledWith('codex');
+
+    await expect(
+      handlers.get(IPC_CHANNELS.providerUpdateRun)!(event, {
+        provider: 'codex',
+        executablePath: '/tmp/codex'
+      })
+    ).rejects.toBeDefined();
+    expect(update).toHaveBeenCalledOnce();
   });
 
   it('accepts only the exact development origin supplied at startup', async () => {

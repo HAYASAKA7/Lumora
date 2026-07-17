@@ -143,6 +143,56 @@ describe('createLumoraApi', () => {
     await expect(api.scanProviders()).rejects.toBeDefined();
   });
 
+  it('uses validated narrow channels for provider updates', async () => {
+    const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
+    const check = {
+      checkedAt: '2026-07-17T02:00:00.000Z',
+      providers: [
+        {
+          provider: 'codex' as const, displayName: 'Codex',
+          state: 'up_to_date' as const, installedVersion: '1.2.3',
+          latestVersion: '1.2.3', issue: null
+        },
+        {
+          provider: 'claude' as const, displayName: 'Claude Code',
+          state: 'update_available' as const, installedVersion: '2.0.0',
+          latestVersion: '2.1.0', issue: null
+        }
+      ]
+    };
+    const update = {
+      provider: 'claude' as const,
+      completedAt: '2026-07-17T02:01:00.000Z',
+      installation: {
+        provider: 'claude' as const, displayName: 'Claude Code', state: 'ready' as const,
+        executablePath: '/usr/bin/claude', version: '2.1.0', issue: null
+      }
+    };
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.providerUpdatesCheck ? check : update;
+    });
+
+    await expect(api.checkProviderUpdates()).resolves.toEqual(check);
+    await expect(api.updateProvider('claude')).resolves.toEqual(update);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.providerUpdatesCheck, args: [] },
+      {
+        channel: IPC_CHANNELS.providerUpdateRun,
+        args: [{ provider: 'claude' }]
+      }
+    ]);
+  });
+
+  it('rejects malformed provider update requests and responses', async () => {
+    const invoke = vi.fn(async () => ({ unexpected: true }));
+    const api = createLumoraApi(invoke);
+
+    await expect(api.updateProvider('gemini' as 'codex')).rejects.toBeDefined();
+    expect(invoke).not.toHaveBeenCalled();
+    await expect(api.checkProviderUpdates()).rejects.toBeDefined();
+  });
+
   it('invokes narrowed catalog channels with validated queries', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const api = createLumoraApi(async (channel, ...args) => {

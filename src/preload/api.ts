@@ -15,6 +15,9 @@ import {
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
   ProviderScanResultSchema,
+  ProviderUpdateCheckResultSchema,
+  ProviderUpdateRequestSchema,
+  ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
   RuntimeCommandResultSchema,
   RuntimeEventSchema,
@@ -63,6 +66,15 @@ export function createLumoraApi(
     async scanProviders() {
       const value = await invoke(IPC_CHANNELS.providerScan);
       return ProviderScanResultSchema.parse(value);
+    },
+    async checkProviderUpdates() {
+      const value = await invoke(IPC_CHANNELS.providerUpdatesCheck);
+      return ProviderUpdateCheckResultSchema.parse(value);
+    },
+    async updateProvider(provider) {
+      const request = ProviderUpdateRequestSchema.parse({ provider });
+      const value = await invoke(IPC_CHANNELS.providerUpdateRun, request);
+      return ProviderUpdateResultSchema.parse(value);
     },
     async getCatalog(query?: CatalogQuery) {
       const request = CatalogQuerySchema.parse(query ?? EMPTY_CATALOG_QUERY);
