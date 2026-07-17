@@ -799,6 +799,64 @@ button {
   margin-top: 12px;
 }
 
+.provider-release {
+  min-height: 52px;
+  padding-top: 15px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.provider-release p {
+  margin: 0;
+}
+
+.provider-release-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.provider-release-status {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.provider-release-checking {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.provider-release-up_to_date {
+  color: var(--success);
+}
+
+.provider-release-update_available,
+.provider-release-unavailable {
+  color: var(--warning);
+}
+
+.provider-release-recovery {
+  margin-top: 5px !important;
+  color: var(--text-soft);
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.provider-update-button {
+  flex: 0 0 auto;
+}
+
+.provider-update-error {
+  margin-top: 9px !important;
+  color: #a13a32;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .provider-command {
   padding-top: 18px;
   margin-top: 18px;

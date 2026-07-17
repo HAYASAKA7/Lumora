@@ -1,15 +1,28 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 
 import type {
   ProviderId,
   ProviderInstallation,
   ProviderLaunchConfig,
-  ProviderScanResult
+  ProviderScanResult,
+  ProviderUpdateCheckResult,
+  ProviderUpdateStatus
 } from '../../../shared/contracts';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
   | { state: 'ready'; scan: ProviderScanResult }
+  | { state: 'error' };
+
+export type ProviderUpdatesStatus =
+  | { state: 'loading' }
+  | { state: 'ready'; check: ProviderUpdateCheckResult }
   | { state: 'error' };
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
@@ -38,17 +51,27 @@ function ScanIcon(): ReactNode {
 function ProviderCard({
   command,
   installation,
+  release,
+  releaseChecking,
   onCommandChange,
   onResetCommand,
   onSaveCommand,
-  saving
+  onUpdate,
+  saving,
+  updateError,
+  updating
 }: {
   command: string;
   installation: ProviderInstallation;
+  release: ProviderUpdateStatus | null;
+  releaseChecking: boolean;
   onCommandChange(command: string): void;
   onResetCommand(): void;
   onSaveCommand(): void;
+  onUpdate(): void;
   saving: boolean;
+  updateError: string | null;
+  updating: boolean;
 }): ReactNode {
   return (
     <article className={`provider-card provider-card-${installation.state}`}>
@@ -83,6 +106,52 @@ function ProviderCard({
           )}
         </div>
       )}
+
+      <div className="provider-release" aria-live="polite">
+        {releaseChecking ? (
+          <p className="provider-release-status provider-release-checking">
+            <span className="status-dot" aria-hidden="true" />
+            Checking latest version…
+          </p>
+        ) : release === null || release.state === 'unavailable' ? (
+          <div>
+            <p className="provider-release-status provider-release-unavailable">
+              Latest version unavailable
+            </p>
+            <p className="provider-release-recovery">
+              {release?.issue.recovery ?? 'Refresh to try the release check again.'}
+            </p>
+          </div>
+        ) : (
+          <div className="provider-release-ready">
+            <p
+              className={`provider-release-status provider-release-${release.state}`}
+            >
+              {release.state === 'update_available'
+                ? `Update available · ${release.latestVersion}`
+                : `Up to date · ${release.latestVersion}`}
+            </p>
+            {release.state === 'update_available' ? (
+              <button
+                aria-label={
+                  updating
+                    ? `Updating ${installation.displayName}`
+                    : `Update ${installation.displayName} to ${release.latestVersion}`
+                }
+                className="secondary-button provider-update-button"
+                disabled={updating}
+                onClick={onUpdate}
+                type="button"
+              >
+                {updating ? 'Updating…' : `Update to ${release.latestVersion}`}
+              </button>
+            ) : null}
+          </div>
+        )}
+        {updateError === null ? null : (
+          <p className="provider-update-error" role="alert">{updateError}</p>
+        )}
+      </div>
 
       <div className="provider-command">
         <label>
@@ -138,6 +207,16 @@ export function ProviderSettings({
   });
   const [savingProvider, setSavingProvider] = useState<ProviderId | null>(null);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [updatesStatus, setUpdatesStatus] = useState<ProviderUpdatesStatus>({
+    state: 'loading'
+  });
+  const [updatingProvider, setUpdatingProvider] = useState<ProviderId | null>(
+    null
+  );
+  const [updateErrors, setUpdateErrors] = useState<
+    Partial<Record<ProviderId, string>>
+  >({});
+  const updatesRequestId = useRef(0);
 
   const applyConfigs = (configs: readonly ProviderLaunchConfig[]) => {
     setCommands((current) => ({
@@ -161,6 +240,29 @@ export function ProviderSettings({
     return () => { active = false; };
   }, []);
 
+  const refreshUpdates = useCallback(async (): Promise<void> => {
+    const requestId = updatesRequestId.current + 1;
+    updatesRequestId.current = requestId;
+    setUpdatesStatus({ state: 'loading' });
+    try {
+      const check = await window.lumora.checkProviderUpdates();
+      if (updatesRequestId.current === requestId) {
+        setUpdatesStatus({ state: 'ready', check });
+      }
+    } catch {
+      if (updatesRequestId.current === requestId) {
+        setUpdatesStatus({ state: 'error' });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshUpdates();
+    return () => {
+      updatesRequestId.current += 1;
+    };
+  }, [refreshUpdates]);
+
   const saveCommand = (provider: ProviderId, command: string | null) => {
     setSavingProvider(provider);
     setCommandError(null);
@@ -176,6 +278,30 @@ export function ProviderSettings({
     );
   };
 
+  const updateProvider = (provider: ProviderId, displayName: string) => {
+    setUpdatingProvider(provider);
+    setUpdateErrors((current) => ({ ...current, [provider]: undefined }));
+    void window.lumora.updateProvider(provider).then(
+      async () => {
+        onRefresh();
+        await refreshUpdates();
+        setUpdatingProvider(null);
+      },
+      () => {
+        setUpdateErrors((current) => ({
+          ...current,
+          [provider]: `${displayName} could not be updated. Run ${provider} update manually or try again.`
+        }));
+        setUpdatingProvider(null);
+      }
+    );
+  };
+
+  const refreshAll = () => {
+    onRefresh();
+    void refreshUpdates();
+  };
+
   return (
     <section className="provider-panel" aria-labelledby="provider-panel-title">
       <div className="provider-panel-header">
@@ -183,14 +309,18 @@ export function ProviderSettings({
           <p className="card-label">Local provider registry</p>
           <h2 id="provider-panel-title">Provider installations</h2>
           <p>
-            Lumora reads the effective PATH and runs a bounded version check. It
-            does not sign in, launch a session, or modify provider files.
+            Lumora reads the effective PATH and checks public release metadata.
+            It only modifies a provider after you explicitly choose Update.
           </p>
         </div>
         <button
           className="refresh-button"
-          disabled={status.state === 'loading'}
-          onClick={onRefresh}
+          disabled={
+            status.state === 'loading' ||
+            updatesStatus.state === 'loading' ||
+            updatingProvider !== null
+          }
+          onClick={refreshAll}
           type="button"
         >
           <ScanIcon />
@@ -219,6 +349,14 @@ export function ProviderSettings({
                 command={commands[installation.provider]}
                 installation={installation}
                 key={installation.provider}
+                release={
+                  updatesStatus.state === 'ready'
+                    ? updatesStatus.check.providers.find(
+                        (provider) => provider.provider === installation.provider
+                      ) ?? null
+                    : null
+                }
+                releaseChecking={updatesStatus.state === 'loading'}
                 onCommandChange={(command) => setCommands((current) => ({
                   ...current,
                   [installation.provider]: command
@@ -228,7 +366,13 @@ export function ProviderSettings({
                   installation.provider,
                   commands[installation.provider].trim() || null
                 )}
+                onUpdate={() => updateProvider(
+                  installation.provider,
+                  installation.displayName
+                )}
                 saving={savingProvider === installation.provider}
+                updateError={updateErrors[installation.provider] ?? null}
+                updating={updatingProvider === installation.provider}
               />
             ))}
           </div>
