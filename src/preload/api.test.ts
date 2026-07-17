@@ -23,6 +23,7 @@ const emptyCatalog = {
       invalidCount: 0
     }
   ],
+  providerFacets: [],
   diagnostics: []
 } as const;
 

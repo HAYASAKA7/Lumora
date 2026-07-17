@@ -24,6 +24,7 @@ interface ProviderScanWrite {
   scanId: string;
   scannedAt: string;
   candidates: readonly CatalogCandidate[];
+  preserveMissingSources?: boolean;
 }
 
 interface SnapshotOptions {
@@ -135,7 +136,8 @@ export class CatalogRepository {
     provider,
     scanId,
     scannedAt,
-    candidates
+    candidates,
+    preserveMissingSources = false
   }: ProviderScanWrite): void {
     ProviderIdSchema.parse(provider);
     const validatedCandidates = candidates
@@ -225,13 +227,15 @@ export class CatalogRepository {
         );
       }
 
-      this.database
-        .prepare(
-          `UPDATE session_source
-           SET stale = 1
-           WHERE provider = ? AND last_seen_scan_id <> ?`
-        )
-        .run(provider, scanId);
+      if (!preserveMissingSources) {
+        this.database
+          .prepare(
+            `UPDATE session_source
+             SET stale = 1
+             WHERE provider = ? AND last_seen_scan_id <> ?`
+          )
+          .run(provider, scanId);
+      }
       this.database
         .prepare(
           `UPDATE session

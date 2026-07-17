@@ -126,7 +126,7 @@ describe('ProviderSettings', () => {
       .closest('article');
     expect(geminiCard).not.toBeNull();
     expect(aiderCard).not.toBeNull();
-    expect(within(geminiCard!).getByText('Saved sessions: Supported'))
+    expect(within(geminiCard!).getByText('Saved sessions: Adapter available'))
       .toBeInTheDocument();
     expect(within(aiderCard!).getByText('Saved sessions: Not available'))
       .toBeInTheDocument();
@@ -163,12 +163,15 @@ describe('ProviderSettings', () => {
       screen.getByRole('button', { name: 'Save Codex start command' })
     );
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(saveProviderLaunchConfig).toHaveBeenCalledWith({
         provider: 'codex',
         command: 'codexp'
-      })
-    );
+      });
+      expect(
+        screen.getByRole('button', { name: 'Save Codex start command' })
+      ).toBeEnabled();
+    });
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Reset Codex start command' })

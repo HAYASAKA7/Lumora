@@ -277,6 +277,7 @@ export const SessionSummarySchema = z.strictObject({
 
 export const CatalogDiagnosticCodeSchema = z.enum([
   'CATALOG_PROVIDER_UNAVAILABLE',
+  'CATALOG_PROVIDER_INCOMPATIBLE',
   'CATALOG_PROTOCOL_FAILED',
   'CATALOG_SOURCE_UNAVAILABLE',
   'CATALOG_SOURCE_INVALID',

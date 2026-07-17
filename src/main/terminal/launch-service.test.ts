@@ -53,6 +53,7 @@ const sessionCatalogRegistry = createSessionCatalogRegistry(
     (provider): SessionCatalogAdapter => ({
       provider,
       discover: vi.fn(),
+      validateCompatibility: () => ({ compatible: true }),
       buildResumeArguments: (nativeSessionId) =>
         buildResumeArguments(provider, nativeSessionId)
     })
@@ -81,6 +82,7 @@ function harness(overrides: {
   profiles?: TerminalProfile[];
   baseline?: readonly string[] | Error;
   trusted?: boolean;
+  sessionCatalogRegistry?: ReturnType<typeof createSessionCatalogRegistry>;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentWorkspace =
@@ -137,10 +139,11 @@ function harness(overrides: {
     if (overrides.baseline instanceof Error) throw overrides.baseline;
     return overrides.baseline ?? [];
   });
+  let currentScan = overrides.scan ?? scan;
   const service = new LaunchService({
     repository,
-    sessionCatalogRegistry,
-    scanProviders: vi.fn(async () => overrides.scan ?? scan),
+    sessionCatalogRegistry: overrides.sessionCatalogRegistry ?? sessionCatalogRegistry,
+    scanProviders: vi.fn(async () => currentScan),
     isExecutablePath: vi.fn(async () => true),
     captureSessionBaseline,
     platform: 'linux',
@@ -166,6 +169,9 @@ function harness(overrides: {
     },
     setLayers(value: LaunchSettingsLayer[]) {
       currentLayers = value;
+    },
+    setScan(value: ProviderScanResult) {
+      currentScan = value;
     }
   };
 }
@@ -354,10 +360,49 @@ describe('LaunchService', () => {
     });
 
     setLayers([]);
-    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
-      command: 'session-codex',
-      terminalProfile: { id: sessionProfile.id }
+    await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
+      code: 'LAUNCH_TOKEN_INVALID'
     });
+  });
+
+  it('revalidates provider identity and adapter compatibility at consumption', async () => {
+    const incompatibleRegistry = createSessionCatalogRegistry(
+      SESSION_PROVIDER_IDS.map(
+        (provider): SessionCatalogAdapter => ({
+          provider,
+          discover: vi.fn(),
+          validateCompatibility: () =>
+            provider === 'codex'
+              ? { compatible: false, recovery: 'Update Codex.' }
+              : { compatible: true },
+          buildResumeArguments: (id) => buildResumeArguments(provider, id)
+        })
+      )
+    );
+    const providerHarness = harness({ trusted: true });
+    const providerPreview = await providerHarness.service.prepare({
+      strategy: 'new', workspaceId, provider: 'codex', terminalProfileId: profileId,
+      cols: 80, rows: 24
+    });
+    providerHarness.setScan({
+      ...scan,
+      providers: scan.providers.map((installation) =>
+        installation.provider === 'codex' && installation.state === 'ready'
+          ? { ...installation, executablePath: '/usr/local/bin/codex-new' }
+          : installation
+      )
+    });
+    await expect(providerHarness.service.consume(providerPreview.launchToken))
+      .rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+    const compatibilityHarness = harness({
+      trusted: true,
+      sessionCatalogRegistry: incompatibleRegistry
+    });
+    await expect(compatibilityHarness.service.prepare({
+      strategy: 'resume', sessionId, terminalProfileId: profileId,
+      cols: 80, rows: 24
+    })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
   });
 
   it('captures a normalized pre-launch baseline only for new sessions', async () => {

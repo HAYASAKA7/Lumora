@@ -16,7 +16,11 @@ import {
 import {
   providerDefinition
 } from '../../shared/provider-definitions';
-import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
+import type {
+  ReadyProviderInstallation,
+  SessionCatalogAdapter,
+  SessionCatalogRegistry
+} from '../providers/session-catalog-adapter';
 import type { WorkspaceLaunchInfo } from '../storage/terminal-repository';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { resolveLaunchSettings } from './launch-settings';
@@ -76,6 +80,7 @@ export interface LaunchSpec {
 interface PreparedLaunch {
   spec: LaunchSpec;
   expiresAtMs: number;
+  requestedTerminalProfileId: string | null;
 }
 
 export type TerminalLaunchErrorCode =
@@ -145,6 +150,21 @@ function normalizeSessionBaseline(values: readonly string[]): string[] {
   return [...new Set(normalized)].sort();
 }
 
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function isAdapterCompatible(
+  adapter: SessionCatalogAdapter,
+  installation: ReadyProviderInstallation
+): boolean {
+  try {
+    return adapter.validateCompatibility(installation).compatible;
+  } catch {
+    return false;
+  }
+}
+
 export class LaunchService {
   private readonly prepared = new Map<string, PreparedLaunch>();
   private readonly clock: () => Date;
@@ -203,6 +223,13 @@ export class LaunchService {
     ) {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
+    const sessionAdapter = this.dependencies.sessionCatalogRegistry.get(provider);
+    if (
+      sessionAdapter !== null &&
+      !isAdapterCompatible(sessionAdapter, installation)
+    ) {
+      throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+    }
 
     const resolved = resolveLaunchSettings({
       provider,
@@ -257,7 +284,11 @@ export class LaunchService {
     };
     const token = this.createToken();
     const expiresAtMs = createdAt.getTime() + 5 * 60 * 1_000;
-    this.prepared.set(token, { spec, expiresAtMs });
+    this.prepared.set(token, {
+      spec,
+      expiresAtMs,
+      requestedTerminalProfileId: request.terminalProfileId
+    });
 
     return LaunchPreviewSchema.parse({
       launchToken: token,
@@ -337,6 +368,51 @@ export class LaunchService {
       ) {
         throw new TerminalLaunchError('SESSION_UNAVAILABLE');
       }
+    }
+    const scan = await this.dependencies.scanProviders();
+    const installation = scan.providers.find(
+      (candidate) => candidate.provider === prepared.spec.provider
+    );
+    if (
+      installation?.state !== 'ready' ||
+      installation.executablePath !== prepared.spec.executablePath ||
+      !(await this.dependencies.isExecutablePath(installation.executablePath))
+    ) {
+      throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+    }
+    const adapter = this.dependencies.sessionCatalogRegistry.get(
+      prepared.spec.provider
+    );
+    if (
+      (prepared.spec.strategy === 'resume' && adapter === null) ||
+      (adapter !== null && !isAdapterCompatible(adapter, installation))
+    ) {
+      throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+    }
+    if (
+      prepared.spec.strategy === 'resume' &&
+      !sameValue(
+        adapter?.buildResumeArguments(prepared.spec.nativeSessionId as string),
+        prepared.spec.args
+      )
+    ) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
+    const resolved = resolveLaunchSettings({
+      provider: prepared.spec.provider,
+      workspaceId: prepared.spec.workspaceId,
+      sessionId: prepared.spec.sessionId,
+      requestedTerminalProfileId: prepared.requestedTerminalProfileId,
+      layers: this.dependencies.repository.listLaunchSettingsLayers(),
+      profiles: this.dependencies.repository.listProfiles()
+    });
+    if (
+      resolved.profile === null ||
+      resolved.command !== prepared.spec.command ||
+      !sameValue(resolved.profile, prepared.spec.terminalProfile) ||
+      !sameValue(resolved.configuration, prepared.spec.configuration)
+    ) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
     }
     const profile = this.dependencies.repository.getProfile(
       prepared.spec.terminalProfile.id

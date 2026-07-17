@@ -25,6 +25,7 @@ interface ProviderScanWrite {
   scanId: string;
   scannedAt: string;
   candidates: readonly CatalogCandidate[];
+  preserveMissingSources?: boolean;
 }
 
 interface SnapshotOptions {
@@ -118,6 +119,23 @@ function discoveryFailureDiagnostic(
   };
 }
 
+function incompatibleProviderDiagnostic(
+  provider: ProviderId,
+  recovery: string,
+  scannedAt: string
+): CatalogDiagnostic {
+  const displayName = providerDefinition(provider).displayName;
+  return {
+    code: 'CATALOG_PROVIDER_INCOMPATIBLE',
+    provider,
+    affectedCount: 0,
+    message: `${displayName} is installed, but its session interface is not compatible.`,
+    recovery,
+    retryable: true,
+    scannedAt
+  };
+}
+
 function invalidSourceDiagnostic(
   provider: ProviderId,
   affectedCount: number,
@@ -190,10 +208,28 @@ export class CatalogService {
     );
     const providers = this.dependencies.registry.providers();
     const readyInstallations = new Map<ProviderId, ReadyProviderInstallation>();
+    const incompatibleProviders = new Map<ProviderId, string>();
     for (const provider of providers) {
       const installation = installations.get(provider);
       if (installation?.state === 'ready') {
-        readyInstallations.set(provider, installation);
+        const adapter = this.dependencies.registry.get(provider);
+        try {
+          const compatibility = adapter?.validateCompatibility(installation);
+          if (compatibility?.compatible === true) {
+            readyInstallations.set(provider, installation);
+          } else {
+            incompatibleProviders.set(
+              provider,
+              compatibility?.recovery ??
+                `Update ${providerDefinition(provider).displayName}, then refresh.`
+            );
+          }
+        } catch {
+          incompatibleProviders.set(
+            provider,
+            `Update ${providerDefinition(provider).displayName}, then refresh.`
+          );
+        }
       }
     }
     const outcomes = new Map<ProviderId, DiscoveryOutcome>();
@@ -218,6 +254,14 @@ export class CatalogService {
     const nextDiagnostics: CatalogDiagnostic[] = [];
     for (const provider of providers) {
       const installation = installations.get(provider);
+      const incompatibility = incompatibleProviders.get(provider);
+      if (incompatibility !== undefined) {
+        nextStatus.push(emptyStatus(provider, 'unavailable'));
+        nextDiagnostics.push(
+          incompatibleProviderDiagnostic(provider, incompatibility, scannedAt)
+        );
+        continue;
+      }
       if (!readyInstallations.has(provider)) {
         nextStatus.push(emptyStatus(provider, 'unavailable'));
         nextDiagnostics.push(
@@ -263,7 +307,8 @@ export class CatalogService {
           provider,
           scanId: this.dependencies.createScanId(provider),
           scannedAt,
-          candidates
+          candidates,
+          preserveMissingSources: invalidCount > 0
         });
         nextStatus.push({
           provider,

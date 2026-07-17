@@ -196,24 +196,18 @@ async function readMetadataSegments(
 }
 
 function objectScopes(record: Record<string, unknown>): Record<string, unknown>[] {
-  const scopes = [record];
-  for (const key of ['data', 'metadata', 'session']) {
-    const value = record[key];
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      const nested = value as Record<string, unknown>;
-      scopes.push(nested);
-      for (const nestedKey of ['metadata', 'session']) {
-        const nestedValue = nested[nestedKey];
-        if (
-          typeof nestedValue === 'object' &&
-          nestedValue !== null &&
-          !Array.isArray(nestedValue)
-        ) {
-          scopes.push(nestedValue as Record<string, unknown>);
-        }
+  const scopes: Record<string, unknown>[] = [];
+  const visit = (value: Record<string, unknown>, depth: number): void => {
+    scopes.push(value);
+    if (depth >= 3) return;
+    for (const key of ['data', 'metadata', 'session', 'context']) {
+      const nested = value[key];
+      if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {
+        visit(nested as Record<string, unknown>, depth + 1);
       }
     }
-  }
+  };
+  visit(record, 0);
   return scopes;
 }
 

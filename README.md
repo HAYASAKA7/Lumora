@@ -39,14 +39,27 @@ and production bundles on all three operating systems.
 
 ## Supported platforms and providers
 
-| Category | First-version support |
-| --- | --- |
-| Desktop | Windows 10/11, macOS, Linux |
-| New sessions, detection, versions, and custom commands | Codex, Claude Code, Gemini CLI, Antigravity, OpenCode, Cursor CLI, GitHub Copilot CLI, Qwen Code, Amp, Crush, goose, Aider |
-| Saved-session discovery and resume | Codex, Claude Code |
-| Confirmed one-click npm install/update | Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, Qwen Code, Crush |
-| Official installation guide | Antigravity, Cursor CLI, Amp, goose, Aider |
-| Terminal host | Native local shell through `node-pty` and xterm.js |
+| Provider | Install/update | New launch | Session discovery | Exact resume | Platforms |
+| --- | --- | --- | --- | --- | --- |
+| Codex | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| Claude Code | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| Gemini CLI | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| OpenCode | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| GitHub Copilot CLI | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| Qwen Code | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
+| Antigravity | Official guide | Yes | No | No | Windows, macOS, Linux |
+| Cursor CLI | Official guide | Yes | No | No | Windows, macOS, Linux |
+| Amp | Official guide | Yes | No | No | Windows, macOS, Linux |
+| Crush | Confirmed npm action | Yes | No | No | Windows, macOS, Linux |
+| goose | Official guide | Yes | No | No | Windows, macOS, Linux |
+| Aider | Official guide | Yes | No | No | Windows, macOS, Linux |
+
+Home, Workspaces, All sessions, search, and provider filters use only
+provider-owned sessions. A provider appears there only when its CLI is
+installed, its adapter passes compatibility checks, Lumora supports both
+discovery and exact resume for it, and at least one saved session exists.
+Launch-only providers remain available in
+Settings and New session.
 
 Lumora uses the provider's official CLI behavior. Authentication, approvals,
 sandboxing, and usage limits remain provider-owned.
@@ -136,7 +149,8 @@ For each target, complete this manual smoke-test checklist:
 3. Start a session using a custom CLI start command.
 4. Check terminal input, output, and resize behavior without duplicate rendering
    or scrolling the page outside the fixed terminal UI.
-5. Resume a session and confirm it applies the configured start command.
+5. Resume an installed session-supported provider and confirm it opens the
+   exact native session while applying the configured start command.
 6. Exit the provider process and confirm the session tab closes automatically.
 7. Restart Lumora and confirm workspaces, settings, and history persist.
 
@@ -208,8 +222,8 @@ isolation mechanism.
   runtimes are reported honestly and can be resumed or restarted.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
-- Saved-session discovery and native resume are currently limited to Codex and
-  Claude Code; other registered providers support new-session launch only.
+- Antigravity, Cursor CLI, Amp, Crush, goose, and Aider are launch-only; they do
+  not appear in saved-session pages or filters.
 - WSL-specific orchestration, cloud sync, and transcript full-text indexing are
   outside the current MVP.
 

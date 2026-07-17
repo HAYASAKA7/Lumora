@@ -10,6 +10,7 @@ function adapter(provider: ProviderId): SessionCatalogAdapter {
   return {
     provider,
     discover: vi.fn(),
+    validateCompatibility: () => ({ compatible: true }),
     buildResumeArguments: (nativeId) => [nativeId]
   };
 }
@@ -49,5 +50,19 @@ describe('createSessionCatalogRegistry', () => {
     expect(() =>
       createSessionCatalogRegistry([...adapters, adapter('aider')])
     ).toThrow('Launch-only provider cannot register a session catalog adapter');
+  });
+
+  it('exposes typed compatibility validation on every complete adapter', () => {
+    const registry = createSessionCatalogRegistry(complete());
+    expect(
+      registry.get('qwen')?.validateCompatibility({
+        provider: 'qwen',
+        displayName: 'Qwen Code',
+        state: 'ready',
+        executablePath: '/tools/qwen',
+        version: 'qwen-code 0.19.11',
+        issue: null
+      })
+    ).toEqual({ compatible: true });
   });
 });

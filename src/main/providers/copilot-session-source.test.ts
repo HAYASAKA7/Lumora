@@ -103,6 +103,18 @@ describe('discoverCopilotSessions', () => {
     });
   });
 
+  it('reads the persisted session.start data.context.cwd shape', async () => {
+    const home = await temporaryHome();
+    await writeSession(join(home, '.copilot'), SESSION_ID, [copilotEvent()]);
+
+    const result = await discoverCopilotSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions[0]).toMatchObject({
+      nativeId: SESSION_ID,
+      workspacePath: '/work/lumora'
+    });
+  });
+
   it('ignores invalid session directories, missing logs, and a partial final line', async () => {
     const home = await temporaryHome();
     const root = join(home, '.copilot');

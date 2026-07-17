@@ -43,10 +43,9 @@ afterEach(async () => {
 });
 
 describe('discoverJsonSessions', () => {
-  it.each([
-    ['gemini', '/work/gemini'],
-    ['qwen', '/work/qwen']
-  ] as const)('discovers metadata-only %s session files', async (provider, workspacePath) => {
+  it('discovers metadata-only Gemini session files', async () => {
+    const provider = 'gemini' as const;
+    const workspacePath = '/work/gemini';
     const storageRoot = await temporaryRoot();
     const sourcePath = await writeProject(
       storageRoot,
@@ -118,7 +117,7 @@ describe('discoverJsonSessions', () => {
       async (_provider: ProviderId, key: string, fingerprint): Promise<StoredCatalogSource> => ({
         fingerprint,
         candidate: {
-          provider: 'qwen',
+          provider: 'gemini',
           nativeId: '22222222-2222-4222-8222-222222222222',
           workspace: {
             id: 'a'.repeat(64),
@@ -127,7 +126,7 @@ describe('discoverJsonSessions', () => {
             displayName: 'cached',
             available: true
           },
-          title: 'Cached Qwen session',
+          title: 'Cached Gemini session',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T02:00:00.000Z',
           source: { key, fingerprint }
@@ -136,7 +135,7 @@ describe('discoverJsonSessions', () => {
     );
 
     const result = await discoverJsonSessions({
-      provider: 'qwen',
+      provider: 'gemini',
       storageRoot,
       lookupSource
     });
@@ -145,7 +144,7 @@ describe('discoverJsonSessions', () => {
     expect(result.invalidCount).toBe(0);
     expect(result.sessions[0]).toMatchObject({
       nativeId: '22222222-2222-4222-8222-222222222222',
-      title: 'Cached Qwen session',
+      title: 'Cached Gemini session',
       source: { key: sourcePath }
     });
   });
@@ -189,7 +188,7 @@ describe('discoverJsonSessions', () => {
   it('returns an empty result for a missing root and rejects oversized files', async () => {
     const storageRoot = await temporaryRoot();
     const missing = await discoverJsonSessions({
-      provider: 'qwen',
+      provider: 'gemini',
       storageRoot: join(storageRoot, 'missing')
     });
     expect(missing).toMatchObject({ sessions: [], invalidCount: 0 });
@@ -202,7 +201,7 @@ describe('discoverJsonSessions', () => {
       jsonSessionRecording({ padding: 'x'.repeat(1_000) })
     );
     const bounded = await discoverJsonSessions({
-      provider: 'qwen',
+      provider: 'gemini',
       storageRoot,
       maxBytes: 256
     });

@@ -547,4 +547,39 @@ describe('CatalogRepository', () => {
     });
     expect(repository.findSource('gemini', 'gemini:1')).not.toBeNull();
   });
+
+  it('preserves omitted last-known-good rows when a scan contains invalid sources', () => {
+    const repository = createRepository();
+    repository.applyProviderScan({
+      provider: 'gemini',
+      scanId: 'initial',
+      scannedAt: '2026-07-11T03:00:00.000Z',
+      candidates: [candidate({
+        provider: 'gemini',
+        nativeId: 'saved-session',
+        source: { key: 'gemini:saved', fingerprint: null }
+      })]
+    });
+
+    repository.applyProviderScan({
+      provider: 'gemini',
+      scanId: 'partial',
+      scannedAt: '2026-07-11T03:05:00.000Z',
+      candidates: [],
+      preserveMissingSources: true
+    });
+    expect(snapshot(repository, emptyQuery, [], ['gemini']).sessions).toMatchObject([
+      { nativeId: 'saved-session', sourceFreshness: 'current' }
+    ]);
+
+    repository.applyProviderScan({
+      provider: 'gemini',
+      scanId: 'clean',
+      scannedAt: '2026-07-11T03:10:00.000Z',
+      candidates: []
+    });
+    expect(snapshot(repository, emptyQuery, [], ['gemini']).sessions).toMatchObject([
+      { nativeId: 'saved-session', sourceFreshness: 'stale' }
+    ]);
+  });
 });

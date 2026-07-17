@@ -4,6 +4,7 @@ import type { ProviderInstallation } from '../../shared/contracts';
 import { openCodeSessionRow } from './fixtures/opencode-session-list';
 import {
   OpenCodeSessionSourceError,
+  buildOpenCodeSessionInvocation,
   discoverOpenCodeSessions,
   type StructuredCommandRunner
 } from './opencode-session-source';
@@ -96,10 +97,10 @@ describe('discoverOpenCodeSessions', () => {
     const runCommand = runnerWith(
       JSON.stringify([
         openCodeSessionRow({ id: 'duplicate', title: 'Old' }),
-        openCodeSessionRow({
-          id: 'duplicate',
-          title: 'New',
-          time: { created: 1_784_270_000_000, updated: 1_784_270_400_000 }
+       openCodeSessionRow({
+         id: 'duplicate',
+         title: 'New',
+          updated: 1_784_270_400_000
         })
       ])
     );
@@ -139,5 +140,23 @@ describe('discoverOpenCodeSessions', () => {
         runCommand: runnerWith(stdout)
       })
     ).rejects.toBeInstanceOf(OpenCodeSessionSourceError);
+  });
+
+  it('routes Windows npm command shims through ComSpec without a shell', () => {
+    expect(
+      buildOpenCodeSessionInvocation('C:\\Tools\\opencode.cmd', {
+        platform: 'win32',
+        env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' }
+      })
+    ).toEqual({
+      file: 'C:\\Windows\\System32\\cmd.exe',
+      args: [
+        '/d',
+        '/s',
+        '/c',
+        '""C:\\Tools\\opencode.cmd" session list --format json"'
+      ],
+      windowsVerbatimArguments: true
+    });
   });
 });

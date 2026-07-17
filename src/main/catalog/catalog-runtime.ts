@@ -14,8 +14,10 @@ import { discoverCodexSessions } from '../providers/codex-app-server';
 import { discoverJsonSessions } from '../providers/json-session-source';
 import { buildResumeArguments } from '../providers/launch-command';
 import { discoverOpenCodeSessions } from '../providers/opencode-session-source';
+import { discoverQwenSessions } from '../providers/qwen-session-source';
 import {
   createSessionCatalogRegistry,
+  validateInstalledProviderCompatibility,
   type SessionCatalogAdapter,
   type SessionCatalogRegistry
 } from '../providers/session-catalog-adapter';
@@ -79,6 +81,7 @@ export function createCatalogRuntime({
   ): SessionCatalogAdapter => ({
     provider,
     discover,
+    validateCompatibility: validateInstalledProviderCompatibility,
     buildResumeArguments: (nativeSessionId) =>
       buildResumeArguments(provider, nativeSessionId)
   });
@@ -105,22 +108,24 @@ export function createCatalogRuntime({
       })
     ),
     adapter('opencode', (installation) =>
-      discoverOpenCodeSessions({ installation, env })
+      discoverOpenCodeSessions({ installation, env, platform })
     ),
     adapter('copilot', () =>
       discoverCopilotSessions({ homeDirectory, env, lookupSource })
     ),
-    adapter('qwen', () =>
-      discoverJsonSessions({
-        provider: 'qwen',
-        storageRoot: join(
-          environmentHome(env, 'QWEN_CODE_HOME', homeDirectory),
-          '.qwen',
-          'projects'
-        ),
+    adapter('qwen', () => {
+      const configuredRuntime = environmentHome(
+        env,
+        'QWEN_RUNTIME_DIR',
+        ''
+      ).trim();
+      const configuredHome = environmentHome(env, 'QWEN_HOME', '').trim();
+      return discoverQwenSessions({
+        qwenRoot:
+          configuredRuntime || configuredHome || join(homeDirectory, '.qwen'),
         lookupSource
-      })
-    )
+      });
+    })
   ]);
   const service = new CatalogService({
     scanProviders,

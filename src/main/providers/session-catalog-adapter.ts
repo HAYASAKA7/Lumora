@@ -10,11 +10,31 @@ export type ReadyProviderInstallation = Extract<
   { state: 'ready' }
 >;
 
+export type SessionAdapterCompatibility =
+  | { compatible: true }
+  | { compatible: false; recovery: string };
+
+export function validateInstalledProviderCompatibility(
+  installation: ReadyProviderInstallation
+): SessionAdapterCompatibility {
+  const version = installation.version.trim();
+  if (!/\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?/.test(version)) {
+    return {
+      compatible: false,
+      recovery: `Update ${installation.displayName}, then refresh provider discovery.`
+    };
+  }
+  return { compatible: true };
+}
+
 export interface SessionCatalogAdapter {
   readonly provider: ProviderId;
   discover(
     installation: ReadyProviderInstallation
   ): Promise<ProviderSessionDiscoveryResult>;
+  validateCompatibility(
+    installation: ReadyProviderInstallation
+  ): SessionAdapterCompatibility;
   buildResumeArguments(nativeSessionId: string): readonly string[];
 }
 

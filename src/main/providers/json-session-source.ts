@@ -14,7 +14,7 @@ import {
   type ProviderSessionRecord
 } from './session-discovery';
 
-export type JsonSessionProvider = 'gemini' | 'qwen';
+export type JsonSessionProvider = 'gemini';
 
 interface FileStatLike {
   size: number;

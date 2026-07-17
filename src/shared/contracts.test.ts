@@ -419,6 +419,15 @@ describe('catalog contracts', () => {
 
   it('accepts a complete normalized catalog snapshot', () => {
     expect(CatalogSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        diagnostics: [{
+          ...snapshot.diagnostics[0],
+          code: 'CATALOG_PROVIDER_INCOMPATIBLE'
+        }]
+      }).success
+    ).toBe(true);
   });
 
   it('accepts dynamic session providers, partial counts, and nonzero facets', () => {

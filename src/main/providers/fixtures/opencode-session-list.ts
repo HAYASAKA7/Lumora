@@ -5,10 +5,8 @@ export function openCodeSessionRow(
     id: 'ses_01JABC',
     title: 'Implement provider facets',
     directory: '/work/lumora',
-    time: {
-      created: 1_784_270_000_000,
-      updated: 1_784_270_300_000
-    },
+    created: 1_784_270_000_000,
+    updated: 1_784_270_300_000,
     ...overrides
   };
 }

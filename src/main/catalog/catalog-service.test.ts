@@ -96,11 +96,15 @@ function adapter(
   provider: ProviderId,
   discover: SessionCatalogAdapter['discover'] = vi.fn(async () =>
     discovery(provider, [])
-  )
+  ),
+  validateCompatibility: SessionCatalogAdapter['validateCompatibility'] = () => ({
+    compatible: true
+  })
 ): SessionCatalogAdapter {
   return {
     provider,
     discover,
+    validateCompatibility,
     buildResumeArguments: (nativeId) => [nativeId]
   };
 }
@@ -298,6 +302,40 @@ describe('CatalogService', () => {
     expect(JSON.stringify(result)).not.toContain('detail must stay private');
   });
 
+  it('hides an incompatible installed provider without running discovery', async () => {
+    const repository = createRepository();
+    const incompatibleDiscovery = vi.fn(async () => discovery('qwen', []));
+    const adapters = createSessionCatalogRegistry(
+      SESSION_PROVIDER_IDS.map((provider) =>
+        provider === 'qwen'
+          ? adapter(provider, incompatibleDiscovery, () => ({
+              compatible: false,
+              recovery: 'Update Qwen Code and refresh.'
+            }))
+          : adapter(provider)
+      )
+    );
+    const service = new CatalogService(
+      dependencies({ repository, registry: adapters })
+    );
+
+    const result = await service.refreshCatalog();
+
+    expect(incompatibleDiscovery).not.toHaveBeenCalled();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'CATALOG_PROVIDER_INCOMPATIBLE',
+        provider: 'qwen',
+        recovery: 'Update Qwen Code and refresh.'
+      })
+    );
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        availableProviders: expect.not.arrayContaining(['qwen'])
+      })
+    );
+  });
+
   it('isolates invalid records and canonicalization failures within one provider', async () => {
     const repository = createRepository();
     const adapters = registry({
@@ -323,6 +361,9 @@ describe('CatalogService', () => {
     const result = await service.refreshCatalog();
 
     expect(repository.applyProviderScan.mock.calls[0]![0].candidates).toHaveLength(1);
+    expect(repository.applyProviderScan.mock.calls[0]![0]).toMatchObject({
+      preserveMissingSources: true
+    });
     expect(result.providerStatus[0]).toMatchObject({
       provider: 'codex',
       state: 'ready',

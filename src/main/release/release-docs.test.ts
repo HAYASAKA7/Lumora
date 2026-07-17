@@ -22,8 +22,8 @@ describe('unsigned MVP release documentation', () => {
       'macOS Apple Silicon arm64',
       'SmartScreen',
       'Gatekeeper',
-      'Codex, Claude Code, Gemini CLI',
-      'Saved-session discovery and resume',
+      '| Qwen Code | Confirmed npm action | Yes | Yes | Yes |',
+      'provider-owned sessions',
       'custom CLI start command',
       'session tab closes automatically'
     ];

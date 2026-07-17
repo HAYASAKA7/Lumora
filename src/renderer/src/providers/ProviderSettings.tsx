@@ -98,7 +98,9 @@ function ProviderCard({
       </header>
       <p className="provider-session-capability">
         Saved sessions:{' '}
-        {definition.sessionSupport === 'complete' ? 'Supported' : 'Not available'}
+        {definition.sessionSupport === 'complete'
+          ? 'Adapter available'
+          : 'Not available'}
       </p>
 
       {installation.state === 'ready' ? (

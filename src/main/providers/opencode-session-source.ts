@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 
-import type { ProviderInstallation } from '../../shared/contracts';
+import type { ProviderInstallation, SystemInfo } from '../../shared/contracts';
 import { isPortableAbsolutePath } from './session-discovery';
 import {
   ProviderSessionRecordSchema,
@@ -22,6 +22,7 @@ export interface StructuredCommandInvocation {
   windowsHide: true;
   timeoutMs: number;
   maxOutputBytes: number;
+  windowsVerbatimArguments?: boolean;
 }
 
 export interface StructuredCommandOutput {
@@ -42,6 +43,18 @@ interface DiscoverOpenCodeOptions {
   runCommand?: StructuredCommandRunner;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  platform?: SystemInfo['platform'];
+}
+
+interface OpenCodeInvocationOptions {
+  platform: SystemInfo['platform'];
+  env: Environment;
+}
+
+function currentPlatform(): SystemInfo['platform'] {
+  return process.platform === 'darwin' || process.platform === 'win32'
+    ? process.platform
+    : 'linux';
 }
 
 export class OpenCodeSessionSourceError extends Error {
@@ -66,7 +79,10 @@ export const executeStructuredCommand: StructuredCommandRunner = (
         shell: invocation.shell,
         windowsHide: invocation.windowsHide,
         timeout: invocation.timeoutMs,
-        maxBuffer: invocation.maxOutputBytes
+        maxBuffer: invocation.maxOutputBytes,
+        ...(invocation.windowsVerbatimArguments === undefined
+          ? {}
+          : { windowsVerbatimArguments: invocation.windowsVerbatimArguments })
       },
       (error, stdout, stderr) => {
         if (error === null) {
@@ -88,6 +104,44 @@ export const executeStructuredCommand: StructuredCommandRunner = (
     );
   });
 
+function environmentValue(env: Environment, key: string): string | undefined {
+  const matching = Object.keys(env).find(
+    (candidate) => candidate.toLocaleLowerCase() === key.toLocaleLowerCase()
+  );
+  return matching === undefined ? undefined : env[matching];
+}
+
+export function buildOpenCodeSessionInvocation(
+  executablePath: string,
+  { platform, env }: OpenCodeInvocationOptions
+): Pick<
+  StructuredCommandInvocation,
+  'file' | 'args' | 'windowsVerbatimArguments'
+> {
+  if (platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(executablePath)) {
+    return {
+      file: executablePath,
+      args: ['session', 'list', '--format', 'json']
+    };
+  }
+  if (/[\"%\r\n]/.test(executablePath)) {
+    throw new OpenCodeSessionSourceError(
+      'OpenCode command shim path cannot be invoked safely.'
+    );
+  }
+  const commandProcessor = environmentValue(env, 'ComSpec')?.trim() || 'cmd.exe';
+  return {
+    file: commandProcessor,
+    args: [
+      '/d',
+      '/s',
+      '/c',
+      `""${executablePath}" session list --format json"`
+    ],
+    windowsVerbatimArguments: true
+  };
+}
+
 function normalizeSession(value: unknown): ProviderSessionRecord | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null;
@@ -102,24 +156,16 @@ function normalizeSession(value: unknown): ProviderSessionRecord | null {
     return null;
   }
   if (
-    typeof row.time !== 'object' ||
-    row.time === null ||
-    Array.isArray(row.time)
+    typeof row.created !== 'number' ||
+    typeof row.updated !== 'number' ||
+    !Number.isFinite(row.created) ||
+    !Number.isFinite(row.updated) ||
+    row.created > row.updated
   ) {
     return null;
   }
-  const time = row.time as Record<string, unknown>;
-  if (
-    typeof time.created !== 'number' ||
-    typeof time.updated !== 'number' ||
-    !Number.isFinite(time.created) ||
-    !Number.isFinite(time.updated) ||
-    time.created > time.updated
-  ) {
-    return null;
-  }
-  const createdAt = new Date(time.created);
-  const updatedAt = new Date(time.updated);
+  const createdAt = new Date(row.created);
+  const updatedAt = new Date(row.updated);
   if (
     !Number.isFinite(createdAt.getTime()) ||
     !Number.isFinite(updatedAt.getTime())
@@ -148,16 +194,20 @@ export async function discoverOpenCodeSessions({
   env,
   runCommand = executeStructuredCommand,
   timeoutMs = 15_000,
-  maxOutputBytes = 4 * 1024 * 1024
+  maxOutputBytes = 4 * 1024 * 1024,
+  platform = currentPlatform()
 }: DiscoverOpenCodeOptions): Promise<ProviderSessionDiscoveryResult> {
   if (installation.provider !== 'opencode') {
     throw new OpenCodeSessionSourceError(
       'OpenCode discovery requires an OpenCode installation.'
     );
   }
+  const command = buildOpenCodeSessionInvocation(installation.executablePath, {
+    platform,
+    env
+  });
   const output = await runCommand({
-    file: installation.executablePath,
-    args: ['session', 'list', '--format', 'json'],
+    ...command,
     env: { ...env, NO_COLOR: '1' },
     shell: false,
     windowsHide: true,
