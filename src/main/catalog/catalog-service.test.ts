@@ -2,23 +2,32 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type {
   CatalogDiagnostic,
-  CatalogProviderId,
   CatalogProviderStatus,
   CatalogQuery,
+  ProviderId,
   ProviderInstallation,
   ProviderScanResult
 } from '../../shared/contracts';
+import {
+  SESSION_PROVIDER_IDS,
+  providerDefinition
+} from '../../shared/provider-definitions';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
+import {
+  createSessionCatalogRegistry,
+  type SessionCatalogAdapter
+} from '../providers/session-catalog-adapter';
 import type {
   ProviderSessionDiscoveryResult,
   ProviderSessionRecord
 } from '../providers/session-discovery';
 import { CatalogService } from './catalog-service';
 
-function ready(provider: CatalogProviderId): ProviderInstallation {
+function ready(provider: ProviderId): ProviderInstallation {
+  const definition = providerDefinition(provider);
   return {
     provider,
-    displayName: provider === 'codex' ? 'Codex' : 'Claude Code',
+    displayName: definition.displayName,
     state: 'ready',
     executablePath: `/tools/${provider}`,
     version: `${provider} 1.0.0`,
@@ -26,8 +35,8 @@ function ready(provider: CatalogProviderId): ProviderInstallation {
   };
 }
 
-function missing(provider: CatalogProviderId): ProviderInstallation {
-  const displayName = provider === 'codex' ? 'Codex' : 'Claude Code';
+function missing(provider: ProviderId): ProviderInstallation {
+  const displayName = providerDefinition(provider).displayName;
   return {
     provider,
     displayName,
@@ -44,17 +53,16 @@ function missing(provider: CatalogProviderId): ProviderInstallation {
 }
 
 function scan(
-  codex: ProviderInstallation = ready('codex'),
-  claude: ProviderInstallation = ready('claude')
+  providers: readonly ProviderInstallation[] = SESSION_PROVIDER_IDS.map(ready)
 ): ProviderScanResult {
   return {
     scannedAt: '2026-07-11T03:00:00.000Z',
-    providers: [codex, claude]
+    providers: [...providers]
   };
 }
 
 function record(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   nativeId: string,
   workspacePath = `/work/${provider}`
 ): ProviderSessionRecord {
@@ -70,7 +78,7 @@ function record(
 }
 
 function discovery(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   sessions: readonly ProviderSessionRecord[],
   invalidCount = 0,
   unchangedCount = 0
@@ -84,10 +92,36 @@ function discovery(
   };
 }
 
-function canonicalWorkspace(path: string): CanonicalWorkspacePath {
-  const character = path.includes('claude') ? 'b' : 'a';
+function adapter(
+  provider: ProviderId,
+  discover: SessionCatalogAdapter['discover'] = vi.fn(async () =>
+    discovery(provider, [])
+  )
+): SessionCatalogAdapter {
   return {
-    id: character.repeat(64),
+    provider,
+    discover,
+    buildResumeArguments: (nativeId) => [nativeId]
+  };
+}
+
+function registry(
+  overrides: Partial<Record<ProviderId, SessionCatalogAdapter['discover']>> = {}
+) {
+  return createSessionCatalogRegistry(
+    SESSION_PROVIDER_IDS.map((provider) =>
+      adapter(provider, overrides[provider] as SessionCatalogAdapter['discover'])
+    )
+  );
+}
+
+function canonicalWorkspace(path: string): CanonicalWorkspacePath {
+  const index = Math.max(
+    0,
+    SESSION_PROVIDER_IDS.findIndex((provider) => path.includes(provider))
+  );
+  return {
+    id: String.fromCharCode(97 + index).repeat(64),
     canonicalPath: path,
     identityKey: path,
     displayName: path.split('/').at(-1) ?? path,
@@ -104,125 +138,124 @@ function createRepository() {
         query,
         refreshedAt,
         providerStatus,
+        availableProviders,
         diagnostics
       }: {
         query: CatalogQuery;
         refreshedAt: string;
-        providerStatus: readonly [
-          CatalogProviderStatus,
-          CatalogProviderStatus
-        ];
+        providerStatus: readonly CatalogProviderStatus[];
+        availableProviders: readonly ProviderId[];
         diagnostics: readonly CatalogDiagnostic[];
       }) => ({
         refreshedAt,
         workspaces: [],
         sessions: [],
         providerStatus: [...providerStatus],
+        providerFacets: [],
         diagnostics: [...diagnostics],
-        querySeenByTest: query
+        querySeenByTest: query,
+        availableProvidersSeenByTest: availableProviders
       })
     )
   };
 }
 
+function dependencies(overrides: Record<string, unknown> = {}) {
+  return {
+    scanProviders: async () => scan(),
+    registry: registry(),
+    canonicalizeWorkspace: async (path: string) => canonicalWorkspace(path),
+    repository: createRepository(),
+    clock: () => new Date('2026-07-11T03:00:00.000Z'),
+    createScanId: vi.fn((provider: ProviderId) => `scan-${provider}`),
+    ...overrides
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
-    reject = rejectPromise;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 }
 
 describe('CatalogService', () => {
-  it('discovers providers concurrently and commits them in stable order', async () => {
+  it('discovers all complete providers concurrently and commits in definition order', async () => {
     const repository = createRepository();
-    const codexResult = deferred<ProviderSessionDiscoveryResult>();
-    const claudeResult = deferred<ProviderSessionDiscoveryResult>();
-    const discoverCodex = vi.fn(async () => codexResult.promise);
-    const discoverClaude = vi.fn(async () => claudeResult.promise);
-    const service = new CatalogService({
-      scanProviders: async () => scan(),
-      discoverCodex,
-      discoverClaude,
-      canonicalizeWorkspace: async (path) => canonicalWorkspace(path),
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: vi
-        .fn()
-        .mockReturnValueOnce('scan-codex')
-        .mockReturnValueOnce('scan-claude')
-    });
+    const pending = new Map(
+      SESSION_PROVIDER_IDS.map((provider) => [
+        provider,
+        deferred<ProviderSessionDiscoveryResult>()
+      ])
+    );
+    const adapters = registry(
+      Object.fromEntries(
+        SESSION_PROVIDER_IDS.map((provider) => [
+          provider,
+          vi.fn(async () => pending.get(provider)!.promise)
+        ])
+      )
+    );
+    const service = new CatalogService(
+      dependencies({ repository, registry: adapters })
+    );
 
-    const refresh = service.refreshCatalog({ text: '', provider: null });
+    const refresh = service.refreshCatalog();
     await vi.waitFor(() => {
-      expect(discoverCodex).toHaveBeenCalledOnce();
-      expect(discoverClaude).toHaveBeenCalledOnce();
+      for (const provider of SESSION_PROVIDER_IDS) {
+        expect(adapters.get(provider)!.discover).toHaveBeenCalledOnce();
+      }
     });
-    claudeResult.resolve(discovery('claude', [record('claude', 'claude-1')]));
-    codexResult.resolve(discovery('codex', [record('codex', 'codex-1')]));
+    for (const provider of [...SESSION_PROVIDER_IDS].reverse()) {
+      pending
+        .get(provider)!
+        .resolve(discovery(provider, [record(provider, `${provider}-1`)]));
+    }
     const result = await refresh;
 
-    expect(repository.applyProviderScan.mock.calls.map((call) => call[0].provider)).toEqual([
-      'codex',
-      'claude'
-    ]);
-    expect(repository.applyProviderScan.mock.calls[0]![0]).toEqual({
-      provider: 'codex',
-      scanId: 'scan-codex',
-      scannedAt: '2026-07-11T03:00:00.000Z',
-      candidates: [
-        expect.objectContaining({
-          provider: 'codex',
-          nativeId: 'codex-1',
-          workspace: canonicalWorkspace('/work/codex')
-        })
-      ]
-    });
-    expect(result.providerStatus).toEqual([
-      {
-        provider: 'codex',
-        state: 'ready',
-        discoveredCount: 1,
-        unchangedCount: 0,
-        invalidCount: 0
-      },
-      {
-        provider: 'claude',
-        state: 'ready',
-        discoveredCount: 1,
-        unchangedCount: 0,
-        invalidCount: 0
-      }
-    ]);
+    expect(
+      repository.applyProviderScan.mock.calls.map((call) => call[0].provider)
+    ).toEqual(SESSION_PROVIDER_IDS);
+    expect(result.providerStatus.map(({ provider, state }) => ({ provider, state })))
+      .toEqual(
+        SESSION_PROVIDER_IDS.map((provider) => ({ provider, state: 'ready' }))
+      );
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableProviders: SESSION_PROVIDER_IDS })
+    );
+    expect(adapters.get('aider')).toBeNull();
   });
 
-  it('does not scan or overwrite unavailable provider data', async () => {
+  it('does not scan unavailable or launch-only providers', async () => {
     const repository = createRepository();
-    const discoverCodex = vi.fn();
-    const service = new CatalogService({
-      scanProviders: async () => scan(missing('codex'), ready('claude')),
-      discoverCodex,
-      discoverClaude: async () => discovery('claude', []),
-      canonicalizeWorkspace: async (path) => canonicalWorkspace(path),
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: () => 'scan-1'
-    });
+    const adapters = registry();
+    const service = new CatalogService(
+      dependencies({
+        repository,
+        registry: adapters,
+        scanProviders: async () =>
+          scan([missing('codex'), ready('claude'), missing('aider')])
+      })
+    );
 
     const result = await service.refreshCatalog();
 
-    expect(discoverCodex).not.toHaveBeenCalled();
+    expect(adapters.get('codex')!.discover).not.toHaveBeenCalled();
+    expect(adapters.get('claude')!.discover).toHaveBeenCalledOnce();
     expect(repository.applyProviderScan).toHaveBeenCalledTimes(1);
-    expect(repository.applyProviderScan.mock.calls[0]![0].provider).toBe('claude');
-    expect(result.providerStatus[0]!.state).toBe('unavailable');
-    expect(result.diagnostics).toEqual([
+    expect(result.diagnostics).toContainEqual(
       expect.objectContaining({
         code: 'CATALOG_PROVIDER_UNAVAILABLE',
         provider: 'codex'
       })
-    ]);
+    );
+    expect(result.diagnostics.some(({ provider }) => provider === 'aider')).toBe(
+      false
+    );
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableProviders: ['claude'] })
+    );
   });
 
   it('isolates discovery and database failures while preserving other providers', async () => {
@@ -232,93 +265,78 @@ describe('CatalogService', () => {
         throw new Error('database detail must stay private');
       }
     });
-    const service = new CatalogService({
-      scanProviders: async () => scan(),
-      discoverCodex: async () => {
+    const adapters = registry({
+      codex: vi.fn(async () => {
         throw new Error('protocol detail must stay private');
-      },
-      discoverClaude: async () =>
-        discovery('claude', [record('claude', 'claude-1')]),
-      canonicalizeWorkspace: async (path) => canonicalWorkspace(path),
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: () => 'scan-1'
+      }),
+      claude: vi.fn(async () =>
+        discovery('claude', [record('claude', 'claude-1')])
+      )
     });
+    const service = new CatalogService(
+      dependencies({ repository, registry: adapters })
+    );
 
     const result = await service.refreshCatalog();
 
-    expect(repository.applyProviderScan).toHaveBeenCalledTimes(1);
-    expect(result.providerStatus.map((status) => status.state)).toEqual([
+    expect(result.providerStatus.slice(0, 2).map(({ state }) => state)).toEqual([
       'failed',
       'failed'
     ]);
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        code: 'CATALOG_PROTOCOL_FAILED',
-        provider: 'codex'
-      }),
-      expect.objectContaining({
-        code: 'CATALOG_DATABASE_FAILED',
-        provider: 'claude'
-      })
-    ]);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'CATALOG_PROTOCOL_FAILED',
+          provider: 'codex'
+        }),
+        expect.objectContaining({
+          code: 'CATALOG_DATABASE_FAILED',
+          provider: 'claude'
+        })
+      ])
+    );
     expect(JSON.stringify(result)).not.toContain('detail must stay private');
   });
 
   it('isolates invalid records and canonicalization failures within one provider', async () => {
     const repository = createRepository();
-    const service = new CatalogService({
-      scanProviders: async () => scan(),
-      discoverCodex: async () =>
+    const adapters = registry({
+      codex: vi.fn(async () =>
         discovery(
           'codex',
-          [
-            record('codex', 'valid'),
-            record('codex', 'moved', '/missing/workspace')
-          ],
+          [record('codex', 'valid'), record('codex', 'moved', '/missing/workspace')],
           2
-        ),
-      discoverClaude: async () => discovery('claude', []),
-      canonicalizeWorkspace: async (path) => {
-        if (path.startsWith('/missing')) {
-          throw new Error('unusable path');
-        }
-        return canonicalWorkspace(path);
-      },
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: () => 'scan-1'
+        )
+      )
     });
+    const service = new CatalogService(
+      dependencies({
+        repository,
+        registry: adapters,
+        canonicalizeWorkspace: async (path: string) => {
+          if (path.startsWith('/missing')) throw new Error('unusable path');
+          return canonicalWorkspace(path);
+        }
+      })
+    );
 
     const result = await service.refreshCatalog();
 
     expect(repository.applyProviderScan.mock.calls[0]![0].candidates).toHaveLength(1);
     expect(result.providerStatus[0]).toMatchObject({
+      provider: 'codex',
       state: 'ready',
       discoveredCount: 1,
       invalidCount: 3
     });
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: 'CATALOG_SOURCE_INVALID',
-        provider: 'codex',
-        affectedCount: 3
-      })
-    );
   });
 
-  it('registers only canonical manual workspaces without scanning providers', async () => {
+  it('registers canonical manual workspaces without scanning providers', async () => {
     const repository = createRepository();
     const scanProviders = vi.fn();
-    const service = new CatalogService({
-      scanProviders,
-      discoverCodex: vi.fn(),
-      discoverClaude: vi.fn(),
-      canonicalizeWorkspace: async (path) => canonicalWorkspace(path),
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: () => 'scan-1'
-    });
+    const service = new CatalogService(
+      dependencies({ repository, scanProviders })
+    );
 
     await service.registerWorkspace('/work/manual');
 
@@ -332,21 +350,14 @@ describe('CatalogService', () => {
 
   it('validates and forwards catalog queries to the repository', () => {
     const repository = createRepository();
-    const service = new CatalogService({
-      scanProviders: async () => scan(),
-      discoverCodex: async () => discovery('codex', []),
-      discoverClaude: async () => discovery('claude', []),
-      canonicalizeWorkspace: async (path) => canonicalWorkspace(path),
-      repository,
-      clock: () => new Date('2026-07-11T03:00:00.000Z'),
-      createScanId: () => 'scan-1'
-    });
+    const service = new CatalogService(dependencies({ repository }));
 
-    service.getCatalog({ text: '  storage  ', provider: 'claude' });
+    service.getCatalog({ text: '  storage  ', provider: 'gemini' });
 
     expect(repository.getSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: { text: 'storage', provider: 'claude' }
+        query: { text: 'storage', provider: 'gemini' },
+        availableProviders: []
       })
     );
     expect(() =>

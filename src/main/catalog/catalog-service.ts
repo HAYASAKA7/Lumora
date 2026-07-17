@@ -1,27 +1,27 @@
 import {
   CatalogQuerySchema,
   type CatalogDiagnostic,
-  type CatalogProviderId,
   type CatalogProviderStatus,
   type CatalogQuery,
   type CatalogSnapshot,
+  type ProviderId,
   type ProviderInstallation,
   type ProviderScanResult
 } from '../../shared/contracts';
+import { providerDefinition } from '../../shared/provider-definitions';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
+import type {
+  ReadyProviderInstallation,
+  SessionCatalogRegistry
+} from '../providers/session-catalog-adapter';
 import {
   ProviderSessionRecordSchema,
   type ProviderSessionDiscoveryResult
 } from '../providers/session-discovery';
 import type { CatalogCandidate } from './catalog-candidate';
 
-type ReadyProviderInstallation = Extract<
-  ProviderInstallation,
-  { state: 'ready' }
->;
-
 interface ProviderScanWrite {
-  provider: CatalogProviderId;
+  provider: ProviderId;
   scanId: string;
   scannedAt: string;
   candidates: readonly CatalogCandidate[];
@@ -30,7 +30,8 @@ interface ProviderScanWrite {
 interface SnapshotOptions {
   query: CatalogQuery;
   refreshedAt: string;
-  providerStatus: readonly [CatalogProviderStatus, CatalogProviderStatus];
+  providerStatus: readonly CatalogProviderStatus[];
+  availableProviders: readonly ProviderId[];
   diagnostics: readonly CatalogDiagnostic[];
 }
 
@@ -44,18 +45,13 @@ interface CatalogRepositoryPort {
   getSnapshot(options: SnapshotOptions): CatalogSnapshot;
 }
 
-type ProviderDiscoverer = (
-  installation: ReadyProviderInstallation
-) => Promise<ProviderSessionDiscoveryResult>;
-
 interface CatalogServiceDependencies {
   scanProviders(): Promise<ProviderScanResult>;
-  discoverCodex: ProviderDiscoverer;
-  discoverClaude: ProviderDiscoverer;
+  registry: SessionCatalogRegistry;
   canonicalizeWorkspace(path: string): Promise<CanonicalWorkspacePath>;
   repository: CatalogRepositoryPort;
   clock(): Date;
-  createScanId(): string;
+  createScanId(provider: ProviderId): string;
 }
 
 interface DiscoverySuccess {
@@ -69,11 +65,10 @@ interface DiscoveryFailure {
 
 type DiscoveryOutcome = DiscoverySuccess | DiscoveryFailure;
 
-const PROVIDER_ORDER = ['codex', 'claude'] as const;
 const EMPTY_QUERY: CatalogQuery = { text: '', provider: null };
 
 function emptyStatus(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   state: CatalogProviderStatus['state']
 ): CatalogProviderStatus {
   return {
@@ -87,10 +82,10 @@ function emptyStatus(
 
 function providerUnavailableDiagnostic(
   installation: ProviderInstallation | undefined,
-  provider: CatalogProviderId,
+  provider: ProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
-  const displayName = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const displayName = providerDefinition(provider).displayName;
   return {
     code: 'CATALOG_PROVIDER_UNAVAILABLE',
     provider,
@@ -105,36 +100,30 @@ function providerUnavailableDiagnostic(
 }
 
 function discoveryFailureDiagnostic(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
-  return provider === 'codex'
-    ? {
-        code: 'CATALOG_PROTOCOL_FAILED',
-        provider,
-        affectedCount: 0,
-        message: 'Codex session discovery could not be completed.',
-        recovery: 'Check the Codex installation, then refresh the catalog.',
-        retryable: true,
-        scannedAt
-      }
-    : {
-        code: 'CATALOG_SOURCE_UNAVAILABLE',
-        provider,
-        affectedCount: 0,
-        message: 'Claude Code session storage could not be read.',
-        recovery: 'Check Claude Code storage permissions, then refresh.',
-        retryable: true,
-        scannedAt
-      };
+  const displayName = providerDefinition(provider).displayName;
+  return {
+    code:
+      provider === 'codex'
+        ? 'CATALOG_PROTOCOL_FAILED'
+        : 'CATALOG_SOURCE_UNAVAILABLE',
+    provider,
+    affectedCount: 0,
+    message: `${displayName} session discovery could not be completed.`,
+    recovery: `Check the ${displayName} installation and storage permissions, then refresh.`,
+    retryable: true,
+    scannedAt
+  };
 }
 
 function invalidSourceDiagnostic(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   affectedCount: number,
   scannedAt: string
 ): CatalogDiagnostic {
-  const displayName = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const displayName = providerDefinition(provider).displayName;
   return {
     code: 'CATALOG_SOURCE_INVALID',
     provider,
@@ -149,7 +138,7 @@ function invalidSourceDiagnostic(
 }
 
 function databaseFailureDiagnostic(
-  provider: CatalogProviderId,
+  provider: ProviderId,
   scannedAt: string
 ): CatalogDiagnostic {
   return {
@@ -164,15 +153,15 @@ function databaseFailureDiagnostic(
 }
 
 export class CatalogService {
-  private providerStatus: [CatalogProviderStatus, CatalogProviderStatus];
+  private providerStatus: CatalogProviderStatus[];
+  private availableProviders: ProviderId[] = [];
   private diagnostics: CatalogDiagnostic[] = [];
   private refreshedAt: string;
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
-    this.providerStatus = [
-      emptyStatus('codex', 'unavailable'),
-      emptyStatus('claude', 'unavailable')
-    ];
+    this.providerStatus = dependencies.registry
+      .providers()
+      .map((provider) => emptyStatus(provider, 'unavailable'));
     this.refreshedAt = dependencies.clock().toISOString();
   }
 
@@ -182,33 +171,42 @@ export class CatalogService {
       query: parsedQuery,
       refreshedAt: this.refreshedAt,
       providerStatus: this.providerStatus,
+      availableProviders: this.availableProviders,
       diagnostics: this.diagnostics
     });
   }
 
-  async refreshCatalog(query: CatalogQuery = EMPTY_QUERY): Promise<CatalogSnapshot> {
+  async refreshCatalog(
+    query: CatalogQuery = EMPTY_QUERY
+  ): Promise<CatalogSnapshot> {
     const parsedQuery = CatalogQuerySchema.parse(query);
     const scannedAt = this.dependencies.clock().toISOString();
     const scan = await this.dependencies.scanProviders();
-    const installations = new Map(
-      scan.providers.map((installation) => [installation.provider, installation])
+    const installations = new Map<ProviderId, ProviderInstallation>(
+      scan.providers.map((installation) => [
+        installation.provider,
+        installation
+      ])
     );
-    const outcomes = new Map<CatalogProviderId, DiscoveryOutcome>();
+    const providers = this.dependencies.registry.providers();
+    const readyInstallations = new Map<ProviderId, ReadyProviderInstallation>();
+    for (const provider of providers) {
+      const installation = installations.get(provider);
+      if (installation?.state === 'ready') {
+        readyInstallations.set(provider, installation);
+      }
+    }
+    const outcomes = new Map<ProviderId, DiscoveryOutcome>();
 
     await Promise.all(
-      PROVIDER_ORDER.map(async (provider) => {
-        const installation = installations.get(provider);
-        if (installation?.state !== 'ready') {
-          return;
-        }
-        const discover =
-          provider === 'codex'
-            ? this.dependencies.discoverCodex
-            : this.dependencies.discoverClaude;
+      providers.map(async (provider) => {
+        const installation = readyInstallations.get(provider);
+        const adapter = this.dependencies.registry.get(provider);
+        if (!installation || !adapter) return;
         try {
           outcomes.set(provider, {
             ok: true,
-            result: await discover(installation)
+            result: await adapter.discover(installation)
           });
         } catch {
           outcomes.set(provider, { ok: false });
@@ -218,9 +216,9 @@ export class CatalogService {
 
     const nextStatus: CatalogProviderStatus[] = [];
     const nextDiagnostics: CatalogDiagnostic[] = [];
-    for (const provider of PROVIDER_ORDER) {
+    for (const provider of providers) {
       const installation = installations.get(provider);
-      if (installation?.state !== 'ready') {
+      if (!readyInstallations.has(provider)) {
         nextStatus.push(emptyStatus(provider, 'unavailable'));
         nextDiagnostics.push(
           providerUnavailableDiagnostic(installation, provider, scannedAt)
@@ -229,7 +227,7 @@ export class CatalogService {
       }
 
       const outcome = outcomes.get(provider);
-      if (outcome === undefined || !outcome.ok || outcome.result.provider !== provider) {
+      if (!outcome?.ok || outcome.result.provider !== provider) {
         nextStatus.push(emptyStatus(provider, 'failed'));
         nextDiagnostics.push(discoveryFailureDiagnostic(provider, scannedAt));
         continue;
@@ -244,13 +242,12 @@ export class CatalogService {
           continue;
         }
         try {
-          const workspace = await this.dependencies.canonicalizeWorkspace(
-            session.data.workspacePath
-          );
           candidates.push({
             provider,
             nativeId: session.data.nativeId,
-            workspace,
+            workspace: await this.dependencies.canonicalizeWorkspace(
+              session.data.workspacePath
+            ),
             title: session.data.title,
             createdAt: session.data.createdAt,
             updatedAt: session.data.updatedAt,
@@ -264,7 +261,7 @@ export class CatalogService {
       try {
         this.dependencies.repository.applyProviderScan({
           provider,
-          scanId: this.dependencies.createScanId(),
+          scanId: this.dependencies.createScanId(provider),
           scannedAt,
           candidates
         });
@@ -272,10 +269,7 @@ export class CatalogService {
           provider,
           state: 'ready',
           discoveredCount: candidates.length,
-          unchangedCount: Math.max(
-            0,
-            Math.trunc(outcome.result.unchangedCount)
-          ),
+          unchangedCount: Math.max(0, Math.trunc(outcome.result.unchangedCount)),
           invalidCount
         });
         if (invalidCount > 0) {
@@ -289,18 +283,13 @@ export class CatalogService {
       }
     }
 
-    this.providerStatus = [
-      nextStatus[0] ?? emptyStatus('codex', 'failed'),
-      nextStatus[1] ?? emptyStatus('claude', 'failed')
-    ];
+    this.providerStatus = nextStatus;
+    this.availableProviders = providers.filter((provider) =>
+      readyInstallations.has(provider)
+    );
     this.diagnostics = nextDiagnostics;
     this.refreshedAt = scannedAt;
-    return this.dependencies.repository.getSnapshot({
-      query: parsedQuery,
-      refreshedAt: scannedAt,
-      providerStatus: this.providerStatus,
-      diagnostics: this.diagnostics
-    });
+    return this.getCatalog(parsedQuery);
   }
 
   async registerWorkspace(
@@ -310,11 +299,7 @@ export class CatalogService {
     const parsedQuery = CatalogQuerySchema.parse(query);
     const timestamp = this.dependencies.clock().toISOString();
     const workspace = await this.dependencies.canonicalizeWorkspace(path);
-    this.dependencies.repository.registerWorkspace(
-      workspace,
-      'manual',
-      timestamp
-    );
+    this.dependencies.repository.registerWorkspace(workspace, 'manual', timestamp);
     this.refreshedAt = timestamp;
     return this.getCatalog(parsedQuery);
   }
