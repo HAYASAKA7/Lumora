@@ -108,11 +108,70 @@ export const ProviderScanResultSchema = z.strictObject({
   providers: z.array(ProviderInstallationSchema).length(2)
 });
 
+const ProviderUpdateComparableFields = {
+  ...providerFields,
+  installedVersion: z.string().min(1),
+  latestVersion: z.string().min(1),
+  issue: z.null()
+};
+
+const ProviderUpdateIssueSchema = z.strictObject({
+  code: z.enum([
+    'PROVIDER_NOT_READY',
+    'PROVIDER_VERSION_INVALID',
+    'PROVIDER_RELEASE_UNAVAILABLE'
+  ]),
+  ...issueFields
+});
+
+export const ProviderUpdateStatusSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    ...ProviderUpdateComparableFields,
+    state: z.literal('up_to_date')
+  }),
+  z.strictObject({
+    ...ProviderUpdateComparableFields,
+    state: z.literal('update_available')
+  }),
+  z.strictObject({
+    ...providerFields,
+    state: z.literal('unavailable'),
+    installedVersion: z.string().min(1).nullable(),
+    latestVersion: z.string().min(1).nullable(),
+    issue: ProviderUpdateIssueSchema
+  })
+]);
+
+export const ProviderUpdateCheckResultSchema = z.strictObject({
+  checkedAt: z.iso.datetime(),
+  providers: z.array(ProviderUpdateStatusSchema).length(2)
+});
+
+export const ProviderUpdateRequestSchema = z.strictObject({
+  provider: ProviderIdSchema
+});
+
+export const ProviderUpdateResultSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  completedAt: z.iso.datetime(),
+  installation: ProviderInstallationSchema
+});
+
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
 export type ProviderInstallation = z.infer<
   typeof ProviderInstallationSchema
 >;
 export type ProviderScanResult = z.infer<typeof ProviderScanResultSchema>;
+export type ProviderUpdateStatus = z.infer<
+  typeof ProviderUpdateStatusSchema
+>;
+export type ProviderUpdateCheckResult = z.infer<
+  typeof ProviderUpdateCheckResultSchema
+>;
+export type ProviderUpdateRequest = z.infer<
+  typeof ProviderUpdateRequestSchema
+>;
+export type ProviderUpdateResult = z.infer<typeof ProviderUpdateResultSchema>;
 
 const ProviderLaunchCommandSchema = z
   .string()
@@ -706,6 +765,8 @@ export const IPC_CHANNELS = {
   environmentScan: 'lumora:environment:scan',
   nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
+  providerUpdatesCheck: 'lumora:providers:updates:check',
+  providerUpdateRun: 'lumora:providers:update:run',
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
   workspaceChoose: 'lumora:workspace:choose',
@@ -738,6 +799,8 @@ export interface LumoraApi {
   scanDeveloperEnvironment(): Promise<DeveloperEnvironmentScanResult>;
   openNodeDownloadPage(): Promise<void>;
   scanProviders(): Promise<ProviderScanResult>;
+  checkProviderUpdates(): Promise<ProviderUpdateCheckResult>;
+  updateProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   chooseWorkspace(): Promise<CatalogSnapshot | null>;

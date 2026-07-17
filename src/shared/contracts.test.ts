@@ -17,6 +17,9 @@ import {
   LaunchPreviewSchema,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
+  ProviderUpdateCheckResultSchema,
+  ProviderUpdateRequestSchema,
+  ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
   RuntimeEventSchema,
   RuntimeSummarySchema,
@@ -247,6 +250,86 @@ describe('provider discovery contracts', () => {
 
   it('defines a dedicated provider scan channel', () => {
     expect(IPC_CHANNELS.providerScan).toBe('lumora:providers:scan');
+  });
+
+  it('accepts strict provider update availability and completion results', () => {
+    const check = {
+      checkedAt: '2026-07-17T02:00:00.000Z',
+      providers: [
+        {
+          provider: 'codex',
+          displayName: 'Codex',
+          state: 'update_available',
+          installedVersion: '1.2.3',
+          latestVersion: '1.3.0',
+          issue: null
+        },
+        {
+          provider: 'claude',
+          displayName: 'Claude Code',
+          state: 'unavailable',
+          installedVersion: null,
+          latestVersion: null,
+          issue: {
+            code: 'PROVIDER_NOT_READY',
+            message: 'Claude Code is not ready.',
+            recovery: 'Install or repair Claude Code, then refresh.',
+            retryable: true
+          }
+        }
+      ]
+    } as const;
+    const result = {
+      provider: 'codex',
+      completedAt: '2026-07-17T02:01:00.000Z',
+      installation: readyCodex
+    } as const;
+
+    expect(ProviderUpdateCheckResultSchema.parse(check)).toEqual(check);
+    expect(ProviderUpdateRequestSchema.parse({ provider: 'claude' })).toEqual({
+      provider: 'claude'
+    });
+    expect(ProviderUpdateResultSchema.parse(result)).toEqual(result);
+  });
+
+  it('rejects inconsistent or over-broad provider update data', () => {
+    expect(
+      ProviderUpdateCheckResultSchema.safeParse({
+        checkedAt: '2026-07-17T02:00:00.000Z',
+        providers: [
+          {
+            provider: 'codex',
+            displayName: 'Codex',
+            state: 'up_to_date',
+            installedVersion: '1.2.3',
+            latestVersion: null,
+            issue: null
+          }
+        ]
+      }).success
+    ).toBe(false);
+    expect(
+      ProviderUpdateRequestSchema.safeParse({
+        provider: 'codex',
+        executablePath: '/tmp/codex'
+      }).success
+    ).toBe(false);
+    expect(
+      ProviderUpdateResultSchema.safeParse({
+        provider: 'gemini',
+        completedAt: 'not-a-date',
+        installation: { ...readyCodex, provider: 'gemini' }
+      }).success
+    ).toBe(false);
+  });
+
+  it('defines narrow provider update channels', () => {
+    expect(IPC_CHANNELS.providerUpdatesCheck).toBe(
+      'lumora:providers:updates:check'
+    );
+    expect(IPC_CHANNELS.providerUpdateRun).toBe(
+      'lumora:providers:update:run'
+    );
   });
 });
 
