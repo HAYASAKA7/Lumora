@@ -2346,10 +2346,25 @@ button {
 }
 
 .managed-terminal-shell {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
+}
+
+.terminal-interrupt-notice {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 8;
+  padding: 7px 10px;
+  color: #e8f1ff;
+  font-size: 0.72rem;
+  background: rgba(22, 37, 58, 0.96);
+  border: 1px solid rgba(122, 162, 255, 0.45);
+  border-radius: 7px;
+  pointer-events: none;
 }
 
 .managed-terminal {

@@ -8,6 +8,7 @@ import type {
   RuntimeSummary
 } from '../../../shared/contracts';
 import { ManagedTerminal } from './ManagedTerminal';
+import { TERMINAL_INTERRUPT_CONFIRMATION_MS } from './terminal-interrupt-guard';
 
 const xterm = vi.hoisted(() => ({
   attachCustomKeyEventHandler: vi.fn(),
@@ -102,7 +103,7 @@ function installLumora(overrides: Partial<RuntimeApi> = {}): RuntimeApi {
 }
 
 function clipboardKey(
-  code: 'KeyC' | 'KeyV',
+  code: string,
   modifiers: KeyboardEventInit
 ): KeyboardEvent {
   return new KeyboardEvent('keydown', {
@@ -261,7 +262,7 @@ describe('ManagedTerminal', () => {
     expect(writeClipboardText).toHaveBeenCalledWith('selected text');
   });
 
-  it('leaves unselected Windows Ctrl+C to xterm and the provider', async () => {
+  it('requires a second unselected Windows Ctrl+C before forwarding the interrupt', async () => {
     const writeClipboardText = vi.fn().mockResolvedValue(undefined);
     installLumora({ writeClipboardText });
     render(
@@ -273,13 +274,174 @@ describe('ManagedTerminal', () => {
       />
     );
     await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
-    const event = clipboardKey('KeyC', { ctrlKey: true });
+    const firstEvent = clipboardKey('KeyC', { ctrlKey: true });
 
-    const handled = xterm.customKeyEventHandler!(event);
+    let firstHandled!: boolean;
+    act(() => { firstHandled = xterm.customKeyEventHandler!(firstEvent); });
 
-    expect(handled).toBe(true);
-    expect(event.defaultPrevented).toBe(false);
+    expect(firstHandled).toBe(false);
+    expect(firstEvent.defaultPrevented).toBe(true);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Press Ctrl+C again to interrupt'
+    );
+
+    const secondEvent = clipboardKey('KeyC', { ctrlKey: true });
+    let secondHandled!: boolean;
+    act(() => { secondHandled = xterm.customKeyEventHandler!(secondEvent); });
+
+    expect(secondHandled).toBe(true);
+    expect(secondEvent.defaultPrevented).toBe(false);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(writeClipboardText).not.toHaveBeenCalled();
+  });
+
+  it('does not let a held Ctrl+C key repeat confirm the interrupt', async () => {
+    installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    act(() => {
+      xterm.customKeyEventHandler!(clipboardKey('KeyC', { ctrlKey: true }));
+    });
+    const repeatEvent = clipboardKey('KeyC', { ctrlKey: true, repeat: true });
+    let repeatHandled!: boolean;
+    act(() => { repeatHandled = xterm.customKeyEventHandler!(repeatEvent); });
+
+    expect(repeatHandled).toBe(false);
+    expect(repeatEvent.defaultPrevented).toBe(true);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    const secondPhysicalEvent = clipboardKey('KeyC', { ctrlKey: true });
+    let secondHandled!: boolean;
+    act(() => {
+      secondHandled = xterm.customKeyEventHandler!(secondPhysicalEvent);
+    });
+    expect(secondHandled).toBe(true);
+  });
+
+  it('clears interrupt confirmation when another key is pressed', async () => {
+    installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    act(() => {
+      xterm.customKeyEventHandler!(clipboardKey('KeyC', { ctrlKey: true }));
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    const unrelatedEvent = clipboardKey('KeyX', {});
+    let unrelatedHandled!: boolean;
+    act(() => {
+      unrelatedHandled = xterm.customKeyEventHandler!(unrelatedEvent);
+    });
+    expect(unrelatedHandled).toBe(true);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    const nextInterrupt = clipboardKey('KeyC', { ctrlKey: true });
+    let nextHandled!: boolean;
+    act(() => { nextHandled = xterm.customKeyEventHandler!(nextInterrupt); });
+    expect(nextHandled).toBe(false);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('expires interrupt confirmation after the safety window', async () => {
+    installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        xterm.customKeyEventHandler!(clipboardKey('KeyC', { ctrlKey: true }));
+      });
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(TERMINAL_INTERRUPT_CONFIRMATION_MS);
+      });
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears interrupt confirmation when the terminal becomes inactive', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    act(() => {
+      xterm.customKeyEventHandler!(clipboardKey('KeyC', { ctrlKey: true }));
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    rerender(
+      <ManagedTerminal
+        active={false}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('clears interrupt confirmation when the runtime is replaced', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    act(() => {
+      xterm.customKeyEventHandler!(clipboardKey('KeyC', { ctrlKey: true }));
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    rerender(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={{ ...runtime, id: '0198f8b6-18f3-7ca0-9f0f-abcdef012345' }}
+      />
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('pastes clipboard text through xterm and restores active focus', async () => {

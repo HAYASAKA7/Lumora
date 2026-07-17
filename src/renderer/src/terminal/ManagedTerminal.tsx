@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
 import type {
@@ -7,6 +7,10 @@ import type {
   SystemInfo
 } from '../../../shared/contracts';
 import { classifyTerminalClipboardKey } from './terminal-clipboard';
+import {
+  decideTerminalInterrupt,
+  TERMINAL_INTERRUPT_CONFIRMATION_MS
+} from './terminal-interrupt-guard';
 
 interface ManagedTerminalProps {
   active: boolean;
@@ -28,11 +32,24 @@ export function ManagedTerminal({
   const platformRef = useRef(platform);
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
+  const interruptDeadlineRef = useRef<number | null>(null);
+  const interruptTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [interruptArmed, setInterruptArmed] = useState(false);
   activeRef.current = active;
   platformRef.current = platform;
 
+  const clearInterruptGuard = useCallback(() => {
+    interruptDeadlineRef.current = null;
+    if (interruptTimerRef.current !== null) {
+      window.clearTimeout(interruptTimerRef.current);
+      interruptTimerRef.current = null;
+    }
+    setInterruptArmed(false);
+  }, []);
+
   useEffect(() => {
+    clearInterruptGuard();
     const target = container.current;
     if (target === null) return;
     let alive = true;
@@ -64,7 +81,38 @@ export function ManagedTerminal({
             platformRef.current,
             terminal.hasSelection()
           );
+          if (event.type === 'keydown' && action !== 'interrupt') {
+            clearInterruptGuard();
+          }
           if (action === 'terminal') return true;
+
+          if (action === 'interrupt') {
+            const decision = decideTerminalInterrupt(
+              interruptDeadlineRef.current,
+              Date.now(),
+              event.repeat
+            );
+            interruptDeadlineRef.current = decision.armedUntil;
+
+            if (decision.action === 'forward') {
+              clearInterruptGuard();
+              return true;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (decision.action === 'arm') {
+              if (interruptTimerRef.current !== null) {
+                window.clearTimeout(interruptTimerRef.current);
+              }
+              if (alive) setInterruptArmed(true);
+              interruptTimerRef.current = window.setTimeout(
+                clearInterruptGuard,
+                TERMINAL_INTERRUPT_CONFIRMATION_MS
+              );
+            }
+            return false;
+          }
 
           event.preventDefault();
           event.stopPropagation();
@@ -153,21 +201,34 @@ export function ManagedTerminal({
 
     return () => {
       alive = false;
+      interruptDeadlineRef.current = null;
+      if (interruptTimerRef.current !== null) {
+        window.clearTimeout(interruptTimerRef.current);
+        interruptTimerRef.current = null;
+      }
       terminalRef.current = null;
       fitAddonRef.current = null;
       dispose();
     };
-  }, [runtime.id, onRuntimeChange]);
+  }, [runtime.id, onRuntimeChange, clearInterruptGuard]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      clearInterruptGuard();
+      return;
+    }
     fitAddonRef.current?.fit();
     terminalRef.current?.focus();
-  }, [active]);
+  }, [active, clearInterruptGuard]);
 
   return (
     <div className="managed-terminal-shell">
       {error === null ? null : <div className="terminal-error" role="alert">{error}</div>}
+      {interruptArmed ? (
+        <div className="terminal-interrupt-notice" role="status">
+          Press Ctrl+C again to interrupt
+        </div>
+      ) : null}
       <div
         aria-label={`${runtime.provider} terminal`}
         className="managed-terminal"
