@@ -40,4 +40,22 @@ describe('unsigned MVP release documentation', () => {
       /<p align="center">\s*<img[^>]+alt="Lumora"[^>]+>\s*<\/p>/
     );
   });
+
+  it('documents the controlled Lumora draft prerelease process', async () => {
+    const readme = await readFile(readmePath, 'utf8');
+
+    for (const documentation of [
+      '## Publish an unsigned GitHub prerelease',
+      'Product: **Lumora**',
+      'Author: **HAYASAKA7**',
+      'git tag v0.1.0',
+      'git push origin v0.1.0',
+      'Lumora unsigned prerelease',
+      'SHA256SUMS.txt',
+      'draft prerelease',
+      'manually publish'
+    ]) {
+      expect(readme).toContain(documentation);
+    }
+  });
 });

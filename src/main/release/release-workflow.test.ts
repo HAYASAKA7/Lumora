@@ -2,6 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const workflowPath = new URL('../../../.github/workflows/package.yml', import.meta.url);
+const releaseWorkflowPath = new URL(
+  '../../../.github/workflows/release.yml',
+  import.meta.url
+);
 
 function topLevelSection(workflow: string, name: string): string {
   const lines = workflow.split(/\r?\n/);
@@ -151,5 +155,101 @@ describe('unsigned package workflow', () => {
     );
     expect(workflow).toContain('if-no-files-found: error');
     expect(workflow).toContain('retention-days: 14');
+  });
+});
+
+describe('unsigned GitHub release workflow', () => {
+  it('runs only for version tags and keeps write access in the release job', async () => {
+    const workflow = await readFile(releaseWorkflowPath, 'utf8');
+    const trigger = topLevelSection(workflow, 'on');
+    const permissions = topLevelSection(workflow, 'permissions');
+    const env = topLevelSection(workflow, 'env');
+
+    expect(workflow).toMatch(/^name: Lumora unsigned prerelease$/m);
+    expect(trigger).toBe("on:\n  push:\n    tags:\n      - 'v*'");
+    expect(trigger).not.toMatch(/^\s+(?:workflow_dispatch|pull_request):/m);
+    expect(permissions).toBe('permissions:\n  contents: read');
+    expect(env).toBe("env:\n  CSC_IDENTITY_AUTO_DISCOVERY: 'false'");
+
+    expect(workflow).toContain('uses: actions/checkout@v6');
+    expect(workflow).not.toContain('uses: actions/checkout@v7');
+    expect(workflow).toContain('uses: actions/setup-node@v6');
+    expect(workflow).toContain(
+      'run: node scripts/release/verify-release-tag.cjs'
+    );
+    expect(workflow).toContain('run: npm run verify');
+    expect(workflow).toMatch(
+      /release:\r?\n[\s\S]*?permissions:\r?\n\s+contents: write/
+    );
+    expect(workflow.match(/contents: write/g)).toHaveLength(1);
+    expect(workflow).toContain("if: startsWith(github.ref, 'refs/tags/v')");
+  });
+
+  it('builds four verified native assets before creating a draft prerelease', async () => {
+    const workflow = await readFile(releaseWorkflowPath, 'utf8');
+
+    expect(matrixEntries(workflow)).toEqual([
+      {
+        label: 'Windows x64',
+        runner: 'windows-latest',
+        platform: 'win',
+        arch: 'x64',
+        extension: 'exe',
+        builder_args: '--win nsis --x64'
+      },
+      {
+        label: 'Linux x64',
+        runner: 'ubuntu-24.04',
+        platform: 'linux',
+        arch: 'x64',
+        extension: 'AppImage',
+        builder_args: '--linux AppImage --x64'
+      },
+      {
+        label: 'macOS Apple Silicon',
+        runner: 'macos-15',
+        platform: 'mac',
+        arch: 'arm64',
+        extension: 'dmg',
+        builder_args: '--mac dmg --arm64'
+      },
+      {
+        label: 'macOS Intel',
+        runner: 'macos-15-intel',
+        platform: 'mac',
+        arch: 'x64',
+        extension: 'dmg',
+        builder_args: '--mac dmg --x64'
+      }
+    ]);
+
+    expect(workflow).toContain('needs: preflight');
+    const nativeBuild = workflow.indexOf('run: npm run build');
+    const packageBuild = workflow.indexOf(
+      'run: npx electron-builder ${{ matrix.builder_args }} --publish never'
+    );
+    expect(nativeBuild).toBeGreaterThan(-1);
+    expect(packageBuild).toBeGreaterThan(nativeBuild);
+    expect(workflow).toContain(
+      'run: npx electron-builder ${{ matrix.builder_args }} --publish never'
+    );
+    expect(workflow).toContain(
+      'run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}'
+    );
+    expect(workflow).toContain('uses: actions/upload-artifact@v7');
+    expect(workflow).toContain('uses: actions/download-artifact@v8');
+    expect(workflow).toContain('merge-multiple: true');
+    expect(workflow).toContain('sha256sum Lumora-* > SHA256SUMS.txt');
+    expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(workflow).toContain('gh release create "$GITHUB_REF_NAME"');
+    for (const flag of [
+      '--verify-tag',
+      '--draft',
+      '--prerelease',
+      '--generate-notes',
+      '--title "Lumora $GITHUB_REF_NAME"'
+    ]) {
+      expect(workflow).toContain(flag);
+    }
   });
 });

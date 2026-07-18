@@ -161,6 +161,30 @@ For each target, complete this manual smoke-test checklist:
 6. Exit the provider process and confirm the session tab closes automatically.
 7. Restart Lumora and confirm workspaces, settings, and history persist.
 
+## Publish an unsigned GitHub prerelease
+
+- Product: **Lumora**
+- Author: **HAYASAKA7**
+
+After the manual package workflow passes, update the version in `package.json`
+and `package-lock.json`, commit it, and push a matching version tag. For the
+first MVP release:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The **Lumora unsigned prerelease** workflow accepts only a tag that exactly
+matches the package version. It verifies the source, builds all four native
+targets, validates the packaged runtime, and attaches the packages plus
+`SHA256SUMS.txt` to a GitHub draft prerelease.
+
+Review the draft's generated notes, checksums, package names, and manual smoke
+test results. Because the packages are unsigned, keep the release marked as a
+prerelease and manually publish it only after every target is accepted. A
+failed verification or missing artifact prevents the draft from being created.
+
 Signing, notarization, publishing, and automatic updates are deferred until
 after MVP testing.
 
