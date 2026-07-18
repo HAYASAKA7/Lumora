@@ -185,6 +185,54 @@ function deferred<T>() {
 }
 
 describe('CatalogService', () => {
+  it('coalesces concurrent scans while preserving each caller query', async () => {
+    const repository = createRepository();
+    const pendingScan = deferred<ProviderScanResult>();
+    const scanProviders = vi.fn(() => pendingScan.promise);
+    const service = new CatalogService(
+      dependencies({ repository, scanProviders })
+    );
+
+    const codex = service.refreshCatalog({
+      text: 'codex',
+      provider: 'codex'
+    });
+    const claude = service.refreshCatalog({
+      text: 'claude',
+      provider: 'claude'
+    });
+
+    expect(scanProviders).toHaveBeenCalledOnce();
+    pendingScan.resolve(scan());
+    const [codexSnapshot, claudeSnapshot] = await Promise.all([
+      codex,
+      claude
+    ]);
+
+    expect(scanProviders).toHaveBeenCalledOnce();
+    expect(codexSnapshot).toMatchObject({
+      querySeenByTest: { text: 'codex', provider: 'codex' }
+    });
+    expect(claudeSnapshot).toMatchObject({
+      querySeenByTest: { text: 'claude', provider: 'claude' }
+    });
+  });
+
+  it('starts a fresh scan after a coalesced scan rejects', async () => {
+    const scanProviders = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('scan unavailable'))
+      .mockResolvedValueOnce(scan());
+    const service = new CatalogService(dependencies({ scanProviders }));
+
+    await expect(service.refreshCatalog()).rejects.toThrow('scan unavailable');
+    await expect(service.refreshCatalog()).resolves.toMatchObject({
+      providerStatus: expect.any(Array)
+    });
+
+    expect(scanProviders).toHaveBeenCalledTimes(2);
+  });
+
   it('discovers all complete providers concurrently and commits in definition order', async () => {
     const repository = createRepository();
     const pending = new Map(

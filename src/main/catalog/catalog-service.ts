@@ -175,6 +175,7 @@ export class CatalogService {
   private availableProviders: ProviderId[] = [];
   private diagnostics: CatalogDiagnostic[] = [];
   private refreshedAt: string;
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
     this.providerStatus = dependencies.registry
@@ -198,6 +199,22 @@ export class CatalogService {
     query: CatalogQuery = EMPTY_QUERY
   ): Promise<CatalogSnapshot> {
     const parsedQuery = CatalogQuerySchema.parse(query);
+    if (this.refreshInFlight === null) {
+      const refresh = this.refreshProviders();
+      this.refreshInFlight = refresh;
+      void refresh
+        .finally(() => {
+          if (this.refreshInFlight === refresh) {
+            this.refreshInFlight = null;
+          }
+        })
+        .catch(() => undefined);
+    }
+    await this.refreshInFlight;
+    return this.getCatalog(parsedQuery);
+  }
+
+  private async refreshProviders(): Promise<void> {
     const scannedAt = this.dependencies.clock().toISOString();
     const scan = await this.dependencies.scanProviders();
     const installations = new Map<ProviderId, ProviderInstallation>(
@@ -334,7 +351,6 @@ export class CatalogService {
     );
     this.diagnostics = nextDiagnostics;
     this.refreshedAt = scannedAt;
-    return this.getCatalog(parsedQuery);
   }
 
   async registerWorkspace(
