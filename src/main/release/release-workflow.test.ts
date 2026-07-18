@@ -241,6 +241,7 @@ describe('unsigned GitHub release workflow', () => {
     expect(workflow).toContain('merge-multiple: true');
     expect(workflow).toContain('sha256sum Lumora-* > SHA256SUMS.txt');
     expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(workflow).toContain('GH_REPO: ${{ github.repository }}');
     expect(workflow).toContain('gh release create "$GITHUB_REF_NAME"');
     for (const flag of [
       '--verify-tag',
