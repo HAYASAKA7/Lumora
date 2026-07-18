@@ -22,24 +22,28 @@ jobs:
             runner: windows-latest
             platform: win
             arch: x64
+            artifact_arch: x64
             extension: exe
             builder_args: --win nsis --x64
           - label: Linux x64
             runner: ubuntu-24.04
             platform: linux
             arch: x64
+            artifact_arch: x86_64
             extension: AppImage
             builder_args: --linux AppImage --x64
           - label: macOS Apple Silicon
             runner: macos-15
             platform: mac
             arch: arm64
+            artifact_arch: arm64
             extension: dmg
             builder_args: --mac dmg --arm64
           - label: macOS Intel
             runner: macos-15-intel
             platform: mac
             arch: x64
+            artifact_arch: x64
             extension: dmg
             builder_args: --mac dmg --x64
     steps:
@@ -52,11 +56,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      - run: npx electron-builder ${{ matrix.builder_args }}
+      - run: npx electron-builder ${{ matrix.builder_args }} --publish never
       - run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
       - uses: actions/upload-artifact@v7
         with:
           name: lumora-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
+          path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.artifact_arch }}.${{ matrix.extension }}
           if-no-files-found: error
           retention-days: 14

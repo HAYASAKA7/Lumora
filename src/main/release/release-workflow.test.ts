@@ -65,7 +65,7 @@ function matrixEntries(workflow: string): Array<Record<string, string>> {
 }
 
 describe('unsigned package workflow', () => {
-  it('is manual, read-only, unsigned, and installs from the lockfile', async () => {
+  it('is manual, read-only, unsigned, never publishes, and installs from the lockfile', async () => {
     const workflow = await readFile(workflowPath, 'utf8');
     const trigger = topLevelSection(workflow, 'on');
     const permissions = topLevelSection(workflow, 'permissions');
@@ -90,7 +90,10 @@ describe('unsigned package workflow', () => {
 
     expect(workflow).not.toMatch(/\bGH_TOKEN\b/);
     expect(workflow).not.toMatch(/contents:\s*write/);
-    expect(workflow).not.toMatch(/(?:--publish|^\s*publish:)/m);
+    expect(workflow).toContain(
+      'run: npx electron-builder ${{ matrix.builder_args }} --publish never'
+    );
+    expect(workflow).not.toMatch(/^\s*publish:/m);
     expect(workflow).not.toMatch(/(?:create-release|upload-release|release-action|action-gh-release)/i);
   });
 
@@ -107,6 +110,7 @@ describe('unsigned package workflow', () => {
         runner: 'windows-latest',
         platform: 'win',
         arch: 'x64',
+        artifact_arch: 'x64',
         extension: 'exe',
         builder_args: '--win nsis --x64'
       },
@@ -115,6 +119,7 @@ describe('unsigned package workflow', () => {
         runner: 'ubuntu-24.04',
         platform: 'linux',
         arch: 'x64',
+        artifact_arch: 'x86_64',
         extension: 'AppImage',
         builder_args: '--linux AppImage --x64'
       },
@@ -123,6 +128,7 @@ describe('unsigned package workflow', () => {
         runner: 'macos-15',
         platform: 'mac',
         arch: 'arm64',
+        artifact_arch: 'arm64',
         extension: 'dmg',
         builder_args: '--mac dmg --arm64'
       },
@@ -131,6 +137,7 @@ describe('unsigned package workflow', () => {
         runner: 'macos-15-intel',
         platform: 'mac',
         arch: 'x64',
+        artifact_arch: 'x64',
         extension: 'dmg',
         builder_args: '--mac dmg --x64'
       }
@@ -141,7 +148,7 @@ describe('unsigned package workflow', () => {
       'uses: actions/setup-node@v6',
       'run: npm ci',
       'run: npm run verify',
-      'run: npx electron-builder ${{ matrix.builder_args }}',
+      'run: npx electron-builder ${{ matrix.builder_args }} --publish never',
       'run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}',
       'uses: actions/upload-artifact@v7'
     ];
@@ -151,7 +158,7 @@ describe('unsigned package workflow', () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
     expect(workflow).toContain('name: lumora-${{ matrix.platform }}-${{ matrix.arch }}');
     expect(workflow).toContain(
-      'path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}'
+      'path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.artifact_arch }}.${{ matrix.extension }}'
     );
     expect(workflow).toContain('if-no-files-found: error');
     expect(workflow).toContain('retention-days: 14');
@@ -194,6 +201,7 @@ describe('unsigned GitHub release workflow', () => {
         runner: 'windows-latest',
         platform: 'win',
         arch: 'x64',
+        artifact_arch: 'x64',
         extension: 'exe',
         builder_args: '--win nsis --x64'
       },
@@ -202,6 +210,7 @@ describe('unsigned GitHub release workflow', () => {
         runner: 'ubuntu-24.04',
         platform: 'linux',
         arch: 'x64',
+        artifact_arch: 'x86_64',
         extension: 'AppImage',
         builder_args: '--linux AppImage --x64'
       },
@@ -210,6 +219,7 @@ describe('unsigned GitHub release workflow', () => {
         runner: 'macos-15',
         platform: 'mac',
         arch: 'arm64',
+        artifact_arch: 'arm64',
         extension: 'dmg',
         builder_args: '--mac dmg --arm64'
       },
@@ -218,6 +228,7 @@ describe('unsigned GitHub release workflow', () => {
         runner: 'macos-15-intel',
         platform: 'mac',
         arch: 'x64',
+        artifact_arch: 'x64',
         extension: 'dmg',
         builder_args: '--mac dmg --x64'
       }
@@ -237,6 +248,9 @@ describe('unsigned GitHub release workflow', () => {
       'run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}'
     );
     expect(workflow).toContain('uses: actions/upload-artifact@v7');
+    expect(workflow).toContain(
+      'path: dist/Lumora-*-${{ matrix.platform }}-${{ matrix.artifact_arch }}.${{ matrix.extension }}'
+    );
     expect(workflow).toContain('uses: actions/download-artifact@v8');
     expect(workflow).toContain('merge-multiple: true');
     expect(workflow).toContain('sha256sum Lumora-* > SHA256SUMS.txt');

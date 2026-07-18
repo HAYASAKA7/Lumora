@@ -13,6 +13,7 @@ const TARGETS = {
   },
   'linux-x64': {
     artifactExtension: 'AppImage',
+    artifactArch: 'x86_64',
     iconPath: ['resources', 'icons', 'lumora', 'linux', 'lumora.png'],
     unpackedDirectories: ['linux-unpacked'],
     executablePath: ['lumora'],
@@ -120,9 +121,10 @@ function verifyPackage({
 
   let artifactPath;
   if (requireArtifact) {
+    const artifactArch = target.artifactArch || arch;
     artifactPath = join(
       outputDir,
-      `Lumora-${version}-${platform}-${arch}.${target.artifactExtension}`
+      `Lumora-${version}-${platform}-${artifactArch}.${target.artifactExtension}`
     );
     requireNonEmptyFile('package artifact', artifactPath);
   }

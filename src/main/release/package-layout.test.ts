@@ -49,10 +49,11 @@ async function createCompleteFixture(
   await writeFixtureFile(join(rootDir, 'resources', 'icons', 'lumora', 'linux', 'lumora.png'));
 
   const extension = platform === 'win' ? 'exe' : platform === 'mac' ? 'dmg' : 'AppImage';
+  const artifactArch = platform === 'linux' && arch === 'x64' ? 'x86_64' : arch;
   const artifactPath = join(
     rootDir,
     'dist',
-    `Lumora-0.1.0-${platform}-${arch}.${extension}`
+    `Lumora-0.1.0-${platform}-${artifactArch}.${extension}`
   );
   await writeFixtureFile(artifactPath);
 
