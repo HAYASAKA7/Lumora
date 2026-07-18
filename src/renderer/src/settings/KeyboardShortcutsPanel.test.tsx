@@ -37,7 +37,7 @@ describe('KeyboardShortcutsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save shortcut' }));
     await waitFor(() => {
       expect(window.lumora.saveKeyboardSettings).toHaveBeenCalledWith({
-        version: 1,
+        ...DEFAULT_KEYBOARD_SETTINGS,
         terminalSwitcher: {
           code: 'KeyK',
           control: true,
@@ -48,10 +48,49 @@ describe('KeyboardShortcutsPanel', () => {
       });
     });
     expect(onChange).toHaveBeenLastCalledWith({
-      version: 1,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: expect.objectContaining({ code: 'KeyK' })
     });
-    expect(await screen.findByRole('status')).toHaveTextContent('Shortcut saved');
+    expect(await screen.findByRole('status')).toHaveTextContent('Shortcuts saved');
+  });
+
+  it('shows every configurable application shortcut', async () => {
+    render(<KeyboardShortcutsPanel platform="linux" />);
+
+    expect(await screen.findByRole('button', {
+      name: 'Record terminal switcher shortcut'
+    })).toHaveTextContent('Ctrl + Tab');
+    expect(screen.getByRole('button', {
+      name: 'Record open terminals shortcut'
+    })).toHaveTextContent('Ctrl + T');
+    expect(screen.getByRole('button', {
+      name: 'Record toggle sidebar shortcut'
+    })).toHaveTextContent('Ctrl + L');
+    expect(screen.getByRole('button', {
+      name: 'Record go to Home shortcut'
+    })).toHaveTextContent('Ctrl + 1');
+    expect(screen.getByRole('button', {
+      name: 'Record go to Settings alternate shortcut'
+    })).toHaveTextContent('Ctrl + Comma');
+  });
+
+  it('rejects a shortcut already assigned to another action', async () => {
+    render(<KeyboardShortcutsPanel platform="win32" />);
+    const recorder = await screen.findByRole('button', {
+      name: 'Record open terminals shortcut'
+    });
+
+    fireEvent.click(recorder);
+    fireEvent.keyDown(recorder, {
+      code: 'Digit1',
+      key: '1',
+      ctrlKey: true
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /already used by Go to Home/i
+    );
+    expect(window.lumora.saveKeyboardSettings).not.toHaveBeenCalled();
   });
 
   it('does not save Windows Alt+Tab', async () => {
@@ -73,7 +112,7 @@ describe('KeyboardShortcutsPanel', () => {
 
   it('resets the shortcut to the default after persistence succeeds', async () => {
     const custom = {
-      version: 1 as const,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -95,7 +134,7 @@ describe('KeyboardShortcutsPanel', () => {
       );
     });
     expect(onChange).toHaveBeenLastCalledWith(DEFAULT_KEYBOARD_SETTINGS);
-    expect(screen.getByRole('status')).toHaveTextContent('Shortcut reset');
+    expect(screen.getByRole('status')).toHaveTextContent('Shortcuts reset');
   });
 
   it('keeps the effective shortcut when resetting cannot be persisted', async () => {

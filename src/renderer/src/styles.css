@@ -971,11 +971,30 @@ button {
   gap: 18px;
 }
 
+.keyboard-shortcut-list {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 .keyboard-shortcut-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.keyboard-shortcut-row + .keyboard-shortcut-row {
+  border-top: 1px solid var(--line);
+}
+
+.keyboard-shortcut-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .keyboard-shortcut-row strong {

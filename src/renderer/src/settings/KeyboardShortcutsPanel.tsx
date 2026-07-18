@@ -17,6 +17,81 @@ import {
   shortcutConflictMessage
 } from '../keyboard/shortcut';
 
+type ShortcutSettingKey = Exclude<keyof KeyboardSettings, 'version'>;
+
+const SHORTCUT_ROWS = [
+  {
+    key: 'terminalSwitcher',
+    label: 'Switch active terminal',
+    description: 'Cycle through open terminals in most-recently-used order.',
+    ariaLabel: 'Record terminal switcher shortcut'
+  },
+  {
+    key: 'openTerminals',
+    label: 'Open terminals',
+    description: 'Return to a currently running terminal.',
+    ariaLabel: 'Record open terminals shortcut'
+  },
+  {
+    key: 'toggleSidebar',
+    label: 'Toggle sidebar',
+    description: 'Expand or collapse the sidebar outside terminal input.',
+    ariaLabel: 'Record toggle sidebar shortcut'
+  },
+  {
+    key: 'openHome',
+    label: 'Go to Home',
+    description: 'Open the Home page.',
+    ariaLabel: 'Record go to Home shortcut'
+  },
+  {
+    key: 'openWorkspaces',
+    label: 'Go to Workspaces',
+    description: 'Open the Workspaces page.',
+    ariaLabel: 'Record go to Workspaces shortcut'
+  },
+  {
+    key: 'openSessions',
+    label: 'Go to All Sessions',
+    description: 'Open the complete session catalog.',
+    ariaLabel: 'Record go to All Sessions shortcut'
+  },
+  {
+    key: 'openProfiles',
+    label: 'Go to Terminal Profiles',
+    description: 'Open terminal profile settings.',
+    ariaLabel: 'Record go to Terminal Profiles shortcut'
+  },
+  {
+    key: 'openSettings',
+    label: 'Go to Settings',
+    description: 'Open Lumora settings.',
+    ariaLabel: 'Record go to Settings shortcut'
+  },
+  {
+    key: 'openSettingsAlias',
+    label: 'Go to Settings (alternate)',
+    description: 'Keep a second convenient shortcut for Settings.',
+    ariaLabel: 'Record go to Settings alternate shortcut'
+  }
+] as const satisfies ReadonlyArray<{
+  key: ShortcutSettingKey;
+  label: string;
+  description: string;
+  ariaLabel: string;
+}>;
+
+function chordsMatch(
+  left: KeyboardShortcutChord,
+  right: KeyboardShortcutChord
+): boolean {
+  return left.code === right.code &&
+    left.control === right.control &&
+    left.alt === right.alt &&
+    left.shift === right.shift &&
+    left.meta === right.meta;
+}
+
 export function KeyboardShortcutsPanel({
   onChange,
   platform
@@ -25,8 +100,8 @@ export function KeyboardShortcutsPanel({
   platform: SystemInfo['platform'];
 }): ReactNode {
   const [settings, setSettings] = useState<KeyboardSettings | null>(null);
-  const [draft, setDraft] = useState<KeyboardShortcutChord | null>(null);
-  const [recording, setRecording] = useState(false);
+  const [draft, setDraft] = useState<KeyboardSettings | null>(null);
+  const [recording, setRecording] = useState<ShortcutSettingKey | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -37,7 +112,7 @@ export function KeyboardShortcutsPanel({
       (value) => {
         if (!active) return;
         setSettings(value);
-        setDraft(value.terminalSwitcher);
+        setDraft(value);
         onChange?.(value);
       },
       () => {
@@ -50,27 +125,38 @@ export function KeyboardShortcutsPanel({
     };
   }, [onChange]);
 
-  const record = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (!recording) return;
+  const record = (
+    key: ShortcutSettingKey,
+    event: ReactKeyboardEvent<HTMLButtonElement>
+  ) => {
+    if (recording !== key || draft === null) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.code === 'Escape') {
-      setRecording(false);
+      setRecording(null);
       setError(null);
       return;
     }
 
     const chord = chordFromKeyboardEvent(event.nativeEvent);
     if (chord === null) return;
-    const conflict = shortcutConflictMessage(chord, platform);
-    if (conflict !== null) {
-      setError(conflict);
+    const platformConflict = shortcutConflictMessage(chord, platform);
+    if (platformConflict !== null) {
+      setError(platformConflict);
+      setNotice(null);
+      return;
+    }
+    const duplicate = SHORTCUT_ROWS.find(
+      (row) => row.key !== key && chordsMatch(draft[row.key], chord)
+    );
+    if (duplicate !== undefined) {
+      setError(`That shortcut is already used by ${duplicate.label}.`);
       setNotice(null);
       return;
     }
 
-    setDraft(chord);
-    setRecording(false);
+    setDraft({ ...draft, [key]: chord });
+    setRecording(null);
     setError(null);
     setNotice(null);
   };
@@ -83,26 +169,26 @@ export function KeyboardShortcutsPanel({
     void window.lumora.saveKeyboardSettings(next).then(
       (value) => {
         setSettings(value);
-        setDraft(value.terminalSwitcher);
+        setDraft(value);
         setSaving(false);
         setNotice(successNotice);
         onChange?.(value);
       },
       () => {
         setSaving(false);
-        setError('The shortcut could not be saved.');
+        setError('The shortcuts could not be saved.');
       }
     );
   };
 
   const save = () => {
     if (settings === null || draft === null) return;
-    persist({ ...settings, terminalSwitcher: draft }, 'Shortcut saved.');
+    persist(draft, 'Shortcuts saved.');
   };
 
   const reset = () => {
     if (settings === null) return;
-    persist(DEFAULT_KEYBOARD_SETTINGS, 'Shortcut reset.');
+    persist(DEFAULT_KEYBOARD_SETTINGS, 'Shortcuts reset.');
   };
 
   return (
@@ -111,49 +197,60 @@ export function KeyboardShortcutsPanel({
         <div>
           <p className="card-label">Keyboard</p>
           <h2>Keyboard shortcuts</h2>
-          <p>Choose how Lumora opens the active-terminal switcher.</p>
+          <p>Customize terminal access, navigation, and sidebar controls.</p>
         </div>
       </header>
 
       {draft === null ? (
         <p className="provider-panel-state">Loading keyboard settings…</p>
       ) : (
-        <div className="keyboard-shortcut-row">
-          <div>
-            <strong>Switch active terminal</strong>
-            <p>Press the shortcut repeatedly to move through open terminals.</p>
+        <>
+          <div className="keyboard-shortcut-list">
+            {SHORTCUT_ROWS.map((row) => (
+              <div className="keyboard-shortcut-row" key={row.key}>
+                <div>
+                  <strong>{row.label}</strong>
+                  <p>{row.description}</p>
+                </div>
+                <button
+                  aria-label={row.ariaLabel}
+                  aria-pressed={recording === row.key}
+                  className={`shortcut-recorder${recording === row.key ? ' is-recording' : ''}`}
+                  disabled={saving}
+                  onClick={() => {
+                    setRecording(row.key);
+                    setError(null);
+                    setNotice(null);
+                  }}
+                  onKeyDown={(event) => record(row.key, event)}
+                  type="button"
+                >
+                  {recording === row.key
+                    ? 'Press shortcut…'
+                    : formatShortcutChord(draft[row.key], platform)}
+                </button>
+              </div>
+            ))}
           </div>
-          <button
-            aria-label="Record terminal switcher shortcut"
-            aria-pressed={recording}
-            className={`shortcut-recorder${recording ? ' is-recording' : ''}`}
-            onClick={() => {
-              setRecording(true);
-              setError(null);
-              setNotice(null);
-            }}
-            onKeyDown={record}
-            type="button"
-          >
-            {recording ? 'Press shortcut…' : formatShortcutChord(draft, platform)}
-          </button>
-          <button
-            className="secondary-button"
-            disabled={saving || recording}
-            onClick={save}
-            type="button"
-          >
-            {saving ? 'Saving…' : 'Save shortcut'}
-          </button>
-          <button
-            className="secondary-button"
-            disabled={saving || recording}
-            onClick={reset}
-            type="button"
-          >
-            Reset to default
-          </button>
-        </div>
+          <div className="keyboard-shortcut-actions">
+            <button
+              className="secondary-button"
+              disabled={saving || recording !== null}
+              onClick={save}
+              type="button"
+            >
+              {saving ? 'Saving…' : 'Save shortcut'}
+            </button>
+            <button
+              className="secondary-button"
+              disabled={saving || recording !== null}
+              onClick={reset}
+              type="button"
+            >
+              Reset to default
+            </button>
+          </div>
+        </>
       )}
 
       {error === null ? null : <p className="keyboard-setting-error" role="alert">{error}</p>}
