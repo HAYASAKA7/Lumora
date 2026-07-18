@@ -25,7 +25,10 @@ describe('unsigned MVP release documentation', () => {
       '| Qwen Code | Confirmed npm action | Yes | Yes | Yes |',
       'provider-owned sessions',
       'custom CLI start command',
-      'session tab closes automatically'
+      'session tab closes automatically',
+      '<h1 align="center">Lumora</h1>',
+      'resources/icons/lumora/source/lumora-symbol-gradient.svg',
+      '<!-- SCREEN_RECORDING: Add docs/media/lumora-demo.mp4'
     ];
 
     for (const documentation of requiredDocumentation) {
@@ -33,5 +36,8 @@ describe('unsigned MVP release documentation', () => {
     }
 
     expect(readme).toMatch(/^npm run package$/m);
+    expect(readme).toMatch(
+      /<p align="center">\s*<img[^>]+alt="Lumora"[^>]+>\s*<\/p>/
+    );
   });
 });

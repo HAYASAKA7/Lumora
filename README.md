@@ -1,9 +1,16 @@
-# Lumora
+<p align="center">
+  <img src="resources/icons/lumora/source/lumora-symbol-gradient.svg" alt="Lumora" width="112" height="112">
+</p>
 
-Lumora is a local desktop workspace and session manager for native AI-agent
-CLIs. It brings provider discovery, saved sessions, launch settings, lifecycle
+<h1 align="center">Lumora</h1>
+
+<p align="center"><strong>A local desktop workspace and session manager for native AI-agent CLIs.</strong></p>
+
+Lumora brings provider discovery, saved sessions, launch settings, lifecycle
 guidance, and native CLI terminals into one Electron application without
 replacing providers' own session formats or permission models.
+
+<!-- SCREEN_RECORDING: Add docs/media/lumora-demo.mp4 and its preview image here. -->
 
 <!-- SCREENSHOT: Add docs/screenshots/home.png (Home and workspace overview) -->
 
