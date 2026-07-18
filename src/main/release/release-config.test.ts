@@ -50,10 +50,14 @@ describe('release packaging configuration', () => {
 
   it('declares the package scripts and pinned electron-builder version', async () => {
     const packageJson = JSON.parse(await readRepoFile('package.json')) as {
+      name: string;
+      author: string;
       scripts: Record<string, string>;
       devDependencies: Record<string, string>;
     };
 
+    expect(packageJson.name).toBe('lumora');
+    expect(packageJson.author).toBe('HAYASAKA7');
     expect(packageJson.scripts['package:dir']).toBe(
       'npm run build && electron-builder --dir'
     );

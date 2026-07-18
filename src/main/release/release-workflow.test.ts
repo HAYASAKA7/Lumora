@@ -74,10 +74,11 @@ describe('unsigned package workflow', () => {
     expect(workflow).not.toContain('contents: write');
     expect(env).toBe("env:\n  CSC_IDENTITY_AUTO_DISCOVERY: 'false'");
 
-    expect(workflow).toContain('uses: actions/checkout@v7');
+    expect(workflow).toContain('uses: actions/checkout@v6');
     expect(workflow).toMatch(
-      /- uses: actions\/checkout@v7\r?\n\s+with:\r?\n\s+persist-credentials: false/
+      /- uses: actions\/checkout@v6\r?\n\s+with:\r?\n\s+persist-credentials: false/
     );
+    expect(workflow).not.toContain('uses: actions/checkout@v7');
     expect(workflow).toContain('uses: actions/setup-node@v6');
     expect(workflow).toContain('node-version-file: .nvmrc');
     expect(workflow).toContain('cache: npm');
@@ -132,7 +133,7 @@ describe('unsigned package workflow', () => {
     ]);
 
     const orderedSteps = [
-      'uses: actions/checkout@v7',
+      'uses: actions/checkout@v6',
       'uses: actions/setup-node@v6',
       'run: npm ci',
       'run: npm run verify',
