@@ -97,7 +97,7 @@ export function KeyboardShortcutsPanel({
 
   const save = () => {
     if (settings === null || draft === null) return;
-    persist({ version: 1, terminalSwitcher: draft }, 'Shortcut saved.');
+    persist({ ...settings, terminalSwitcher: draft }, 'Shortcut saved.');
   };
 
   const reset = () => {

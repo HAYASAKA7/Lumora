@@ -451,7 +451,7 @@ describe('createLumoraApi', () => {
   it('uses validated narrow channels for keyboard settings', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const custom = {
-      version: 1 as const,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,

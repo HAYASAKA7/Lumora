@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_KEYBOARD_SETTINGS } from '../../../shared/contracts';
 import type { KeyboardSettings } from '../../../shared/contracts';
 import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
 import { SettingsView, type SettingsCategory } from './SettingsView';
@@ -41,7 +42,7 @@ vi.mock('./KeyboardShortcutsPanel', () => ({
 }));
 
 const KEYBOARD_SETTINGS: KeyboardSettings = {
-  version: 1,
+  ...DEFAULT_KEYBOARD_SETTINGS,
   terminalSwitcher: {
     code: 'Tab',
     control: true,

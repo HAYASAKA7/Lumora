@@ -212,7 +212,7 @@ describe('registerTerminalIpc', () => {
   it('validates and forwards keyboard settings', async () => {
     const { handlers, runtimeService } = createHarness();
     const custom = {
-      version: 1 as const,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,

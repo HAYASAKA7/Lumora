@@ -884,7 +884,7 @@ describe('App', () => {
       'claude'
     );
     const getKeyboardSettings = vi.fn().mockResolvedValue({
-      version: 1,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -933,7 +933,7 @@ describe('App', () => {
     );
     const readClipboardText = vi.fn().mockResolvedValue('from clipboard');
     const getKeyboardSettings = vi.fn().mockResolvedValue({
-      version: 1,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyV',
         control: true,

@@ -291,7 +291,7 @@ describe('TerminalRepository', () => {
 
   it('persists keyboard settings and falls back when a stored value is invalid', () => {
     const custom: KeyboardSettings = {
-      version: 1,
+      ...DEFAULT_KEYBOARD_SETTINGS,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -303,6 +303,12 @@ describe('TerminalRepository', () => {
 
     expect(repository.getKeyboardSettings()).toEqual(DEFAULT_KEYBOARD_SETTINGS);
     expect(repository.saveKeyboardSettings(custom, timestamp)).toEqual(custom);
+    expect(repository.getKeyboardSettings()).toEqual(custom);
+
+    database.prepare(
+      `UPDATE app_preference SET value_json = ?
+       WHERE key = 'keyboardShortcuts.v1'`
+    ).run(JSON.stringify({ version: 1, terminalSwitcher: custom.terminalSwitcher }));
     expect(repository.getKeyboardSettings()).toEqual(custom);
 
     database.prepare(

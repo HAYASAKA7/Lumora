@@ -552,25 +552,56 @@ export const KeyboardShortcutChordSchema = z.strictObject({
   }
 });
 
-export const KeyboardSettingsSchema = z.strictObject({
-  version: z.literal(1),
-  terminalSwitcher: KeyboardShortcutChordSchema
-});
-
 export type KeyboardShortcutChord = z.infer<
   typeof KeyboardShortcutChordSchema
 >;
+
+const controlShortcut = (code: string): KeyboardShortcutChord => ({
+  code,
+  control: true,
+  alt: false,
+  shift: false,
+  meta: false
+});
+
+const DEFAULT_TERMINAL_SWITCHER = controlShortcut('Tab');
+const DEFAULT_OPEN_TERMINALS = controlShortcut('KeyT');
+const DEFAULT_TOGGLE_SIDEBAR = controlShortcut('KeyL');
+const DEFAULT_OPEN_HOME = controlShortcut('Digit1');
+const DEFAULT_OPEN_WORKSPACES = controlShortcut('Digit2');
+const DEFAULT_OPEN_SESSIONS = controlShortcut('Digit3');
+const DEFAULT_OPEN_PROFILES = controlShortcut('Digit4');
+const DEFAULT_OPEN_SETTINGS = controlShortcut('Digit5');
+const DEFAULT_OPEN_SETTINGS_ALIAS = controlShortcut('Comma');
+
+export const KeyboardSettingsSchema = z.strictObject({
+  version: z.literal(1),
+  terminalSwitcher: KeyboardShortcutChordSchema,
+  openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
+  toggleSidebar: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_SIDEBAR),
+  openHome: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_HOME),
+  openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
+  openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
+  openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
+  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS),
+  openSettingsAlias: KeyboardShortcutChordSchema.default(
+    DEFAULT_OPEN_SETTINGS_ALIAS
+  )
+});
+
 export type KeyboardSettings = z.infer<typeof KeyboardSettingsSchema>;
 
 export const DEFAULT_KEYBOARD_SETTINGS = {
   version: 1,
-  terminalSwitcher: {
-    code: 'Tab',
-    control: true,
-    alt: false,
-    shift: false,
-    meta: false
-  }
+  terminalSwitcher: DEFAULT_TERMINAL_SWITCHER,
+  openTerminals: DEFAULT_OPEN_TERMINALS,
+  toggleSidebar: DEFAULT_TOGGLE_SIDEBAR,
+  openHome: DEFAULT_OPEN_HOME,
+  openWorkspaces: DEFAULT_OPEN_WORKSPACES,
+  openSessions: DEFAULT_OPEN_SESSIONS,
+  openProfiles: DEFAULT_OPEN_PROFILES,
+  openSettings: DEFAULT_OPEN_SETTINGS,
+  openSettingsAlias: DEFAULT_OPEN_SETTINGS_ALIAS
 } as const satisfies KeyboardSettings;
 
 const TerminalDimensionsFields = {

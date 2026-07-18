@@ -954,7 +954,28 @@ describe('managed terminal contracts', () => {
         alt: false,
         shift: false,
         meta: false
+      },
+      openTerminals: expect.objectContaining({ code: 'KeyT', control: true }),
+      toggleSidebar: expect.objectContaining({ code: 'KeyL', control: true }),
+      openHome: expect.objectContaining({ code: 'Digit1', control: true }),
+      openWorkspaces: expect.objectContaining({ code: 'Digit2', control: true }),
+      openSessions: expect.objectContaining({ code: 'Digit3', control: true }),
+      openProfiles: expect.objectContaining({ code: 'Digit4', control: true }),
+      openSettings: expect.objectContaining({ code: 'Digit5', control: true }),
+      openSettingsAlias: expect.objectContaining({ code: 'Comma', control: true })
+    });
+    expect(KeyboardSettingsSchema.parse({
+      version: 1,
+      terminalSwitcher: {
+        code: 'KeyK',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
       }
+    })).toEqual({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      terminalSwitcher: expect.objectContaining({ code: 'KeyK', shift: true })
     });
     expect(KeyboardShortcutChordSchema.safeParse({
       code: 'KeyK',
