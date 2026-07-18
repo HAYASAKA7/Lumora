@@ -23,6 +23,7 @@ import type {
   TerminalProfile
 } from '../../shared/contracts';
 import App from './App';
+import { CATALOG_EXIT_REFRESH_DELAY_MS } from './catalog/useCatalogAutoRefresh';
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
@@ -542,6 +543,95 @@ describe('App', () => {
       screen.queryByRole('heading', { name: 'Codex working session' })
     ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+  });
+
+  it('quietly refreshes the current catalog after a runtime exits', async () => {
+    vi.useFakeTimers();
+    try {
+      const runtime = runningRuntime(
+        '0198f8b6-18f3-7ca0-9f0f-123456789ad0'
+      );
+      let emitRuntime!: (event: RuntimeEvent) => void;
+      const onRuntimeEvent = vi.fn(
+        (listener: (event: RuntimeEvent) => void) => {
+          emitRuntime ??= listener;
+          return () => undefined;
+        }
+      );
+      const getCatalog = vi.fn().mockResolvedValue(readyCatalog);
+      const refreshCatalog = vi.fn().mockResolvedValue(readyCatalog);
+      setSystemInfoResult(undefined, undefined, {
+        getCatalog,
+        refreshCatalog,
+        attachRuntime: vi.fn().mockResolvedValue({
+          runtime,
+          snapshot: '',
+          outputSequence: 0
+        }),
+        listRuntimes: vi.fn().mockResolvedValue([runtime]),
+        onRuntimeEvent
+      });
+      render(<App />);
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(refreshCatalog).toHaveBeenCalled();
+      refreshCatalog.mockClear();
+      getCatalog.mockClear();
+
+      act(() => {
+        emitRuntime({
+          type: 'state',
+          runtimeId: runtime.id,
+          runtime: {
+            ...runtime,
+            state: 'completed',
+            endedAt: '2026-07-18T01:30:00.000Z',
+            exitCode: 0
+          }
+        });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CATALOG_EXIT_REFRESH_DELAY_MS - 1);
+      });
+      expect(refreshCatalog).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(refreshCatalog).toHaveBeenCalledOnce();
+      expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null });
+      expect(getCatalog).toHaveBeenCalledWith({ text: '', provider: null });
+      expect(
+        screen.queryByText('Catalog refresh failed. Last saved data is still shown.')
+      ).not.toBeInTheDocument();
+
+      refreshCatalog.mockRejectedValueOnce(new Error('background scan failed'));
+      act(() => {
+        emitRuntime({
+          type: 'state',
+          runtimeId: runtime.id,
+          runtime: {
+            ...runtime,
+            state: 'failed',
+            endedAt: '2026-07-18T01:31:00.000Z',
+            exitCode: 1
+          }
+        });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CATALOG_EXIT_REFRESH_DELAY_MS);
+      });
+      expect(refreshCatalog).toHaveBeenCalledTimes(2);
+      expect(
+        screen.queryByText('Catalog refresh failed. Last saved data is still shown.')
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('activates the next terminal after the active runtime fails', async () => {

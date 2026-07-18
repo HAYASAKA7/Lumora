@@ -26,6 +26,7 @@ import {
   type CatalogViewStatus
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
+import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
   DeveloperEnvironmentNotice,
@@ -308,6 +309,13 @@ export default function App(): ReactNode {
   const workspaceDetailRequestId = useRef(0);
   const catalogReadyForQueries = useRef(false);
   const mainContentRef = useRef<HTMLElement | null>(null);
+  const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
+  const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
+  catalogQueryRef.current = {
+    text: debouncedSessionSearch,
+    provider: sessionProvider
+  };
+  selectedWorkspaceIdRef.current = selectedWorkspaceId;
 
   const activeRoute = useMemo(
     () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
@@ -442,6 +450,29 @@ export default function App(): ReactNode {
     });
   }, []);
 
+  const backgroundRefreshCatalog = useCallback(async () => {
+    const fullSnapshot = await window.lumora.refreshCatalog(
+      EMPTY_CATALOG_QUERY
+    );
+    const requestId = catalogRequestId.current + 1;
+    catalogRequestId.current = requestId;
+    const snapshot = await window.lumora.getCatalog(catalogQueryRef.current);
+    if (catalogRequestId.current === requestId) {
+      catalogReadyForQueries.current = true;
+      setCatalogStatus({ state: 'ready', snapshot });
+      setCatalogOperationError(null);
+    }
+    if (selectedWorkspaceIdRef.current !== null) {
+      workspaceDetailRequestId.current += 1;
+      setWorkspaceDetailStatus({ state: 'ready', snapshot: fullSnapshot });
+      setIsWorkspaceDetailRefreshing(false);
+      setWorkspaceDetailOperationError(null);
+    }
+  }, []);
+  const { scheduleAfterExit } = useCatalogAutoRefresh({
+    refresh: backgroundRefreshCatalog
+  });
+
   useEffect(() => {
     let current = true;
     void window.lumora.getTerminalProfiles().then(
@@ -472,13 +503,14 @@ export default function App(): ReactNode {
         event.runtime.state === 'failed'
       ) {
         closeRuntimeTab(event.runtimeId);
+        scheduleAfterExit();
       }
     });
     return () => {
       current = false;
       unsubscribe();
     };
-  }, [closeRuntimeTab, updateRuntime]);
+  }, [closeRuntimeTab, scheduleAfterExit, updateRuntime]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
