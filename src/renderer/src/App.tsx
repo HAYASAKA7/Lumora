@@ -798,6 +798,14 @@ export default function App(): ReactNode {
       activateRuntime(nextActive);
     }
   }, [activateRuntime, liveRuntimes]);
+  const navigateToRoute = useCallback(
+    (routeId: RouteId) => {
+      closeWorkspaceDetail();
+      setActiveRouteId(routeId);
+      setActiveRuntimeId(null);
+    },
+    [closeWorkspaceDetail]
+  );
 
   useEffect(() => {
     setRuntimeMru((current) =>
@@ -810,7 +818,7 @@ export default function App(): ReactNode {
   }, [activeRuntimeId, openRuntimeIds]);
 
   useEffect(() => {
-    const chord = keyboardSettings.terminalSwitcher;
+    const switcherChord = keyboardSettings.terminalSwitcher;
     const keydown = (event: KeyboardEvent) => {
       if (
         event.target instanceof Element &&
@@ -824,42 +832,87 @@ export default function App(): ReactNode {
         setRuntimeSwitcher(null);
         return;
       }
-      if (!keyboardEventMatchesChord(event, chord)) return;
-      if (openRuntimeIds.length === 0) return;
+      if (keyboardEventMatchesChord(event, switcherChord)) {
+        if (openRuntimeIds.length === 0) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.repeat) return;
-      if (openRuntimeIds.length === 1) {
-        activateRuntime(openRuntimeIds[0]!);
-        setRuntimeSwitcher(null);
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.repeat) return;
+        if (openRuntimeIds.length === 1) {
+          activateRuntime(openRuntimeIds[0]!);
+          setRuntimeSwitcher(null);
+          return;
+        }
+
+        setRuntimeSwitcher((current) => {
+          if (current !== null) {
+            return {
+              ...current,
+              selectedRuntimeId:
+                nextRuntimeInOrder(current.order, current.selectedRuntimeId) ??
+                current.selectedRuntimeId
+            };
+          }
+          const order = buildRuntimeMru(
+            openRuntimeIds,
+            runtimeMru,
+            activeRuntimeId
+          );
+          const selectedRuntimeId =
+            nextRuntimeInOrder(order, activeRuntimeId) ?? order[0];
+          return selectedRuntimeId === undefined
+            ? null
+            : { order, selectedRuntimeId };
+        });
         return;
       }
 
-      setRuntimeSwitcher((current) => {
-        if (current !== null) {
-          return {
-            ...current,
-            selectedRuntimeId:
-              nextRuntimeInOrder(current.order, current.selectedRuntimeId) ??
-              current.selectedRuntimeId
-          };
-        }
-        const order = buildRuntimeMru(
-          openRuntimeIds,
-          runtimeMru,
-          activeRuntimeId
-        );
-        const selectedRuntimeId =
-          nextRuntimeInOrder(order, activeRuntimeId) ?? order[0];
-        return selectedRuntimeId === undefined
-          ? null
-          : { order, selectedRuntimeId };
-      });
+      if (event.repeat) return;
+      if (
+        keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
+        !terminalActive &&
+        liveRuntimes.length > 0
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        openLiveTerminals();
+        return;
+      }
+      if (
+        keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar) &&
+        !(
+          event.target instanceof Element &&
+          event.target.closest('.managed-terminal-shell') !== null
+        )
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSidebarExpanded((expanded) => !expanded);
+        return;
+      }
+
+      const routeShortcuts: ReadonlyArray<
+        readonly [KeyboardSettings['terminalSwitcher'], RouteId]
+      > = [
+        [keyboardSettings.openHome, 'home'],
+        [keyboardSettings.openWorkspaces, 'workspaces'],
+        [keyboardSettings.openSessions, 'sessions'],
+        [keyboardSettings.openProfiles, 'profiles'],
+        [keyboardSettings.openSettings, 'settings'],
+        [keyboardSettings.openSettingsAlias, 'settings']
+      ];
+      const destination = routeShortcuts.find(([shortcut]) =>
+        keyboardEventMatchesChord(event, shortcut)
+      )?.[1];
+      if (destination !== undefined) {
+        event.preventDefault();
+        event.stopPropagation();
+        navigateToRoute(destination);
+      }
     };
     const keyup = (event: KeyboardEvent) => {
       if (runtimeSwitcher === null) return;
-      if (!isRequiredModifierKey(event.code, chord)) return;
+      if (!isRequiredModifierKey(event.code, switcherChord)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -880,9 +933,13 @@ export default function App(): ReactNode {
     activeRuntimeId,
     activateRuntime,
     keyboardSettings,
+    liveRuntimes.length,
+    navigateToRoute,
+    openLiveTerminals,
     openRuntimeIds,
     runtimeMru,
-    runtimeSwitcher
+    runtimeSwitcher,
+    terminalActive
   ]);
 
   const sidebarToggleLabel = sidebarExpanded

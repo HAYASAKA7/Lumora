@@ -71,7 +71,7 @@ describe('KeyboardShortcutsPanel', () => {
     })).toHaveTextContent('Ctrl + 1');
     expect(screen.getByRole('button', {
       name: 'Record go to Settings alternate shortcut'
-    })).toHaveTextContent('Ctrl + Comma');
+    })).toHaveTextContent('Ctrl + ,');
   });
 
   it('rejects a shortcut already assigned to another action', async () => {

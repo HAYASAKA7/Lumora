@@ -63,6 +63,8 @@ describe('keyboard shortcut utilities', () => {
       .toBe('⌘ + Tab');
     expect(formatShortcutChord({ ...chord, shift: true }, 'darwin'))
       .toBe('⌃ + ⇧ + Tab');
+    expect(formatShortcutChord({ ...chord, code: 'Comma' }, 'win32'))
+      .toBe('Ctrl + ,');
   });
 
   it('rejects Windows Alt+Tab while allowing the chord elsewhere', () => {

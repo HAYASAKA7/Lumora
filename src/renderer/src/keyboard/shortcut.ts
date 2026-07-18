@@ -45,6 +45,7 @@ function keyLabel(code: string): string {
   if (code.startsWith('Key') && code.length === 4) return code.slice(3);
   if (code.startsWith('Digit') && code.length === 6) return code.slice(5);
   if (code === 'Space') return 'Space';
+  if (code === 'Comma') return ',';
   return code;
 }
 

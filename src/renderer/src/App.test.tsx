@@ -923,6 +923,93 @@ describe('App', () => {
     ).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('navigates primary pages with the default application shortcuts', async () => {
+    render(<App />);
+
+    fireEvent.keyDown(window, { code: 'Digit2', key: '2', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Workspaces' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Digit3', key: '3', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'All sessions' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Digit4', key: '4', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Terminal profiles' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Digit5', key: '5', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Digit1', key: '1', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'Comma', key: ',', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('opens a live terminal with Ctrl+T and preserves terminal Ctrl+L input', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad8'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    const terminalInput = await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+    expect(screen.getByRole('tab', { name: /Codex working session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(terminalInput, {
+      code: 'KeyL',
+      key: 'l',
+      ctrlKey: true
+    });
+    expect(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('toggles the sidebar with Ctrl+L outside a terminal', () => {
+    render(<App />);
+
+    fireEvent.keyDown(window, { code: 'KeyL', key: 'l', ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'Expand sidebar' }))
+      .toHaveAttribute('aria-expanded', 'false');
+    fireEvent.keyDown(window, { code: 'KeyL', key: 'l', ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' }))
+      .toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('uses customized navigation shortcuts instead of their defaults', async () => {
+    const getKeyboardSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      openHome: {
+        code: 'KeyH',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    });
+    setSystemInfoResult(undefined, undefined, { getKeyboardSettings });
+    render(<App />);
+
+    await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.keyDown(window, { code: 'Digit1', key: '1', ctrlKey: true });
+    expect(screen.getByRole('heading', { name: 'Workspaces' })).toBeInTheDocument();
+    fireEvent.keyDown(window, {
+      code: 'KeyH',
+      key: 'h',
+      ctrlKey: true,
+      shiftKey: true
+    });
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+  });
+
   it('gives the terminal switcher priority over a conflicting paste shortcut', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad6'
