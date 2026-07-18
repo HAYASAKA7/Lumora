@@ -92,6 +92,20 @@ function chordsMatch(
     left.meta === right.meta;
 }
 
+function duplicateShortcutRows(settings: KeyboardSettings): readonly [
+  (typeof SHORTCUT_ROWS)[number],
+  (typeof SHORTCUT_ROWS)[number]
+] | null {
+  for (let index = 0; index < SHORTCUT_ROWS.length; index += 1) {
+    const left = SHORTCUT_ROWS[index]!;
+    const right = SHORTCUT_ROWS.slice(index + 1).find((candidate) =>
+      chordsMatch(settings[left.key], settings[candidate.key])
+    );
+    if (right !== undefined) return [left, right];
+  }
+  return null;
+}
+
 export function KeyboardShortcutsPanel({
   onChange,
   platform
@@ -183,6 +197,14 @@ export function KeyboardShortcutsPanel({
 
   const save = () => {
     if (settings === null || draft === null) return;
+    const duplicate = duplicateShortcutRows(draft);
+    if (duplicate !== null) {
+      setError(
+        `${duplicate[0].label} and ${duplicate[1].label} use the same shortcut.`
+      );
+      setNotice(null);
+      return;
+    }
     persist(draft, 'Shortcuts saved.');
   };
 

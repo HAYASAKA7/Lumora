@@ -93,6 +93,24 @@ describe('KeyboardShortcutsPanel', () => {
     expect(window.lumora.saveKeyboardSettings).not.toHaveBeenCalled();
   });
 
+  it('does not persist duplicate shortcuts loaded from older settings', async () => {
+    window.lumora.getKeyboardSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      terminalSwitcher: DEFAULT_KEYBOARD_SETTINGS.openHome
+    });
+    render(<KeyboardShortcutsPanel platform="win32" />);
+
+    await screen.findByRole('button', {
+      name: 'Record terminal switcher shortcut'
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save shortcut' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /Switch active terminal and Go to Home/i
+    );
+    expect(window.lumora.saveKeyboardSettings).not.toHaveBeenCalled();
+  });
+
   it('does not save Windows Alt+Tab', async () => {
     render(<KeyboardShortcutsPanel platform="win32" />);
     const recorder = await screen.findByRole('button', {
