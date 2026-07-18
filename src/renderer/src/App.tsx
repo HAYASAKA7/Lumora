@@ -89,6 +89,10 @@ interface ResumeIntent {
   workspace: WorkspaceSummary;
 }
 
+interface NewSessionIntent {
+  initialWorkspaceId: string | null;
+}
+
 const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
 
 const ROUTES = [
@@ -293,7 +297,8 @@ export default function App(): ReactNode {
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
     useState<RuntimeSwitcherState | null>(null);
-  const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [newSessionIntent, setNewSessionIntent] =
+    useState<NewSessionIntent | null>(null);
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
     useState<RuntimeSummary | null>(null);
@@ -693,7 +698,7 @@ export default function App(): ReactNode {
         return next;
       });
       activateRuntime(runtime.id);
-      setNewSessionOpen(false);
+      setNewSessionIntent(null);
       setResumeIntent(null);
       setRecoveryRuntime(null);
     },
@@ -711,7 +716,7 @@ export default function App(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      setNewSessionOpen(false);
+      setNewSessionIntent(null);
       setRecoveryRuntime(null);
       setResumeIntent({ session, workspace });
     },
@@ -729,7 +734,7 @@ export default function App(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      setNewSessionOpen(false);
+      setNewSessionIntent(null);
       setRecoveryRuntime(null);
       setResumeIntent({ session, workspace });
     },
@@ -934,7 +939,12 @@ export default function App(): ReactNode {
                 onClick={() => {
                   setResumeIntent(null);
                   setRecoveryRuntime(null);
-                  setNewSessionOpen(true);
+                  setNewSessionIntent({
+                    initialWorkspaceId:
+                      activeRoute.id === 'workspaces'
+                        ? selectedWorkspaceId
+                        : null
+                  });
                 }}
                 type="button"
               >
@@ -975,7 +985,7 @@ export default function App(): ReactNode {
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
                 onRecover={(runtime) => {
-                  setNewSessionOpen(false);
+                  setNewSessionIntent(null);
                   setResumeIntent(null);
                   setRecoveryRuntime(runtime);
                 }}
@@ -1104,9 +1114,10 @@ export default function App(): ReactNode {
         />
       ) : null}
 
-      {newSessionOpen && catalogStatus.state === 'ready' ? (
+      {newSessionIntent !== null && catalogStatus.state === 'ready' ? (
         <NewSessionDialog
-          onClose={() => setNewSessionOpen(false)}
+          initialWorkspaceId={newSessionIntent.initialWorkspaceId}
+          onClose={() => setNewSessionIntent(null)}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}
           providerScan={providerStatus.state === 'ready' ? providerStatus.scan : null}

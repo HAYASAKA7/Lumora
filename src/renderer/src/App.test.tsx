@@ -1217,6 +1217,75 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('captures workspace detail for New session and resets the Home default', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const otherWorkspace = {
+      ...readyCatalog.workspaces[0]!,
+      id: 'e'.repeat(64),
+      displayName: 'Lumora Plugins',
+      canonicalPath: 'D:\\Projects\\AI\\Lumora Plugins',
+      sessionCount: 0,
+      providerCounts: {}
+    };
+    const catalog = {
+      ...readyCatalog,
+      workspaces: [...readyCatalog.workspaces, otherWorkspace]
+    } satisfies CatalogSnapshot;
+    const prepareLaunch = vi.fn(
+      () => new Promise<LaunchPreview>(() => undefined)
+    );
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalog),
+      refreshCatalog: vi.fn().mockResolvedValue(catalog),
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Open sessions for Lumora Plugins at D:\\Projects\\AI\\Lumora Plugins'
+      })
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Lumora Plugins sessions' })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'New session' });
+    expect(
+      within(dialog).getByRole('combobox', { name: 'Workspace' })
+    ).toHaveValue(otherWorkspace.id);
+    await waitFor(() =>
+      expect(prepareLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({ workspaceId: otherWorkspace.id })
+      )
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Close new session' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }));
+
+    const homeDialog = await screen.findByRole('dialog', {
+      name: 'New session'
+    });
+    expect(
+      within(homeDialog).getByRole('combobox', { name: 'Workspace' })
+    ).toHaveValue(readyCatalog.workspaces[0]!.id);
+  });
+
   it('shows platform and architecture after system information resolves', async () => {
     render(<App />);
 
