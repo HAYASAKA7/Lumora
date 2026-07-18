@@ -20,6 +20,12 @@ const workspace: WorkspaceSummary = {
   providerCounts: { codex: 0, claude: 0 },
   lastActivityAt: null
 };
+const otherWorkspace: WorkspaceSummary = {
+  ...workspace,
+  id: 'd'.repeat(64),
+  displayName: 'Lumora Plugins',
+  canonicalPath: 'D:\\Projects\\Lumora Plugins'
+};
 const profile: TerminalProfile = {
   id: 'b'.repeat(64),
   kind: 'detected',
@@ -105,6 +111,57 @@ function deferred<T>() {
 }
 
 describe('NewSessionDialog', () => {
+  it('selects a valid initial workspace for launch preflight', async () => {
+    const prepareLaunch = vi.fn(
+      () => new Promise<LaunchPreview>(() => undefined)
+    );
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+
+    render(
+      <NewSessionDialog
+        initialWorkspaceId={otherWorkspace.id}
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace, otherWorkspace]}
+      />
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Workspace' })).toHaveValue(
+      otherWorkspace.id
+    );
+    await waitFor(() =>
+      expect(prepareLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({ workspaceId: otherWorkspace.id })
+      )
+    );
+  });
+
+  it('falls back when the initial workspace is unavailable', () => {
+    render(
+      <NewSessionDialog
+        initialWorkspaceId={'f'.repeat(64)}
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={null}
+        workspaces={[workspace, otherWorkspace]}
+      />
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Workspace' })).toHaveValue(
+      workspace.id
+    );
+  });
+
   it('requires a resolved preview before starting the exact launch token', async () => {
     const prepareLaunch = vi.fn().mockResolvedValue(preview);
     const trustWorkspaceForLaunch = vi.fn();

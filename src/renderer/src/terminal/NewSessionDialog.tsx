@@ -14,6 +14,7 @@ import { useLaunchPreflight } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface NewSessionDialogProps {
+  initialWorkspaceId?: string | null;
   workspaces: readonly WorkspaceSummary[];
   profiles: readonly TerminalProfile[];
   providerScan: ProviderScanResult | null;
@@ -22,6 +23,7 @@ interface NewSessionDialogProps {
 }
 
 export function NewSessionDialog({
+  initialWorkspaceId = null,
   workspaces,
   profiles,
   providerScan,
@@ -40,7 +42,12 @@ export function NewSessionDialog({
     () => providerScan?.providers.filter((provider) => provider.state === 'ready') ?? [],
     [providerScan]
   );
-  const [workspaceId, setWorkspaceId] = useState(availableWorkspaces[0]?.id ?? '');
+  const initialWorkspace = availableWorkspaces.find(
+    (workspace) => workspace.id === initialWorkspaceId
+  );
+  const [workspaceId, setWorkspaceId] = useState(
+    initialWorkspace?.id ?? availableWorkspaces[0]?.id ?? ''
+  );
   const [provider, setProvider] = useState<ProviderId>(
     readyProviders[0]?.provider ?? 'codex'
   );
