@@ -20,8 +20,6 @@
   --text-soft: #8c98aa;
   --blue: #296dff;
   --blue-soft: #e9f0ff;
-  --button-cyan: #007d94;
-  --button-cyan-hover: #006d82;
   --warning: #b5680b;
   --warning-soft: #fff4df;
   --success: #1a936f;
@@ -664,7 +662,7 @@ button {
   gap: 8px;
   padding: 10px 14px;
   color: #fff;
-  background: var(--button-cyan);
+  background: var(--blue);
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.78rem;
@@ -673,7 +671,7 @@ button {
 }
 
 .refresh-button:hover:not(:disabled) {
-  background: var(--button-cyan-hover);
+  background: #1d5fe4;
   transform: translateY(-1px);
 }
 
