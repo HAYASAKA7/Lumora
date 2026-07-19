@@ -780,13 +780,17 @@ export default function App(): ReactNode {
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
   );
   const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
+  const liveRuntimesRef = useRef(liveRuntimes);
+  const terminalActiveRef = useRef(terminalActive);
+  liveRuntimesRef.current = liveRuntimes;
+  terminalActiveRef.current = terminalActive;
   const runtimeSwitcherRuntimes = runtimeSwitcher === null
     ? []
     : runtimeSwitcher.order
         .map((id) => openRuntimes.find((runtime) => runtime.id === id))
         .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
   const openLiveTerminals = useCallback(() => {
-    const liveIds = liveRuntimes.map((runtime) => runtime.id);
+    const liveIds = liveRuntimesRef.current.map((runtime) => runtime.id);
     setOpenRuntimeIds((current) => [
       ...current,
       ...liveIds.filter((id) => !current.includes(id))
@@ -797,7 +801,7 @@ export default function App(): ReactNode {
     } else {
       activateRuntime(nextActive);
     }
-  }, [activateRuntime, liveRuntimes]);
+  }, [activateRuntime]);
   const navigateToRoute = useCallback(
     (routeId: RouteId) => {
       closeWorkspaceDetail();
@@ -870,8 +874,8 @@ export default function App(): ReactNode {
       if (event.repeat) return;
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
-        !terminalActive &&
-        liveRuntimes.length > 0
+        !terminalActiveRef.current &&
+        liveRuntimesRef.current.length > 0
       ) {
         event.preventDefault();
         event.stopPropagation();

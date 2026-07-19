@@ -972,6 +972,53 @@ describe('App', () => {
     ).toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('uses current runtime state when a previously registered Ctrl+T listener fires', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad9'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    const addEventListener = vi.spyOn(window, 'addEventListener');
+
+    try {
+      render(<App />);
+      const initialKeydownListener = addEventListener.mock.calls.find(
+        ([type]) => type === 'keydown'
+      )?.[1];
+      if (initialKeydownListener === undefined) {
+        throw new Error('App keydown listener was not registered');
+      }
+
+      await screen.findByRole('button', { name: 'Open terminals' });
+      act(() => {
+        const event = new KeyboardEvent('keydown', {
+          code: 'KeyT',
+          key: 't',
+          ctrlKey: true
+        });
+        if (typeof initialKeydownListener === 'function') {
+          initialKeydownListener.call(window, event);
+        } else {
+          initialKeydownListener.handleEvent(event);
+        }
+      });
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Codex working session terminal input'
+        })
+      ).toBeInTheDocument();
+    } finally {
+      addEventListener.mockRestore();
+    }
+  });
+
   it('toggles the sidebar with Ctrl+L outside a terminal', () => {
     render(<App />);
 
