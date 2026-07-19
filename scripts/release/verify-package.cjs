@@ -18,8 +18,7 @@ const TARGETS = {
     unpackedDirectories: ['linux-unpacked'],
     executablePath: ['lumora'],
     resourcesPath: ['resources'],
-    nativePath: ['build', 'Release', 'pty.node'],
-    helperPath: ['build', 'Release', 'spawn-helper']
+    nativePath: ['build', 'Release', 'pty.node']
   },
   'mac-x64': {
     artifactExtension: 'dmg',
@@ -149,7 +148,9 @@ function verifyPackage({
 
   const nativeBinaryPath = join(nodePtyRoot, ...target.nativePath);
   requireNonEmptyFile('node-pty native binary', nativeBinaryPath);
-  requireNonEmptyFile('node-pty helper', join(nodePtyRoot, ...target.helperPath));
+  if (target.helperPath) {
+    requireNonEmptyFile('node-pty helper', join(nodePtyRoot, ...target.helperPath));
+  }
 
   return { artifactPath, executablePath, nodePtyPath: nodePtyRoot };
 }

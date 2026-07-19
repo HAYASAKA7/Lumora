@@ -140,6 +140,19 @@ describe('verifyPackage', () => {
     });
   });
 
+  it('accepts Linux x64 without the macOS-only spawn-helper', async () => {
+    const fixture = await createCompleteFixture('linux', 'x64');
+    await unlink(join(fixture.nodePtyPath, 'build', 'Release', 'spawn-helper'));
+
+    expect(
+      verifyPackage({ rootDir: fixture.rootDir, platform: 'linux', arch: 'x64' })
+    ).toEqual({
+      artifactPath: fixture.artifactPath,
+      executablePath: fixture.executablePath,
+      nodePtyPath: fixture.nodePtyPath
+    });
+  });
+
   it('accepts a complete macOS x64 layout', async () => {
     const fixture = await createCompleteFixture('mac', 'x64');
 
