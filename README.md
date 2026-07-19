@@ -6,80 +6,69 @@
 
 <p align="center"><strong>A local desktop workspace and session manager for native AI-agent CLIs.</strong></p>
 
-Lumora brings provider discovery, saved sessions, launch settings, lifecycle
-guidance, and native CLI terminals into one Electron application without
-replacing providers' own session formats or permission models.
+Lumora gives installed AI-agent command-line tools one place for workspace
+navigation, saved sessions, launch settings, and managed terminals. Providers
+keep ownership of their session files, authentication, permissions, and usage
+limits.
 
-<!-- SCREEN_RECORDING: Add docs/media/lumora-demo.mp4 and its preview image here. -->
+> Lumora 0.1 is an unsigned MVP. Read [Unsigned build notices](#unsigned-build-notices)
+> before installing it.
 
-<!-- SCREENSHOT: Add docs/screenshots/home.png (Home and workspace overview) -->
+<!-- DEMO: Add docs/media/lumora-demo.mp4 and a linked preview image here. -->
 
-## Current MVP
+<!-- SCREENSHOT: Add docs/screenshots/home.png (Home and workspace overview). -->
 
-Lumora is an active MVP. The current source supports the core local workflow:
-discover installed providers, index their saved session metadata, start or
-resume a native provider session, and operate it in an embedded terminal.
+## What you can do
 
-The project targets Windows, macOS, and Linux. CI verifies tests, TypeScript,
-and production bundles on all three operating systems.
+- Detect supported agent CLIs and see their installed versions.
+- Install or update allowlisted npm-based agents after confirmation.
+- Add local workspaces and browse provider-owned sessions inside them.
+- Search saved sessions by title, workspace, and provider.
+- Start a new provider session or resume an exact native session.
+- Keep active sessions mounted in managed terminal tabs while navigating Lumora.
+- Use custom shells, provider commands, aliases, and layered launch settings.
+- Review the effective launch command before a provider starts.
+- Require explicit, revocable trust for each workspace path.
 
-## Features
+## Get Lumora
 
-- Detect twelve supported agent CLIs and their installed versions.
-- Install or update allowlisted npm-based providers after explicit
-  confirmation, and open official instructions for other providers.
-- Discover provider-owned session metadata without modifying provider files.
-- Group and search sessions by workspace and provider.
-- Start any detected supported provider in a managed terminal tab.
-- Resume a selected native provider session using its provider identity.
-- Close an exited session's terminal tab automatically.
-- Detect common shells and support custom terminal profiles.
-- Resolve global, provider, workspace, session, and one-time launch settings.
-- Preview the effective command, working directory, terminal, and setting
-  provenance before launch.
-- Require persistent, explicit trust for the exact canonical workspace path
-  before a provider can start, with revocation available in Settings.
-- Record managed runtime history and report runtimes that cannot be reattached
-  after an application restart.
+Download the package for your system from
+[GitHub Releases](https://github.com/HAYASAKA7/Lumora/releases).
 
-<!-- SCREENSHOT: Add docs/screenshots/terminal.png (Managed terminal session) -->
+| System | Package |
+| --- | --- |
+| Windows x64 | `Lumora-*-win-x64.exe` |
+| macOS Apple Silicon | `Lumora-*-mac-arm64.dmg` |
+| macOS Intel | `Lumora-*-mac-x64.dmg` |
+| Linux x64 | `Lumora-*-linux-x86_64.AppImage` |
 
-## Supported platforms and providers
+### Unsigned build notices
 
-| Provider | Install/update | New launch | Session discovery | Exact resume | Platforms |
-| --- | --- | --- | --- | --- | --- |
-| Codex | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| Claude Code | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| Gemini CLI | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| OpenCode | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| GitHub Copilot CLI | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| Qwen Code | Confirmed npm action | Yes | Yes | Yes | Windows, macOS, Linux |
-| Antigravity | Official guide | Yes | No | No | Windows, macOS, Linux |
-| Cursor CLI | Official guide | Yes | No | No | Windows, macOS, Linux |
-| Amp | Official guide | Yes | No | No | Windows, macOS, Linux |
-| Crush | Confirmed npm action | Yes | No | No | Windows, macOS, Linux |
-| goose | Official guide | Yes | No | No | Windows, macOS, Linux |
-| Aider | Official guide | Yes | No | No | Windows, macOS, Linux |
+The MVP packages are not code-signed or notarized.
 
-Home, Workspaces, All sessions, search, and provider filters use only
-provider-owned sessions. A provider appears there only when its CLI is
-installed, its adapter passes compatibility checks, Lumora supports both
-discovery and exact resume for it, and at least one saved session exists.
-Launch-only providers remain available in
-Settings and New session.
+- **Windows:** SmartScreen may warn about or block the installer. Confirm that
+  the file came from this repository before allowing it.
+- **macOS:** Gatekeeper may block the DMG or application. After verifying the
+  source, use **System Settings > Privacy & Security > Open Anyway**.
+- **Linux:** Make the AppImage executable before opening it:
 
-Lumora uses the provider's official CLI behavior. Authentication, approvals,
-sandboxing, and usage limits remain provider-owned.
+  ```bash
+  chmod +x Lumora-*.AppImage
+  ```
 
-## Prerequisites
+Signing, notarization, and automatic updates are planned after MVP testing.
 
-- Node.js 22 or newer. The repository's `.nvmrc` selects Node.js 26.2.0.
-- npm.
-- At least one supported provider CLI, either installed manually or through an
-  available confirmed install action in Provider Settings.
-- Provider commands available on `PATH` so Lumora can discover and probe them.
+## Before your first session
 
-Confirm the provider commands in a terminal before starting Lumora:
+Lumora manages provider CLIs; it does not replace them. Your computer needs:
+
+- Node.js and npm. Lumora checks for them at startup and links to the official
+  Node.js download when they are missing.
+- At least one supported AI-agent CLI.
+- Any account, authentication, or provider setup required by that CLI.
+
+Provider commands must be available on `PATH`. You can confirm common commands
+in a terminal:
 
 ```powershell
 codex --version
@@ -87,176 +76,170 @@ claude --version
 gemini --version
 ```
 
-Every provider is optional; Lumora reports each provider independently.
+Every provider is optional. A missing or incompatible provider does not stop
+healthy providers from working.
 
-## Install and run
+## First-run guide
 
-```powershell
-npm install
-npm run dev
-```
+1. Open **Settings > Environment** and confirm Node.js and npm are available.
+2. Open **Settings > Providers** and review detected agents and versions.
+3. Install a supported npm-based provider or follow its official installation
+   guide, then select **Refresh**.
+4. Open **Workspaces**, select **Add workspace**, and choose a project folder.
+5. Select **New session**, then choose a workspace, provider, and terminal
+   profile.
+6. Review and confirm workspace trust when Lumora asks for it.
+7. Start the session. Lumora opens the provider in a managed terminal.
 
-`npm run dev` runs the Electron development application. Its pre-development
-step installs Electron's platform-specific runtime when a fresh dependency
-installation does not already contain it.
+Provider authentication and approval prompts appear inside the terminal and
+continue to be controlled by the provider.
 
-## Development commands
+## Workspaces and saved sessions
 
-| Command | Purpose |
-| --- | --- |
-| `npm test` | Run the Vitest suite once |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run typecheck` | Check the main/preload and renderer TypeScript projects |
-| `npm run verify` | Run tests, type checks, and a production build |
-| `npm run build` | Build Electron main, preload, and renderer bundles into `out/` |
-| `npm run package:dir` | Build an unpacked native application for local testing |
-| `npm run package` | Build the native installer or application image into `dist/` |
+The **Workspaces** page groups provider-owned sessions by project directory.
+Select a workspace card to open its saved-session list. Select a session card
+to resume it with the provider's native session identity.
 
-For a reproducible clean installation, CI uses `npm ci`.
+The **All sessions** page searches across available workspaces. Provider filters
+only include installed providers for which Lumora found resumable sessions.
+The **Home** page keeps a smaller recent-session list with direct Resume actions.
 
-## Package an unsigned MVP build
+Lumora reads supported provider metadata but does not rewrite provider session
+files or copy transcript bodies into its catalog.
 
-Create a local package from a clean dependency installation:
+## Managed terminals
 
-```powershell
-npm ci
-npm run package:dir
-npm run package
-```
+Active terminals stay mounted while you move between Lumora pages. Use the
+terminal tab bar or `Ctrl+Tab` to switch between active sessions. When the
+provider process exits, Lumora closes its tab and refreshes the catalog.
 
-`npm run package:dir` creates unpacked output for quick local inspection.
-`npm run package` creates the native installer or application image under
-`dist/`. Packaging is native-only: run these commands on the operating system
-you are packaging, rather than expecting cross-compilation.
+Terminal clipboard behavior:
 
-The GitHub Actions workflow **Unsigned MVP packages** builds each native target,
-then verifies and uploads all four artifacts. Start it manually from the Actions
-page with **Run workflow**. The workflow artifacts are retained for 14 days.
-Open the completed workflow run and find its **Artifacts section**. Then
-download the artifact for your platform.
+- **Windows and Linux:** `Ctrl+V` pastes. `Ctrl+Shift+C` and `Ctrl+Shift+V`
+  always copy and paste. `Ctrl+C` copies when text is selected.
+- **macOS:** `Command+C` copies and `Command+V` pastes.
+- With no selection, the first `Ctrl+C` arms an interrupt and the second press
+  sends it to the provider. This reduces accidental process interruption.
 
-| Target | Package |
-| --- | --- |
-| Windows x64 | NSIS `.exe` installer |
-| Linux x64 | AppImage |
-| macOS Intel x64 | DMG |
-| macOS Apple Silicon arm64 | DMG |
+<!-- SCREENSHOT: Add docs/screenshots/terminal.png (Managed terminal session). -->
 
-These artifacts are unsigned MVP test builds. Use only artifacts produced by
-this repository's **Unsigned MVP packages** workflow. Windows SmartScreen may
-warn about or block the installer. macOS Gatekeeper may block the DMG or app;
-after verifying its source, use **System Settings > Privacy & Security > Open
-Anyway** to approve it. On Linux, make the downloaded AppImage executable
-before launching it, for example with `chmod +x Lumora-*.AppImage`.
+## Settings
 
-For each target, complete this manual smoke-test checklist:
+### Providers
 
-1. Confirm the application launches and displays the Lumora app icon.
-2. Confirm provider discovery reports installed and missing CLIs correctly.
-3. Start a session using a custom CLI start command.
-4. Check terminal input, output, and resize behavior without duplicate rendering
-   or scrolling the page outside the fixed terminal UI.
-5. Resume an installed session-supported provider and confirm it opens the
-   exact native session while applying the configured start command.
-6. Exit the provider process and confirm the session tab closes automatically.
-7. Restart Lumora and confirm workspaces, settings, and history persist.
+Review installation status and versions, install supported npm-based agents,
+open official setup guides, and update compatible agents after confirmation.
 
-## Publish an unsigned GitHub prerelease
+### Environment
 
-- Product: **Lumora**
-- Author: **HAYASAKA7**
+Check Node.js and npm independently from provider discovery.
 
-After the manual package workflow passes, update the version in `package.json`
-and `package-lock.json`, commit it, and push a matching version tag. For the
-first MVP release:
+### Launch
 
-```powershell
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The **Lumora unsigned prerelease** workflow accepts only a tag that exactly
-matches the package version. It verifies the source, builds all four native
-targets, validates the packaged runtime, and attaches the packages plus
-`SHA256SUMS.txt` to a GitHub draft prerelease.
-
-Review the draft's generated notes, checksums, package names, and manual smoke
-test results. Because the packages are unsigned, keep the release marked as a
-prerelease and manually publish it only after every target is accepted. A
-failed verification or missing artifact prevents the draft from being created.
-
-Signing, notarization, publishing, and automatic updates are deferred until
-after MVP testing.
-
-## Configuration
-
-Lumora detects provider executables and terminal profiles automatically. The
-Settings page can override provider launch commands globally or per provider,
-workspace, and session. This supports aliases or wrapper commands such as a
-custom Codex command defined in the user's shell environment. Terminal profiles
-can also specify the shell executable and its startup arguments.
-
-Launch settings are layered in this order:
+Set provider commands and launch values globally or for a provider, workspace,
+or session. One-time values can be supplied before a launch. Lumora resolves
+them in this order:
 
 ```text
 Global < Provider < Workspace < Session < One-time launch
 ```
 
-The launch preview shows which layer supplied each effective value.
+The launch preview shows the effective command, working directory, terminal,
+and the layer that supplied each value. This supports aliases and wrapper
+commands as long as the selected terminal profile can resolve them.
 
-Workspace trust is separate from launch settings. The first launch in an exact
-canonical workspace path requires explicit confirmation. Lumora persists that
-decision locally for the workspace ID and path, applies it to both new and
-resumed sessions, and lets it be revoked from Settings. A path change requires
-a new decision. Trust allows the provider to run with the user's operating
-system permissions; it is not an OS sandbox.
+### Security
 
-<!-- SCREENSHOT: Add docs/screenshots/launch-settings.png (Layered launch settings) -->
+The first launch in an exact canonical workspace path requires confirmation.
+Lumora stores the decision locally and applies it to new and resumed sessions.
+You can revoke it from Settings; a path change requires a new decision.
 
-## Architecture and privacy
+Workspace trust is a consent gate, not an operating-system sandbox. The agent
+still runs with your user account's permissions.
 
-```text
-Sandboxed React renderer + xterm.js
-                  |
-          schema-validated IPC
-                  |
-        Electron main process
-        /          |           \
- provider registry |       platform services
-  native agent CLIs|    Windows / macOS / Linux
-                   |
-            node-pty runtime host
-                   |
-              local SQLite
-```
+### Keyboard
 
-The renderer cannot read provider files, spawn processes, or access the
-database directly. The main process validates IPC data and owns provider
-discovery, session indexing, launch construction, and PTY processes.
+All application shortcuts below can be changed in **Settings > Keyboard**.
 
-Provider session sources are read-only inputs. Lumora stores normalized session
-metadata and managed runtime history locally; it does not copy transcript
-bodies into its catalog and does not provide cloud synchronization.
+| Default shortcut | Action |
+| --- | --- |
+| `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order |
+| `Ctrl+T` | Return to currently running terminals |
+| `Ctrl+L` | Collapse or expand the sidebar outside a terminal |
+| `Ctrl+1` | Open Home |
+| `Ctrl+2` | Open Workspaces |
+| `Ctrl+3` | Open All sessions |
+| `Ctrl+4` | Open Terminal profiles |
+| `Ctrl+5` | Open Settings |
+| `Ctrl+,` | Open Settings |
 
-Workspace trust decisions are also stored in local SQLite as a workspace ID,
-canonical path, and timestamp. They do not add an operating-system security
-boundary: the selected provider still runs with the permissions of the user who
-started Lumora. Trust is a persistent, revocable consent gate that prevents an
-unapproved workspace launch; it is not a provider sandbox or filesystem
-isolation mechanism.
+## Supported providers
+
+| Provider | Install/update | New session | Saved-session discovery and exact resume |
+| --- | --- | --- | --- |
+| Codex | Confirmed npm action | Yes | Yes |
+| Claude Code | Confirmed npm action | Yes | Yes |
+| Gemini CLI | Confirmed npm action | Yes | Yes |
+| OpenCode | Confirmed npm action | Yes | Yes |
+| GitHub Copilot CLI | Confirmed npm action | Yes | Yes |
+| Qwen Code | Confirmed npm action | Yes | Yes |
+| Antigravity | Official guide | Yes | No |
+| Cursor CLI | Official guide | Yes | No |
+| Amp | Official guide | Yes | No |
+| Crush | Confirmed npm action | Yes | No |
+| goose | Official guide | Yes | No |
+| Aider | Official guide | Yes | No |
+
+All providers can be launched on Windows, macOS, and Linux when their command
+is installed and compatible. Launch-only providers remain available in
+Settings and New session, but do not appear in saved-session pages or filters.
+
+## Data and privacy
+
+Lumora is local-first and has no Lumora cloud synchronization. It stores
+normalized session metadata, settings, trust decisions, window state, and
+managed runtime history in the operating system's application-data location.
+Provider session files remain provider-owned read-only inputs.
+
+Lumora does not add privacy guarantees beyond those of the provider CLI. The
+provider may contact its own services according to its terms and configuration.
 
 ## Current limitations
 
-- Packaged artifacts are unsigned MVP test builds, so SmartScreen or Gatekeeper
-  warnings are expected until signing and notarization are introduced.
-- Generic PTY processes cannot be reattached after Lumora restarts; affected
-  runtimes are reported honestly and can be resumed or restarted.
+- Generic PTY processes cannot be reattached after Lumora restarts. Lumora
+  reports affected runtimes and lets you resume or restart them.
+- Antigravity, Cursor CLI, Amp, Crush, goose, and Aider are launch-only.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
-- Antigravity, Cursor CLI, Amp, Crush, goose, and Aider are launch-only; they do
-  not appear in saved-session pages or filters.
-- WSL-specific orchestration, cloud sync, and transcript full-text indexing are
-  outside the current MVP.
+- WSL-specific orchestration, cloud sync, transcript full-text indexing,
+  custom provider definitions, and multiline terminal input shortcuts are not
+  part of the current MVP.
+- Terminal viewport sizing remains a known issue on some layouts and will be
+  handled in a future phase.
 
-The detailed MVP architecture and acceptance criteria are documented in
-[`docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md`](docs/superpowers/specs/2026-07-10-agent-workspace-manager-mvp-design.md).
+## Troubleshooting
+
+### A provider is not detected
+
+Run its version command in the same shell environment, confirm it is on `PATH`,
+then refresh **Settings > Providers**. If you use an alias or wrapper, configure
+that command under Launch settings and select a terminal profile that loads it.
+
+### A saved session is missing
+
+Confirm the provider is installed and supports saved-session discovery. Refresh
+the catalog after the provider finishes writing its session data. Launch-only
+providers do not appear in session lists.
+
+### Development and packaged Lumora are both running
+
+They use separate application-data directories, so development testing does not
+modify the packaged application's catalog or settings.
+
+## Technical documentation
+
+- [Architecture and privacy model](docs/ARCHITECTURE.md)
+- [Development guide](docs/DEVELOPMENT.md)
+- [Packaging and release guide](docs/RELEASING.md)
+
+Lumora is authored by [HAYASAKA7](https://github.com/HAYASAKA7).

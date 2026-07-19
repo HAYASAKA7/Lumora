@@ -2,60 +2,70 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const readmePath = new URL('../../../README.md', import.meta.url);
+const releaseGuidePath = new URL('../../../docs/RELEASING.md', import.meta.url);
 
 describe('unsigned MVP release documentation', () => {
-  it('documents native packages, unsigned warnings, and manual acceptance', async () => {
-    const readme = await readFile(readmePath, 'utf8');
+  it('keeps user installation guidance in README and maintainer steps in the release guide', async () => {
+    const [readme, releaseGuide] = await Promise.all([
+      readFile(readmePath, 'utf8'),
+      readFile(releaseGuidePath, 'utf8')
+    ]);
 
-    const requiredDocumentation = [
-      '## Package an unsigned MVP build',
-      'npm run package:dir',
-      'Unsigned MVP packages',
-      'verifies and uploads all four artifacts',
-      '14 days',
-      'Open the completed workflow run',
-      'Artifacts section',
-      'download the artifact for your platform',
+    for (const documentation of [
+      '## Get Lumora',
+      'GitHub Releases',
       'Windows x64',
       'Linux x64',
-      'macOS Intel x64',
-      'macOS Apple Silicon arm64',
+      'macOS Intel',
+      'macOS Apple Silicon',
       'SmartScreen',
       'Gatekeeper',
-      '| Qwen Code | Confirmed npm action | Yes | Yes | Yes |',
+      '| Qwen Code | Confirmed npm action | Yes | Yes |',
       'provider-owned sessions',
-      'custom CLI start command',
-      'session tab closes automatically',
       '<h1 align="center">Lumora</h1>',
       'resources/icons/lumora/source/lumora-symbol-gradient.svg',
-      '<!-- SCREEN_RECORDING: Add docs/media/lumora-demo.mp4'
-    ];
-
-    for (const documentation of requiredDocumentation) {
+      '<!-- DEMO: Add docs/media/lumora-demo.mp4',
+      'docs/ARCHITECTURE.md',
+      'docs/DEVELOPMENT.md',
+      'docs/RELEASING.md'
+    ]) {
       expect(readme).toContain(documentation);
     }
 
-    expect(readme).toMatch(/^npm run package$/m);
     expect(readme).toMatch(
       /<p align="center">\s*<img[^>]+alt="Lumora"[^>]+>\s*<\/p>/
     );
+    expect(readme).not.toContain('## Build locally');
+    expect(readme).not.toContain('## Create the draft prerelease');
+
+    for (const documentation of [
+      '# Releasing Lumora',
+      'npm run package:dir',
+      'Unsigned MVP packages',
+      '14 days',
+      'Manual smoke-test checklist',
+      'custom alias or wrapper command',
+      'tab closes'
+    ]) {
+      expect(releaseGuide).toContain(documentation);
+    }
   });
 
   it('documents the controlled Lumora draft prerelease process', async () => {
-    const readme = await readFile(readmePath, 'utf8');
+    const releaseGuide = await readFile(releaseGuidePath, 'utf8');
 
     for (const documentation of [
-      '## Publish an unsigned GitHub prerelease',
-      'Product: **Lumora**',
+      '## Create the draft prerelease',
+      'Product name: **Lumora**',
       'Author: **HAYASAKA7**',
       'git tag v0.1.0',
       'git push origin v0.1.0',
       'Lumora unsigned prerelease',
       'SHA256SUMS.txt',
       'draft prerelease',
-      'manually publish'
+      'Publish the draft manually'
     ]) {
-      expect(readme).toContain(documentation);
+      expect(releaseGuide).toContain(documentation);
     }
   });
 });
