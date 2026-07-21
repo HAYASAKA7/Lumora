@@ -165,7 +165,7 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | --- | --- |
 | `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order |
 | `Ctrl+T` | Return to currently running terminals and focus terminal input |
-| `Ctrl+Shift+L` | Collapse or expand the sidebar outside a terminal |
+| `Ctrl+Shift+L` | Collapse or expand the sidebar |
 | `Ctrl+1` | Open Home |
 | `Ctrl+2` | Open Workspaces |
 | `Ctrl+3` | Open All sessions |

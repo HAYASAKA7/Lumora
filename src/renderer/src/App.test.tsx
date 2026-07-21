@@ -1049,6 +1049,46 @@ describe('App', () => {
       .toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('toggles the sidebar while terminal input is focused', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ae0'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    const terminalInput = await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+    expect(terminalInput).toHaveFocus();
+
+    fireEvent.keyDown(terminalInput, {
+      code: 'KeyL',
+      key: 'L',
+      ctrlKey: true,
+      shiftKey: true
+    });
+    expect(screen.getByRole('button', { name: 'Expand sidebar' }))
+      .toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.keyDown(terminalInput, {
+      code: 'KeyL',
+      key: 'L',
+      ctrlKey: true,
+      shiftKey: true
+    });
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' }))
+      .toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('uses customized navigation shortcuts instead of their defaults', async () => {
     const getKeyboardSettings = vi.fn().mockResolvedValue({
       ...DEFAULT_KEYBOARD_SETTINGS,

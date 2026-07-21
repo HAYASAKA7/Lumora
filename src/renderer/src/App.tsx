@@ -882,11 +882,7 @@ export default function App(): ReactNode {
         return;
       }
       if (
-        keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar) &&
-        !(
-          event.target instanceof Element &&
-          event.target.closest('.managed-terminal-shell') !== null
-        )
+        keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar)
       ) {
         event.preventDefault();
         event.stopPropagation();
