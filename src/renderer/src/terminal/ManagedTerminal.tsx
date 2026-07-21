@@ -14,6 +14,7 @@ import {
 
 interface ManagedTerminalProps {
   active: boolean;
+  focusRequestKey?: number;
   platform: SystemInfo['platform'];
   runtime: RuntimeSummary;
   onRuntimeChange(runtime: RuntimeSummary): void;
@@ -23,6 +24,7 @@ const TERMINAL_BLOCK_SIZE = '100%';
 
 export function ManagedTerminal({
   active,
+  focusRequestKey = 0,
   platform,
   runtime,
   onRuntimeChange
@@ -219,7 +221,7 @@ export function ManagedTerminal({
     }
     fitAddonRef.current?.fit();
     terminalRef.current?.focus();
-  }, [active, clearInterruptGuard]);
+  }, [active, clearInterruptGuard, focusRequestKey]);
 
   return (
     <div className="managed-terminal-shell">

@@ -956,7 +956,11 @@ describe('managed terminal contracts', () => {
         meta: false
       },
       openTerminals: expect.objectContaining({ code: 'KeyT', control: true }),
-      toggleSidebar: expect.objectContaining({ code: 'KeyL', control: true }),
+      toggleSidebar: expect.objectContaining({
+        code: 'KeyL',
+        control: true,
+        shift: true
+      }),
       openHome: expect.objectContaining({ code: 'Digit1', control: true }),
       openWorkspaces: expect.objectContaining({ code: 'Digit2', control: true }),
       openSessions: expect.objectContaining({ code: 'Digit3', control: true }),

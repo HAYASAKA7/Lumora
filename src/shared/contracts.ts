@@ -566,7 +566,10 @@ const controlShortcut = (code: string): KeyboardShortcutChord => ({
 
 const DEFAULT_TERMINAL_SWITCHER = controlShortcut('Tab');
 const DEFAULT_OPEN_TERMINALS = controlShortcut('KeyT');
-const DEFAULT_TOGGLE_SIDEBAR = controlShortcut('KeyL');
+const DEFAULT_TOGGLE_SIDEBAR = {
+  ...controlShortcut('KeyL'),
+  shift: true
+};
 const DEFAULT_OPEN_HOME = controlShortcut('Digit1');
 const DEFAULT_OPEN_WORKSPACES = controlShortcut('Digit2');
 const DEFAULT_OPEN_SESSIONS = controlShortcut('Digit3');

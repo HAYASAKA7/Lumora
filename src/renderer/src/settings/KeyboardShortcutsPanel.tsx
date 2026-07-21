@@ -29,7 +29,7 @@ const SHORTCUT_ROWS = [
   {
     key: 'openTerminals',
     label: 'Open terminals',
-    description: 'Return to a currently running terminal.',
+    description: 'Return to a running terminal and focus its input.',
     ariaLabel: 'Record open terminals shortcut'
   },
   {

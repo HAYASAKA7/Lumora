@@ -12,6 +12,7 @@ import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 interface TerminalWorkspaceProps {
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
+  focusRequestKey?: number;
   platform: SystemInfo['platform'];
   visible: boolean;
   previews: ReadonlyMap<string, LaunchPreview>;
@@ -23,6 +24,7 @@ interface TerminalWorkspaceProps {
 export function TerminalWorkspace({
   runtimes,
   activeRuntimeId,
+  focusRequestKey = 0,
   platform,
   visible,
   previews,
@@ -99,6 +101,7 @@ export function TerminalWorkspace({
           >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
+              focusRequestKey={focusRequestKey}
               platform={platform}
               runtime={item}
               onRuntimeChange={onRuntimeChange}

@@ -295,6 +295,7 @@ export default function App(): ReactNode {
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('providers');
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
     useState<RuntimeSwitcherState | null>(null);
@@ -781,9 +782,7 @@ export default function App(): ReactNode {
   );
   const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
   const liveRuntimesRef = useRef(liveRuntimes);
-  const terminalActiveRef = useRef(terminalActive);
   liveRuntimesRef.current = liveRuntimes;
-  terminalActiveRef.current = terminalActive;
   const runtimeSwitcherRuntimes = runtimeSwitcher === null
     ? []
     : runtimeSwitcher.order
@@ -800,6 +799,7 @@ export default function App(): ReactNode {
       setActiveRuntimeId(null);
     } else {
       activateRuntime(nextActive);
+      setTerminalFocusRequestKey((current) => current + 1);
     }
   }, [activateRuntime]);
   const navigateToRoute = useCallback(
@@ -874,7 +874,6 @@ export default function App(): ReactNode {
       if (event.repeat) return;
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
-        !terminalActiveRef.current &&
         liveRuntimesRef.current.length > 0
       ) {
         event.preventDefault();
@@ -1172,6 +1171,7 @@ export default function App(): ReactNode {
             <div className="terminal-surface" hidden={!terminalActive}>
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
+                focusRequestKey={terminalFocusRequestKey}
                 onActivate={activateRuntime}
                 onRuntimeChange={updateRuntime}
                 platform={

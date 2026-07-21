@@ -235,6 +235,36 @@ describe('ManagedTerminal', () => {
     expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
   });
 
+  it('refocuses an active terminal when a new focus request arrives', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        focusRequestKey={0}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.focusTerminal).toHaveBeenCalled());
+    xterm.fitTerminal.mockClear();
+    xterm.focusTerminal.mockClear();
+
+    rerender(
+      <ManagedTerminal
+        active
+        focusRequestKey={1}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    expect(xterm.fitTerminal).toHaveBeenCalledTimes(1);
+    expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
+  });
+
   it('copies selected text for Windows Ctrl+C and consumes the key event', async () => {
     const writeClipboardText = vi.fn().mockResolvedValue(undefined);
     installLumora({ writeClipboardText });

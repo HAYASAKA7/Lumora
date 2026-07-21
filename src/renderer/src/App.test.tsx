@@ -7,7 +7,7 @@ import {
   within
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
@@ -50,14 +50,19 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('./terminal/ManagedTerminal', () => ({
   ManagedTerminal: ({
+    active,
+    focusRequestKey,
     platform,
     runtime,
     onRuntimeChange
   }: {
+    active: boolean;
+    focusRequestKey?: number;
     platform: SystemInfo['platform'];
     runtime: RuntimeSummary;
     onRuntimeChange(runtime: RuntimeSummary): void;
   }) => {
+    const inputRef = useRef<HTMLButtonElement | null>(null);
     useEffect(() => {
       let active = true;
       void window.lumora.attachRuntime(runtime.id).then(
@@ -70,6 +75,9 @@ vi.mock('./terminal/ManagedTerminal', () => ({
         active = false;
       };
     }, [onRuntimeChange, runtime.id]);
+    useEffect(() => {
+      if (active) inputRef.current?.focus();
+    }, [active, focusRequestKey]);
     return (
       <div className="managed-terminal-shell" data-platform={platform}>
         <button
@@ -79,6 +87,7 @@ vi.mock('./terminal/ManagedTerminal', () => ({
               void window.lumora.readClipboardText();
             }
           }}
+          ref={inputRef}
           type="button"
         />
         <div
@@ -940,7 +949,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
   });
 
-  it('opens a live terminal with Ctrl+T and preserves terminal Ctrl+L input', async () => {
+  it('opens and refocuses a live terminal with Ctrl+T', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad8'
     );
@@ -961,15 +970,12 @@ describe('App', () => {
     });
     expect(screen.getByRole('tab', { name: /Codex working session/ }))
       .toHaveAttribute('aria-selected', 'true');
+    expect(terminalInput).toHaveFocus();
 
-    fireEvent.keyDown(terminalInput, {
-      code: 'KeyL',
-      key: 'l',
-      ctrlKey: true
-    });
-    expect(
-      screen.getByRole('button', { name: 'Collapse sidebar' })
-    ).toHaveAttribute('aria-expanded', 'true');
+    screen.getByRole('button', { name: 'Collapse sidebar' }).focus();
+    expect(terminalInput).not.toHaveFocus();
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    expect(terminalInput).toHaveFocus();
   });
 
   it('uses current runtime state when a previously registered Ctrl+T listener fires', async () => {
@@ -1019,13 +1025,26 @@ describe('App', () => {
     }
   });
 
-  it('toggles the sidebar with Ctrl+L outside a terminal', () => {
+  it('toggles the sidebar with Ctrl+Shift+L outside a terminal', () => {
     render(<App />);
 
     fireEvent.keyDown(window, { code: 'KeyL', key: 'l', ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' }))
+      .toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(window, {
+      code: 'KeyL',
+      key: 'L',
+      ctrlKey: true,
+      shiftKey: true
+    });
     expect(screen.getByRole('button', { name: 'Expand sidebar' }))
       .toHaveAttribute('aria-expanded', 'false');
-    fireEvent.keyDown(window, { code: 'KeyL', key: 'l', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyL',
+      key: 'L',
+      ctrlKey: true,
+      shiftKey: true
+    });
     expect(screen.getByRole('button', { name: 'Collapse sidebar' }))
       .toHaveAttribute('aria-expanded', 'true');
   });

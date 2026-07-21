@@ -65,7 +65,7 @@ describe('KeyboardShortcutsPanel', () => {
     })).toHaveTextContent('Ctrl + T');
     expect(screen.getByRole('button', {
       name: 'Record toggle sidebar shortcut'
-    })).toHaveTextContent('Ctrl + L');
+    })).toHaveTextContent('Ctrl + Shift + L');
     expect(screen.getByRole('button', {
       name: 'Record go to Home shortcut'
     })).toHaveTextContent('Ctrl + 1');
