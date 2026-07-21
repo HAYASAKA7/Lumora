@@ -217,27 +217,9 @@ provider may contact its own services according to its terms and configuration.
 - Terminal viewport sizing remains a known issue on some layouts and will be
   handled in a future phase.
 
-## Troubleshooting
-
-### A provider is not detected
-
-Run its version command in the same shell environment, confirm it is on `PATH`,
-then refresh **Settings > Providers**. If you use an alias or wrapper, configure
-that command under Launch settings and select a terminal profile that loads it.
-
-### A saved session is missing
-
-Confirm the provider is installed and supports saved-session discovery. Refresh
-the catalog after the provider finishes writing its session data. Launch-only
-providers do not appear in session lists.
-
-### Development and packaged Lumora are both running
-
-They use separate application-data directories, so development testing does not
-modify the packaged application's catalog or settings.
-
 ## Technical documentation
 
+- [Troubleshooting guide](docs/TROUBLESHOOTING.md)
 - [Architecture and privacy model](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
 - [Packaging and release guide](docs/RELEASING.md)

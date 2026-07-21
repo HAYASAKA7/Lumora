@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 const readmePath = new URL('../../../README.md', import.meta.url);
 const releaseGuidePath = new URL('../../../docs/RELEASING.md', import.meta.url);
+const troubleshootingGuidePath = new URL(
+  '../../../docs/TROUBLESHOOTING.md',
+  import.meta.url
+);
 
 describe('unsigned MVP release documentation', () => {
   it('keeps user installation guidance in README and maintainer steps in the release guide', async () => {
@@ -66,6 +70,31 @@ describe('unsigned MVP release documentation', () => {
       'Publish the draft manually'
     ]) {
       expect(releaseGuide).toContain(documentation);
+    }
+  });
+
+  it('keeps maintainable troubleshooting guidance outside the user guide', async () => {
+    const [readme, troubleshootingGuide] = await Promise.all([
+      readFile(readmePath, 'utf8'),
+      readFile(troubleshootingGuidePath, 'utf8')
+    ]);
+
+    expect(readme).toContain('docs/TROUBLESHOOTING.md');
+    expect(readme).not.toContain('## Troubleshooting');
+
+    for (const documentation of [
+      '# Troubleshooting Lumora',
+      '## Quick checks',
+      '## Installation and startup',
+      '## Provider discovery',
+      '## Workspaces and saved sessions',
+      '## Managed terminals',
+      '## Development builds',
+      '## Report an unresolved problem',
+      'Symptom',
+      'Resolution'
+    ]) {
+      expect(troubleshootingGuide).toContain(documentation);
     }
   });
 });
