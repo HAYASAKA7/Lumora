@@ -77,6 +77,46 @@ export function ManagedTerminal({
         terminal.loadAddon(fitAddon);
         terminal.parser.registerOscHandler(52, () => true);
         terminal.open(target);
+        let composing = false;
+        let outputFlushTimer: number | null = null;
+        let deferredOutput: string[] = [];
+        const flushDeferredOutput = () => {
+          outputFlushTimer = null;
+          if (!alive || composing || deferredOutput.length === 0) return;
+          const output = deferredOutput.join('');
+          deferredOutput = [];
+          terminal.write(output);
+        };
+        const scheduleOutputFlush = () => {
+          if (outputFlushTimer !== null) return;
+          outputFlushTimer = window.setTimeout(flushDeferredOutput, 0);
+        };
+        const writeTerminalOutput = (data: string) => {
+          if (composing || outputFlushTimer !== null) {
+            deferredOutput.push(data);
+            return;
+          }
+          terminal.write(data);
+        };
+        const compositionStart = () => {
+          composing = true;
+          if (outputFlushTimer !== null) {
+            window.clearTimeout(outputFlushTimer);
+            outputFlushTimer = null;
+          }
+        };
+        const compositionEnd = () => {
+          composing = false;
+          scheduleOutputFlush();
+        };
+        const compositionBlur = () => {
+          if (!composing) return;
+          composing = false;
+          scheduleOutputFlush();
+        };
+        terminal.textarea?.addEventListener('compositionstart', compositionStart);
+        terminal.textarea?.addEventListener('compositionend', compositionEnd);
+        terminal.textarea?.addEventListener('blur', compositionBlur);
         terminal.attachCustomKeyEventHandler((event) => {
           const action = classifyTerminalClipboardKey(
             event,
@@ -159,8 +199,8 @@ export function ManagedTerminal({
           event: Extract<RuntimeEvent, { type: 'output' }>
         ) => {
           if (event.sequence <= outputSequence) return;
-          terminal.write(event.data);
           outputSequence = event.sequence;
+          writeTerminalOutput(event.data);
         };
         const unsubscribe = window.lumora.onRuntimeEvent((event) => {
           if (event.runtimeId !== runtime.id) return;
@@ -175,6 +215,20 @@ export function ManagedTerminal({
             : new ResizeObserver(() => fitAddon.fit());
         observer?.observe(target);
         dispose = () => {
+          if (outputFlushTimer !== null) {
+            window.clearTimeout(outputFlushTimer);
+            outputFlushTimer = null;
+          }
+          deferredOutput = [];
+          terminal.textarea?.removeEventListener(
+            'compositionstart',
+            compositionStart
+          );
+          terminal.textarea?.removeEventListener(
+            'compositionend',
+            compositionEnd
+          );
+          terminal.textarea?.removeEventListener('blur', compositionBlur);
           observer?.disconnect();
           unsubscribe();
           input.dispose();
@@ -185,7 +239,9 @@ export function ManagedTerminal({
         void window.lumora.attachRuntime(runtime.id).then(
           (attachment) => {
             if (!alive) return;
-            if (attachment.snapshot.length > 0) terminal.write(attachment.snapshot);
+            if (attachment.snapshot.length > 0) {
+              writeTerminalOutput(attachment.snapshot);
+            }
             outputSequence = attachment.outputSequence;
             attached = true;
             pendingOutput
