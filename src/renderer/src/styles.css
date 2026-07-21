@@ -55,6 +55,32 @@ button {
   border: 0;
 }
 
+.app-shell *:not(.xterm-viewport)::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.app-shell *:not(.xterm-viewport)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-shell *:not(.xterm-viewport)::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  background: rgba(99, 112, 135, 0.58);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+.app-shell *:not(.xterm-viewport)::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 112, 135, 0.78);
+  background-clip: padding-box;
+}
+
+.app-shell *:not(.xterm-viewport)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
