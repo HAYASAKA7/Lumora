@@ -978,6 +978,77 @@ describe('App', () => {
     expect(terminalInput).toHaveFocus();
   });
 
+  it('keeps the selected terminal when Ctrl+T is pressed on the terminal page', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ada'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789adb',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.click(
+      await screen.findByRole('tab', { name: /Claude working session/ })
+    );
+    const secondInput = screen.getByRole('button', {
+      name: 'Claude working session terminal input'
+    });
+    screen.getByRole('button', { name: 'Collapse sidebar' }).focus();
+
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+
+    expect(screen.getByRole('tab', { name: /Claude working session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+    expect(secondInput).toHaveFocus();
+  });
+
+  it('restores the previously selected terminal with Ctrl+T after navigating away', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789adc'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789add',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.click(
+      await screen.findByRole('tab', { name: /Claude working session/ })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(screen.getByRole('heading', { name: 'All sessions' }))
+      .toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+
+    expect(screen.getByRole('tab', { name: /Claude working session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', {
+      name: 'Claude working session terminal input'
+    })).toHaveFocus();
+  });
+
   it('uses current runtime state when a previously registered Ctrl+T listener fires', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad9'
