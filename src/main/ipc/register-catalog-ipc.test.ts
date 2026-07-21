@@ -47,6 +47,7 @@ function createHarness(options: {
   getCatalog?: (query: CatalogQuery) => unknown;
   refreshCatalog?: (query: CatalogQuery) => Promise<unknown>;
   registerWorkspace?: (path: string) => Promise<unknown>;
+  onCatalogRefreshed?: () => void;
 } = {}) {
   const handlers = new Map<string, InvokeHandler>();
   const ipc = {
@@ -76,6 +77,9 @@ function createHarness(options: {
     ipc,
     service,
     showOpenDialog,
+    ...(options.onCatalogRefreshed === undefined
+      ? {}
+      : { onCatalogRefreshed: options.onCatalogRefreshed }),
     ...(options.developmentOrigin === undefined
       ? {}
       : { developmentOrigin: options.developmentOrigin })
@@ -100,7 +104,8 @@ describe('registerCatalogIpc', () => {
   });
 
   it('validates and forwards normalized get and refresh queries', async () => {
-    const { handlers, service } = createHarness();
+    const onCatalogRefreshed = vi.fn();
+    const { handlers, service } = createHarness({ onCatalogRefreshed });
     const get = handlers.get(IPC_CHANNELS.catalogGet)!;
     const refresh = handlers.get(IPC_CHANNELS.catalogRefresh)!;
 
@@ -119,6 +124,7 @@ describe('registerCatalogIpc', () => {
       text: '',
       provider: null
     });
+    expect(onCatalogRefreshed).toHaveBeenCalledOnce();
   });
 
   it('uses a directory-only native picker and ignores arbitrary renderer paths', async () => {
@@ -192,7 +198,9 @@ describe('registerCatalogIpc', () => {
   });
 
   it('normalizes privileged failures without exposing raw details', async () => {
+    const onCatalogRefreshed = vi.fn();
     const { handlers } = createHarness({
+      onCatalogRefreshed,
       refreshCatalog: async () => {
         throw new Error('SQL and local path details');
       }
@@ -205,5 +213,6 @@ describe('registerCatalogIpc', () => {
       code: 'CATALOG_DATABASE_FAILED',
       message: 'Lumora could not complete the catalog operation.'
     });
+    expect(onCatalogRefreshed).not.toHaveBeenCalled();
   });
 });

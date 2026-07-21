@@ -69,6 +69,7 @@ export interface TerminalRuntime {
   revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[];
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): RuntimeSummary[];
+  synchronizeCatalogSessions(): RuntimeSummary[];
   attachRuntime(runtimeId: string): RuntimeAttachment;
   writeRuntime(input: RuntimeWriteRequest): void;
   resizeRuntime(input: RuntimeResizeRequest): void;
@@ -221,6 +222,9 @@ export async function createTerminalRuntime({
     },
     listRuntimes() {
       return host.list();
+    },
+    synchronizeCatalogSessions() {
+      return host.synchronizeCatalogSessions();
     },
     attachRuntime(runtimeId) {
       return host.attach(runtimeId);
