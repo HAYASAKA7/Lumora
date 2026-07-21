@@ -219,6 +219,7 @@ provider may contact its own services according to its terms and configuration.
 
 ## Technical documentation
 
+- [Provider support and verification](docs/PROVIDER_SUPPORT.md)
 - [Troubleshooting guide](docs/TROUBLESHOOTING.md)
 - [Architecture and privacy model](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
