@@ -312,6 +312,7 @@ export default function App(): ReactNode {
   const mainContentRef = useRef<HTMLElement | null>(null);
   const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
+  const lastActiveRuntimeIdRef = useRef<string | null>(null);
   catalogQueryRef.current = {
     text: debouncedSessionSearch,
     provider: sessionProvider
@@ -433,6 +434,7 @@ export default function App(): ReactNode {
   }, []);
 
   const activateRuntime = useCallback((runtimeId: string) => {
+    lastActiveRuntimeIdRef.current = runtimeId;
     setOpenRuntimeIds((current) =>
       current.includes(runtimeId) ? current : [...current, runtimeId]
     );
@@ -794,7 +796,11 @@ export default function App(): ReactNode {
       ...current,
       ...liveIds.filter((id) => !current.includes(id))
     ]);
-    const nextActive = liveIds[0] ?? null;
+    const rememberedRuntimeId = lastActiveRuntimeIdRef.current;
+    const nextActive =
+      rememberedRuntimeId !== null && liveIds.includes(rememberedRuntimeId)
+        ? rememberedRuntimeId
+        : (liveIds[0] ?? null);
     if (nextActive === null) {
       setActiveRuntimeId(null);
     } else {
