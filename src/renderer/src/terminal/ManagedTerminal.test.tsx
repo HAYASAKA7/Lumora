@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -18,6 +18,7 @@ const xterm = vi.hoisted(() => ({
   getSelection: vi.fn(),
   hasSelection: vi.fn(),
   pasteTerminal: vi.fn(),
+  textarea: null as HTMLTextAreaElement | null,
   terminalConstructed: vi.fn(),
   terminalWrite: vi.fn()
 }));
@@ -30,7 +31,11 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
-    constructor() { xterm.terminalConstructed(); }
+    textarea: HTMLTextAreaElement | undefined;
+    constructor() {
+      xterm.terminalConstructed();
+      this.textarea = xterm.textarea ?? undefined;
+    }
     parser = { registerOscHandler: vi.fn() };
     attachCustomKeyEventHandler(
       handler: (event: KeyboardEvent) => boolean
@@ -118,6 +123,7 @@ describe('ManagedTerminal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     xterm.customKeyEventHandler = null;
+    xterm.textarea = document.createElement('textarea');
     xterm.hasSelection.mockReturnValue(false);
     xterm.getSelection.mockReturnValue('');
   });
@@ -199,6 +205,52 @@ describe('ManagedTerminal', () => {
     });
     expect(xterm.terminalWrite).toHaveBeenCalledTimes(2);
     expect(xterm.terminalWrite).toHaveBeenLastCalledWith('next\r\n');
+  });
+
+  it('defers live output while IME composition is active and flushes it in order', async () => {
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      }
+    );
+    installLumora({ onRuntimeEvent });
+
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(onRuntimeEvent).toHaveBeenCalled());
+    await waitFor(() => expect(xterm.focusTerminal).toHaveBeenCalled());
+    xterm.terminalWrite.mockClear();
+
+    fireEvent.compositionStart(xterm.textarea!);
+    act(() => {
+      emitRuntime({
+        type: 'output',
+        runtimeId: runtime.id,
+        sequence: 1,
+        data: 'first'
+      });
+      emitRuntime({
+        type: 'output',
+        runtimeId: runtime.id,
+        sequence: 2,
+        data: ' second'
+      });
+    });
+    expect(xterm.terminalWrite).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(xterm.textarea!);
+    await waitFor(() => {
+      expect(xterm.terminalWrite).toHaveBeenCalledOnce();
+    });
+    expect(xterm.terminalWrite).toHaveBeenCalledWith('first second');
   });
 
   it('fits and focuses only when its mounted terminal becomes active', async () => {
