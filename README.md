@@ -214,6 +214,10 @@ provider may contact its own services according to its terms and configuration.
 - WSL-specific orchestration, cloud sync, transcript full-text indexing,
   custom provider definitions, and multiline terminal input shortcuts are not
   part of the current MVP.
+- Read-only session-content previews are deferred to a future phase. The
+  intended design is an on-demand Session Details view that shows a small,
+  normalized excerpt without resuming the provider session or importing its
+  transcript into Lumora's catalog.
 - Terminal viewport sizing remains a known issue on some layouts and will be
   handled in a future phase.
 

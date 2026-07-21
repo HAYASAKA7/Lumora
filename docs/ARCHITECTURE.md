@@ -166,6 +166,35 @@ Windows and Linux remove the default application menu. macOS retains the native
 menu in the system menu bar. Window bounds are restored only when they still fit
 an available display, and maximized state is persisted independently.
 
+## Intentional future scope
+
+### Read-only session preview
+
+Lumora may add a Session Details view that lets users identify a saved session
+before resuming it. This is intentionally deferred because it requires a
+provider-specific content-reading layer in addition to the existing metadata
+catalog.
+
+The planned boundaries are:
+
+- load previews only when the user opens Session Details;
+- support every provider that has complete session support;
+- normalize only a small number of recent user and assistant messages;
+- exclude system messages, reasoning, tool calls, tool output, and provider
+  internals;
+- keep provider source paths and raw records inside the main process;
+- apply strict per-message, total-size, timeout, and file-size limits;
+- render plain text and expose clear unavailable and retry states;
+- never save preview content in the catalog, application logs, or a persistent
+  cache; and
+- keep resuming as a separate, explicit action using the existing launch and
+  trust flow.
+
+The expected provider adapters are Codex history APIs, OpenCode's structured
+session export, and bounded read-only parsing of the provider-owned files used
+by Claude Code, Gemini, GitHub Copilot CLI, and Qwen Code. A preview failure
+must not prevent an otherwise valid session from being resumed.
+
 ## Important source areas
 
 | Path | Responsibility |
