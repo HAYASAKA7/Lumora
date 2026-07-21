@@ -35,6 +35,7 @@ export class ProviderUpdateServiceError extends Error {
     readonly code:
       | 'PROVIDER_NOT_READY'
       | 'PROVIDER_ALREADY_INSTALLED'
+      | 'PROVIDER_UPDATE_GUIDE_REQUIRED'
       | 'PROVIDER_UPDATE_IN_PROGRESS',
     message: string
   ) {
@@ -243,6 +244,12 @@ export function createProviderUpdateService({
           throw new ProviderUpdateServiceError(
             'PROVIDER_NOT_READY',
             'The provider is not ready to update.'
+          );
+        }
+        if (providerDefinition(provider).npmPackage === null) {
+          throw new ProviderUpdateServiceError(
+            'PROVIDER_UPDATE_GUIDE_REQUIRED',
+            `Use ${installation.displayName}'s official installation guide to update it.`
           );
         }
 

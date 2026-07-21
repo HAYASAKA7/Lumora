@@ -7,6 +7,10 @@ const troubleshootingGuidePath = new URL(
   '../../../docs/TROUBLESHOOTING.md',
   import.meta.url
 );
+const providerSupportPath = new URL(
+  '../../../docs/PROVIDER_SUPPORT.md',
+  import.meta.url
+);
 
 describe('unsigned MVP release documentation', () => {
   it('keeps user installation guidance in README and maintainer steps in the release guide', async () => {
@@ -95,6 +99,41 @@ describe('unsigned MVP release documentation', () => {
       'Resolution'
     ]) {
       expect(troubleshootingGuide).toContain(documentation);
+    }
+  });
+
+  it('documents honest provider capabilities and cross-platform verification', async () => {
+    const [readme, developmentGuide, providerSupport] = await Promise.all([
+      readFile(readmePath, 'utf8'),
+      readFile(new URL('../../../docs/DEVELOPMENT.md', import.meta.url), 'utf8'),
+      readFile(providerSupportPath, 'utf8')
+    ]);
+
+    expect(readme).toContain('docs/PROVIDER_SUPPORT.md');
+    expect(developmentGuide).toContain('PROVIDER_SUPPORT.md');
+    for (const documentation of [
+      '# Provider support and verification',
+      '| Provider | Support level | Windows | macOS | Linux |',
+      'Full session support',
+      'Launch only',
+      'Pending manual verification',
+      'Automated coverage is not a real CLI smoke test',
+      'Cursor CLI',
+      'Antigravity',
+      'Codex',
+      'Claude Code',
+      'Gemini CLI',
+      'OpenCode',
+      'GitHub Copilot CLI',
+      'Qwen Code',
+      'Amp',
+      'Crush',
+      'goose',
+      'Aider',
+      'cursor-agent ls',
+      'last_conversations.json'
+    ]) {
+      expect(providerSupport).toContain(documentation);
     }
   });
 });

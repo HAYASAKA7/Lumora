@@ -46,6 +46,10 @@ describe('provider definitions', () => {
     ]);
     expect(hasCompleteSessionSupport('gemini')).toBe(true);
     expect(hasCompleteSessionSupport('cursor')).toBe(false);
-    expect(providerDefinition('aider').sessionSupport).toBe('launch_only');
+    expect(
+      PROVIDER_DEFINITIONS
+        .filter(({ sessionSupport }) => sessionSupport === 'launch_only')
+        .map(({ provider }) => provider)
+    ).toEqual(['antigravity', 'cursor', 'amp', 'crush', 'goose', 'aider']);
   });
 });

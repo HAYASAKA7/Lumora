@@ -189,6 +189,28 @@ describe('ProviderUpdateService.update', () => {
     await expect(first).resolves.toMatchObject({ provider: 'codex' });
   });
 
+  it('rejects npm updates for guide-only providers', async () => {
+    const aider: ProviderInstallation = {
+      provider: 'aider',
+      displayName: 'Aider',
+      state: 'ready',
+      executablePath: '/usr/bin/aider',
+      version: 'aider 0.82.0',
+      issue: null
+    };
+    const runLifecycle = vi.fn();
+    const service = createProviderUpdateService({
+      registry: { scan: async () => scan([aider]) },
+      releases: { latestVersion: vi.fn() },
+      runLifecycle
+    });
+
+    await expect(service.update('aider')).rejects.toMatchObject({
+      code: 'PROVIDER_UPDATE_GUIDE_REQUIRED'
+    });
+    expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
   it('directs guide-only providers to their official update instructions', async () => {
     const aider: ProviderInstallation = {
       provider: 'aider',

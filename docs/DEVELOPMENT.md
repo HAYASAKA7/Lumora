@@ -110,6 +110,9 @@ exact resume are reliable.
 
 Provider source adapters must treat native session files as read-only inputs.
 Invalid records should produce diagnostics without invalidating healthy data.
+Record real CLI and operating-system smoke tests in the
+[provider support matrix](PROVIDER_SUPPORT.md); automated adapter coverage is
+not a substitute for those checks.
 
 ## IPC and security changes
 
