@@ -35,7 +35,7 @@ const SHORTCUT_ROWS = [
   {
     key: 'toggleSidebar',
     label: 'Toggle sidebar',
-    description: 'Expand or collapse the sidebar outside terminal input.',
+    description: 'Expand or collapse the sidebar.',
     ariaLabel: 'Record toggle sidebar shortcut'
   },
   {

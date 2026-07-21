@@ -33,6 +33,7 @@ describe('unsigned MVP release documentation', () => {
       '<h1 align="center">Lumora</h1>',
       'resources/icons/lumora/source/lumora-symbol-gradient.svg',
       '<!-- DEMO: Add docs/media/lumora-demo.mp4',
+      '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
       'docs/ARCHITECTURE.md',
       'docs/DEVELOPMENT.md',
       'docs/RELEASING.md'

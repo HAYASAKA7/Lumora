@@ -66,6 +66,8 @@ describe('KeyboardShortcutsPanel', () => {
     expect(screen.getByRole('button', {
       name: 'Record toggle sidebar shortcut'
     })).toHaveTextContent('Ctrl + Shift + L');
+    expect(screen.getByText('Expand or collapse the sidebar.'))
+      .toBeInTheDocument();
     expect(screen.getByRole('button', {
       name: 'Record go to Home shortcut'
     })).toHaveTextContent('Ctrl + 1');
