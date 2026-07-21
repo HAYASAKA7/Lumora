@@ -26,9 +26,16 @@ describe('buildResumeArguments', () => {
     expect(buildResumeArguments(provider, 'native-1')).toEqual(expected);
   });
 
-  it('rejects launch-only providers', () => {
-    expect(() => buildResumeArguments('aider', 'native-1')).toThrow(
-      'Aider does not support exact session resume in Lumora.'
+  it.each([
+    ['antigravity', 'Antigravity'],
+    ['cursor', 'Cursor CLI'],
+    ['amp', 'Amp'],
+    ['crush', 'Crush'],
+    ['goose', 'goose'],
+    ['aider', 'Aider']
+  ] as const)('rejects launch-only provider %s', (provider, displayName) => {
+    expect(() => buildResumeArguments(provider, 'native-1')).toThrow(
+      `${displayName} does not support exact session resume in Lumora.`
     );
   });
 });

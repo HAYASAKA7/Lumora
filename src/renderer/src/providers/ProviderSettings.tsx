@@ -100,8 +100,8 @@ function ProviderCard({
       <p className="provider-session-capability">
         Saved sessions:{' '}
         {definition.sessionSupport === 'complete'
-          ? 'Adapter available'
-          : 'Not available'}
+          ? 'Full session support'
+          : 'Launch only'}
       </p>
 
       {installation.state === 'ready' ? (

@@ -126,9 +126,9 @@ describe('ProviderSettings', () => {
       .closest('article');
     expect(geminiCard).not.toBeNull();
     expect(aiderCard).not.toBeNull();
-    expect(within(geminiCard!).getByText('Saved sessions: Adapter available'))
+    expect(within(geminiCard!).getByText('Saved sessions: Full session support'))
       .toBeInTheDocument();
-    expect(within(aiderCard!).getByText('Saved sessions: Not available'))
+    expect(within(aiderCard!).getByText('Saved sessions: Launch only'))
       .toBeInTheDocument();
   });
 
