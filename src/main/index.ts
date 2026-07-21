@@ -255,6 +255,7 @@ void app.whenReady().then(async () => {
     ipc: ipcMain,
     service: catalogRuntime.service,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
+    onCatalogRefreshed: () => terminalRuntime!.synchronizeCatalogSessions(),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerClipboardIpc({

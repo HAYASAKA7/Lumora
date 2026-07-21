@@ -579,4 +579,262 @@ describe('TerminalRepository', () => {
       nativeSessionId: 'new-native'
     });
   });
+
+  it('synchronizes linked runtime titles from the current catalog', () => {
+    const profileId = 'b'.repeat(64);
+    const resumeSessionId = 'c'.repeat(64);
+    const newSessionId = 'd'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    const insertSession = database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', ?, ?, ?, ?, ?, ?, 'active', 'current')`
+    );
+    insertSession.run(
+      resumeSessionId,
+      'resume-native',
+      workspaceId,
+      'Old resume title',
+      'old resume title',
+      timestamp,
+      timestamp
+    );
+    insertSession.run(
+      newSessionId,
+      'new-native',
+      workspaceId,
+      'Old new title',
+      'old new title',
+      timestamp,
+      timestamp
+    );
+    const baseRuntime = {
+      provider: 'codex' as const,
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running' as const,
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+    repository.saveRuntime({
+      ...baseRuntime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ab1',
+      displayName: 'Old resume title',
+      strategy: 'resume',
+      sessionId: resumeSessionId,
+      nativeSessionId: 'resume-native',
+      reconciliationState: 'not_required'
+    });
+    repository.saveRuntime({
+      ...baseRuntime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ab2',
+      displayName: 'Old new title',
+      strategy: 'new',
+      sessionId: newSessionId,
+      nativeSessionId: 'new-native',
+      reconciliationState: 'linked'
+    });
+    database
+      .prepare(
+        `UPDATE session SET title = ?, normalized_title = ? WHERE id = ?`
+      )
+      .run('Renamed resume', 'renamed resume', resumeSessionId);
+    database
+      .prepare(
+        `UPDATE session SET title = ?, normalized_title = ? WHERE id = ?`
+      )
+      .run('Renamed new', 'renamed new', newSessionId);
+
+    expect(repository.synchronizeRuntimeSessions()).toEqual([
+      expect.objectContaining({
+        id: '0198f8b6-18f3-7ca0-9f0f-123456789ab1',
+        displayName: 'Renamed resume'
+      }),
+      expect.objectContaining({
+        id: '0198f8b6-18f3-7ca0-9f0f-123456789ab2',
+        displayName: 'Renamed new'
+      })
+    ]);
+  });
+
+  it('links one later-discovered session to an unresolved live runtime', () => {
+    const profileId = 'b'.repeat(64);
+    const sessionId = 'c'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789ab3';
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    repository.saveRuntime(
+      {
+        id: runtimeId,
+        displayName: 'New Codex session',
+        strategy: 'new',
+        sessionId: null,
+        nativeSessionId: null,
+        reconciliationState: 'pending',
+        provider: 'codex',
+        workspaceId,
+        terminalProfileId: profileId,
+        launchHash: 'e'.repeat(64),
+        state: 'running',
+        pid: 4321,
+        createdAt: timestamp,
+        startedAt: timestamp,
+        endedAt: null,
+        exitCode: null,
+        errorCode: null
+      },
+      ['known-native']
+    );
+    repository.applyRuntimeReconciliation(runtimeId, { state: 'unresolved' });
+    database
+      .prepare(
+        `INSERT INTO session (
+          id, provider, native_id, workspace_id, title, normalized_title,
+          created_at, updated_at, lifecycle, source_freshness
+        ) VALUES (?, 'codex', 'later-native', ?, 'Renamed after launch',
+          'renamed after launch', ?, ?, 'active', 'current')`
+      )
+      .run(sessionId, workspaceId, timestamp, timestamp);
+
+    expect(repository.synchronizeRuntimeSessions()).toEqual([
+      expect.objectContaining({
+        id: runtimeId,
+        displayName: 'Renamed after launch',
+        reconciliationState: 'linked',
+        sessionId,
+        nativeSessionId: 'later-native'
+      })
+    ]);
+  });
+
+  it('keeps concurrent indistinguishable new sessions unlinked', () => {
+    const profileId = 'b'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    const runtime = (
+      id: string
+    ): RuntimeSummary => ({
+      id,
+      displayName: 'New Codex session',
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running',
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    });
+    const firstRuntimeId = '0198f8b6-18f3-7ca0-9f0f-123456789ab4';
+    const secondRuntimeId = '0198f8b6-18f3-7ca0-9f0f-123456789ab5';
+    repository.saveRuntime(runtime(firstRuntimeId), []);
+    repository.saveRuntime(runtime(secondRuntimeId), []);
+    repository.applyRuntimeReconciliation(firstRuntimeId, { state: 'unresolved' });
+    repository.applyRuntimeReconciliation(secondRuntimeId, { state: 'unresolved' });
+    const insertSession = database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', ?, ?, ?, ?, ?, ?, 'active', 'current')`
+    );
+    insertSession.run(
+      'c'.repeat(64),
+      'native-a',
+      workspaceId,
+      'Session A',
+      'session a',
+      timestamp,
+      timestamp
+    );
+    insertSession.run(
+      'd'.repeat(64),
+      'native-b',
+      workspaceId,
+      'Session B',
+      'session b',
+      timestamp,
+      timestamp
+    );
+
+    repository.synchronizeRuntimeSessions();
+
+    expect(repository.listRuntimes()).toEqual([
+      expect.objectContaining({
+        id: firstRuntimeId,
+        reconciliationState: 'ambiguous',
+        sessionId: null
+      }),
+      expect.objectContaining({
+        id: secondRuntimeId,
+        reconciliationState: 'ambiguous',
+        sessionId: null
+      })
+    ]);
+  });
+
+  it('does not link one catalog session to two runtimes', () => {
+    const profileId = 'b'.repeat(64);
+    const sessionId = 'c'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    database
+      .prepare(
+        `INSERT INTO session (
+          id, provider, native_id, workspace_id, title, normalized_title,
+          created_at, updated_at, lifecycle, source_freshness
+        ) VALUES (?, 'codex', 'shared-native', ?, 'Shared', 'shared', ?, ?,
+          'active', 'current')`
+      )
+      .run(sessionId, workspaceId, timestamp, timestamp);
+    const runtime = (
+      id: string
+    ): RuntimeSummary => ({
+      id,
+      displayName: 'New Codex session',
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running',
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    });
+    const firstRuntimeId = '0198f8b6-18f3-7ca0-9f0f-123456789ab6';
+    const secondRuntimeId = '0198f8b6-18f3-7ca0-9f0f-123456789ab7';
+    repository.saveRuntime(runtime(firstRuntimeId), []);
+    repository.saveRuntime(runtime(secondRuntimeId), []);
+
+    expect(
+      repository.applyRuntimeReconciliation(firstRuntimeId, {
+        state: 'linked',
+        sessionId,
+        nativeSessionId: 'shared-native'
+      })
+    ).not.toBeNull();
+    expect(
+      repository.applyRuntimeReconciliation(secondRuntimeId, {
+        state: 'linked',
+        sessionId,
+        nativeSessionId: 'shared-native'
+      })
+    ).toBeNull();
+  });
 });

@@ -26,6 +26,7 @@ import {
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../shared/provider-definitions';
+import { resolveRuntimeSessionMatches } from '../terminal/runtime-session-matcher';
 
 const KEYBOARD_SETTINGS_PREFERENCE_KEY = 'keyboardShortcuts.v1';
 
@@ -120,6 +121,10 @@ export interface SessionLaunchInfo {
 
 function normalizeTimestamp(value: string): string {
   return new Date(value).toISOString();
+}
+
+function sessionScopeKey(provider: ProviderId, workspaceId: string): string {
+  return `${provider}\u0000${workspaceId}`;
 }
 
 function rowToProfile(row: TerminalProfileRow): TerminalProfile {
@@ -689,8 +694,17 @@ export class TerminalRepository {
       let displayName = current.display_name;
       if (result.state === 'linked') {
         const session = this.getSession(result.sessionId);
+        const claimed = this.database
+          .prepare(
+            `SELECT 1 FROM runtime_instance
+             WHERE id <> ? AND session_id = ?
+               AND state IN ('launching', 'running')
+             LIMIT 1`
+          )
+          .get(runtimeId, result.sessionId);
         if (
           session === null ||
+          claimed !== undefined ||
           session.sourceFreshness !== 'current' ||
           session.provider !== current.provider ||
           session.workspaceId !== current.workspace_id ||
@@ -728,6 +742,186 @@ export class TerminalRepository {
       const runtime = rowToRuntime(updated);
       this.database.exec('COMMIT');
       return runtime;
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  synchronizeRuntimeSessions(): RuntimeSummary[] {
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      const changedRuntimeIds = new Set<string>();
+      const renamed = this.database
+        .prepare(
+          `SELECT runtime.id, session.title
+           FROM runtime_instance runtime
+           JOIN session ON session.id = runtime.session_id
+           WHERE session.source_freshness = 'current'
+             AND runtime.state IN ('launching', 'running')
+             AND runtime.display_name <> session.title`
+        )
+        .all() as unknown as Array<{ id: string; title: string }>;
+      const updateTitle = this.database.prepare(
+        'UPDATE runtime_instance SET display_name = ? WHERE id = ?'
+      );
+      for (const runtime of renamed) {
+        updateTitle.run(runtime.title, runtime.id);
+        changedRuntimeIds.add(runtime.id);
+      }
+
+      const retryable = this.database
+        .prepare(
+          `SELECT runtime.id, runtime.provider, runtime.workspace_id,
+             runtime.reconciliation_state, reconciliation.baseline_native_ids_json
+           FROM runtime_instance runtime
+           JOIN runtime_reconciliation reconciliation
+             ON reconciliation.runtime_id = runtime.id
+           WHERE runtime.strategy = 'new'
+             AND runtime.session_id IS NULL
+             AND runtime.state IN ('launching', 'running')
+             AND runtime.reconciliation_state IN ('unresolved', 'ambiguous')
+           ORDER BY runtime.created_at, runtime.id`
+        )
+        .all() as unknown as Array<{
+        id: string;
+        provider: ProviderId;
+        workspace_id: string;
+        reconciliation_state: 'unresolved' | 'ambiguous';
+        baseline_native_ids_json: string;
+      }>;
+      const claimedSessionIds = new Set(
+        (
+          this.database
+            .prepare(
+              `SELECT session_id FROM runtime_instance
+               WHERE session_id IS NOT NULL
+                 AND state IN ('launching', 'running')`
+            )
+            .all() as unknown as Array<{ session_id: string }>
+        ).map((row) => row.session_id)
+      );
+      const currentSessions = this.database
+        .prepare(
+          `SELECT id, native_id, provider, workspace_id, title
+           FROM session
+           WHERE source_freshness = 'current'
+           ORDER BY native_id, id`
+        )
+        .all() as unknown as Array<{
+        id: string;
+        native_id: string;
+        provider: ProviderId;
+        workspace_id: string;
+        title: string;
+      }>;
+      const sessionsByScope = new Map<string, typeof currentSessions>();
+      for (const session of currentSessions) {
+        const key = sessionScopeKey(session.provider, session.workspace_id);
+        const sessions = sessionsByScope.get(key) ?? [];
+        sessions.push(session);
+        sessionsByScope.set(key, sessions);
+      }
+      const candidatesByRuntime = new Map(
+        retryable.map((runtime) => {
+          const baseline = new Set(
+            JSON.parse(runtime.baseline_native_ids_json) as string[]
+          );
+          const candidates = (
+            sessionsByScope.get(
+              sessionScopeKey(runtime.provider, runtime.workspace_id)
+            ) ?? []
+          )
+            .filter(
+              (session) =>
+                !baseline.has(session.native_id) &&
+                !claimedSessionIds.has(session.id)
+            )
+            .map((session) => ({
+              sessionId: session.id,
+              nativeSessionId: session.native_id
+            }));
+          return [runtime.id, candidates] as const;
+        })
+      );
+      const matches = resolveRuntimeSessionMatches(
+        retryable.map((runtime) => ({
+          runtimeId: runtime.id,
+          candidates: candidatesByRuntime.get(runtime.id) ?? []
+        }))
+      );
+      const matchedRuntimeIds = new Set(matches.map((match) => match.runtimeId));
+      const assignedSessionIds = new Set(matches.map((match) => match.sessionId));
+      const sessionsById = new Map(
+        currentSessions.map((session) => [session.id, session])
+      );
+      const linkRuntime = this.database.prepare(
+        `UPDATE runtime_instance
+         SET reconciliation_state = 'linked', session_id = ?,
+           native_session_id = ?, display_name = ?
+         WHERE id = ? AND strategy = 'new' AND session_id IS NULL
+           AND state IN ('launching', 'running')
+           AND reconciliation_state IN ('unresolved', 'ambiguous')
+           AND NOT EXISTS (
+             SELECT 1 FROM runtime_instance claimed
+             WHERE claimed.id <> runtime_instance.id
+               AND claimed.session_id = ?
+               AND claimed.state IN ('launching', 'running')
+           )`
+      );
+      for (const match of matches) {
+        const session = sessionsById.get(match.sessionId);
+        if (session === undefined) continue;
+        const update = linkRuntime.run(
+          match.sessionId,
+          match.nativeSessionId,
+          session.title,
+          match.runtimeId,
+          match.sessionId
+        );
+        if (update.changes === 1) {
+          changedRuntimeIds.add(match.runtimeId);
+        }
+      }
+
+      const updateReconciliationState = this.database.prepare(
+        `UPDATE runtime_instance SET reconciliation_state = ?
+         WHERE id = ? AND reconciliation_state <> ?`
+      );
+      for (const runtime of retryable) {
+        if (matchedRuntimeIds.has(runtime.id)) continue;
+        const candidates = (candidatesByRuntime.get(runtime.id) ?? []).filter(
+          (candidate) => !assignedSessionIds.has(candidate.sessionId)
+        );
+        const nextState = candidates.length === 0 ? 'unresolved' : 'ambiguous';
+        const update = updateReconciliationState.run(
+          nextState,
+          runtime.id,
+          nextState
+        );
+        if (update.changes === 1) {
+          changedRuntimeIds.add(runtime.id);
+        }
+      }
+
+      const placeholders = [...changedRuntimeIds].map(() => '?').join(', ');
+      const changed = changedRuntimeIds.size === 0
+        ? []
+        : (
+            this.database
+              .prepare(
+                `SELECT id, display_name, strategy, session_id, native_session_id,
+                  reconciliation_state, provider, workspace_id,
+                  terminal_profile_id, launch_hash, state, pid, created_at,
+                  started_at, ended_at, exit_code, error_code
+                 FROM runtime_instance
+                 WHERE id IN (${placeholders})
+                 ORDER BY created_at DESC, id`
+              )
+              .all(...changedRuntimeIds) as unknown as RuntimeRow[]
+          ).map(rowToRuntime);
+      this.database.exec('COMMIT');
+      return changed;
     } catch (error) {
       this.database.exec('ROLLBACK');
       throw error;

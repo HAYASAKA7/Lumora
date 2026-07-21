@@ -51,6 +51,7 @@ interface RuntimeRepository {
     baselineNativeSessionIds?: readonly string[]
   ): void;
   listRuntimes(): RuntimeSummary[];
+  synchronizeRuntimeSessions(): RuntimeSummary[];
   applyRuntimeReconciliation(
     runtimeId: string,
     result: RuntimeReconciliationResult
@@ -233,6 +234,18 @@ export class RuntimeHost {
     const live = this.live.get(runtimeId);
     if (live !== undefined) live.runtime = updated;
     this.emit({ type: 'state', runtimeId, runtime: updated });
+    return updated;
+  }
+
+  synchronizeCatalogSessions(): RuntimeSummary[] {
+    const updated = this.dependencies.repository.synchronizeRuntimeSessions();
+    for (const runtime of updated) {
+      const live = this.live.get(runtime.id);
+      if (live !== undefined) {
+        live.runtime = runtime;
+      }
+      this.emit({ type: 'state', runtimeId: runtime.id, runtime });
+    }
     return updated;
   }
 

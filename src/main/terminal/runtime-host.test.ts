@@ -111,6 +111,7 @@ function harness(options: {
       else stored[index] = runtime;
     }),
     listRuntimes: vi.fn(() => [...stored]),
+    synchronizeRuntimeSessions: vi.fn((): RuntimeSummary[] => []),
     applyRuntimeReconciliation: vi.fn((runtimeId, result) => {
       const index = stored.findIndex((item) => item.id === runtimeId);
       const current = stored[index];
@@ -252,6 +253,30 @@ describe('RuntimeHost', () => {
     expect(events.at(-1)).toMatchObject({
       type: 'state',
       runtime: { reconciliationState: 'linked' }
+    });
+  });
+
+  it('updates live runtime metadata and emits state after catalog synchronization', async () => {
+    const { host, repository } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    const linked: RuntimeSummary = {
+      ...runtime,
+      displayName: 'Renamed provider session',
+      reconciliationState: 'linked',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1'
+    };
+    repository.synchronizeRuntimeSessions.mockReturnValue([linked]);
+
+    expect(host.synchronizeCatalogSessions()).toEqual([linked]);
+
+    expect(host.attach(runtime.id).runtime).toEqual(linked);
+    expect(events.at(-1)).toEqual({
+      type: 'state',
+      runtimeId: runtime.id,
+      runtime: linked
     });
   });
 

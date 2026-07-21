@@ -38,6 +38,7 @@ interface RegisterCatalogIpcDependencies {
   showOpenDialog(options: {
     properties: ['openDirectory'];
   }): Promise<OpenDialogResult>;
+  onCatalogRefreshed?(): void;
   developmentOrigin?: string;
 }
 
@@ -72,10 +73,13 @@ function assertTrusted(
 }
 
 async function validateCatalogOperation(
-  operation: () => Promise<unknown> | unknown
+  operation: () => Promise<unknown> | unknown,
+  afterValidation?: () => void
 ): Promise<CatalogSnapshot> {
   try {
-    return CatalogSnapshotSchema.parse(await operation());
+    const snapshot = CatalogSnapshotSchema.parse(await operation());
+    afterValidation?.();
+    return snapshot;
   } catch {
     throw new CatalogIpcError();
   }
@@ -85,6 +89,7 @@ export function registerCatalogIpc({
   ipc,
   service,
   showOpenDialog,
+  onCatalogRefreshed,
   developmentOrigin
 }: RegisterCatalogIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.catalogGet, async (event, query) => {
@@ -96,8 +101,9 @@ export function registerCatalogIpc({
   ipc.handle(IPC_CHANNELS.catalogRefresh, async (event, query) => {
     assertTrusted(event, developmentOrigin);
     const validatedQuery = CatalogQuerySchema.parse(query);
-    return validateCatalogOperation(() =>
-      service.refreshCatalog(validatedQuery)
+    return validateCatalogOperation(
+      () => service.refreshCatalog(validatedQuery),
+      onCatalogRefreshed
     );
   });
 

@@ -738,6 +738,71 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it('updates terminal session metadata from a synchronized runtime event', async () => {
+    const runtime = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ac5'),
+      displayName: 'New Codex session',
+      strategy: 'new' as const,
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'unresolved' as const
+    };
+    const listeners: Array<(event: RuntimeEvent) => void> = [];
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onRuntimeEvent: vi.fn((listener: (event: RuntimeEvent) => void) => {
+        listeners.push(listener);
+        return () => undefined;
+      })
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    await screen.findByRole('button', {
+      name: 'New Codex session terminal input'
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal details' }));
+    expect(
+      within(screen.getByRole('dialog', { name: 'Terminal details' }))
+        .getByText('Not found — unlinked')
+    ).toBeInTheDocument();
+
+    const session = readyCatalog.sessions[0]!;
+    const synchronized: RuntimeSummary = {
+      ...runtime,
+      displayName: 'Renamed provider session',
+      sessionId: session.id,
+      nativeSessionId: session.nativeId,
+      reconciliationState: 'linked'
+    };
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'state',
+          runtimeId: runtime.id,
+          runtime: synchronized
+        });
+      }
+    });
+
+    expect(
+      screen.getByRole('tab', { name: /Renamed provider session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+    expect(
+      screen.getByRole('heading', { name: 'Renamed provider session' })
+    ).toBeInTheDocument();
+    const details = screen.getByRole('dialog', { name: 'Terminal details' });
+    expect(within(details).getByText('Linked')).toBeInTheDocument();
+    expect(within(details).getByText(session.id.slice(0, 12)))
+      .toBeInTheDocument();
+  });
+
   it('keeps the same terminal mounted while navigating pages', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ac4'
