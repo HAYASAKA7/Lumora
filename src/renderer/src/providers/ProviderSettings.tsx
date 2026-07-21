@@ -83,6 +83,7 @@ function ProviderCard({
   updating: boolean;
 }): ReactNode {
   const [confirmingInstall, setConfirmingInstall] = useState(false);
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
   const definition = providerDefinition(installation.provider);
   return (
     <article className={`provider-card provider-card-${installation.state}`}>
@@ -207,19 +208,48 @@ function ProviderCard({
                 ? `Update available · ${release.latestVersion}`
                 : `Up to date · ${release.latestVersion}`}
             </p>
-            {release.state === 'update_available' ? (
+            {release.state === 'update_available' && confirmingUpdate ? (
+              <div className="provider-install-confirmation">
+                <p>
+                  Lumora will run a global npm update. If {installation.displayName} was
+                  installed another way, this may create a separate installation.
+                </p>
+                <div>
+                  <button
+                    aria-label={'Confirm update ' + installation.displayName + ' with npm'}
+                    className="refresh-button"
+                    disabled={updating}
+                    onClick={() => {
+                      setConfirmingUpdate(false);
+                      onUpdate();
+                    }}
+                    type="button"
+                  >
+                    Confirm update
+                  </button>
+                  <button
+                    className="text-button"
+                    disabled={updating}
+                    onClick={() => setConfirmingUpdate(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : release.state === 'update_available' ? (
               <button
                 aria-label={
                   updating
                     ? `Updating ${installation.displayName}`
-                    : `Update ${installation.displayName} to ${release.latestVersion}`
+                    : `Update ${installation.displayName} with npm to ${release.latestVersion}`
                 }
                 className="secondary-button provider-update-button"
                 disabled={updating}
-                onClick={onUpdate}
+                onClick={() => setConfirmingUpdate(true)}
                 type="button"
               >
-                {updating ? 'Updating…' : `Update to ${release.latestVersion}`}
+                {updating ? 'Updating…' : `Update with npm to ${release.latestVersion}`}
               </button>
             ) : null}
           </div>

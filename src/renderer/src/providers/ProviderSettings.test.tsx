@@ -194,8 +194,11 @@ describe('ProviderSettings', () => {
     expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
     expect(screen.getByText('Up to date · 2.0.0')).toBeVisible();
     expect(
-      screen.getByRole('button', { name: 'Update Codex to 1.1.0' })
+      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+    ).toHaveTextContent('Update with npm to 1.1.0');
     expect(screen.queryByRole('button', { name: /Update Claude/ })).toBeNull();
     expect(lumora.checkProviderUpdates).toHaveBeenCalledOnce();
   });
@@ -259,8 +262,19 @@ describe('ProviderSettings', () => {
     );
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(screen.getByText(
+      'Lumora will run a global npm update. If Codex was installed another way, this may create a separate installation.'
+    )).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(updateProvider).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm update Codex with npm' }));
     expect(screen.getByRole('button', { name: 'Updating Codex' })).toBeDisabled();
     expect(screen.getByLabelText('Claude Code start command')).toBeEnabled();
     completeUpdate();
@@ -282,8 +296,9 @@ describe('ProviderSettings', () => {
     );
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm update Codex with npm' }));
     expect(
       await screen.findByText('Codex could not be updated. Run codex update manually or try again.')
     ).toBeVisible();
