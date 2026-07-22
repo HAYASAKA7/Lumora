@@ -562,6 +562,18 @@ export type KeyboardShortcutChord = z.infer<
   typeof KeyboardShortcutChordSchema
 >;
 
+export const GeneralSettingsSchema = z.strictObject({
+  version: z.literal(1),
+  showInformationalNotices: z.boolean()
+});
+
+export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
+
+export const DEFAULT_GENERAL_SETTINGS = {
+  version: 1,
+  showInformationalNotices: true
+} as const satisfies GeneralSettings;
+
 const controlShortcut = (code: string): KeyboardShortcutChord => ({
   code,
   control: true,

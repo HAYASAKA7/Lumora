@@ -2,7 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
+  type GeneralSettings,
   type KeyboardSettings,
   type RuntimeSummary,
   type TerminalProfile
@@ -316,6 +318,31 @@ describe('TerminalRepository', () => {
        WHERE key = 'keyboardShortcuts.v1'`
     ).run('{"version":2}');
     expect(repository.getKeyboardSettings()).toEqual(DEFAULT_KEYBOARD_SETTINGS);
+  });
+
+  it('persists general settings and falls back when stored data is invalid', () => {
+    const hidden: GeneralSettings = {
+      version: 1,
+      showInformationalNotices: false
+    };
+
+    expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
+    expect(repository.saveGeneralSettings(hidden, timestamp)).toEqual(hidden);
+    expect(repository.getGeneralSettings()).toEqual(hidden);
+
+    database.prepare(
+      `UPDATE app_preference SET value_json = ?
+       WHERE key = 'generalSettings.v1'`
+    ).run(JSON.stringify({ version: 1, showInformationalNotices: 'no' }));
+    expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
+
+    database.exec('PRAGMA ignore_check_constraints = ON');
+    database.prepare(
+      `UPDATE app_preference SET value_json = ?
+       WHERE key = 'generalSettings.v1'`
+    ).run('{broken');
+    expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
+    database.exec('PRAGMA ignore_check_constraints = OFF');
   });
 
   it('validates layer targets and session provider commands', () => {

@@ -1,7 +1,9 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
+  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
+  GeneralSettingsSchema,
   KeyboardSettingsSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerListSchema,
@@ -13,6 +15,7 @@ import {
   TerminalProfileSchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
+  type GeneralSettings,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
   type KeyboardSettings,
@@ -29,6 +32,7 @@ import { PROVIDER_DEFINITIONS } from '../../shared/provider-definitions';
 import { resolveRuntimeSessionMatches } from '../terminal/runtime-session-matcher';
 
 const KEYBOARD_SETTINGS_PREFERENCE_KEY = 'keyboardShortcuts.v1';
+const GENERAL_SETTINGS_PREFERENCE_KEY = 'generalSettings.v1';
 
 interface LaunchSettingsLayerRow {
   scope: LaunchSettingsLayer['scope'];
@@ -164,6 +168,45 @@ function rowToRuntime(row: RuntimeRow): RuntimeSummary {
 
 export class TerminalRepository {
   constructor(private readonly database: DatabaseSync) {}
+
+  getGeneralSettings(): GeneralSettings {
+    const row = this.database.prepare(
+      'SELECT value_json FROM app_preference WHERE key = ?'
+    ).get(GENERAL_SETTINGS_PREFERENCE_KEY) as
+      | { value_json: string }
+      | undefined;
+    if (row === undefined) {
+      return GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+    }
+
+    try {
+      const parsed = GeneralSettingsSchema.safeParse(JSON.parse(row.value_json));
+      return parsed.success
+        ? parsed.data
+        : GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+    } catch {
+      return GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+    }
+  }
+
+  saveGeneralSettings(
+    value: GeneralSettings,
+    timestamp: string
+  ): GeneralSettings {
+    const settings = GeneralSettingsSchema.parse(value);
+    this.database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         value_json = excluded.value_json,
+         updated_at = excluded.updated_at`
+    ).run(
+      GENERAL_SETTINGS_PREFERENCE_KEY,
+      JSON.stringify(settings),
+      normalizeTimestamp(timestamp)
+    );
+    return settings;
+  }
 
   getKeyboardSettings(): KeyboardSettings {
     const row = this.database.prepare(

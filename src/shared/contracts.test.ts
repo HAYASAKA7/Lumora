@@ -6,8 +6,10 @@ import {
   ClipboardTextSchema,
   ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
+  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
   DeveloperEnvironmentScanResultSchema,
+  GeneralSettingsSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
   KeyboardShortcutChordSchema,
@@ -1025,6 +1027,20 @@ describe('managed terminal contracts', () => {
       alt: false,
       shift: false,
       meta: false
+    }).success).toBe(false);
+  });
+
+  it('validates versioned general settings', () => {
+    expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
+      version: 1,
+      showInformationalNotices: true
+    });
+    expect(GeneralSettingsSchema.safeParse({
+      version: 1,
+      showInformationalNotices: 'no'
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      version: 1
     }).success).toBe(false);
   });
 });
