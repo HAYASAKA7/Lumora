@@ -53,6 +53,7 @@ function candidate(overrides: Partial<CatalogCandidate> = {}): CatalogCandidate 
     title: 'Catalog implementation',
     createdAt: '2026-07-11T01:00:00.000Z',
     updatedAt: '2026-07-11T02:00:00.000Z',
+    lifetimeTokens: null,
     source: {
       key: 'thread:codex-session-1',
       fingerprint: null
@@ -116,7 +117,10 @@ describe('catalog migrations', () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
-      { version: 11 }
+      { version: 11 },
+      { version: 12 },
+      { version: 13 },
+      { version: 14 }
     ]);
     expect(
       database
@@ -361,6 +365,7 @@ describe('CatalogRepository', () => {
     const claudeCandidate = candidate({
       provider: 'claude',
       nativeId: 'claude-session-1',
+      lifetimeTokens: 128_450,
       source: {
         key: '/home/dev/.claude/projects/work/claude-session-1.jsonl',
         fingerprint: { size: 4096, modifiedAtMs: 1_720_000_000_000 }
@@ -379,6 +384,10 @@ describe('CatalogRepository', () => {
     ).toEqual({
       fingerprint: claudeCandidate.source.fingerprint,
       candidate: claudeCandidate
+    });
+    expect(snapshot(repository).sessions[0]).toMatchObject({
+      nativeId: 'claude-session-1',
+      lifetimeTokens: 128_450
     });
   });
 

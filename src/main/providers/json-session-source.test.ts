@@ -33,6 +33,26 @@ async function writeProject(
   return sourcePath;
 }
 
+async function writeJsonlProject(
+  storageRoot: string,
+  project: string,
+  workspacePath: string,
+  fileName: string,
+  records: readonly unknown[]
+): Promise<string> {
+  const projectRoot = join(storageRoot, project);
+  const chatsRoot = join(projectRoot, 'chats');
+  await mkdir(chatsRoot, { recursive: true });
+  await writeFile(join(projectRoot, '.project_root'), workspacePath, 'utf8');
+  const sourcePath = join(chatsRoot, fileName);
+  await writeFile(
+    sourcePath,
+    `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+    'utf8'
+  );
+  return sourcePath;
+}
+
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(
@@ -67,6 +87,7 @@ describe('discoverJsonSessions', () => {
           title: 'Refine catalog adapters',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T01:10:00.000Z',
+          lifetimeTokens: null,
           source: {
             key: sourcePath,
             fingerprint: expect.objectContaining({ size: expect.any(Number) })
@@ -129,6 +150,7 @@ describe('discoverJsonSessions', () => {
           title: 'Cached Gemini session',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T02:00:00.000Z',
+          lifetimeTokens: 666,
           source: { key, fingerprint }
         }
       })
@@ -145,8 +167,69 @@ describe('discoverJsonSessions', () => {
     expect(result.sessions[0]).toMatchObject({
       nativeId: '22222222-2222-4222-8222-222222222222',
       title: 'Cached Gemini session',
+      lifetimeTokens: 666,
       source: { key: sourcePath }
     });
+  });
+
+  it('discovers current Gemini JSONL chats and their effective lifetime tokens', async () => {
+    const storageRoot = await temporaryRoot();
+    const sourcePath = await writeJsonlProject(
+      storageRoot,
+      'current',
+      '/work/current-gemini',
+      'session.jsonl',
+      [
+        {
+          sessionId: '33333333-3333-4333-8333-333333333333',
+          startTime: '2026-07-22T01:00:00.000Z',
+          lastUpdated: '2026-07-22T01:05:00.000Z',
+          kind: 'metadata'
+        },
+        {
+          id: 'message-1',
+          timestamp: '2026-07-22T01:05:00.000Z',
+          type: 'gemini',
+          content: 'private response',
+          tokens: { input: 200, cached: 50, output: 40, thoughts: 10, total: 250 }
+        }
+      ]
+    );
+
+    const result = await discoverJsonSessions({ provider: 'gemini', storageRoot });
+
+    expect(result.sessions).toEqual([
+      expect.objectContaining({
+        nativeId: '33333333-3333-4333-8333-333333333333',
+        workspacePath: '/work/current-gemini',
+        lifetimeTokens: 200,
+        source: expect.objectContaining({ key: sourcePath })
+      })
+    ]);
+    expect(JSON.stringify(result)).not.toContain('private response');
+  });
+
+  it('reads token snapshots from legacy Gemini JSON chats', async () => {
+    const storageRoot = await temporaryRoot();
+    await writeProject(
+      storageRoot,
+      'legacy-usage',
+      '/work/legacy-gemini',
+      'session.json',
+      jsonSessionRecording({
+        messages: [
+          {
+            id: 'message-1',
+            timestamp: '2026-07-11T01:10:00.000Z',
+            tokens: { input: 100, cached: 20, output: 15, thoughts: 5 }
+          }
+        ]
+      })
+    );
+
+    const result = await discoverJsonSessions({ provider: 'gemini', storageRoot });
+
+    expect(result.sessions[0]?.lifetimeTokens).toBe(100);
   });
 
   it('isolates corrupt and nested files and bounds the direct file count', async () => {

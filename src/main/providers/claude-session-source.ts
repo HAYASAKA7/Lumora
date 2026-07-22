@@ -1,9 +1,13 @@
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import type { ProviderId } from '../../shared/contracts';
 import type { CatalogSourceFingerprint } from '../catalog/catalog-candidate';
 import type { StoredCatalogSource } from '../storage/catalog-repository';
+import {
+  claudeLifetimeTokens,
+  parseJsonLines
+} from './provider-token-usage';
 import {
   ProviderSessionRecordSchema,
   type ProviderSessionDiscoveryResult,
@@ -33,6 +37,7 @@ interface DiscoverClaudeOptions {
   maxFiles?: number;
   prefixBytes?: number;
   tailBytes?: number;
+  maxTokenBytes?: number;
 }
 
 interface MetadataSegments {
@@ -202,7 +207,8 @@ function explicitTitle(record: Record<string, unknown>): string | null {
 function parseMetadata(
   lines: readonly string[],
   sourceKey: string,
-  fingerprint: CatalogSourceFingerprint
+  fingerprint: CatalogSourceFingerprint,
+  lifetimeTokens: number | null
 ): ProviderSessionRecord | null {
   const nativeIds = new Set<string>();
   const workspacePaths = new Set<string>();
@@ -252,6 +258,7 @@ function parseMetadata(
     title: title ?? 'Untitled session',
     createdAt,
     updatedAt,
+    lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success ? parsed.data : null;
@@ -269,6 +276,7 @@ function reuseStoredSource(
     title: stored.candidate.title,
     createdAt: stored.candidate.createdAt,
     updatedAt: stored.candidate.updatedAt,
+    lifetimeTokens: stored.candidate.lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success && parsed.data.provider === 'claude' ? parsed.data : null;
@@ -281,7 +289,8 @@ export async function discoverClaudeSessions({
   statFile = stat,
   maxFiles = 25_000,
   prefixBytes = 256 * 1024,
-  tailBytes = 64 * 1024
+  tailBytes = 64 * 1024,
+  maxTokenBytes = 64 * 1024 * 1024
 }: DiscoverClaudeOptions): Promise<ProviderSessionDiscoveryResult> {
   const configuredRoot = readEnvironmentValue(env, 'CLAUDE_CONFIG_DIR')?.trim();
   const configRoot =
@@ -323,7 +332,22 @@ export async function discoverClaudeSessions({
           invalidCount += 1;
           continue;
         }
-        normalized = parseMetadata(segments.lines, sourcePath, before);
+        let lifetimeTokens: number | null = null;
+        if (before.size <= Math.max(1, Math.trunc(maxTokenBytes))) {
+          const records = parseJsonLines(await readFile(sourcePath, 'utf8'));
+          const afterUsage = fingerprintOf(await statFile(sourcePath));
+          if (!sameFingerprint(before, afterUsage)) {
+            invalidCount += 1;
+            continue;
+          }
+          lifetimeTokens = claudeLifetimeTokens(records);
+        }
+        normalized = parseMetadata(
+          segments.lines,
+          sourcePath,
+          before,
+          lifetimeTokens
+        );
       }
 
       if (normalized === null) {

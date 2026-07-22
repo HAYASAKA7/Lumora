@@ -1,9 +1,13 @@
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import type { ProviderId } from '../../shared/contracts';
 import type { CatalogSourceFingerprint } from '../catalog/catalog-candidate';
 import type { StoredCatalogSource } from '../storage/catalog-repository';
+import {
+  copilotLifetimeTokens,
+  parseJsonLines
+} from './provider-token-usage';
 import { isPortableAbsolutePath } from './session-discovery';
 import {
   ProviderSessionRecordSchema,
@@ -240,7 +244,8 @@ function parseMetadata(
   sessionId: string,
   lines: readonly string[],
   sourceKey: string,
-  fingerprint: CatalogSourceFingerprint
+  fingerprint: CatalogSourceFingerprint,
+  lifetimeTokens: number | null
 ): ProviderSessionRecord | null {
   const timestamps: number[] = [];
   let workspacePath: string | null = null;
@@ -294,6 +299,7 @@ function parseMetadata(
     title: title ?? 'Untitled session',
     createdAt: new Date(Math.min(...timestamps)).toISOString(),
     updatedAt: new Date(Math.max(...timestamps)).toISOString(),
+    lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success ? parsed.data : null;
@@ -311,6 +317,7 @@ function reuseStoredSource(
     title: stored.candidate.title,
     createdAt: stored.candidate.createdAt,
     updatedAt: stored.candidate.updatedAt,
+    lifetimeTokens: stored.candidate.lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success && parsed.data.provider === 'copilot'
@@ -371,11 +378,18 @@ export async function discoverCopilotSessions({
           continue;
         }
         const sessionId = sourcePath.split(/[\\/]/).at(-2) ?? '';
+        const records = parseJsonLines(await readFile(sourcePath, 'utf8'));
+        const afterUsage = fingerprintOf(await statFile(sourcePath));
+        if (!sameFingerprint(before, afterUsage)) {
+          invalidCount += 1;
+          continue;
+        }
         normalized = parseMetadata(
           sessionId,
           segments.lines,
           sourcePath,
-          before
+          before,
+          copilotLifetimeTokens(records)
         );
       }
       if (normalized === null) {

@@ -69,6 +69,7 @@ describe('discoverCopilotSessions', () => {
           title: 'Improve provider search',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T01:10:00.000Z',
+          lifetimeTokens: null,
           source: {
             key: sourcePath,
             fingerprint: expect.objectContaining({ size: expect.any(Number) })
@@ -152,6 +153,7 @@ describe('discoverCopilotSessions', () => {
           title: 'Cached Copilot session',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T02:00:00.000Z',
+          lifetimeTokens: 999,
           source: { key, fingerprint }
         }
       })
@@ -166,8 +168,32 @@ describe('discoverCopilotSessions', () => {
     expect(result.unchangedCount).toBe(1);
     expect(result.sessions[0]).toMatchObject({
       title: 'Cached Copilot session',
+      lifetimeTokens: 999,
       source: { key: sourcePath }
     });
+  });
+
+  it('attaches the newest cumulative Copilot shutdown token total', async () => {
+    const home = await temporaryHome();
+    await writeSession(join(home, '.copilot'), SESSION_ID, [
+      copilotEvent(),
+      copilotEvent({
+        type: 'session.shutdown',
+        id: 'shutdown-1',
+        timestamp: '2026-07-11T01:10:00.000Z',
+        data: {
+          modelMetrics: {
+            primary: {
+              usage: { inputTokens: 500, cacheReadTokens: 200, outputTokens: 70 }
+            }
+          }
+        }
+      })
+    ]);
+
+    const result = await discoverCopilotSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions[0]?.lifetimeTokens).toBe(370);
   });
 
   it('bounds file count and file size', async () => {

@@ -19,6 +19,7 @@ import {
   SESSION_PROVIDER_IDS,
   providerDefinition
 } from '../../../shared/provider-definitions';
+import { formatLifetimeTokens } from './session-usage';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -257,6 +258,13 @@ const SessionRow = memo(function SessionRow({
           {new Date(session.updatedAt).toLocaleString()}
         </time>
       </td>
+      <td aria-label={session.lifetimeTokens === null ? 'Lifetime tokens unavailable' : undefined}>
+        {session.lifetimeTokens === null ? null : (
+          <span className="session-token-usage">
+            {formatLifetimeTokens(session.lifetimeTokens)}
+          </span>
+        )}
+      </td>
       <td>
         {session.sourceFreshness === 'stale' ? (
           <span className="source-stale">Stale source</span>
@@ -420,6 +428,7 @@ export function SessionsView({
                   <th scope="col">Provider</th>
                   <th scope="col">Workspace</th>
                   <th scope="col">Updated</th>
+                  <th scope="col">Tokens</th>
                   <th scope="col">Source</th>
                 </tr>
               </thead>
@@ -589,8 +598,15 @@ export function CatalogHomeSummary({
                 <li key={session.id}>
                   <span className="recent-session-copy">
                     <strong title={session.title}>{session.title}</strong>
-                    <span className="recent-session-provider">
-                      {providerDefinition(session.provider).displayName}
+                    <span className="recent-session-metadata">
+                      <span className="recent-session-provider">
+                        {providerDefinition(session.provider).displayName}
+                      </span>
+                      {session.lifetimeTokens === null ? null : (
+                        <span className="session-token-usage">
+                          {formatLifetimeTokens(session.lifetimeTokens)}
+                        </span>
+                      )}
                     </span>
                   </span>
                   <button

@@ -9,6 +9,10 @@ import type {
 import type { StoredCatalogSource } from '../storage/catalog-repository';
 import { isPortableAbsolutePath } from './session-discovery';
 import {
+  geminiLifetimeTokens,
+  parseJsonLines
+} from './provider-token-usage';
+import {
   ProviderSessionRecordSchema,
   type ProviderSessionDiscoveryResult,
   type ProviderSessionRecord
@@ -109,7 +113,11 @@ async function enumerateSessionFiles(
       continue;
     }
     for (const chat of chats
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .filter(
+        (entry) =>
+          entry.isFile() &&
+          (entry.name.endsWith('.json') || entry.name.endsWith('.jsonl'))
+      )
       .sort((left, right) => left.name.localeCompare(right.name))) {
       if (files.length >= maxFiles) {
         skipped += 1;
@@ -194,6 +202,54 @@ function normalizeJsonSession(
     title: sessionTitle(record),
     createdAt: new Date(createdMilliseconds).toISOString(),
     updatedAt: new Date(updatedMilliseconds).toISOString(),
+    lifetimeTokens: geminiLifetimeTokens(
+      Array.isArray(record.messages) ? record.messages : []
+    ),
+    source: { key: sourceKey, fingerprint }
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function normalizeJsonlSession(
+  provider: JsonSessionProvider,
+  records: readonly unknown[],
+  workspacePath: string,
+  sourceKey: string,
+  fingerprint: CatalogSourceFingerprint
+): ProviderSessionRecord | null {
+  const objects = records.flatMap((value) => {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? [value as Record<string, unknown>]
+      : [];
+  });
+  const metadata = objects.find(
+    (record) =>
+      typeof record.sessionId === 'string' && record.sessionId.trim().length > 0
+  );
+  if (metadata === undefined) return null;
+  const timestamps = objects.flatMap((record) => {
+    return [record.startTime, record.lastUpdated, record.timestamp].flatMap(
+      (value) => {
+        const parsed = parsedTimestamp(value);
+        return parsed === null ? [] : [parsed];
+      }
+    );
+  });
+  const updatedMilliseconds =
+    timestamps.length > 0 ? Math.max(...timestamps) : fingerprint.modifiedAtMs;
+  const requestedCreated = parsedTimestamp(metadata.startTime);
+  const createdMilliseconds =
+    requestedCreated !== null && requestedCreated <= updatedMilliseconds
+      ? requestedCreated
+      : Math.min(...(timestamps.length > 0 ? timestamps : [updatedMilliseconds]));
+  const parsed = ProviderSessionRecordSchema.safeParse({
+    provider,
+    nativeId: (metadata.sessionId as string).trim(),
+    workspacePath,
+    title: sessionTitle(metadata),
+    createdAt: new Date(createdMilliseconds).toISOString(),
+    updatedAt: new Date(updatedMilliseconds).toISOString(),
+    lifetimeTokens: geminiLifetimeTokens(objects),
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success ? parsed.data : null;
@@ -212,6 +268,7 @@ function reuseStoredSource(
     title: candidate.title,
     createdAt: candidate.createdAt,
     updatedAt: candidate.updatedAt,
+    lifetimeTokens: candidate.lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsed.success && parsed.data.provider === provider ? parsed.data : null;
@@ -283,20 +340,30 @@ export async function discoverJsonSessions({
           invalidCount += 1;
           continue;
         }
-        let value: unknown;
-        try {
-          value = JSON.parse(json);
-        } catch {
-          invalidCount += 1;
-          continue;
+        if (file.sourcePath.endsWith('.jsonl')) {
+          normalized = normalizeJsonlSession(
+            provider,
+            parseJsonLines(json),
+            workspacePath,
+            file.sourcePath,
+            before
+          );
+        } else {
+          let value: unknown;
+          try {
+            value = JSON.parse(json);
+          } catch {
+            invalidCount += 1;
+            continue;
+          }
+          normalized = normalizeJsonSession(
+            provider,
+            value,
+            workspacePath,
+            file.sourcePath,
+            before
+          );
         }
-        normalized = normalizeJsonSession(
-          provider,
-          value,
-          workspacePath,
-          file.sourcePath,
-          before
-        );
       }
 
       if (normalized === null) {

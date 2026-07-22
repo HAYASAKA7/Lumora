@@ -61,6 +61,7 @@ describe('discoverQwenSessions', () => {
         title: 'Refine Qwen catalog adapter',
         createdAt: '2026-07-11T01:00:00.000Z',
         updatedAt: '2026-07-11T01:10:00.000Z',
+        lifetimeTokens: null,
         source: {
           key: sourcePath,
           fingerprint: expect.objectContaining({ size: expect.any(Number) })
@@ -100,6 +101,7 @@ describe('discoverQwenSessions', () => {
         title: 'Cached Qwen session',
         createdAt: '2026-07-11T01:00:00.000Z',
         updatedAt: '2026-07-11T02:00:00.000Z',
+        lifetimeTokens: 888,
         source: { key, fingerprint }
       }
     }));
@@ -107,8 +109,34 @@ describe('discoverQwenSessions', () => {
     expect(cached.unchangedCount).toBe(1);
     expect(cached.sessions[0]).toMatchObject({
       title: 'Cached Qwen session',
+      lifetimeTokens: 888,
       source: { key: sourcePath }
     });
+  });
+
+  it('attaches effective Qwen lifetime tokens from assistant usage metadata', async () => {
+    const home = await temporaryHome();
+    const qwenRoot = join(home, '.qwen');
+    await writeSession(qwenRoot, '-work-qwen', SESSION_ID, [
+      ...qwenSessionRecording(),
+      JSON.stringify({
+        uuid: 'usage-turn',
+        sessionId: SESSION_ID,
+        timestamp: '2026-07-11T01:11:00.000Z',
+        type: 'assistant',
+        cwd: '/work/qwen',
+        usageMetadata: {
+          promptTokenCount: 300,
+          cachedContentTokenCount: 120,
+          candidatesTokenCount: 40,
+          thoughtsTokenCount: 10
+        }
+      })
+    ]);
+
+    const result = await discoverQwenSessions({ qwenRoot });
+
+    expect(result.sessions[0]?.lifetimeTokens).toBe(230);
   });
 
   it('bounds sources and rejects a file that changes while read', async () => {

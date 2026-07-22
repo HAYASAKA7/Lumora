@@ -312,6 +312,7 @@ export class CatalogService {
             title: session.data.title,
             createdAt: session.data.createdAt,
             updatedAt: session.data.updatedAt,
+            lifetimeTokens: session.data.lifetimeTokens ?? null,
             source: session.data.source
           });
         } catch {

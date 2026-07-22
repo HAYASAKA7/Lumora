@@ -29,6 +29,7 @@ const session: SessionSummary = {
   title: 'Resume catalog work',
   createdAt: '2026-07-11T03:00:00.000Z',
   updatedAt: '2026-07-11T04:00:00.000Z',
+  lifetimeTokens: null,
   lifecycle: 'saved',
   sourceFreshness: 'current'
 };

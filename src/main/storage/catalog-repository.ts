@@ -69,6 +69,7 @@ interface SessionRow {
   title: string;
   created_at: string;
   updated_at: string;
+  lifetime_tokens: number | null;
   lifecycle: CatalogSnapshot['sessions'][number]['lifecycle'];
   source_freshness: CatalogSnapshot['sessions'][number]['sourceFreshness'];
 }
@@ -163,8 +164,8 @@ export class CatalogRepository {
     const upsertSession = this.database.prepare(
       `INSERT INTO session (
         id, provider, native_id, workspace_id, title, normalized_title,
-        created_at, updated_at, lifecycle, source_freshness
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'saved', 'current')
+        created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved', 'current')
       ON CONFLICT(provider, native_id) DO UPDATE SET
         workspace_id = CASE WHEN
           excluded.updated_at > session.updated_at OR
@@ -186,6 +187,10 @@ export class CatalogRepository {
           THEN excluded.normalized_title ELSE session.normalized_title END,
         created_at = MIN(session.created_at, excluded.created_at),
         updated_at = MAX(session.updated_at, excluded.updated_at),
+        lifetime_tokens = COALESCE(
+          excluded.lifetime_tokens,
+          session.lifetime_tokens
+        ),
         lifecycle = 'saved',
         source_freshness = 'current'`
     );
@@ -215,7 +220,8 @@ export class CatalogRepository {
           current.title,
           normalizedSearchValue(current.title),
           current.createdAt,
-          current.updatedAt
+          current.updatedAt,
+          current.lifetimeTokens
         );
         upsertSource.run(
           current.provider,
@@ -261,6 +267,7 @@ export class CatalogRepository {
           source.source_key, source.size, source.modified_at_ms,
           session.id, session.provider, session.native_id, session.workspace_id,
           session.title, session.created_at, session.updated_at,
+          session.lifetime_tokens,
           session.lifecycle, session.source_freshness,
           workspace.identity_key, workspace.canonical_path,
           workspace.display_name, workspace.available
@@ -292,6 +299,7 @@ export class CatalogRepository {
       title: row.title,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      lifetimeTokens: row.lifetime_tokens,
       source: { key: row.source_key, fingerprint }
     });
 
@@ -392,7 +400,8 @@ export class CatalogRepository {
           `SELECT
             session.id, session.provider, session.native_id,
             session.workspace_id, session.title, session.created_at,
-            session.updated_at, session.lifecycle, session.source_freshness
+            session.updated_at, session.lifetime_tokens, session.lifecycle,
+            session.source_freshness
           FROM session
           JOIN workspace ON workspace.id = session.workspace_id
           WHERE (
@@ -423,6 +432,7 @@ export class CatalogRepository {
       title: row.title,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      lifetimeTokens: row.lifetime_tokens,
       lifecycle: row.lifecycle,
       sourceFreshness: row.source_freshness
     }));

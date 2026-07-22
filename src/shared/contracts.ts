@@ -228,6 +228,11 @@ export const SessionLifecycleSchema = z.enum([
   'launch_failed'
 ]);
 export const SessionSourceFreshnessSchema = z.enum(['current', 'stale']);
+export const LifetimeTokenCountSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .max(Number.MAX_SAFE_INTEGER);
 
 export const ProviderCountsSchema = z.partialRecord(
   ProviderIdSchema,
@@ -271,6 +276,7 @@ export const SessionSummarySchema = z.strictObject({
   title: z.string().trim().min(1).max(256),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  lifetimeTokens: LifetimeTokenCountSchema.nullable(),
   lifecycle: SessionLifecycleSchema,
   sourceFreshness: SessionSourceFreshnessSchema
 });

@@ -362,6 +362,38 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       'CREATE INDEX session_title_idx ON session (normalized_title)',
       'CREATE INDEX session_source_session_idx ON session_source (session_id)'
     ]
+  },
+  {
+    version: 12,
+    statements: [
+      `ALTER TABLE session ADD COLUMN lifetime_tokens INTEGER
+        CHECK (
+          lifetime_tokens IS NULL OR
+          (lifetime_tokens >= 0 AND lifetime_tokens <= 9007199254740991)
+        )`
+    ]
+  },
+  {
+    version: 13,
+    statements: [
+      `UPDATE session
+       SET lifetime_tokens = NULL
+       WHERE provider = 'codex'`,
+      `UPDATE session_source
+       SET size = NULL, modified_at_ms = NULL
+      WHERE provider = 'codex'`
+    ]
+  },
+  {
+    version: 14,
+    statements: [
+      `UPDATE session
+       SET lifetime_tokens = NULL
+       WHERE provider IN ('claude', 'gemini', 'qwen', 'copilot')`,
+      `UPDATE session_source
+       SET size = NULL, modified_at_ms = NULL
+       WHERE provider IN ('claude', 'gemini', 'qwen', 'copilot')`
+    ]
   }
 ];
 

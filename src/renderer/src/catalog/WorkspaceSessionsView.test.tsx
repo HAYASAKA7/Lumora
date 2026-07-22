@@ -43,6 +43,7 @@ const snapshot: CatalogSnapshot = {
       title: 'Workspace drill-down',
       createdAt: '2026-07-15T01:00:00.000Z',
       updatedAt: '2026-07-15T02:00:00.000Z',
+      lifetimeTokens: 12_450,
       lifecycle: 'saved',
       sourceFreshness: 'current'
     },
@@ -54,6 +55,7 @@ const snapshot: CatalogSnapshot = {
       title: 'Other workspace session',
       createdAt: '2026-07-15T00:00:00.000Z',
       updatedAt: '2026-07-15T01:00:00.000Z',
+      lifetimeTokens: null,
       lifecycle: 'saved',
       sourceFreshness: 'current'
     }
@@ -114,6 +116,7 @@ describe('WorkspaceSessionsView', () => {
     expect(screen.getByText('Codex 1')).toBeInTheDocument();
     expect(screen.queryByText('Claude Code 0')).not.toBeInTheDocument();
     expect(screen.getByText('Workspace drill-down')).toBeInTheDocument();
+    expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.queryByText('Other workspace session')).not.toBeInTheDocument();
 
     expect(screen.queryByText('Resume')).not.toBeInTheDocument();

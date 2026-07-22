@@ -2,7 +2,11 @@ import { posix, win32 } from 'node:path';
 
 import { z } from 'zod';
 
-import { ProviderIdSchema, type ProviderId } from '../../shared/contracts';
+import {
+  LifetimeTokenCountSchema,
+  ProviderIdSchema,
+  type ProviderId
+} from '../../shared/contracts';
 import { CatalogSourceFingerprintSchema } from '../catalog/catalog-candidate';
 
 export function isPortableAbsolutePath(value: string): boolean {
@@ -20,6 +24,7 @@ export const ProviderSessionRecordSchema = z.strictObject({
   title: z.string().trim().min(1).max(256),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  lifetimeTokens: LifetimeTokenCountSchema.nullable().optional(),
   source: z.strictObject({
     key: z.string().min(1).max(32_768),
     fingerprint: CatalogSourceFingerprintSchema.nullable()

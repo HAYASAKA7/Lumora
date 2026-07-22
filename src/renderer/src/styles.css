@@ -1765,6 +1765,19 @@ button {
   font-size: 0.72rem;
 }
 
+.recent-session-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.session-token-usage {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .recent-session-resume {
   flex: 0 0 auto;
 }
@@ -2144,7 +2157,8 @@ button {
   .session-table td:nth-child(2)::before { content: "Provider"; }
   .session-table td:nth-child(3)::before { content: "Workspace"; }
   .session-table td:nth-child(4)::before { content: "Updated"; }
-  .session-table td:nth-child(5)::before { content: "Source"; }
+  .session-table td:nth-child(5)::before { content: "Tokens"; }
+  .session-table td:nth-child(6)::before { content: "Source"; }
 }
 
 @media (prefers-reduced-motion: reduce) {

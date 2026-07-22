@@ -1,9 +1,10 @@
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join, parse, resolve } from 'node:path';
 
 import type { ProviderId } from '../../shared/contracts';
 import type { CatalogSourceFingerprint } from '../catalog/catalog-candidate';
 import type { StoredCatalogSource } from '../storage/catalog-repository';
+import { parseJsonLines, qwenLifetimeTokens } from './provider-token-usage';
 import { isPortableAbsolutePath } from './session-discovery';
 import {
   ProviderSessionRecordSchema,
@@ -142,7 +143,8 @@ function normalizeRecording(
   expectedSessionId: string,
   lines: readonly string[],
   sourceKey: string,
-  fingerprint: CatalogSourceFingerprint
+  fingerprint: CatalogSourceFingerprint,
+  lifetimeTokens: number | null
 ): ProviderSessionRecord | null {
   const timestamps: number[] = [];
   let workspacePath: string | null = null;
@@ -176,6 +178,7 @@ function normalizeRecording(
     title: title ?? 'Untitled session',
     createdAt: new Date(Math.min(...timestamps)).toISOString(),
     updatedAt: new Date(Math.max(...timestamps)).toISOString(),
+    lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsedRecord.success ? parsedRecord.data : null;
@@ -192,6 +195,7 @@ function reuseStoredSource(
     title: stored.candidate.title,
     createdAt: stored.candidate.createdAt,
     updatedAt: stored.candidate.updatedAt,
+    lifetimeTokens: stored.candidate.lifetimeTokens,
     source: { key: sourceKey, fingerprint }
   });
   return parsedRecord.success && parsedRecord.data.provider === 'qwen' ? parsedRecord.data : null;
@@ -234,7 +238,16 @@ export async function discoverQwenSessions({
           Math.max(1, Math.trunc(tailBytes))
         );
         if (!sameFingerprint(before, metadata.after)) { invalidCount += 1; continue; }
-        normalized = normalizeRecording(nativeId, metadata.lines, sourcePath, before);
+        const records = parseJsonLines(await readFile(sourcePath, 'utf8'));
+        const afterUsage = fingerprintOf(await statFile(sourcePath));
+        if (!sameFingerprint(before, afterUsage)) { invalidCount += 1; continue; }
+        normalized = normalizeRecording(
+          nativeId,
+          metadata.lines,
+          sourcePath,
+          before,
+          qwenLifetimeTokens(records)
+        );
       }
       if (normalized === null) { invalidCount += 1; continue; }
       const existing = sessions.get(normalized.nativeId);

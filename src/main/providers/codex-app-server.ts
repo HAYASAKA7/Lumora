@@ -1,9 +1,16 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 import { posix, win32 } from 'node:path';
 
 import { z } from 'zod';
 
 import type { SystemInfo } from '../../shared/contracts';
+import type { CatalogSourceFingerprint } from '../catalog/catalog-candidate';
+import type { StoredCatalogSource } from '../storage/catalog-repository';
+import {
+  inspectCodexLifetimeUsage,
+  type CodexLifetimeUsage
+} from './codex-token-usage';
 import {
   isPortableAbsolutePath,
   ProviderSessionRecordSchema,
@@ -13,6 +20,20 @@ import {
 
 type SupportedPlatform = SystemInfo['platform'];
 type Environment = Readonly<Record<string, string | undefined>>;
+interface FileStatLike {
+  size: number;
+  mtimeMs: number;
+  isFile(): boolean;
+}
+type StatFile = (path: string) => Promise<FileStatLike>;
+type LookupSource = (
+  provider: 'codex',
+  sourceKey: string,
+  fingerprint: CatalogSourceFingerprint
+) => Promise<StoredCatalogSource | null>;
+type InspectUsage = (options: {
+  sourcePath: string;
+}) => Promise<CodexLifetimeUsage | null>;
 
 export interface CodexAppServerInvocation {
   file: string;
@@ -43,6 +64,9 @@ interface DiscoverCodexOptions {
   requestTimeoutMs?: number;
   pageSize?: number;
   maxPages?: number;
+  lookupSource?: LookupSource;
+  statFile?: StatFile;
+  inspectUsage?: InspectUsage;
 }
 
 interface PendingRequest {
@@ -57,7 +81,8 @@ const ThreadSchema = z.object({
   cwd: z.string().min(1).max(32_768),
   createdAt: z.number().finite().nonnegative(),
   updatedAt: z.number().finite().nonnegative(),
-  name: z.string().nullable()
+  name: z.string().nullable(),
+  path: z.string().nullable().optional()
 });
 
 const ThreadListEnvelopeSchema = z.object({
@@ -350,7 +375,12 @@ function withTimeout<T>(
   });
 }
 
-function normalizeThread(value: unknown): ProviderSessionRecord | null {
+interface NormalizedCodexThread {
+  session: ProviderSessionRecord;
+  rolloutPath: string | null;
+}
+
+function normalizeThread(value: unknown): NormalizedCodexThread | null {
   const parsed = ThreadSchema.safeParse(value);
   if (!parsed.success || parsed.data.ephemeral) {
     return null;
@@ -372,15 +402,100 @@ function normalizeThread(value: unknown): ProviderSessionRecord | null {
   }
   const requestedTitle = thread.name?.trim() ?? '';
 
-  return ProviderSessionRecordSchema.parse({
-    provider: 'codex',
-    nativeId: thread.id,
-    workspacePath: thread.cwd,
-    title: requestedTitle.length > 0 ? requestedTitle.slice(0, 256) : 'Untitled session',
-    createdAt: createdAt.toISOString(),
-    updatedAt: updatedAt.toISOString(),
-    source: { key: `thread:${thread.id}`, fingerprint: null }
-  });
+  return {
+    session: ProviderSessionRecordSchema.parse({
+      provider: 'codex',
+      nativeId: thread.id,
+      workspacePath: thread.cwd,
+      title: requestedTitle.length > 0
+        ? requestedTitle.slice(0, 256)
+        : 'Untitled session',
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+      lifetimeTokens: null,
+      source: { key: `thread:${thread.id}`, fingerprint: null }
+    }),
+    rolloutPath:
+      typeof thread.path === 'string' && isPortableAbsolutePath(thread.path)
+        ? thread.path
+        : null
+  };
+}
+
+function fingerprintOf(value: FileStatLike): CatalogSourceFingerprint {
+  return {
+    size: Math.trunc(value.size),
+    modifiedAtMs: Math.trunc(value.mtimeMs)
+  };
+}
+
+function sameFingerprint(
+  left: CatalogSourceFingerprint | null,
+  right: CatalogSourceFingerprint
+): boolean {
+  return (
+    left !== null &&
+    left.size === right.size &&
+    left.modifiedAtMs === right.modifiedAtMs
+  );
+}
+
+async function enrichLifetimeUsage(
+  normalized: NormalizedCodexThread,
+  lookupSource: LookupSource,
+  statFile: StatFile,
+  inspectUsage: InspectUsage
+): Promise<{ session: ProviderSessionRecord; unchanged: boolean }> {
+  if (normalized.rolloutPath === null) {
+    return { session: normalized.session, unchanged: false };
+  }
+  try {
+    const file = await statFile(normalized.rolloutPath);
+    if (!file.isFile() || file.size < 0) {
+      return { session: normalized.session, unchanged: false };
+    }
+    const fingerprint = fingerprintOf(file);
+    const stored = await lookupSource(
+      'codex',
+      normalized.rolloutPath,
+      fingerprint
+    );
+    if (
+      stored !== null &&
+      sameFingerprint(stored.fingerprint, fingerprint)
+    ) {
+      return {
+        session: {
+          ...normalized.session,
+          lifetimeTokens: stored.candidate.lifetimeTokens,
+          source: {
+            key: normalized.rolloutPath,
+            fingerprint
+          }
+        },
+        unchanged: true
+      };
+    }
+    const inspected = await inspectUsage({
+      sourcePath: normalized.rolloutPath
+    });
+    if (inspected === null) {
+      return { session: normalized.session, unchanged: false };
+    }
+    return {
+      session: {
+        ...normalized.session,
+        lifetimeTokens: inspected.lifetimeTokens,
+        source: {
+          key: normalized.rolloutPath,
+          fingerprint: inspected.fingerprint
+        }
+      },
+      unchanged: false
+    };
+  } catch {
+    return { session: normalized.session, unchanged: false };
+  }
 }
 
 export async function discoverCodexSessions({
@@ -390,11 +505,14 @@ export async function discoverCodexSessions({
   env = process.env,
   requestTimeoutMs = 10_000,
   pageSize = 500,
-  maxPages = 50
+  maxPages = 50,
+  lookupSource = async () => null,
+  statFile = stat,
+  inspectUsage = inspectCodexLifetimeUsage
 }: DiscoverCodexOptions): Promise<ProviderSessionDiscoveryResult> {
   const transport = await (createTransport ??
     ((path) => createProcessTransport(path, { platform, env })))(executablePath);
-  const sessions = new Map<string, ProviderSessionRecord>();
+  const sessions = new Map<string, NormalizedCodexThread>();
   let invalidCount = 0;
 
   try {
@@ -451,14 +569,14 @@ export async function discoverCodexSessions({
           }
           continue;
         }
-        const existing = sessions.get(normalized.nativeId);
+        const existing = sessions.get(normalized.session.nativeId);
         if (
           existing === undefined ||
-          normalized.updatedAt > existing.updatedAt ||
-          (normalized.updatedAt === existing.updatedAt &&
-            normalized.title > existing.title)
+          normalized.session.updatedAt > existing.session.updatedAt ||
+          (normalized.session.updatedAt === existing.session.updatedAt &&
+            normalized.session.title > existing.session.title)
         ) {
-          sessions.set(normalized.nativeId, normalized);
+          sessions.set(normalized.session.nativeId, normalized);
         }
       }
 
@@ -466,16 +584,28 @@ export async function discoverCodexSessions({
       page += 1;
     } while (cursor !== null);
 
-    const orderedSessions = [...sessions.values()].sort(
+    const ordered = [...sessions.values()].sort(
       (left, right) =>
-        right.updatedAt.localeCompare(left.updatedAt) ||
-        left.nativeId.localeCompare(right.nativeId)
+        right.session.updatedAt.localeCompare(left.session.updatedAt) ||
+        left.session.nativeId.localeCompare(right.session.nativeId)
     );
+    const orderedSessions: ProviderSessionRecord[] = [];
+    let unchangedCount = 0;
+    for (const normalized of ordered) {
+      const enriched = await enrichLifetimeUsage(
+        normalized,
+        lookupSource,
+        statFile,
+        inspectUsage
+      );
+      orderedSessions.push(enriched.session);
+      if (enriched.unchanged) unchangedCount += 1;
+    }
     return {
       provider: 'codex',
       sessions: orderedSessions,
       discoveredCount: orderedSessions.length,
-      unchangedCount: 0,
+      unchangedCount,
       invalidCount
     };
   } finally {

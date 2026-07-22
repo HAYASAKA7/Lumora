@@ -31,6 +31,7 @@ const session: SessionSummary = {
   title: 'Recovered work',
   createdAt: '2026-07-12T01:00:00.000Z',
   updatedAt: '2026-07-12T01:30:00.000Z',
+  lifetimeTokens: null,
   lifecycle: 'saved',
   sourceFreshness: 'current'
 };

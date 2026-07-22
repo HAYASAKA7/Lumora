@@ -184,6 +184,7 @@ const readyCatalog: CatalogSnapshot = {
       title: 'Catalog implementation',
       createdAt: '2026-07-11T03:00:00.000Z',
       updatedAt: '2026-07-11T03:45:00.000Z',
+      lifetimeTokens: null,
       lifecycle: 'saved',
       sourceFreshness: 'current'
     }

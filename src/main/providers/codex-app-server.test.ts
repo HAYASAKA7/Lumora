@@ -1,4 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { StoredCatalogSource } from '../storage/catalog-repository';
 
 import {
   buildCodexAppServerInvocation,
@@ -6,6 +12,41 @@ import {
   type CodexAppServerTransport
 } from './codex-app-server';
 import { codexThread, codexThreadPage } from './fixtures/codex-thread-pages';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) =>
+      rm(directory, { recursive: true, force: true })
+    )
+  );
+});
+
+async function rollout(totalTokens: number): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'lumora-codex-thread-'));
+  temporaryDirectories.push(directory);
+  const path = join(directory, 'rollout.jsonl');
+  await writeFile(
+    path,
+    `${JSON.stringify({
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: {
+            input_tokens: totalTokens,
+            cached_input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: totalTokens
+          }
+        }
+      }
+    })}\n`,
+    'utf8'
+  );
+  return path;
+}
 
 class FakeTransport implements CodexAppServerTransport {
   readonly calls: { method: string; params?: unknown }[] = [];
@@ -87,6 +128,7 @@ describe('discoverCodexSessions', () => {
           title: 'Named session',
           createdAt: '2024-07-03T09:50:00.000Z',
           updatedAt: '2024-07-03T09:51:40.000Z',
+          lifetimeTokens: null,
           source: { key: 'thread:thread-2', fingerprint: null }
         },
         {
@@ -96,6 +138,7 @@ describe('discoverCodexSessions', () => {
           title: 'Untitled session',
           createdAt: '2024-07-03T09:46:40.000Z',
           updatedAt: '2024-07-03T09:48:20.000Z',
+          lifetimeTokens: null,
           source: { key: 'thread:thread-1', fingerprint: null }
         }
       ],
@@ -160,6 +203,106 @@ describe('discoverCodexSessions', () => {
 
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0]!.title).toBe('Newer');
+    expect(result.invalidCount).toBe(0);
+  });
+
+  it('reads a changed rollout and attaches its cumulative lifetime total', async () => {
+    const sourcePath = await rollout(48_250);
+    const transport = new FakeTransport((method) =>
+      method === 'initialize'
+        ? {}
+        : codexThreadPage([codexThread('usage', { path: sourcePath })], null)
+    );
+
+    const result = await discoverCodexSessions({
+      executablePath: '/usr/local/bin/codex',
+      createTransport: async () => transport,
+      lookupSource: async () => null
+    });
+
+    expect(result.sessions[0]).toMatchObject({
+      nativeId: 'usage',
+      lifetimeTokens: 48_250,
+      source: {
+        key: sourcePath,
+        fingerprint: { size: expect.any(Number), modifiedAtMs: expect.any(Number) }
+      }
+    });
+    expect(result.unchangedCount).toBe(0);
+  });
+
+  it('reuses an unchanged rollout total without reading its content', async () => {
+    const sourcePath = await rollout(48_250);
+    const file = await stat(sourcePath);
+    const fingerprint = {
+      size: Math.trunc(file.size),
+      modifiedAtMs: Math.trunc(file.mtimeMs)
+    };
+    const cached: StoredCatalogSource = {
+      fingerprint,
+      candidate: {
+        provider: 'codex',
+        nativeId: 'cached',
+        workspace: {
+          id: 'a'.repeat(64),
+          canonicalPath: '/work/lumora',
+          identityKey: '/work/lumora',
+          displayName: 'lumora',
+          available: true
+        },
+        title: 'Cached',
+        createdAt: '2024-07-03T09:46:40.000Z',
+        updatedAt: '2024-07-03T09:48:20.000Z',
+        lifetimeTokens: 77_000,
+        source: { key: sourcePath, fingerprint }
+      }
+    };
+    const inspectUsage = vi.fn(async () => {
+      throw new Error('unchanged files must not be read');
+    });
+    const transport = new FakeTransport((method) =>
+      method === 'initialize'
+        ? {}
+        : codexThreadPage([codexThread('cached', { path: sourcePath })], null)
+    );
+
+    const result = await discoverCodexSessions({
+      executablePath: '/usr/local/bin/codex',
+      createTransport: async () => transport,
+      lookupSource: async () => cached,
+      inspectUsage
+    });
+
+    expect(result.sessions[0]).toMatchObject({
+      lifetimeTokens: 77_000,
+      source: { key: sourcePath, fingerprint }
+    });
+    expect(result.unchangedCount).toBe(1);
+    expect(inspectUsage).not.toHaveBeenCalled();
+  });
+
+  it('keeps sessions discoverable when optional token inspection fails', async () => {
+    const sourcePath = await rollout(100);
+    const transport = new FakeTransport((method) =>
+      method === 'initialize'
+        ? {}
+        : codexThreadPage([codexThread('fallback', { path: sourcePath })], null)
+    );
+
+    const result = await discoverCodexSessions({
+      executablePath: '/usr/local/bin/codex',
+      createTransport: async () => transport,
+      lookupSource: async () => null,
+      inspectUsage: async () => {
+        throw new Error('optional metric unavailable');
+      }
+    });
+
+    expect(result.sessions[0]).toMatchObject({
+      nativeId: 'fallback',
+      lifetimeTokens: null,
+      source: { key: 'thread:fallback', fingerprint: null }
+    });
     expect(result.invalidCount).toBe(0);
   });
 

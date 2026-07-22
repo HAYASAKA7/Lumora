@@ -16,6 +16,7 @@ import {
   SESSION_PROVIDER_IDS,
   providerDefinition
 } from '../../../shared/provider-definitions';
+import { formatLifetimeTokens } from './session-usage';
 
 const SESSION_BATCH_SIZE = 40;
 
@@ -72,6 +73,11 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
               {new Date(session.updatedAt).toLocaleString()}
             </time>
           </span>
+          {session.lifetimeTokens === null ? null : (
+            <span className="session-token-usage">
+              {formatLifetimeTokens(session.lifetimeTokens)}
+            </span>
+          )}
           {session.sourceFreshness === 'stale' ? (
             <span className="source-stale">Stale source</span>
           ) : (

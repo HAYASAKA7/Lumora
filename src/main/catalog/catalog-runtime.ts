@@ -90,7 +90,8 @@ export function createCatalogRuntime({
       discoverCodexSessions({
         executablePath: installation.executablePath,
         platform,
-        env
+        env,
+        lookupSource
       })
     ),
     adapter('claude', () =>

@@ -380,6 +380,7 @@ describe('catalog contracts', () => {
     title: 'Catalog implementation',
     createdAt: '2026-07-11T02:00:00.000Z',
     updatedAt: '2026-07-11T03:00:00.000Z',
+    lifetimeTokens: 128_450,
     lifecycle: 'saved',
     sourceFreshness: 'current'
   } as const;
@@ -428,6 +429,23 @@ describe('catalog contracts', () => {
         }]
       }).success
     ).toBe(true);
+  });
+
+  it('accepts nullable safe lifetime token totals and rejects invalid totals', () => {
+    expect(
+      CatalogSnapshotSchema.safeParse({
+        ...snapshot,
+        sessions: [{ ...session, lifetimeTokens: null }]
+      }).success
+    ).toBe(true);
+    for (const lifetimeTokens of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(
+        CatalogSnapshotSchema.safeParse({
+          ...snapshot,
+          sessions: [{ ...session, lifetimeTokens }]
+        }).success
+      ).toBe(false);
+    }
   });
 
   it('accepts dynamic session providers, partial counts, and nonzero facets', () => {

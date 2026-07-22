@@ -179,4 +179,148 @@ describe('provider lifecycle migration', () => {
       ).get(runtimeId)
     ).toEqual({ session_id: sessionId });
   });
+
+  it('adds a nullable constrained lifetime token total to existing sessions', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 11)
+    );
+    const timestamp = '2026-07-22T01:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const sessionId = 'b'.repeat(64);
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'native-1', ?, 'Existing', 'existing', ?, ?, 'saved', 'current')`
+    ).run(sessionId, workspaceId, timestamp, timestamp);
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(
+      database.prepare('SELECT lifetime_tokens FROM session WHERE id = ?').get(sessionId)
+    ).toEqual({ lifetime_tokens: null });
+    expect(() =>
+      database!.prepare('UPDATE session SET lifetime_tokens = 128450 WHERE id = ?').run(sessionId)
+    ).not.toThrow();
+    expect(() =>
+      database!.prepare('UPDATE session SET lifetime_tokens = -1 WHERE id = ?').run(sessionId)
+    ).toThrow();
+    expect(() =>
+      database!.prepare(
+        'UPDATE session SET lifetime_tokens = 9007199254740992 WHERE id = ?'
+      ).run(sessionId)
+    ).toThrow();
+  });
+
+  it('invalidates Codex totals cached with the raw-token calculation', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 12)
+    );
+    const timestamp = '2026-07-22T01:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const sessionId = 'b'.repeat(64);
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'native-1', ?, 'Existing', 'existing', ?, ?,
+        754000000, 'saved', 'current')`
+    ).run(sessionId, workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session_source (
+        provider, source_key, session_id, size, modified_at_ms,
+        last_seen_scan_id, stale
+      ) VALUES ('codex', '/rollout.jsonl', ?, 4096, 1234, 'scan-1', 0)`
+    ).run(sessionId);
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(
+      database.prepare('SELECT lifetime_tokens FROM session WHERE id = ?').get(sessionId)
+    ).toEqual({ lifetime_tokens: null });
+    expect(
+      database.prepare(
+        `SELECT size, modified_at_ms FROM session_source
+         WHERE provider = 'codex' AND source_key = '/rollout.jsonl'`
+      ).get()
+    ).toEqual({ size: null, modified_at_ms: null });
+  });
+
+  it('invalidates cached totals for newly supported provider token parsers', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 13)
+    );
+    const timestamp = '2026-07-22T02:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+
+    const providers = ['claude', 'gemini', 'qwen', 'copilot', 'codex', 'opencode'];
+    providers.forEach((provider, index) => {
+      const sessionId = String(index + 1).repeat(64);
+      database!.prepare(
+        `INSERT INTO session (
+          id, provider, native_id, workspace_id, title, normalized_title,
+          created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
+        ) VALUES (?, ?, ?, ?, 'Existing', 'existing', ?, ?, 123,
+          'saved', 'current')`
+      ).run(sessionId, provider, `native-${index}`, workspaceId, timestamp, timestamp);
+      database!.prepare(
+        `INSERT INTO session_source (
+          provider, source_key, session_id, size, modified_at_ms,
+          last_seen_scan_id, stale
+        ) VALUES (?, ?, ?, 4096, 1234, 'scan-1', 0)`
+      ).run(provider, `/session-${index}`, sessionId);
+    });
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(
+      database.prepare(
+        `SELECT provider, lifetime_tokens FROM session ORDER BY provider`
+      ).all()
+    ).toEqual([
+      { provider: 'claude', lifetime_tokens: null },
+      { provider: 'codex', lifetime_tokens: 123 },
+      { provider: 'copilot', lifetime_tokens: null },
+      { provider: 'gemini', lifetime_tokens: null },
+      { provider: 'opencode', lifetime_tokens: 123 },
+      { provider: 'qwen', lifetime_tokens: null }
+    ]);
+    expect(
+      database.prepare(
+        `SELECT provider, size, modified_at_ms FROM session_source
+         ORDER BY provider`
+      ).all()
+    ).toEqual([
+      { provider: 'claude', size: null, modified_at_ms: null },
+      { provider: 'codex', size: 4096, modified_at_ms: 1234 },
+      { provider: 'copilot', size: null, modified_at_ms: null },
+      { provider: 'gemini', size: null, modified_at_ms: null },
+      { provider: 'opencode', size: 4096, modified_at_ms: 1234 },
+      { provider: 'qwen', size: null, modified_at_ms: null }
+    ]);
+  });
 });

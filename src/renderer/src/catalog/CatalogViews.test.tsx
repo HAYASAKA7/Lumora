@@ -46,6 +46,7 @@ const catalogSnapshot: CatalogSnapshot = {
       title: 'Catalog implementation',
       createdAt: '2026-07-11T03:00:00.000Z',
       updatedAt: '2026-07-11T03:45:00.000Z',
+      lifetimeTokens: 12_450,
       lifecycle: 'saved',
       sourceFreshness: 'current'
     },
@@ -57,6 +58,7 @@ const catalogSnapshot: CatalogSnapshot = {
       title: 'Untitled session',
       createdAt: '2026-07-11T02:00:00.000Z',
       updatedAt: '2026-07-11T03:30:00.000Z',
+      lifetimeTokens: null,
       lifecycle: 'saved',
       sourceFreshness: 'current'
     },
@@ -68,6 +70,7 @@ const catalogSnapshot: CatalogSnapshot = {
       title: 'Documentation cleanup',
       createdAt: '2026-07-10T09:00:00.000Z',
       updatedAt: '2026-07-10T10:00:00.000Z',
+      lifetimeTokens: null,
       lifecycle: 'saved',
       sourceFreshness: 'stale'
     }
@@ -326,6 +329,27 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('shows available lifetime usage and omits unavailable totals', () => {
+    render(
+      <SessionsView
+        {...diagnosticProps}
+        isRefreshing={false}
+        onResume={vi.fn()}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
+        queryText=""
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
+    expect(screen.queryByText('Unknown tokens')).not.toBeInTheDocument();
+  });
+
   it('builds provider filters only from installed providers with sessions', () => {
     render(
       <SessionsView
@@ -719,6 +743,7 @@ describe('CatalogHomeSummary', () => {
     expect(screen.getByText('3 saved sessions')).toBeInTheDocument();
     expect(screen.getByText('0 catalog issues')).toBeInTheDocument();
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.getByText('Untitled session')).toBeInTheDocument();
     expect(
       screen.getByText('Native agent terminals owned by Lumora')

@@ -71,6 +71,7 @@ describe('discoverClaudeSessions', () => {
           title: 'Catalog storage',
           createdAt: '2026-07-11T01:00:00.000Z',
           updatedAt: '2026-07-11T01:10:00.000Z',
+          lifetimeTokens: null,
           source: {
             key: sourcePath,
             fingerprint: expect.objectContaining({ size: expect.any(Number) })
@@ -157,6 +158,7 @@ describe('discoverClaudeSessions', () => {
             title: 'Cached session',
             createdAt: '2026-07-11T01:00:00.000Z',
             updatedAt: '2026-07-11T02:00:00.000Z',
+            lifetimeTokens: 777,
             source: { key, fingerprint }
           }
         };
@@ -169,6 +171,7 @@ describe('discoverClaudeSessions', () => {
       nativeId: '33333333-3333-4333-8333-333333333333',
       workspacePath: '/work/cached',
       title: 'Cached session',
+      lifetimeTokens: 777,
       source: { key: sourcePath }
     });
 
@@ -197,6 +200,33 @@ describe('discoverClaudeSessions', () => {
 
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0]!.title).toBe('New');
+  });
+
+  it('attaches effective lifetime tokens from unique Claude responses', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    const assistant = claudeLine({
+      type: 'assistant',
+      message: {
+        id: 'msg-1',
+        role: 'assistant',
+        usage: {
+          input_tokens: 1_000,
+          output_tokens: 250,
+          cache_creation_input_tokens: 500,
+          cache_read_input_tokens: 400
+        }
+      }
+    });
+    await writeSession(projects, 'project', 'usage.jsonl', [
+      claudeLine(),
+      assistant,
+      assistant
+    ]);
+
+    const result = await discoverClaudeSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions[0]?.lifetimeTokens).toBe(1_250);
   });
 
   it('bounds file count and does not inspect title metadata outside read windows', async () => {

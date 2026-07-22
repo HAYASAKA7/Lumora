@@ -27,6 +27,7 @@ const session: SessionSummary = {
   title: 'Fix settings',
   createdAt: '2026-07-13T00:00:00.000Z',
   updatedAt: '2026-07-13T00:00:00.000Z',
+  lifetimeTokens: null,
   lifecycle: 'saved',
   sourceFreshness: 'current'
 };

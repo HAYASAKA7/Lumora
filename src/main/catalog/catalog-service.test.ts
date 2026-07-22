@@ -64,7 +64,8 @@ function scan(
 function record(
   provider: ProviderId,
   nativeId: string,
-  workspacePath = `/work/${provider}`
+  workspacePath = `/work/${provider}`,
+  lifetimeTokens: number | null = null
 ): ProviderSessionRecord {
   return {
     provider,
@@ -73,6 +74,7 @@ function record(
     title: `${provider} session`,
     createdAt: '2026-07-11T01:00:00.000Z',
     updatedAt: '2026-07-11T02:00:00.000Z',
+    lifetimeTokens,
     source: { key: `${provider}:${nativeId}`, fingerprint: null }
   };
 }
@@ -277,6 +279,33 @@ describe('CatalogService', () => {
       expect.objectContaining({ availableProviders: SESSION_PROVIDER_IDS })
     );
     expect(adapters.get('aider')).toBeNull();
+  });
+
+  it('copies provider lifetime token totals into catalog candidates', async () => {
+    const repository = createRepository();
+    const adapters = registry({
+      codex: vi.fn(async () =>
+        discovery('codex', [
+          record('codex', 'codex-usage', '/work/codex', 42_000)
+        ])
+      )
+    });
+    const service = new CatalogService(
+      dependencies({
+        repository,
+        registry: adapters,
+        scanProviders: async () => scan([ready('codex')])
+      })
+    );
+
+    await service.refreshCatalog();
+
+    expect(repository.applyProviderScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'codex',
+        candidates: [expect.objectContaining({ lifetimeTokens: 42_000 })]
+      })
+    );
   });
 
   it('does not scan unavailable or launch-only providers', async () => {
