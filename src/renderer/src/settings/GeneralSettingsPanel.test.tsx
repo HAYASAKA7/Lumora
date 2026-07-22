@@ -5,39 +5,51 @@ import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { GeneralSettingsPanel } from './GeneralSettingsPanel';
 
 describe('GeneralSettingsPanel', () => {
-  it('renders an accessible enabled switch and reports changes', () => {
+  it('renders every general preference and reports complete settings changes', () => {
     const onChange = vi.fn();
     render(
       <GeneralSettingsPanel
-        onShowInformationalNoticesChange={onChange}
+        onChange={onChange}
         saveError={null}
         saving={false}
         settings={DEFAULT_GENERAL_SETTINGS}
       />
     );
 
-    const toggle = screen.getByRole('switch', {
-      name: 'Show informational notices'
-    });
+    const switches = [
+      'Start with a maximized window',
+      'Check provider updates automatically',
+      'Auto-expand sidebar when navigating',
+      'Show informational notices'
+    ];
     const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
     expect(panel).toHaveClass('catalog-panel', 'general-settings-panel');
     expect(header).toHaveClass('provider-panel-header');
-    expect(toggle).toBeChecked();
+    for (const name of switches) {
+      expect(screen.getByRole('switch', { name })).toBeChecked();
+    }
     expect(
       screen.getByText(
         'Display non-critical diagnostics and helpful guidance throughout Lumora.'
       )
     ).toBeVisible();
 
-    fireEvent.click(toggle);
-    expect(onChange).toHaveBeenCalledWith(false);
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Check provider updates automatically'
+      })
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      checkProviderUpdatesAutomatically: false
+    });
   });
 
   it('disables the switch while saving and displays an unsuppressible error', () => {
     render(
       <GeneralSettingsPanel
-        onShowInformationalNoticesChange={vi.fn()}
+        onChange={vi.fn()}
         saveError="Lumora could not save this setting."
         saving
         settings={{
@@ -47,9 +59,9 @@ describe('GeneralSettingsPanel', () => {
       />
     );
 
-    expect(
-      screen.getByRole('switch', { name: 'Show informational notices' })
-    ).toBeDisabled();
+    for (const toggle of screen.getAllByRole('switch')) {
+      expect(toggle).toBeDisabled();
+    }
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Lumora could not save this setting.'
     );

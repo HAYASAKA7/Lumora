@@ -354,7 +354,7 @@ export default function App(): ReactNode {
   const [generalSettingsSaveError, setGeneralSettingsSaveError] =
     useState<string | null>(null);
   const [settingsCategory, setSettingsCategory] =
-    useState<SettingsCategory>('providers');
+    useState<SettingsCategory>('general');
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
@@ -945,10 +945,18 @@ export default function App(): ReactNode {
   const navigateToRoute = useCallback(
     (routeId: RouteId) => {
       closeWorkspaceDetail();
+      if (routeId === 'settings') {
+        setSettingsCategory('general');
+      }
       setActiveRouteId(routeId);
       setActiveRuntimeId(null);
+      if (
+        (generalSettings ?? DEFAULT_GENERAL_SETTINGS).autoExpandSidebar
+      ) {
+        setSidebarExpanded(true);
+      }
     },
-    [closeWorkspaceDetail]
+    [closeWorkspaceDetail, generalSettings]
   );
 
   useEffect(() => {
@@ -1101,13 +1109,9 @@ export default function App(): ReactNode {
       return next;
     });
   }, []);
-  const updateShowInformationalNotices = useCallback(
-    async (showInformationalNotices: boolean) => {
+  const updateGeneralSettings = useCallback(
+    async (next: GeneralSettings) => {
       const previous = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
-      const next: GeneralSettings = {
-        ...previous,
-        showInformationalNotices
-      };
       setGeneralSettings(next);
       setGeneralSettingsSaving(true);
       setGeneralSettingsSaveError(null);
@@ -1117,7 +1121,9 @@ export default function App(): ReactNode {
       } catch {
         setGeneralSettings(previous);
         setGeneralSettingsSaveError(
-          'Lumora could not save the informational notice setting.'
+          previous.showInformationalNotices !== next.showInformationalNotices
+            ? 'Lumora could not save the informational notice setting.'
+            : 'Lumora could not save this setting.'
         );
       } finally {
         setGeneralSettingsSaving(false);
@@ -1174,12 +1180,7 @@ export default function App(): ReactNode {
               }
               className="nav-item"
               key={route.id}
-              onClick={() => {
-                closeWorkspaceDetail();
-                setActiveRouteId(route.id);
-                setActiveRuntimeId(null);
-                setSidebarExpanded(true);
-              }}
+              onClick={() => navigateToRoute(route.id)}
               title={
                 sidebarExpanded
                   ? undefined
@@ -1339,7 +1340,7 @@ export default function App(): ReactNode {
                 generalSettingsSaveError={generalSettingsSaveError}
                 generalSettingsSaving={generalSettingsSaving}
                 onCategoryChange={setSettingsCategory}
-                onGeneralSettingsChange={updateShowInformationalNotices}
+                onGeneralSettingsChange={updateGeneralSettings}
                 onKeyboardSettingsChange={setKeyboardSettings}
                 onOpenNodeDownload={openNodeDownload}
                 onRefreshEnvironment={refreshEnvironment}

@@ -37,7 +37,7 @@ interface SettingsViewProps {
   generalSettingsSaveError: string | null;
   generalSettingsSaving: boolean;
   onCategoryChange: (category: SettingsCategory) => void;
-  onGeneralSettingsChange: (value: boolean) => void;
+  onGeneralSettingsChange: (settings: GeneralSettings) => void;
   onKeyboardSettingsChange: (settings: KeyboardSettings) => void;
   onOpenNodeDownload: () => Promise<void>;
   onRefreshEnvironment: () => void;
@@ -156,7 +156,7 @@ export function SettingsView({
         role="tabpanel"
       >
         <GeneralSettingsPanel
-          onShowInformationalNoticesChange={onGeneralSettingsChange}
+          onChange={onGeneralSettingsChange}
           saveError={generalSettingsSaveError}
           saving={generalSettingsSaving}
           settings={generalSettings}

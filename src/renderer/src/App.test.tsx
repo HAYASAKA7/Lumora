@@ -635,7 +635,7 @@ describe('App', () => {
     expect(informationSwitch).toBeChecked();
   });
 
-  it('restores the selected Settings category after route navigation', async () => {
+  it('opens the General category every time Settings is entered', async () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -649,13 +649,32 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
-    expect(screen.getByRole('tab', { name: 'Security' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'General' })).toHaveAttribute(
       'aria-selected',
       'true'
     );
     expect(
-      screen.getByRole('heading', { name: 'Workspace trust' })
+      screen.getByRole('heading', { name: 'General' })
     ).toBeVisible();
+  });
+
+  it('keeps a collapsed sidebar collapsed while navigating when auto-expand is disabled', async () => {
+    const getGeneralSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_GENERAL_SETTINGS,
+      autoExpandSidebar: false
+    });
+    setSystemInfoResult(undefined, undefined, { getGeneralSettings });
+    render(<App />);
+
+    await waitFor(() => expect(getGeneralSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(document.querySelector('.app-shell')).toHaveClass('sidebar-collapsed');
+    expect(
+      screen.getByRole('button', { name: 'Expand sidebar' })
+    ).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('resets Settings scroll when its category changes', async () => {
@@ -1993,6 +2012,7 @@ describe('App', () => {
   it('lists detected providers, versions, and paths in Settings', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
 
     expect(
       screen.getByRole('heading', { name: 'Provider installations' })
@@ -2049,6 +2069,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
   });
 
@@ -2065,6 +2086,7 @@ describe('App', () => {
 
     expect(await screen.findByText('1 of 2 providers ready')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     expect(await screen.findByText('2.3.4 (Claude Code)')).toBeInTheDocument();

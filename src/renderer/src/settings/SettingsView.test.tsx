@@ -34,11 +34,14 @@ vi.mock('./LaunchSettingsPanel', () => ({
 
 vi.mock('./GeneralSettingsPanel', () => ({
   GeneralSettingsPanel: ({
-    onShowInformationalNoticesChange
+    onChange
   }: {
-    onShowInformationalNoticesChange(value: boolean): void;
+    onChange(value: typeof DEFAULT_GENERAL_SETTINGS): void;
   }) => (
-    <button onClick={() => onShowInformationalNoticesChange(false)}>
+    <button onClick={() => onChange({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false
+    })}>
       General content
     </button>
   )
@@ -69,7 +72,7 @@ const KEYBOARD_SETTINGS: KeyboardSettings = {
 
 interface HarnessProps {
   catalogReady?: boolean;
-  onGeneralSettingsChange?: (value: boolean) => void;
+  onGeneralSettingsChange?: (value: typeof DEFAULT_GENERAL_SETTINGS) => void;
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
   onRefreshEnvironment?: () => void;
   onRefreshProviders?: () => void;
@@ -229,7 +232,10 @@ describe('SettingsView', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Keyboard' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keyboard content' }));
 
-    expect(onGeneralSettingsChange).toHaveBeenCalledWith(false);
+    expect(onGeneralSettingsChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false
+    });
     expect(onRefreshProviders).toHaveBeenCalledOnce();
     expect(onRefreshEnvironment).toHaveBeenCalledOnce();
     expect(onKeyboardSettingsChange).toHaveBeenCalledWith(KEYBOARD_SETTINGS);
