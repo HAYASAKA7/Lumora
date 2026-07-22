@@ -41,6 +41,13 @@ describe('window-state main-process integration', () => {
     expect(readyToShow).toBeGreaterThan(maximize);
   });
 
+  it('applies the saved startup maximization preference to restored state', () => {
+    expect(source).toContain('applyStartupMaximization(');
+    expect(source).toContain(
+      'terminalRuntime?.getGeneralSettings().startMaximized'
+    );
+  });
+
   it('releases startup presentation only after the real window is shown', () => {
     const readyToShow = source.indexOf("window.once('ready-to-show'");
     const show = source.indexOf('window.show()', readyToShow);

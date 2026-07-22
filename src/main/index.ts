@@ -52,6 +52,7 @@ import {
   configurePackagedWindowsTaskbarWindow
 } from './windows-taskbar';
 import {
+  applyStartupMaximization,
   createWindowStateManager,
   loadWindowRestore,
   type WindowStateManager
@@ -145,10 +146,14 @@ function registerApplicationProtocol(): void {
 async function prepareMainWindow() {
   await pendingWindowStateFlush;
   const statePath = join(app.getPath('userData'), 'window-state.json');
-  const restore = await loadWindowRestore({
+  const restoredWindowState = await loadWindowRestore({
     statePath,
     workAreas: screen.getAllDisplays().map((display) => display.workArea)
   });
+  const restore = applyStartupMaximization(
+    restoredWindowState,
+    terminalRuntime?.getGeneralSettings().startMaximized ?? true
+  );
   return { statePath, restore };
 }
 

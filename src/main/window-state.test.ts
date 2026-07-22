@@ -10,6 +10,7 @@ import {
 import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
+  applyStartupMaximization,
   createWindowStateManager,
   loadWindowRestore,
   parseWindowState,
@@ -203,6 +204,42 @@ describe('resolveWindowRestore', () => {
     expect(resolveWindowRestore(exactlyVisible, [primaryWorkArea]).source).toBe(
       'saved'
     );
+  });
+});
+
+describe('applyStartupMaximization', () => {
+  it('maximizes when the startup preference is enabled', () => {
+    expect(
+      applyStartupMaximization(
+        {
+          normalBounds: validState.normalBounds,
+          maximized: false,
+          source: 'saved'
+        },
+        true
+      )
+    ).toEqual({
+      normalBounds: validState.normalBounds,
+      maximized: true,
+      source: 'saved'
+    });
+  });
+
+  it('restores normal bounds when the startup preference is disabled', () => {
+    expect(
+      applyStartupMaximization(
+        {
+          normalBounds: validState.normalBounds,
+          maximized: true,
+          source: 'saved'
+        },
+        false
+      )
+    ).toEqual({
+      normalBounds: validState.normalBounds,
+      maximized: false,
+      source: 'saved'
+    });
   });
 });
 

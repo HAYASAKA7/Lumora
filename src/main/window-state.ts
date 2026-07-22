@@ -149,6 +149,16 @@ export function resolveWindowRestore(
   };
 }
 
+export function applyStartupMaximization(
+  restore: WindowRestoreDecision,
+  startMaximized: boolean
+): WindowRestoreDecision {
+  return {
+    ...restore,
+    maximized: startMaximized
+  };
+}
+
 export async function loadWindowRestore({
   statePath,
   workAreas,
