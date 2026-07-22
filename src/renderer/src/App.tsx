@@ -1169,7 +1169,9 @@ export default function App(): ReactNode {
           </p>
           {ROUTES.map((route) => (
             <button
-              aria-current={activeRouteId === route.id ? 'page' : undefined}
+              aria-current={
+                !terminalActive && activeRouteId === route.id ? 'page' : undefined
+              }
               className="nav-item"
               key={route.id}
               onClick={() => {

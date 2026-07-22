@@ -1208,6 +1208,45 @@ describe('App', () => {
     expect(terminalInput).toHaveFocus();
   });
 
+  it('clears the current primary navigation state while a terminal is active', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ade'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    render(<App />);
+
+    const openTerminals = await screen.findByRole('button', {
+      name: 'Open terminals'
+    });
+    expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+
+    fireEvent.click(openTerminals);
+
+    await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+    for (const destination of [
+      'Home',
+      'Workspaces',
+      'All sessions',
+      'Terminal profiles',
+      'Settings'
+    ]) {
+      expect(screen.getByRole('button', { name: destination }))
+        .not.toHaveAttribute('aria-current');
+    }
+  });
+
   it('keeps the selected terminal when Ctrl+T is pressed on the terminal page', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ada'
