@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_KEYBOARD_SETTINGS } from '../../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  DEFAULT_KEYBOARD_SETTINGS
+} from '../../../shared/contracts';
 import type { KeyboardSettings } from '../../../shared/contracts';
 import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
 import { SettingsView, type SettingsCategory } from './SettingsView';
@@ -27,6 +30,18 @@ vi.mock('../environment/DeveloperEnvironment', () => ({
 
 vi.mock('./LaunchSettingsPanel', () => ({
   LaunchSettingsPanel: () => <div>Launch content</div>
+}));
+
+vi.mock('./GeneralSettingsPanel', () => ({
+  GeneralSettingsPanel: ({
+    onShowInformationalNoticesChange
+  }: {
+    onShowInformationalNoticesChange(value: boolean): void;
+  }) => (
+    <button onClick={() => onShowInformationalNoticesChange(false)}>
+      General content
+    </button>
+  )
 }));
 
 vi.mock('./WorkspaceTrustPanel', () => ({
@@ -54,6 +69,7 @@ const KEYBOARD_SETTINGS: KeyboardSettings = {
 
 interface HarnessProps {
   catalogReady?: boolean;
+  onGeneralSettingsChange?: (value: boolean) => void;
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
   onRefreshEnvironment?: () => void;
   onRefreshProviders?: () => void;
@@ -63,19 +79,24 @@ interface HarnessProps {
 function Harness({
   catalogReady = true,
   environmentStatus = { state: 'loading' },
+  onGeneralSettingsChange = vi.fn(),
   onKeyboardSettingsChange = vi.fn(),
   onRefreshEnvironment = vi.fn(),
   onRefreshProviders = vi.fn()
 }: HarnessProps) {
   const [activeCategory, setActiveCategory] =
-    useState<SettingsCategory>('providers');
+    useState<SettingsCategory>('general');
 
   return (
     <SettingsView
       activeCategory={activeCategory}
       catalogReady={catalogReady}
       environmentStatus={environmentStatus}
+      generalSettings={DEFAULT_GENERAL_SETTINGS}
+      generalSettingsSaveError={null}
+      generalSettingsSaving={false}
       onCategoryChange={setActiveCategory}
+      onGeneralSettingsChange={onGeneralSettingsChange}
       onKeyboardSettingsChange={onKeyboardSettingsChange}
       onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
       onRefreshEnvironment={onRefreshEnvironment}
@@ -95,6 +116,7 @@ describe('SettingsView', () => {
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'General',
       'Providers',
       'Environment',
       'Launch',
@@ -117,7 +139,8 @@ describe('SettingsView', () => {
       expect(panel).toHaveProperty('hidden', index !== 0);
     }
 
-    expect(screen.getByText('Providers content')).toBeVisible();
+    expect(screen.getByText('General content')).toBeVisible();
+    expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('Environment loading')).toBeInTheDocument();
     expect(screen.getByText('Launch content')).toBeInTheDocument();
     expect(screen.getByText('Security content')).toBeInTheDocument();
@@ -143,27 +166,27 @@ describe('SettingsView', () => {
 
   it('cycles with arrow keys and supports Home and End', () => {
     render(<Harness />);
+    const general = screen.getByRole('tab', { name: 'General' });
+
+    general.focus();
+    expect(fireEvent.keyDown(general, { key: 'ArrowRight' })).toBe(false);
     const providers = screen.getByRole('tab', { name: 'Providers' });
-
-    providers.focus();
-    expect(fireEvent.keyDown(providers, { key: 'ArrowRight' })).toBe(false);
-    const environment = screen.getByRole('tab', { name: 'Environment' });
-    expect(environment).toHaveFocus();
-    expect(environment).toHaveAttribute('aria-selected', 'true');
-
-    fireEvent.keyDown(environment, { key: 'Home' });
     expect(providers).toHaveFocus();
     expect(providers).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(providers, { key: 'ArrowLeft' });
+    fireEvent.keyDown(providers, { key: 'Home' });
+    expect(general).toHaveFocus();
+    expect(general).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(general, { key: 'ArrowLeft' });
     const keyboard = screen.getByRole('tab', { name: 'Keyboard' });
     expect(keyboard).toHaveFocus();
     expect(keyboard).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(keyboard, { key: 'Home' });
-    expect(providers).toHaveFocus();
+    expect(general).toHaveFocus();
 
-    fireEvent.keyDown(providers, { key: 'End' });
+    fireEvent.keyDown(general, { key: 'End' });
     expect(keyboard).toHaveFocus();
     expect(keyboard).toHaveAttribute('aria-selected', 'true');
   });
@@ -172,11 +195,13 @@ describe('SettingsView', () => {
     render(<Harness catalogReady={false} />);
 
     expect(document.getElementById('settings-panel-providers')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-general')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-environment')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-launch')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-keyboard')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
+    expect(screen.getByText('General content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.queryByText('Launch content')).not.toBeInTheDocument();
     expect(screen.queryByText('Security content')).not.toBeInTheDocument();
@@ -186,20 +211,25 @@ describe('SettingsView', () => {
     const onRefreshProviders = vi.fn();
     const onRefreshEnvironment = vi.fn();
     const onKeyboardSettingsChange = vi.fn();
+    const onGeneralSettingsChange = vi.fn();
     render(
       <Harness
         onKeyboardSettingsChange={onKeyboardSettingsChange}
+        onGeneralSettingsChange={onGeneralSettingsChange}
         onRefreshEnvironment={onRefreshEnvironment}
         onRefreshProviders={onRefreshProviders}
       />
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'General content' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
     fireEvent.click(screen.getByRole('button', { name: 'Providers content' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
     fireEvent.click(screen.getByRole('button', { name: 'Environment loading' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Keyboard' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keyboard content' }));
 
+    expect(onGeneralSettingsChange).toHaveBeenCalledWith(false);
     expect(onRefreshProviders).toHaveBeenCalledOnce();
     expect(onRefreshEnvironment).toHaveBeenCalledOnce();
     expect(onKeyboardSettingsChange).toHaveBeenCalledWith(KEYBOARD_SETTINGS);

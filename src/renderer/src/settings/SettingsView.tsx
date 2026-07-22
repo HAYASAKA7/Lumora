@@ -1,6 +1,7 @@
 import { useRef, type KeyboardEvent } from 'react';
 
 import type {
+  GeneralSettings,
   KeyboardSettings,
   SessionSummary,
   SystemInfo,
@@ -16,10 +17,12 @@ import {
   type DeveloperEnvironmentStatus
 } from '../environment/DeveloperEnvironment';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { GeneralSettingsPanel } from './GeneralSettingsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 
 export type SettingsCategory =
+  | 'general'
   | 'providers'
   | 'environment'
   | 'launch'
@@ -30,7 +33,11 @@ interface SettingsViewProps {
   activeCategory: SettingsCategory;
   catalogReady: boolean;
   environmentStatus: DeveloperEnvironmentStatus;
+  generalSettings: GeneralSettings;
+  generalSettingsSaveError: string | null;
+  generalSettingsSaving: boolean;
   onCategoryChange: (category: SettingsCategory) => void;
+  onGeneralSettingsChange: (value: boolean) => void;
   onKeyboardSettingsChange: (settings: KeyboardSettings) => void;
   onOpenNodeDownload: () => Promise<void>;
   onRefreshEnvironment: () => void;
@@ -43,6 +50,7 @@ interface SettingsViewProps {
 }
 
 const SETTINGS_CATEGORIES = [
+  { id: 'general', label: 'General' },
   { id: 'providers', label: 'Providers' },
   { id: 'environment', label: 'Environment' },
   { id: 'launch', label: 'Launch' },
@@ -54,7 +62,11 @@ export function SettingsView({
   activeCategory,
   catalogReady,
   environmentStatus,
+  generalSettings,
+  generalSettingsSaveError,
+  generalSettingsSaving,
   onCategoryChange,
+  onGeneralSettingsChange,
   onKeyboardSettingsChange,
   onOpenNodeDownload,
   onRefreshEnvironment,
@@ -135,6 +147,21 @@ export function SettingsView({
           );
         })}
       </div>
+
+      <section
+        aria-labelledby="settings-tab-general"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'general'}
+        id="settings-panel-general"
+        role="tabpanel"
+      >
+        <GeneralSettingsPanel
+          onShowInformationalNoticesChange={onGeneralSettingsChange}
+          saveError={generalSettingsSaveError}
+          saving={generalSettingsSaving}
+          settings={generalSettings}
+        />
+      </section>
 
       <section
         aria-labelledby="settings-tab-providers"
