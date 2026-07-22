@@ -33,6 +33,7 @@ import {
   type DeveloperEnvironmentStatus
 } from './environment/DeveloperEnvironment';
 import {
+  formatShortcutChord,
   isRequiredModifierKey,
   keyboardEventMatchesChord
 } from './keyboard/shortcut';
@@ -61,12 +62,20 @@ type RouteId =
   | 'profiles'
   | 'settings';
 
+type NavigationShortcutKey =
+  | 'openHome'
+  | 'openWorkspaces'
+  | 'openSessions'
+  | 'openProfiles'
+  | 'openSettings';
+
 interface RouteDefinition {
   id: RouteId;
   label: string;
   eyebrow: string;
   description: string;
   icon: IconName;
+  shortcut: NavigationShortcutKey;
 }
 
 type IconName =
@@ -103,7 +112,8 @@ const ROUTES = [
     eyebrow: 'Command center',
     description:
       'A quiet overview of active work, recent sessions, and anything that needs your attention.',
-    icon: 'home'
+    icon: 'home',
+    shortcut: 'openHome'
   },
   {
     id: 'workspaces',
@@ -111,7 +121,8 @@ const ROUTES = [
     eyebrow: 'Workspace index',
     description:
       'Organize repositories and see supported agent sessions in one dependable hierarchy.',
-    icon: 'workspace'
+    icon: 'workspace',
+    shortcut: 'openWorkspaces'
   },
   {
     id: 'sessions',
@@ -119,7 +130,8 @@ const ROUTES = [
     eyebrow: 'Session catalog',
     description:
       'Search and filter normalized provider sessions without changing provider-owned data.',
-    icon: 'sessions'
+    icon: 'sessions',
+    shortcut: 'openSessions'
   },
   {
     id: 'profiles',
@@ -127,7 +139,8 @@ const ROUTES = [
     eyebrow: 'Shell profiles',
     description:
       'Review detected shells and define the terminal environment used for managed sessions.',
-    icon: 'terminal'
+    icon: 'terminal',
+    shortcut: 'openProfiles'
   },
   {
     id: 'settings',
@@ -135,7 +148,8 @@ const ROUTES = [
     eyebrow: 'Application settings',
     description:
       'Configure providers, storage, security, appearance, and diagnostic behavior.',
-    icon: 'settings'
+    icon: 'settings',
+    shortcut: 'openSettings'
   }
 ] as const satisfies readonly RouteDefinition[];
 
@@ -144,6 +158,16 @@ const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   darwin: 'macOS',
   linux: 'Linux'
 };
+
+function shortcutTitle(
+  label: string,
+  shortcut: KeyboardSettings[NavigationShortcutKey],
+  platform: SystemInfo['platform'] | null
+): string {
+  return platform === null
+    ? label
+    : `${label} (${formatShortcutChord(shortcut, platform)})`;
+}
 
 function Icon({ name }: { name: IconName }): ReactNode {
   const paths: Record<IconName, ReactNode> = {
@@ -950,6 +974,15 @@ export default function App(): ReactNode {
   const sidebarToggleLabel = sidebarExpanded
     ? 'Collapse sidebar'
     : 'Expand sidebar';
+  const shortcutPlatform =
+    systemStatus.state === 'ready' ? systemStatus.info.platform : null;
+  const sidebarToggleTitle = sidebarExpanded
+    ? undefined
+    : shortcutTitle(
+        sidebarToggleLabel,
+        keyboardSettings.toggleSidebar,
+        shortcutPlatform
+      );
   const dismissSessionDiagnostic = useCallback((identity: string) => {
     setDismissedSessionDiagnostics((current) => {
       if (current.has(identity)) return current;
@@ -971,7 +1004,7 @@ export default function App(): ReactNode {
           aria-label={sidebarToggleLabel}
           className="brand"
           onClick={() => setSidebarExpanded((expanded) => !expanded)}
-          title={sidebarToggleLabel}
+          title={sidebarToggleTitle}
           type="button"
         >
           <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
@@ -997,7 +1030,15 @@ export default function App(): ReactNode {
                 setActiveRuntimeId(null);
                 setSidebarExpanded(true);
               }}
-              title={sidebarExpanded ? undefined : route.label}
+              title={
+                sidebarExpanded
+                  ? undefined
+                  : shortcutTitle(
+                      route.label,
+                      keyboardSettings[route.shortcut],
+                      shortcutPlatform
+                    )
+              }
               type="button"
             >
               <Icon name={route.icon} />

@@ -353,7 +353,7 @@ describe('App', () => {
     expect(document.querySelector('.sidebar-note')).not.toBeInTheDocument();
   });
 
-  it('collapses and expands the sidebar without remounting navigation icons', () => {
+  it('collapses and expands the sidebar without remounting navigation icons', async () => {
     render(<App />);
 
     const shell = document.querySelector('.app-shell');
@@ -365,8 +365,17 @@ describe('App', () => {
     const expand = screen.getByRole('button', { name: 'Expand sidebar' });
     expect(shell).toHaveClass('sidebar-collapsed');
     expect(expand).toHaveAttribute('aria-expanded', 'false');
-    expect(expand).toHaveAttribute('title', 'Expand sidebar');
-    expect(home).toHaveAttribute('title', 'Home');
+    await waitFor(() => {
+      expect(expand).toHaveAttribute(
+        'title',
+        'Expand sidebar (Ctrl + Shift + L)'
+      );
+      expect(home).toHaveAttribute('title', 'Home (Ctrl + 1)');
+      expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute(
+        'title',
+        'Settings (Ctrl + 5)'
+      );
+    });
     expect(home.querySelector('.icon')).toBe(homeIcon);
     expect(document.querySelector('.nav-label-divider')).toHaveAttribute(
       'aria-hidden',
@@ -379,8 +388,54 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Collapse sidebar' })
     ).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    ).not.toHaveAttribute('title');
     expect(home).not.toHaveAttribute('title');
     expect(home.querySelector('.icon')).toBe(homeIcon);
+  });
+
+  it('uses customized platform-aware shortcuts in collapsed sidebar titles', async () => {
+    const getKeyboardSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      toggleSidebar: {
+        code: 'KeyB',
+        control: false,
+        alt: true,
+        shift: false,
+        meta: true
+      },
+      openHome: {
+        code: 'KeyH',
+        control: false,
+        alt: false,
+        shift: true,
+        meta: true
+      }
+    });
+    setSystemInfoResult(
+      vi.fn().mockResolvedValue({
+        platform: 'darwin',
+        arch: 'arm64',
+        appVersion: '0.1.0'
+      }),
+      undefined,
+      { getKeyboardSettings }
+    );
+    render(<App />);
+
+    await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Expand sidebar' })
+      ).toHaveAttribute('title', 'Expand sidebar (⌥ + ⌘ + B)');
+      expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
+        'title',
+        'Home (⇧ + ⌘ + H)'
+      );
+    });
   });
 
   it('expands while navigating from a collapsed sidebar', () => {
