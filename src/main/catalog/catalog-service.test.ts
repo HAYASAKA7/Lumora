@@ -169,6 +169,7 @@ function createRepository() {
 function dependencies(overrides: Record<string, unknown> = {}) {
   return {
     scanProviders: async () => scan(),
+    enabledProviders: () => SESSION_PROVIDER_IDS,
     registry: registry(),
     canonicalizeWorkspace: async (path: string) => canonicalWorkspace(path),
     repository: createRepository(),
@@ -187,6 +188,49 @@ function deferred<T>() {
 }
 
 describe('CatalogService', () => {
+  it('discovers and exposes only enabled providers without touching disabled scans', async () => {
+    let enabledProviders: readonly ProviderId[] = ['codex'];
+    const repository = createRepository();
+    const adapters = registry();
+    const service = new CatalogService(
+      dependencies({
+        repository,
+        registry: adapters,
+        enabledProviders: () => enabledProviders,
+        scanProviders: async () => scan([ready('codex'), ready('claude')])
+      })
+    );
+
+    const codexSnapshot = await service.refreshCatalog();
+
+    expect(adapters.get('codex')!.discover).toHaveBeenCalledOnce();
+    expect(adapters.get('claude')!.discover).not.toHaveBeenCalled();
+    expect(repository.applyProviderScan.mock.calls.map(([value]) => value.provider))
+      .toEqual(['codex']);
+    expect(codexSnapshot.providerStatus.map(({ provider }) => provider))
+      .toEqual(['codex']);
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableProviders: ['codex'] })
+    );
+
+    enabledProviders = ['claude'];
+    service.getCatalog();
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        providerStatus: [],
+        availableProviders: []
+      })
+    );
+
+    await service.refreshCatalog();
+    expect(adapters.get('claude')!.discover).toHaveBeenCalledOnce();
+    expect(repository.applyProviderScan.mock.calls.map(([value]) => value.provider))
+      .toEqual(['codex', 'claude']);
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableProviders: ['claude'] })
+    );
+  });
+
   it('coalesces concurrent scans while preserving each caller query', async () => {
     const repository = createRepository();
     const pendingScan = deferred<ProviderScanResult>();

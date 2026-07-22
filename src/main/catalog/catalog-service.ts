@@ -48,6 +48,7 @@ interface CatalogRepositoryPort {
 
 interface CatalogServiceDependencies {
   scanProviders(): Promise<ProviderScanResult>;
+  enabledProviders(): readonly ProviderId[];
   registry: SessionCatalogRegistry;
   canonicalizeWorkspace(path: string): Promise<CanonicalWorkspacePath>;
   repository: CatalogRepositoryPort;
@@ -178,21 +179,34 @@ export class CatalogService {
   private refreshInFlight: Promise<void> | null = null;
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
-    this.providerStatus = dependencies.registry
-      .providers()
+    this.providerStatus = this.currentProviders()
       .map((provider) => emptyStatus(provider, 'unavailable'));
     this.refreshedAt = dependencies.clock().toISOString();
   }
 
   getCatalog(query: CatalogQuery = EMPTY_QUERY): CatalogSnapshot {
     const parsedQuery = CatalogQuerySchema.parse(query);
+    const enabled = new Set(this.currentProviders());
     return this.dependencies.repository.getSnapshot({
       query: parsedQuery,
       refreshedAt: this.refreshedAt,
-      providerStatus: this.providerStatus,
-      availableProviders: this.availableProviders,
-      diagnostics: this.diagnostics
+      providerStatus: this.providerStatus.filter(({ provider }) =>
+        enabled.has(provider)
+      ),
+      availableProviders: this.availableProviders.filter((provider) =>
+        enabled.has(provider)
+      ),
+      diagnostics: this.diagnostics.filter(
+        ({ provider }) => provider === null || enabled.has(provider)
+      )
     });
+  }
+
+  private currentProviders(): ProviderId[] {
+    const enabled = new Set(this.dependencies.enabledProviders());
+    return this.dependencies.registry
+      .providers()
+      .filter((provider) => enabled.has(provider));
   }
 
   async refreshCatalog(
@@ -223,7 +237,7 @@ export class CatalogService {
         installation
       ])
     );
-    const providers = this.dependencies.registry.providers();
+    const providers = this.currentProviders();
     const readyInstallations = new Map<ProviderId, ReadyProviderInstallation>();
     const incompatibleProviders = new Map<ProviderId, string>();
     for (const provider of providers) {

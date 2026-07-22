@@ -21,6 +21,7 @@ import {
   type SessionCatalogAdapter,
   type SessionCatalogRegistry
 } from '../providers/session-catalog-adapter';
+import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
 import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
@@ -33,6 +34,7 @@ interface CreateCatalogRuntimeOptions {
   platform: SystemInfo['platform'];
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
+  enabledProviders?: () => readonly ProviderId[];
   clock?: () => Date;
   createScanId?: (provider: ProviderId) => string;
 }
@@ -61,6 +63,7 @@ export function createCatalogRuntime({
   platform,
   env,
   scanProviders,
+  enabledProviders = () => SESSION_PROVIDER_IDS,
   clock = () => new Date(),
   createScanId = () => randomUUID()
 }: CreateCatalogRuntimeOptions): CatalogRuntime {
@@ -130,6 +133,7 @@ export function createCatalogRuntime({
   ]);
   const service = new CatalogService({
     scanProviders,
+    enabledProviders,
     registry,
     canonicalizeWorkspace: (path) =>
       canonicalizeWorkspacePath(path, { platform }),

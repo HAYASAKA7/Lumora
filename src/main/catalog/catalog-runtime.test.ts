@@ -50,6 +50,7 @@ describe('createCatalogRuntime', () => {
       platform: testPlatform,
       env: {},
       scanProviders: async () => unavailableProviders,
+      enabledProviders: () => ['codex'],
       clock: () => new Date('2026-07-11T03:00:00.000Z'),
       createScanId: () => 'scan-1'
     });
@@ -68,6 +69,9 @@ describe('createCatalogRuntime', () => {
       'opencode',
       'copilot',
       'qwen'
+    ]);
+    expect(snapshot.providerStatus.map(({ provider }) => provider)).toEqual([
+      'codex'
     ]);
     expect(runtime.registry.get('aider')).toBeNull();
     expect(runtime.close).not.toThrow();

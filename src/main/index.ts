@@ -231,7 +231,8 @@ void app.whenReady().then(async () => {
     homeDirectory: app.getPath('home'),
     platform,
     env: process.env,
-    scanProviders: scanEnabledProviders
+    scanProviders: scanEnabledProviders,
+    enabledProviders: () => providerPolicy.providers()
   });
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
