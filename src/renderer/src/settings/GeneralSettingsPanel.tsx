@@ -14,11 +14,16 @@ export function GeneralSettingsPanel({
   onShowInformationalNoticesChange
 }: GeneralSettingsPanelProps) {
   return (
-    <section aria-labelledby="general-settings-title" className="general-settings-panel">
-      <header className="settings-panel-heading">
-        <p className="card-label">Interface</p>
-        <h2 id="general-settings-title">General</h2>
-        <p>Choose which optional guidance Lumora displays while you work.</p>
+    <section
+      aria-labelledby="general-settings-title"
+      className="catalog-panel general-settings-panel"
+    >
+      <header className="provider-panel-header">
+        <div>
+          <p className="card-label">Interface</p>
+          <h2 id="general-settings-title">General</h2>
+          <p>Choose which optional guidance Lumora displays while you work.</p>
+        </div>
       </header>
 
       <label className="general-setting-card">

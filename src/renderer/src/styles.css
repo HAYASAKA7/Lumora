@@ -1056,32 +1056,13 @@ button {
 
 .general-settings-panel {
   display: grid;
-  max-width: 760px;
   gap: 18px;
 }
 
-.settings-panel-heading,
 .general-setting-card {
-  background: var(--surface-raised);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.settings-panel-heading {
-  padding: 22px;
-}
-
-.settings-panel-heading h2 {
-  margin: 6px 0 8px;
-  color: var(--text);
-  font-size: 1.2rem;
-  letter-spacing: -0.015em;
-}
-
-.settings-panel-heading p:last-child {
-  margin: 0;
-  color: var(--text-muted);
-  line-height: 1.55;
+  border-radius: 10px;
 }
 
 .general-setting-card {

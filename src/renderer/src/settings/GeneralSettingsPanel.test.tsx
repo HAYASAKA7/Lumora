@@ -19,6 +19,10 @@ describe('GeneralSettingsPanel', () => {
     const toggle = screen.getByRole('switch', {
       name: 'Show informational notices'
     });
+    const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
+    const header = screen.getByRole('heading', { name: 'General' }).closest('header');
+    expect(panel).toHaveClass('catalog-panel', 'general-settings-panel');
+    expect(header).toHaveClass('provider-panel-header');
     expect(toggle).toBeChecked();
     expect(
       screen.getByText(
