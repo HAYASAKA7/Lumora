@@ -207,6 +207,7 @@ export function SettingsView({
       >
         {catalogReady ? (
           <LaunchSettingsPanel
+            enabledProviders={generalSettings.enabledProviders}
             profiles={profiles}
             sessions={sessions}
             workspaces={workspaces}

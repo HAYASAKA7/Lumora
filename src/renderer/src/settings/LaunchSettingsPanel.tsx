@@ -20,7 +20,7 @@ interface CommandDraft {
   command: string;
 }
 
-const PROVIDERS: readonly ProviderId[] = PROVIDER_DEFINITIONS.map(
+const ALL_PROVIDERS: readonly ProviderId[] = PROVIDER_DEFINITIONS.map(
   (definition) => definition.provider
 );
 const PROVIDER_LABELS = Object.fromEntries(
@@ -32,7 +32,7 @@ const PROVIDER_LABELS = Object.fromEntries(
 
 function emptyCommands(): Record<ProviderId, CommandDraft> {
   return Object.fromEntries(
-    PROVIDERS.map((provider) => [
+    ALL_PROVIDERS.map((provider) => [
       provider,
       { mode: 'inherit' as const, command: '' }
     ])
@@ -58,11 +58,12 @@ function commandDraft(
 
 function targetOptions(
   scope: LaunchSettingsScope,
+  enabledProviders: readonly ProviderId[],
   workspaces: readonly WorkspaceSummary[],
   sessions: readonly SessionSummary[]
 ): Array<{ id: string; label: string }> {
   if (scope === 'provider') {
-    return PROVIDERS.map((provider) => ({
+    return enabledProviders.map((provider) => ({
       id: provider,
       label: PROVIDER_LABELS[provider]
     }));
@@ -83,10 +84,12 @@ function targetOptions(
 }
 
 export function LaunchSettingsPanel({
+  enabledProviders = ALL_PROVIDERS,
   profiles,
   sessions,
   workspaces
 }: {
+  enabledProviders?: readonly ProviderId[];
   profiles: readonly TerminalProfile[];
   sessions: readonly SessionSummary[];
   workspaces: readonly WorkspaceSummary[];
@@ -122,8 +125,8 @@ export function LaunchSettingsPanel({
   }, []);
 
   const options = useMemo(
-    () => targetOptions(scope, workspaces, sessions),
-    [scope, workspaces, sessions]
+    () => targetOptions(scope, enabledProviders, workspaces, sessions),
+    [enabledProviders, scope, workspaces, sessions]
   );
 
   useEffect(() => {
@@ -155,14 +158,17 @@ export function LaunchSettingsPanel({
     );
     setCommands(
       Object.fromEntries(
-        PROVIDERS.map((provider) => [provider, commandDraft(settings, provider)])
+        ALL_PROVIDERS.map((provider) => [
+          provider,
+          commandDraft(settings, provider)
+        ])
       ) as Record<ProviderId, CommandDraft>
     );
   }, [selectedLayer]);
 
   const applicableProviders = useMemo<ProviderId[]>(() => {
     if (scope === 'provider') {
-      return PROVIDERS.includes(targetId as ProviderId)
+      return enabledProviders.includes(targetId as ProviderId)
         ? [targetId as ProviderId]
         : [];
     }
@@ -170,10 +176,12 @@ export function LaunchSettingsPanel({
       const provider = sessions.find(
         (session) => session.id === targetId
       )?.provider;
-      return provider === undefined ? [] : [provider];
+      return provider === undefined || !enabledProviders.includes(provider)
+        ? []
+        : [provider];
     }
-    return [...PROVIDERS];
-  }, [scope, sessions, targetId]);
+    return [...enabledProviders];
+  }, [enabledProviders, scope, sessions, targetId]);
 
   const buildSettings = (): LaunchSettingsValue => {
     const settings: LaunchSettingsValue = {};

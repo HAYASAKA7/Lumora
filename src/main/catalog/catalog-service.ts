@@ -176,7 +176,10 @@ export class CatalogService {
   private availableProviders: ProviderId[] = [];
   private diagnostics: CatalogDiagnostic[] = [];
   private refreshedAt: string;
-  private refreshInFlight: Promise<void> | null = null;
+  private refreshInFlight: {
+    providersKey: string;
+    promise: Promise<void>;
+  } | null = null;
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
     this.providerStatus = this.currentProviders()
@@ -213,22 +216,50 @@ export class CatalogService {
     query: CatalogQuery = EMPTY_QUERY
   ): Promise<CatalogSnapshot> {
     const parsedQuery = CatalogQuerySchema.parse(query);
-    if (this.refreshInFlight === null) {
-      const refresh = this.refreshProviders();
-      this.refreshInFlight = refresh;
-      void refresh
-        .finally(() => {
-          if (this.refreshInFlight === refresh) {
-            this.refreshInFlight = null;
-          }
-        })
-        .catch(() => undefined);
+    let providers = this.currentProviders();
+
+    for (;;) {
+      const providersKey = providers.join('\u0000');
+      const currentRefresh = this.refreshInFlight;
+      if (currentRefresh === null) {
+        const entry = {
+          providersKey,
+          promise: this.refreshProviders(providers)
+        };
+        this.refreshInFlight = entry;
+        void entry.promise
+          .finally(() => {
+            if (this.refreshInFlight === entry) {
+              this.refreshInFlight = null;
+            }
+          })
+          .catch(() => undefined);
+        await entry.promise;
+        break;
+      }
+
+      if (currentRefresh.providersKey === providersKey) {
+        await currentRefresh.promise;
+        break;
+      }
+
+      try {
+        await currentRefresh.promise;
+      } catch {
+        // A policy-changing refresh must still get its own current scan.
+      } finally {
+        if (this.refreshInFlight === currentRefresh) {
+          this.refreshInFlight = null;
+        }
+      }
+      providers = this.currentProviders();
     }
-    await this.refreshInFlight;
     return this.getCatalog(parsedQuery);
   }
 
-  private async refreshProviders(): Promise<void> {
+  private async refreshProviders(
+    providers: readonly ProviderId[]
+  ): Promise<void> {
     const scannedAt = this.dependencies.clock().toISOString();
     const scan = await this.dependencies.scanProviders();
     const installations = new Map<ProviderId, ProviderInstallation>(
@@ -237,7 +268,6 @@ export class CatalogService {
         installation
       ])
     );
-    const providers = this.currentProviders();
     const readyInstallations = new Map<ProviderId, ReadyProviderInstallation>();
     const incompatibleProviders = new Map<ProviderId, string>();
     for (const provider of providers) {

@@ -264,6 +264,38 @@ describe('CatalogService', () => {
     });
   });
 
+  it('queues a fresh scan when enabled providers change during an in-flight refresh', async () => {
+    let enabledProviders: readonly ProviderId[] = ['codex'];
+    const firstScan = deferred<ProviderScanResult>();
+    const scanProviders = vi
+      .fn()
+      .mockImplementationOnce(() => firstScan.promise)
+      .mockResolvedValueOnce(scan([ready('codex'), ready('claude')]));
+    const adapters = registry();
+    const service = new CatalogService(
+      dependencies({
+        enabledProviders: () => enabledProviders,
+        registry: adapters,
+        scanProviders
+      })
+    );
+
+    const codexRefresh = service.refreshCatalog();
+    enabledProviders = ['codex', 'claude'];
+    const expandedRefresh = service.refreshCatalog();
+
+    expect(scanProviders).toHaveBeenCalledOnce();
+    firstScan.resolve(scan([ready('codex')]));
+    await codexRefresh;
+    await expandedRefresh;
+
+    expect(scanProviders).toHaveBeenCalledTimes(2);
+    expect(adapters.get('claude')!.discover).toHaveBeenCalledOnce();
+    expect(
+      service.getCatalog().providerStatus.map(({ provider }) => provider)
+    ).toEqual(['codex', 'claude']);
+  });
+
   it('starts a fresh scan after a coalesced scan rejects', async () => {
     const scanProviders = vi
       .fn()

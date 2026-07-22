@@ -174,4 +174,36 @@ describe('LaunchSettingsPanel', () => {
       await screen.findByLabelText('Gemini CLI command mode')
     ).toBeInTheDocument();
   });
+
+  it('excludes disabled providers from provider targets and command settings', async () => {
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
+        saveLaunchSettingsLayer: vi.fn().mockResolvedValue([])
+      }
+    });
+    render(
+      <LaunchSettingsPanel
+        enabledProviders={['codex']}
+        profiles={[profile]}
+        sessions={[session]}
+        workspaces={[workspace]}
+      />
+    );
+
+    await screen.findByText('Launch defaults');
+    expect(screen.getByLabelText('Codex command mode')).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Claude Code command mode')
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Settings scope'), {
+      target: { value: 'provider' }
+    });
+    expect(screen.getByRole('option', { name: 'Codex' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Claude Code' })
+    ).not.toBeInTheDocument();
+  });
 });
