@@ -2094,6 +2094,64 @@ describe('App', () => {
     expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1);
   });
 
+  it('saves provider scope and immediately rescans providers and sessions', async () => {
+    const codexOnlyScan: ProviderScanResult = {
+      ...readyProviderScan,
+      providers: readyProviderScan.providers.filter(
+        ({ provider }) => provider === 'codex'
+      )
+    };
+    const scanProviders = vi
+      .fn()
+      .mockResolvedValueOnce(readyProviderScan)
+      .mockResolvedValueOnce(codexOnlyScan);
+    const saveGeneralSettings = vi.fn(async (value) => value);
+    const refreshCatalog = vi.fn().mockResolvedValue({
+      ...readyCatalog,
+      providerStatus: readyCatalog.providerStatus.filter(
+        ({ provider }) => provider === 'codex'
+      ),
+      providerFacets: readyCatalog.providerFacets.filter(
+        ({ provider }) => provider === 'codex'
+      ),
+      sessions: readyCatalog.sessions.filter(
+        ({ provider }) => provider === 'codex'
+      )
+    });
+    setSystemInfoResult(undefined, scanProviders, {
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        enabledProviders: ['codex', 'claude']
+      }),
+      refreshCatalog,
+      saveGeneralSettings
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Use Claude Code' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save provider selection' })
+    );
+
+    await waitFor(() =>
+      expect(saveGeneralSettings).toHaveBeenCalledWith({
+        ...DEFAULT_GENERAL_SETTINGS,
+        enabledProviders: ['codex']
+      })
+    );
+    await waitFor(() => expect(scanProviders).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(refreshCatalog).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Claude Code' })
+      ).not.toBeInTheDocument()
+    );
+  });
+
   it('refreshes developer prerequisites independently', async () => {
     const scanDeveloperEnvironment = vi
       .fn()

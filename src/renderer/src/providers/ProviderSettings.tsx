@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 import type {
+  GeneralSettings,
   ProviderId,
   ProviderInstallation,
   ProviderLaunchConfig,
@@ -14,7 +15,11 @@ import type {
   ProviderUpdateCheckResult,
   ProviderUpdateStatus
 } from '../../../shared/contracts';
-import { providerDefinition } from '../../../shared/provider-definitions';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
+import {
+  PROVIDER_DEFINITIONS,
+  providerDefinition
+} from '../../../shared/provider-definitions';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -22,6 +27,7 @@ export type ProviderScanStatus =
   | { state: 'error' };
 
 export type ProviderUpdatesStatus =
+  | { state: 'idle' }
   | { state: 'loading' }
   | { state: 'ready'; check: ProviderUpdateCheckResult }
   | { state: 'error' };
@@ -54,6 +60,7 @@ function ProviderCard({
   installation,
   release,
   releaseChecking,
+  updatesChecked,
   onCommandChange,
   onInstall,
   onOpenGuide,
@@ -70,6 +77,7 @@ function ProviderCard({
   installation: ProviderInstallation;
   release: ProviderUpdateStatus | null;
   releaseChecking: boolean;
+  updatesChecked: boolean;
   onCommandChange(command: string): void;
   onInstall(): void;
   onOpenGuide(): void;
@@ -185,7 +193,11 @@ function ProviderCard({
       )}
 
       <div className="provider-release" aria-live="polite">
-        {releaseChecking ? (
+        {!updatesChecked ? (
+          <p className="provider-release-status provider-release-idle">
+            Updates not checked
+          </p>
+        ) : releaseChecking ? (
           <p className="provider-release-status provider-release-checking">
             <span className="status-dot" aria-hidden="true" />
             Checking latest version…
@@ -302,18 +314,33 @@ function ProviderCard({
 
 export function ProviderSettings({
   status,
-  onRefresh
+  onRefresh,
+  generalSettings = DEFAULT_GENERAL_SETTINGS,
+  generalSettingsSaving = false,
+  generalSettingsSaveError = null,
+  onSaveEnabledProviders = async () => true
 }: {
   status: ProviderScanStatus;
   onRefresh: () => void;
+  generalSettings?: GeneralSettings;
+  generalSettingsSaving?: boolean;
+  generalSettingsSaveError?: string | null;
+  onSaveEnabledProviders?: (
+    providers: readonly ProviderId[]
+  ) => Promise<boolean>;
 }): ReactNode {
+  const [enabledProviderDraft, setEnabledProviderDraft] = useState<
+    readonly ProviderId[]
+  >(generalSettings.enabledProviders);
   const [commands, setCommands] = useState<
     Partial<Record<ProviderId, string>>
   >({});
   const [savingProvider, setSavingProvider] = useState<ProviderId | null>(null);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [updatesStatus, setUpdatesStatus] = useState<ProviderUpdatesStatus>({
-    state: 'loading'
+    state: generalSettings.checkProviderUpdatesAutomatically
+      ? 'loading'
+      : 'idle'
   });
   const [updatingProvider, setUpdatingProvider] = useState<ProviderId | null>(
     null
@@ -328,6 +355,10 @@ export function ProviderSettings({
     Partial<Record<ProviderId, string>>
   >({});
   const updatesRequestId = useRef(0);
+
+  useEffect(() => {
+    setEnabledProviderDraft(generalSettings.enabledProviders);
+  }, [generalSettings.enabledProviders]);
 
   const applyConfigs = (configs: readonly ProviderLaunchConfig[]) => {
     setCommands((current) => ({
@@ -368,11 +399,16 @@ export function ProviderSettings({
   }, []);
 
   useEffect(() => {
+    if (!generalSettings.checkProviderUpdatesAutomatically) {
+      updatesRequestId.current += 1;
+      setUpdatesStatus({ state: 'idle' });
+      return;
+    }
     void refreshUpdates();
     return () => {
       updatesRequestId.current += 1;
     };
-  }, [refreshUpdates]);
+  }, [generalSettings.checkProviderUpdatesAutomatically, refreshUpdates]);
 
   const saveCommand = (provider: ProviderId, command: string | null) => {
     setSavingProvider(provider);
@@ -395,7 +431,11 @@ export function ProviderSettings({
     void window.lumora.updateProvider(provider).then(
       async () => {
         onRefresh();
-        await refreshUpdates();
+        if (generalSettings.checkProviderUpdatesAutomatically) {
+          await refreshUpdates();
+        } else {
+          setUpdatesStatus({ state: 'idle' });
+        }
         setUpdatingProvider(null);
       },
       () => {
@@ -419,7 +459,11 @@ export function ProviderSettings({
     void window.lumora.installProvider(provider).then(
       async () => {
         onRefresh();
-        await refreshUpdates();
+        if (generalSettings.checkProviderUpdatesAutomatically) {
+          await refreshUpdates();
+        } else {
+          setUpdatesStatus({ state: 'idle' });
+        }
         finish();
       },
       () => {
@@ -442,9 +486,22 @@ export function ProviderSettings({
     });
   };
 
-  const refreshAll = () => {
-    onRefresh();
-    void refreshUpdates();
+  const enabledProviderSelectionChanged =
+    enabledProviderDraft.length !== generalSettings.enabledProviders.length ||
+    enabledProviderDraft.some(
+      (provider, index) => provider !== generalSettings.enabledProviders[index]
+    );
+
+  const toggleProvider = (provider: ProviderId, enabled: boolean) => {
+    setEnabledProviderDraft((current) =>
+      PROVIDER_DEFINITIONS
+        .filter(({ provider: candidate }) =>
+          candidate === provider
+            ? enabled
+            : current.includes(candidate)
+        )
+        .map(({ provider: candidate }) => candidate)
+    );
   };
 
   const renderProviderCard = (installation: ProviderInstallation) => (
@@ -462,6 +519,7 @@ export function ProviderSettings({
           : null
       }
       releaseChecking={updatesStatus.state === 'loading'}
+      updatesChecked={updatesStatus.state !== 'idle'}
       onCommandChange={(command) => setCommands((current) => ({
         ...current,
         [installation.provider]: command
@@ -491,6 +549,68 @@ export function ProviderSettings({
 
   return (
     <section className="provider-panel" aria-labelledby="provider-panel-title">
+      <section
+        aria-labelledby="enabled-providers-title"
+        className="provider-selection-panel"
+      >
+        <div>
+          <p className="card-label">Lumora scope</p>
+          <h2 id="enabled-providers-title">Enabled providers</h2>
+          <p>
+            Choose which providers Lumora scans and displays. Disabling one
+            never removes its CLI, settings, or saved session data.
+          </p>
+        </div>
+        <div className="provider-selection-grid">
+          {PROVIDER_DEFINITIONS.map((definition) => {
+            const checked = enabledProviderDraft.includes(definition.provider);
+            return (
+              <label className="provider-selection-option" key={definition.provider}>
+                <input
+                  aria-label={`Use ${definition.displayName}`}
+                  checked={checked}
+                  disabled={
+                    generalSettingsSaving ||
+                    (checked && enabledProviderDraft.length === 1)
+                  }
+                  onChange={(event) =>
+                    toggleProvider(
+                      definition.provider,
+                      event.currentTarget.checked
+                    )
+                  }
+                  type="checkbox"
+                />
+                <span>{definition.displayName}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="provider-selection-actions">
+          <button
+            aria-label="Save provider selection"
+            className="refresh-button"
+            disabled={
+              generalSettingsSaving ||
+              !enabledProviderSelectionChanged ||
+              enabledProviderDraft.length === 0
+            }
+            onClick={() => {
+              void onSaveEnabledProviders(enabledProviderDraft);
+            }}
+            type="button"
+          >
+            {generalSettingsSaving ? 'Saving…' : 'Save selection'}
+          </button>
+          <span>{enabledProviderDraft.length} enabled</span>
+        </div>
+        {generalSettingsSaveError === null ? null : (
+          <p className="general-setting-error" role="alert">
+            {generalSettingsSaveError}
+          </p>
+        )}
+      </section>
+
       <div className="provider-panel-header">
         <div>
           <p className="card-label">Local provider registry</p>
@@ -500,20 +620,36 @@ export function ProviderSettings({
             It only modifies a provider after you explicitly confirm an action.
           </p>
         </div>
-        <button
-          className="refresh-button"
-          disabled={
-            status.state === 'loading' ||
-            updatesStatus.state === 'loading' ||
-            updatingProvider !== null ||
-            installingProviders.size > 0
-          }
-          onClick={refreshAll}
-          type="button"
-        >
-          <ScanIcon />
-          Refresh
-        </button>
+        <div className="provider-panel-actions">
+          <button
+            className="refresh-button"
+            disabled={
+              status.state === 'loading' ||
+              updatingProvider !== null ||
+              installingProviders.size > 0
+            }
+            onClick={onRefresh}
+            type="button"
+          >
+            <ScanIcon />
+            Refresh
+          </button>
+          <button
+            aria-label="Check for provider updates"
+            className="secondary-button"
+            disabled={
+              updatesStatus.state === 'loading' ||
+              updatingProvider !== null ||
+              installingProviders.size > 0
+            }
+            onClick={() => {
+              void refreshUpdates();
+            }}
+            type="button"
+          >
+            Check for updates
+          </button>
+        </div>
       </div>
 
       {status.state === 'loading' ? (

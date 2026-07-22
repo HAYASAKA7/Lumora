@@ -42,6 +42,9 @@ interface SettingsViewProps {
   onOpenNodeDownload: () => Promise<void>;
   onRefreshEnvironment: () => void;
   onRefreshProviders: () => void;
+  onSaveEnabledProviders: (
+    providers: readonly GeneralSettings['enabledProviders'][number][]
+  ) => Promise<boolean>;
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
   providerStatus: ProviderScanStatus;
@@ -71,6 +74,7 @@ export function SettingsView({
   onOpenNodeDownload,
   onRefreshEnvironment,
   onRefreshProviders,
+  onSaveEnabledProviders,
   platform,
   profiles,
   providerStatus,
@@ -171,7 +175,11 @@ export function SettingsView({
         role="tabpanel"
       >
         <ProviderSettings
+          generalSettings={generalSettings}
+          generalSettingsSaveError={generalSettingsSaveError}
+          generalSettingsSaving={generalSettingsSaving}
           onRefresh={onRefreshProviders}
+          onSaveEnabledProviders={onSaveEnabledProviders}
           status={providerStatus}
         />
       </section>

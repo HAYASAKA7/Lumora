@@ -574,6 +574,78 @@ button {
   box-shadow: 0 8px 24px rgba(20, 37, 62, 0.045);
 }
 
+.provider-selection-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.provider-selection-panel h2,
+.provider-selection-panel p {
+  margin: 0;
+}
+
+.provider-selection-panel > div:first-child > p:last-child {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.provider-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.provider-selection-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.provider-selection-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--line));
+  background: var(--blue-soft);
+}
+
+.provider-selection-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.provider-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.provider-selection-actions span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.provider-selection-panel + .provider-panel-header {
+  margin-top: 24px;
+}
+
+.provider-panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
 .developer-environment-warning {
   display: flex;
   align-items: center;
@@ -2208,6 +2280,16 @@ button {
   .provider-panel-header,
   .developer-environment-panel-header {
     flex-direction: column;
+  }
+
+  .provider-panel-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .provider-panel-actions .secondary-button {
+    width: 100%;
   }
 
   .provider-grid {

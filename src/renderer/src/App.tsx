@@ -744,21 +744,19 @@ export default function App(): ReactNode {
     }
   }, [catalogStatus, sessionProvider]);
 
-  const refreshCatalog = useCallback(() => {
+  const refreshCatalogWithQuery = useCallback((query: CatalogQuery) => {
     const requestId = catalogRequestId.current + 1;
     catalogRequestId.current = requestId;
     setIsCatalogRefreshing(true);
     setCatalogOperationError(null);
-    const query: CatalogQuery = {
-      text: debouncedSessionSearch,
-      provider: sessionProvider
-    };
-    void window.lumora.refreshCatalog(query).then(
+    return window.lumora.refreshCatalog(query).then(
       (snapshot) => {
         if (catalogRequestId.current === requestId) {
           setCatalogStatus({ state: 'ready', snapshot });
           setIsCatalogRefreshing(false);
+          return true;
         }
+        return false;
       },
       () => {
         if (catalogRequestId.current === requestId) {
@@ -771,10 +769,21 @@ export default function App(): ReactNode {
             setCatalogStatus({ state: 'error' });
           }
           setIsCatalogRefreshing(false);
+          return false;
         }
+        return false;
       }
     );
-  }, [catalogStatus.state, debouncedSessionSearch, sessionProvider]);
+  }, [catalogStatus.state]);
+
+  const refreshCatalog = useCallback(
+    () =>
+      refreshCatalogWithQuery({
+        text: debouncedSessionSearch,
+        provider: sessionProvider
+      }),
+    [debouncedSessionSearch, refreshCatalogWithQuery, sessionProvider]
+  );
 
   const addWorkspace = useCallback(() => {
     const requestId = catalogRequestId.current + 1;
@@ -1131,6 +1140,54 @@ export default function App(): ReactNode {
     },
     [generalSettings]
   );
+  const saveEnabledProviders = useCallback(
+    async (enabledProviders: readonly ProviderId[]): Promise<boolean> => {
+      const previous = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
+      const next: GeneralSettings = {
+        ...previous,
+        enabledProviders: [...enabledProviders]
+      };
+      setGeneralSettings(next);
+      setGeneralSettingsSaving(true);
+      setGeneralSettingsSaveError(null);
+
+      try {
+        const saved = await window.lumora.saveGeneralSettings(next);
+        setGeneralSettings(saved);
+        const provider =
+          sessionProvider !== null &&
+          !saved.enabledProviders.includes(sessionProvider)
+            ? null
+            : sessionProvider;
+        if (provider !== sessionProvider) {
+          setSessionProvider(provider);
+        }
+        await Promise.all([
+          refreshProviders(),
+          refreshCatalogWithQuery({
+            text: debouncedSessionSearch,
+            provider
+          })
+        ]);
+        return true;
+      } catch {
+        setGeneralSettings(previous);
+        setGeneralSettingsSaveError(
+          'Lumora could not save the provider selection.'
+        );
+        return false;
+      } finally {
+        setGeneralSettingsSaving(false);
+      }
+    },
+    [
+      debouncedSessionSearch,
+      generalSettings,
+      refreshCatalogWithQuery,
+      refreshProviders,
+      sessionProvider
+    ]
+  );
   const dismissStartupPresentation = useCallback(() => {
     setStartupDismissed(true);
   }, []);
@@ -1345,6 +1402,7 @@ export default function App(): ReactNode {
                 onOpenNodeDownload={openNodeDownload}
                 onRefreshEnvironment={refreshEnvironment}
                 onRefreshProviders={refreshProviders}
+                onSaveEnabledProviders={saveEnabledProviders}
                 platform={
                   systemStatus.state === 'ready'
                     ? systemStatus.info.platform

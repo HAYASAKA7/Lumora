@@ -6,7 +6,10 @@ import {
   DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS
 } from '../../../shared/contracts';
-import type { KeyboardSettings } from '../../../shared/contracts';
+import type {
+  KeyboardSettings,
+  ProviderId
+} from '../../../shared/contracts';
 import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
 import { SettingsView, type SettingsCategory } from './SettingsView';
 
@@ -76,6 +79,7 @@ interface HarnessProps {
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
   onRefreshEnvironment?: () => void;
   onRefreshProviders?: () => void;
+  onSaveEnabledProviders?: (providers: readonly ProviderId[]) => Promise<boolean>;
   environmentStatus?: DeveloperEnvironmentStatus;
 }
 
@@ -86,6 +90,8 @@ function Harness({
   onKeyboardSettingsChange = vi.fn(),
   onRefreshEnvironment = vi.fn(),
   onRefreshProviders = vi.fn()
+  ,
+  onSaveEnabledProviders = vi.fn().mockResolvedValue(true)
 }: HarnessProps) {
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>('general');
@@ -104,6 +110,7 @@ function Harness({
       onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
       onRefreshEnvironment={onRefreshEnvironment}
       onRefreshProviders={onRefreshProviders}
+      onSaveEnabledProviders={onSaveEnabledProviders}
       platform="win32"
       profiles={[]}
       providerStatus={{ state: 'loading' }}

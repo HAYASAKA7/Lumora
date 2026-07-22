@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+  GeneralSettings,
   ProviderLaunchConfig,
   ProviderScanResult,
   ProviderUpdateCheckResult
 } from '../../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { ProviderSettings } from './ProviderSettings';
 
 const scan: ProviderScanResult = {
@@ -82,6 +84,57 @@ function deferred<T>() {
 }
 
 describe('ProviderSettings', () => {
+  it('stages enabled providers, prevents an empty selection, and saves explicitly', async () => {
+    setLumora();
+    const onSaveEnabledProviders = vi.fn().mockResolvedValue(true);
+    const settings: GeneralSettings = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex', 'claude']
+    };
+    render(
+      <ProviderSettings
+        generalSettings={settings}
+        onRefresh={vi.fn()}
+        onSaveEnabledProviders={onSaveEnabledProviders}
+        status={{ state: 'ready', scan }}
+      />
+    );
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(12);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Use Claude Code' }));
+    expect(
+      screen.getByRole('checkbox', { name: 'Use Codex' })
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save provider selection' }));
+
+    await waitFor(() =>
+      expect(onSaveEnabledProviders).toHaveBeenCalledWith(['codex'])
+    );
+  });
+
+  it('does not check releases automatically when that preference is disabled', async () => {
+    const lumora = setLumora();
+    render(
+      <ProviderSettings
+        generalSettings={{
+          ...DEFAULT_GENERAL_SETTINGS,
+          checkProviderUpdatesAutomatically: false
+        }}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', scan }}
+      />
+    );
+
+    expect(await screen.findAllByText('Updates not checked')).toHaveLength(2);
+    expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Check for provider updates' })
+    );
+    expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
+    expect(lumora.checkProviderUpdates).toHaveBeenCalledOnce();
+  });
+
   it('shows saved-session capability for complete and launch-only providers', async () => {
     setLumora();
     const capabilityScan: ProviderScanResult = {
@@ -284,7 +337,7 @@ describe('ProviderSettings', () => {
     expect(updateProvider).toHaveBeenCalledWith('codex');
   });
 
-  it('shows update failures and refreshes discovery plus releases together', async () => {
+  it('shows update failures and keeps discovery refresh separate from release checks', async () => {
     const checkProviderUpdates = vi.fn().mockResolvedValue(availableUpdates);
     setLumora({
       checkProviderUpdates,
@@ -305,6 +358,10 @@ describe('ProviderSettings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(onRefresh).toHaveBeenCalledOnce();
+    expect(checkProviderUpdates).toHaveBeenCalledOnce();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Check for provider updates' })
+    );
     await waitFor(() => expect(checkProviderUpdates).toHaveBeenCalledTimes(2));
   });
 
