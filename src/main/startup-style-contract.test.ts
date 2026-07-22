@@ -22,6 +22,9 @@ describe('startup presentation style contract', () => {
     const mediaRule = stylesheet.match(
       /\.startup-media\s*\{([^}]*)\}/
     )?.[1];
+    const reducedMotionRule = stylesheet.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/
+    )?.[1];
 
     expect(overlayRule).toContain(
       '--startup-media-width: min(72vw, 1920px, calc((100vh - 32px) * 16 / 9))'
@@ -43,5 +46,14 @@ describe('startup presentation style contract', () => {
     expect(stageRule).toContain('margin: 0');
     expect(stageRule).not.toContain('margin-left: auto');
     expect(mediaRule).toContain('object-fit: contain');
+    expect(mediaRule).toContain(
+      'animation: startup-media-enter 300ms ease-out both'
+    );
+    expect(stylesheet).toContain('@keyframes startup-media-enter {');
+    expect(stylesheet).toContain('from { opacity: 0; }');
+    expect(stylesheet).toContain('to { opacity: 1; }');
+    expect(reducedMotionRule).toContain(
+      'animation-duration: 0.01ms !important'
+    );
   });
 });

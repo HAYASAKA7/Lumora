@@ -156,6 +156,12 @@ button {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  animation: startup-media-enter 300ms ease-out both;
+}
+
+@keyframes startup-media-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .skip-link {
