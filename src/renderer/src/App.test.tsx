@@ -10,7 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StrictMode, useEffect, useRef } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
-import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  DEFAULT_KEYBOARD_SETTINGS
+} from '../../shared/contracts';
 import type {
   CatalogQuery,
   CatalogSnapshot,
@@ -245,6 +248,8 @@ interface CatalogApiOverrides {
   refreshCatalog?: ReturnType<typeof vi.fn>;
   chooseWorkspace?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
+  getGeneralSettings?: ReturnType<typeof vi.fn>;
+  saveGeneralSettings?: ReturnType<typeof vi.fn>;
   getKeyboardSettings?: ReturnType<typeof vi.fn>;
   readClipboardText?: ReturnType<typeof vi.fn>;
   writeClipboardText?: ReturnType<typeof vi.fn>;
@@ -316,6 +321,11 @@ function setSystemInfoResult(
         catalogApi.getKeyboardSettings ??
         vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
       saveKeyboardSettings: vi.fn(async (value) => value),
+      getGeneralSettings:
+        catalogApi.getGeneralSettings ??
+        vi.fn().mockResolvedValue(DEFAULT_GENERAL_SETTINGS),
+      saveGeneralSettings:
+        catalogApi.saveGeneralSettings ?? vi.fn(async (value) => value),
       getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
       trustWorkspaceForLaunch: vi.fn(),
       revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
@@ -527,6 +537,102 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'All sessions' })
     ).toBeInTheDocument();
     expect(screen.queryByText('One Claude warning.')).not.toBeInTheDocument();
+  });
+
+  it('immediately closes visible session notices when the information switch is turned off', async () => {
+    const catalogWithWarning = {
+      ...readyCatalog,
+      diagnostics: [
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'claude',
+          affectedCount: 1,
+          message: 'One live Claude warning.',
+          recovery: 'Refresh after Claude finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        }
+      ]
+    } satisfies CatalogSnapshot;
+    const saveGeneralSettings = vi.fn(async (value) => value);
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
+      saveGeneralSettings
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(
+      await screen.findByText('One live Claude warning.')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'General' }));
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Show informational notices' })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(screen.queryByText('One live Claude warning.')).toBeNull();
+    await waitFor(() =>
+      expect(saveGeneralSettings).toHaveBeenCalledWith({
+        version: 1,
+        showInformationalNotices: false
+      })
+    );
+  });
+
+  it('keeps optional session notices hidden when the saved preference is off', async () => {
+    const catalogWithWarning = {
+      ...readyCatalog,
+      diagnostics: [
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'claude',
+          affectedCount: 1,
+          message: 'A saved-preference warning.',
+          recovery: 'Refresh after Claude finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        }
+      ]
+    } satisfies CatalogSnapshot;
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        version: 1,
+        showInformationalNotices: false
+      })
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    await screen.findByText('Catalog implementation');
+    expect(screen.queryByText('A saved-preference warning.')).toBeNull();
+  });
+
+  it('restores the switch and shows an actionable error when saving fails', async () => {
+    const saveGeneralSettings = vi
+      .fn()
+      .mockRejectedValue(new Error('storage unavailable'));
+    setSystemInfoResult(undefined, undefined, { saveGeneralSettings });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'General' }));
+    const informationSwitch = screen.getByRole('switch', {
+      name: 'Show informational notices'
+    });
+    await waitFor(() => expect(informationSwitch).toBeChecked());
+
+    fireEvent.click(informationSwitch);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Lumora could not save the informational notice setting.'
+    );
+    expect(informationSwitch).toBeChecked();
   });
 
   it('restores the selected Settings category after route navigation', async () => {

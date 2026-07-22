@@ -123,7 +123,8 @@ const terminalProfile: TerminalProfile = {
 
 const diagnosticProps = {
   dismissedDiagnosticIds: new Set<string>(),
-  onDismissDiagnostic: vi.fn()
+  onDismissDiagnostic: vi.fn(),
+  showInformationalNotices: true
 };
 
 function repeatedWorkspaces(count: number): CatalogSnapshot['workspaces'] {
@@ -329,6 +330,30 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('keeps blocking catalog failures visible when informational notices are disabled', () => {
+    const onRefresh = vi.fn();
+    render(
+      <SessionsView
+        {...diagnosticProps}
+        isRefreshing={false}
+        onResume={vi.fn()}
+        onProviderChange={vi.fn()}
+        onRefresh={onRefresh}
+        onSearchChange={vi.fn()}
+        provider={null}
+        providerScan={providerScan}
+        profiles={[terminalProfile]}
+        queryText=""
+        showInformationalNotices={false}
+        status={{ state: 'error' }}
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Catalog unavailable');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
   it('shows available lifetime usage and omits unavailable totals', () => {
     render(
       <SessionsView
@@ -478,6 +503,7 @@ describe('SessionsView', () => {
         provider={null}
         providerScan={providerScan}
         queryText=""
+        showInformationalNotices
         status={{ state: 'ready', snapshot }}
       />
     );
@@ -492,6 +518,44 @@ describe('SessionsView', () => {
       'CATALOG_SOURCE_INVALID:claude'
     );
     expect(screen.getByText('One Codex warning.')).toBeInTheDocument();
+  });
+
+  it('hides optional diagnostics when informational notices are disabled', () => {
+    const snapshot: CatalogSnapshot = {
+      ...catalogSnapshot,
+      diagnostics: [
+        {
+          code: 'CATALOG_SOURCE_INVALID',
+          provider: 'claude',
+          affectedCount: 1,
+          message: 'One optional Claude warning.',
+          recovery: 'Refresh after Claude finishes writing.',
+          retryable: true,
+          scannedAt: '2026-07-17T04:00:00.000Z'
+        }
+      ]
+    };
+    const props = {
+      ...diagnosticProps,
+      isRefreshing: false,
+      onResume: vi.fn(),
+      onProviderChange: vi.fn(),
+      onRefresh: vi.fn(),
+      onSearchChange: vi.fn(),
+      provider: null,
+      providerScan,
+      profiles: [terminalProfile],
+      queryText: '',
+      status: { state: 'ready' as const, snapshot }
+    };
+    const view = render(
+      <SessionsView {...props} showInformationalNotices={false} />
+    );
+
+    expect(screen.queryByText('One optional Claude warning.')).toBeNull();
+
+    view.rerender(<SessionsView {...props} showInformationalNotices />);
+    expect(screen.getByText('One optional Claude warning.')).toBeInTheDocument();
   });
 
   it('forwards search, filter, and refresh controls and explains no matches', () => {

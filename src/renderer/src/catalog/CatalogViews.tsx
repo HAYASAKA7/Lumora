@@ -193,6 +193,7 @@ interface SessionsViewProps {
   provider: ProviderId | null;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
+  showInformationalNotices: boolean;
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
   onDismissDiagnostic(identity: string): void;
@@ -284,6 +285,7 @@ export function SessionsView({
   provider,
   providerScan,
   profiles,
+  showInformationalNotices,
   onSearchChange,
   onProviderChange,
   onDismissDiagnostic,
@@ -369,7 +371,7 @@ export function SessionsView({
         </button>
       </div>
 
-      {snapshot.diagnostics
+      {(showInformationalNotices ? snapshot.diagnostics : [])
         .filter(
           (diagnostic) =>
             !dismissedDiagnosticIds.has(diagnosticIdentity(diagnostic))

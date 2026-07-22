@@ -10,9 +10,13 @@ import {
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import startupPosterUrl from './assets/lumora-startup-final.png';
 import startupVideoUrl from './assets/lumora-startup.mp4';
-import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  DEFAULT_KEYBOARD_SETTINGS
+} from '../../shared/contracts';
 import type {
   CatalogQuery,
+  GeneralSettings,
   ProviderId,
   KeyboardSettings,
   LaunchPreview,
@@ -114,7 +118,8 @@ type StartupTask =
   | 'catalog'
   | 'profiles'
   | 'runtimes'
-  | 'keyboard';
+  | 'keyboard'
+  | 'generalSettings';
 
 const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   system: false,
@@ -123,7 +128,8 @@ const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   catalog: false,
   profiles: false,
   runtimes: false,
-  keyboard: false
+  keyboard: false,
+  generalSettings: false
 };
 
 const ROUTES = [
@@ -342,6 +348,11 @@ export default function App(): ReactNode {
   const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings>(
     DEFAULT_KEYBOARD_SETTINGS
   );
+  const [generalSettings, setGeneralSettings] =
+    useState<GeneralSettings | null>(null);
+  const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
+  const [generalSettingsSaveError, setGeneralSettingsSaveError] =
+    useState<string | null>(null);
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('providers');
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -485,6 +496,27 @@ export default function App(): ReactNode {
       },
       () => {
         if (isCurrent) settleStartupTask('keyboard');
+      }
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [settleStartupTask]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    void window.lumora.getGeneralSettings().then(
+      (settings) => {
+        if (isCurrent) {
+          setGeneralSettings(settings);
+          settleStartupTask('generalSettings');
+        }
+      },
+      () => {
+        if (isCurrent) {
+          setGeneralSettings(DEFAULT_GENERAL_SETTINGS);
+          settleStartupTask('generalSettings');
+        }
       }
     );
     return () => {
@@ -1069,6 +1101,30 @@ export default function App(): ReactNode {
       return next;
     });
   }, []);
+  const updateShowInformationalNotices = useCallback(
+    async (showInformationalNotices: boolean) => {
+      const previous = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
+      const next: GeneralSettings = {
+        ...previous,
+        showInformationalNotices
+      };
+      setGeneralSettings(next);
+      setGeneralSettingsSaving(true);
+      setGeneralSettingsSaveError(null);
+
+      try {
+        setGeneralSettings(await window.lumora.saveGeneralSettings(next));
+      } catch {
+        setGeneralSettings(previous);
+        setGeneralSettingsSaveError(
+          'Lumora could not save the informational notice setting.'
+        );
+      } finally {
+        setGeneralSettingsSaving(false);
+      }
+    },
+    [generalSettings]
+  );
   const dismissStartupPresentation = useCallback(() => {
     setStartupDismissed(true);
   }, []);
@@ -1265,6 +1321,9 @@ export default function App(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 queryText={sessionSearch}
+                showInformationalNotices={
+                  generalSettings?.showInformationalNotices ?? false
+                }
                 status={visibleCatalogStatus}
               />
             ) : activeRoute.id === 'settings' ? (
@@ -1272,7 +1331,13 @@ export default function App(): ReactNode {
                 activeCategory={settingsCategory}
                 catalogReady={visibleCatalogStatus.state === 'ready'}
                 environmentStatus={environmentStatus}
+                generalSettings={
+                  generalSettings ?? DEFAULT_GENERAL_SETTINGS
+                }
+                generalSettingsSaveError={generalSettingsSaveError}
+                generalSettingsSaving={generalSettingsSaving}
                 onCategoryChange={setSettingsCategory}
+                onGeneralSettingsChange={updateShowInformationalNotices}
                 onKeyboardSettingsChange={setKeyboardSettings}
                 onOpenNodeDownload={openNodeDownload}
                 onRefreshEnvironment={refreshEnvironment}
