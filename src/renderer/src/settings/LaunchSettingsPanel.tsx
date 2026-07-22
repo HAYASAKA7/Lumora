@@ -193,6 +193,18 @@ export function LaunchSettingsPanel({
     const providerCommands: NonNullable<
       LaunchSettingsValue['providerCommands']
     > = {};
+    const savedCommands = selectedLayer?.settings.providerCommands;
+    if (savedCommands !== undefined) {
+      for (const provider of ALL_PROVIDERS) {
+        if (
+          enabledProviders.includes(provider) ||
+          !Object.prototype.hasOwnProperty.call(savedCommands, provider)
+        ) {
+          continue;
+        }
+        providerCommands[provider] = savedCommands[provider] ?? null;
+      }
+    }
     for (const provider of applicableProviders) {
       const draft = commands[provider];
       if (draft.mode === 'detected') {

@@ -206,4 +206,58 @@ describe('LaunchSettingsPanel', () => {
       screen.queryByRole('option', { name: 'Claude Code' })
     ).not.toBeInTheDocument();
   });
+
+  it('preserves disabled provider commands when saving an enabled launch layer', async () => {
+    const hiddenCommandLayer: LaunchSettingsLayer = {
+      scope: 'global',
+      targetId: 'global',
+      settings: {
+        providerCommands: {
+          claude: 'claude-with-profile'
+        }
+      },
+      updatedAt: '2026-07-13T00:00:00.000Z'
+    };
+    const saveLaunchSettingsLayer = vi.fn().mockResolvedValue([
+      hiddenCommandLayer
+    ]);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        getLaunchSettingsLayers: vi.fn().mockResolvedValue([
+          hiddenCommandLayer
+        ]),
+        saveLaunchSettingsLayer
+      }
+    });
+    render(
+      <LaunchSettingsPanel
+        enabledProviders={['codex']}
+        profiles={[profile]}
+        sessions={[session]}
+        workspaces={[workspace]}
+      />
+    );
+
+    await screen.findByText('Editing saved global layer.');
+    fireEvent.change(screen.getByLabelText('Default terminal profile'), {
+      target: { value: 'automatic' }
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save launch settings' })
+    );
+
+    await waitFor(() =>
+      expect(saveLaunchSettingsLayer).toHaveBeenCalledWith({
+        scope: 'global',
+        targetId: 'global',
+        settings: {
+          terminalProfileId: null,
+          providerCommands: {
+            claude: 'claude-with-profile'
+          }
+        }
+      })
+    );
+  });
 });
