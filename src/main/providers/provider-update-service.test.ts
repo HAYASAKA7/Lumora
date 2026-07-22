@@ -30,6 +30,27 @@ function scan(
 }
 
 describe('ProviderUpdateService.check', () => {
+  it('checks only enabled providers and rejects disabled lifecycle actions', async () => {
+    const releases = { latestVersion: vi.fn(async () => '2.0.0') };
+    const runLifecycle = vi.fn();
+    const service = createProviderUpdateService({
+      registry: { scan: vi.fn(async () => scan()) },
+      enabledProviders: () => ['codex'],
+      releases,
+      runLifecycle
+    });
+
+    await expect(service.check()).resolves.toMatchObject({
+      providers: [{ provider: 'codex' }]
+    });
+    expect(releases.latestVersion).toHaveBeenCalledOnce();
+    await expect(service.update('claude')).rejects.toMatchObject({
+      code: 'PROVIDER_NOT_READY',
+      message: 'Claude Code is disabled in Lumora settings.'
+    });
+    expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
   it('compares installed and latest versions independently', async () => {
     const service = createProviderUpdateService({
       registry: { scan: vi.fn(async () => scan()) },

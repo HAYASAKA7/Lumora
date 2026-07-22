@@ -10,6 +10,7 @@ import {
 } from '../../shared/contracts';
 import type { ProviderReleaseSource } from './provider-release-source';
 import { providerDefinition } from '../../shared/provider-definitions';
+import { PROVIDER_IDS } from '../../shared/contracts';
 import {
   compareSemanticVersions,
   extractSemanticVersion
@@ -141,16 +142,26 @@ async function checkProvider(
 
 export function createProviderUpdateService({
   registry,
+  enabledProviders = () => PROVIDER_IDS,
   releases,
   runLifecycle,
   now = () => new Date()
 }: {
   registry: ProviderRegistryLike;
+  enabledProviders?: () => readonly ProviderId[];
   releases: ProviderReleaseSource;
   runLifecycle(provider: ProviderId): Promise<void>;
   now?: () => Date;
 }): ProviderUpdateService {
   const running = new Set<ProviderId>();
+
+  const assertEnabled = (provider: ProviderId): void => {
+    if (enabledProviders().includes(provider)) return;
+    throw new ProviderUpdateServiceError(
+      'PROVIDER_NOT_READY',
+      `${providerDefinition(provider).displayName} is disabled in Lumora settings.`
+    );
+  };
 
   const withLock = async (
     provider: ProviderId,
@@ -194,8 +205,11 @@ export function createProviderUpdateService({
   return Object.freeze({
     async check(): Promise<ProviderUpdateCheckResult> {
       const scan = await registry.scan();
+      const enabled = new Set(enabledProviders());
       const providers = await Promise.all(
-        scan.providers.map((installation) =>
+        scan.providers
+          .filter((installation) => enabled.has(installation.provider))
+          .map((installation) =>
           checkProvider(
             {
               provider: installation.provider,
@@ -213,6 +227,7 @@ export function createProviderUpdateService({
     },
 
     async install(provider: ProviderId): Promise<ProviderUpdateResult> {
+      assertEnabled(provider);
       return withLock(provider, async () => {
         const before = await registry.scan();
         const installation = before.providers.find(
@@ -235,6 +250,7 @@ export function createProviderUpdateService({
     },
 
     async update(provider: ProviderId): Promise<ProviderUpdateResult> {
+      assertEnabled(provider);
       return withLock(provider, async () => {
         const before = await registry.scan();
         const installation = before.providers.find(

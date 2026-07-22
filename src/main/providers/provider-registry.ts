@@ -1,5 +1,6 @@
 import {
   ProviderScanResultSchema,
+  type ProviderId,
   type ProviderInstallation,
   type ProviderScanResult
 } from '../../shared/contracts';
@@ -16,9 +17,15 @@ export class ProviderRegistry {
     private readonly now: Clock = () => new Date()
   ) {}
 
-  async scan(): Promise<ProviderScanResult> {
+  async scan(
+    enabledProviders?: readonly ProviderId[]
+  ): Promise<ProviderScanResult> {
+    const enabled =
+      enabledProviders === undefined ? null : new Set(enabledProviders);
     const providers = await Promise.all(
-      this.adapters.map((adapter) => this.scanIsolated(adapter))
+      this.adapters
+        .filter((adapter) => enabled === null || enabled.has(adapter.provider))
+        .map((adapter) => this.scanIsolated(adapter))
     );
 
     return ProviderScanResultSchema.parse({

@@ -47,6 +47,7 @@ interface CreateTerminalRuntimeOptions {
   scanProviders(): Promise<ProviderScanResult>;
   sessionCatalogRegistry: SessionCatalogRegistry;
   refreshCatalog?(): Promise<unknown>;
+  onGeneralSettingsSaved?(settings: GeneralSettings): void;
   clock?: () => Date;
   createProfileId?: () => string;
   spawn?: (options: PtySpawnOptions) => PtyProcess;
@@ -89,6 +90,7 @@ export async function createTerminalRuntime({
   scanProviders,
   sessionCatalogRegistry,
   refreshCatalog,
+  onGeneralSettingsSaved,
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
   spawn = spawnPty
@@ -200,7 +202,12 @@ export async function createTerminalRuntime({
       return repository.getGeneralSettings();
     },
     saveGeneralSettings(input) {
-      return repository.saveGeneralSettings(input, clock().toISOString());
+      const settings = repository.saveGeneralSettings(
+        input,
+        clock().toISOString()
+      );
+      onGeneralSettingsSaved?.(settings);
+      return settings;
     },
     getKeyboardSettings() {
       return repository.getKeyboardSettings();

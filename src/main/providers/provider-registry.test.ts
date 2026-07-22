@@ -87,6 +87,33 @@ describe('provider adapters', () => {
 });
 
 describe('ProviderRegistry', () => {
+  it('scans only requested providers while preserving adapter order', async () => {
+    const scanCodex = vi.fn(async () => readyCodex);
+    const scanGemini = vi.fn(async () => ({
+      provider: 'gemini' as const,
+      displayName: 'Gemini CLI',
+      state: 'not_found' as const,
+      executablePath: null,
+      version: null,
+      issue: {
+        code: 'PROVIDER_NOT_FOUND' as const,
+        message: 'missing',
+        recovery: 'install',
+        retryable: true
+      }
+    }));
+    const registry = new ProviderRegistry([
+      { ...identity('codex', 'Codex'), scan: scanCodex },
+      { ...identity('gemini', 'Gemini CLI'), scan: scanGemini }
+    ]);
+
+    const result = await registry.scan(['gemini']);
+
+    expect(result.providers.map(({ provider }) => provider)).toEqual(['gemini']);
+    expect(scanCodex).not.toHaveBeenCalled();
+    expect(scanGemini).toHaveBeenCalledOnce();
+  });
+
   it('keeps adapter order when scans resolve out of order', async () => {
     let resolveCodex!: (value: ProviderInstallation) => void;
     const codexResult = new Promise<ProviderInstallation>((resolve) => {

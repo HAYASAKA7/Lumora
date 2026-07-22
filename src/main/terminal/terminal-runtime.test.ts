@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_GENERAL_SETTINGS } from '../../shared/contracts';
 import { createTerminalRuntime } from './terminal-runtime';
@@ -12,6 +12,7 @@ const testPlatform =
 
 describe('createTerminalRuntime', () => {
   it('exposes persisted General settings through the runtime boundary', async () => {
+    const onGeneralSettingsSaved = vi.fn();
     const runtime = await createTerminalRuntime({
       databasePath: ':memory:',
       platform: testPlatform,
@@ -24,6 +25,7 @@ describe('createTerminalRuntime', () => {
         providers: () => [],
         get: () => null
       },
+      onGeneralSettingsSaved,
       clock: () => new Date('2026-07-22T04:00:00.000Z')
     });
 
@@ -39,6 +41,10 @@ describe('createTerminalRuntime', () => {
         showInformationalNotices: false
       });
       expect(runtime.getGeneralSettings()).toEqual({
+        ...DEFAULT_GENERAL_SETTINGS,
+        showInformationalNotices: false
+      });
+      expect(onGeneralSettingsSaved).toHaveBeenCalledWith({
         ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       });

@@ -33,6 +33,7 @@ import { createProviderAdapters } from './providers/provider-adapter';
 import { createProviderReleaseSource } from './providers/provider-release-source';
 import { runProviderLifecycle } from './providers/provider-lifecycle-runner';
 import { ProviderRegistry } from './providers/provider-registry';
+import { createProviderPolicy } from './providers/provider-policy';
 import { createProviderUpdateService } from './providers/provider-update-service';
 import { getRuntimePaths } from './runtime-paths';
 import {
@@ -76,11 +77,15 @@ const providerDependencies = {
 const providerRegistry = new ProviderRegistry(
   createProviderAdapters(providerDependencies)
 );
+const providerPolicy = createProviderPolicy();
+const scanEnabledProviders = () =>
+  providerRegistry.scan(providerPolicy.providers());
 const providerReleaseSource = createProviderReleaseSource({
   fetch: (input, init) => net.fetch(input, init)
 });
 const providerUpdateService = createProviderUpdateService({
-  registry: providerRegistry,
+  registry: { scan: scanEnabledProviders },
+  enabledProviders: () => providerPolicy.providers(),
   releases: providerReleaseSource,
   runLifecycle: (provider) =>
     runProviderLifecycle(provider, {
@@ -226,16 +231,19 @@ void app.whenReady().then(async () => {
     homeDirectory: app.getPath('home'),
     platform,
     env: process.env,
-    scanProviders: () => providerRegistry.scan()
+    scanProviders: scanEnabledProviders
   });
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     platform,
     env: process.env,
-    scanProviders: () => providerRegistry.scan(),
+    scanProviders: scanEnabledProviders,
     sessionCatalogRegistry: catalogRuntime.registry,
-    refreshCatalog: () => catalogRuntime!.service.refreshCatalog()
+    refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
+    onGeneralSettingsSaved: (settings) =>
+      providerPolicy.replace(settings.enabledProviders)
   });
+  providerPolicy.replace(terminalRuntime.getGeneralSettings().enabledProviders);
   registerSystemIpc({
     ipc: ipcMain,
     platform: process.platform,
@@ -252,7 +260,7 @@ void app.whenReady().then(async () => {
   });
   registerProviderIpc({
     ipc: ipcMain,
-    registry: providerRegistry,
+    registry: { scan: scanEnabledProviders },
     updates: providerUpdateService,
     openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
