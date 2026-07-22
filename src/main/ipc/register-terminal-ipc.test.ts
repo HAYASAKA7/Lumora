@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
   IPC_CHANNELS,
   type RuntimeEvent
@@ -61,6 +62,8 @@ function createHarness() {
     ]),
     getLaunchSettingsLayers: vi.fn(() => [settingsLayer]),
     saveLaunchSettingsLayer: vi.fn(() => [settingsLayer]),
+    getGeneralSettings: vi.fn(() => DEFAULT_GENERAL_SETTINGS),
+    saveGeneralSettings: vi.fn((value) => value),
     getKeyboardSettings: vi.fn(() => DEFAULT_KEYBOARD_SETTINGS),
     saveKeyboardSettings: vi.fn((value) => value),
     prepareLaunch: vi.fn(async (value) => ({ ...value })),
@@ -99,7 +102,7 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the nineteen explicit terminal operations', () => {
+  it('registers the twenty-one explicit terminal operations', () => {
     const { handlers } = createHarness();
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
       providerLaunchConfigsGet: string;
@@ -113,6 +116,8 @@ describe('registerTerminalIpc', () => {
       channels.providerLaunchConfigSave,
       IPC_CHANNELS.launchSettingsLayersGet,
       IPC_CHANNELS.launchSettingsLayerSave,
+      IPC_CHANNELS.generalSettingsGet,
+      IPC_CHANNELS.generalSettingsSave,
       IPC_CHANNELS.keyboardSettingsGet,
       IPC_CHANNELS.keyboardSettingsSave,
       IPC_CHANNELS.launchPrepare,
@@ -239,6 +244,31 @@ describe('registerTerminalIpc', () => {
             control: false,
             shift: false
           }
+        })
+      )
+    ).rejects.toBeDefined();
+  });
+
+  it('validates and forwards general settings', async () => {
+    const { handlers, runtimeService } = createHarness();
+    const hidden = {
+      version: 1 as const,
+      showInformationalNotices: false
+    };
+
+    await expect(
+      handlers.get(IPC_CHANNELS.generalSettingsGet)!(trustedEvent)
+    ).resolves.toEqual(DEFAULT_GENERAL_SETTINGS);
+    await expect(
+      handlers.get(IPC_CHANNELS.generalSettingsSave)!(trustedEvent, hidden)
+    ).resolves.toEqual(hidden);
+    expect(runtimeService.saveGeneralSettings).toHaveBeenCalledWith(hidden);
+
+    await expect(
+      Promise.resolve().then(() =>
+        handlers.get(IPC_CHANNELS.generalSettingsSave)!(trustedEvent, {
+          version: 1,
+          showInformationalNotices: 'no'
         })
       )
     ).rejects.toBeDefined();

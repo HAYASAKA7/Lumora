@@ -855,6 +855,8 @@ export const IPC_CHANNELS = {
   providerLaunchConfigSave: 'lumora:terminal:provider-launch-configs:save',
   launchSettingsLayersGet: 'lumora:terminal:launch-settings:get',
   launchSettingsLayerSave: 'lumora:terminal:launch-settings:save',
+  generalSettingsGet: 'lumora:terminal:general-settings:get',
+  generalSettingsSave: 'lumora:terminal:general-settings:save',
   keyboardSettingsGet: 'lumora:terminal:keyboard-settings:get',
   keyboardSettingsSave: 'lumora:terminal:keyboard-settings:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
@@ -898,6 +900,8 @@ export interface LumoraApi {
   saveLaunchSettingsLayer(
     input: LaunchSettingsLayerInput
   ): Promise<LaunchSettingsLayer[]>;
+  getGeneralSettings(): Promise<GeneralSettings>;
+  saveGeneralSettings(input: GeneralSettings): Promise<GeneralSettings>;
   getKeyboardSettings(): Promise<KeyboardSettings>;
   saveKeyboardSettings(input: KeyboardSettings): Promise<KeyboardSettings>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;

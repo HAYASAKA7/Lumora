@@ -4,6 +4,7 @@ import { posix, win32 } from 'node:path';
 
 import {
   CustomTerminalProfileInputSchema,
+  type GeneralSettings,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
   TerminalProfileSchema,
@@ -61,6 +62,8 @@ export interface TerminalRuntime {
   ): ProviderLaunchConfig[];
   getLaunchSettingsLayers(): LaunchSettingsLayer[];
   saveLaunchSettingsLayer(input: LaunchSettingsLayerInput): LaunchSettingsLayer[];
+  getGeneralSettings(): GeneralSettings;
+  saveGeneralSettings(input: GeneralSettings): GeneralSettings;
   getKeyboardSettings(): KeyboardSettings;
   saveKeyboardSettings(input: KeyboardSettings): KeyboardSettings;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
@@ -192,6 +195,12 @@ export async function createTerminalRuntime({
     },
     saveLaunchSettingsLayer(input) {
       return repository.saveLaunchSettingsLayer(input, clock().toISOString());
+    },
+    getGeneralSettings() {
+      return repository.getGeneralSettings();
+    },
+    saveGeneralSettings(input) {
+      return repository.saveGeneralSettings(input, clock().toISOString());
     },
     getKeyboardSettings() {
       return repository.getKeyboardSettings();

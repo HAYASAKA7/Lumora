@@ -1,5 +1,6 @@
 import {
   CustomTerminalProfileInputSchema,
+  GeneralSettingsSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
   LaunchPrepareRequestSchema,
@@ -51,6 +52,8 @@ type TerminalIpcRuntime = Pick<
   | 'saveProviderLaunchConfig'
   | 'getLaunchSettingsLayers'
   | 'saveLaunchSettingsLayer'
+  | 'getGeneralSettings'
+  | 'saveGeneralSettings'
   | 'getKeyboardSettings'
   | 'saveKeyboardSettings'
   | 'prepareLaunch'
@@ -165,6 +168,19 @@ export function registerTerminalIpc({
       LaunchSettingsLayerListSchema.parse(
         runtime.saveLaunchSettingsLayer(request)
       )
+    );
+  });
+  ipc.handle(IPC_CHANNELS.generalSettingsGet, async (event) => {
+    assertTrusted(event, developmentOrigin);
+    return privileged(() =>
+      GeneralSettingsSchema.parse(runtime.getGeneralSettings())
+    );
+  });
+  ipc.handle(IPC_CHANNELS.generalSettingsSave, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = GeneralSettingsSchema.parse(input);
+    return privileged(() =>
+      GeneralSettingsSchema.parse(runtime.saveGeneralSettings(request))
     );
   });
   ipc.handle(IPC_CHANNELS.keyboardSettingsGet, async (event) => {

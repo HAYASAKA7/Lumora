@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_KEYBOARD_SETTINGS, IPC_CHANNELS } from '../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  DEFAULT_KEYBOARD_SETTINGS,
+  IPC_CHANNELS
+} from '../shared/contracts';
 import { createLumoraApi } from './api';
 
 const emptyCatalog = {
@@ -491,6 +495,36 @@ describe('createLumoraApi', () => {
       { channel: IPC_CHANNELS.keyboardSettingsGet, args: [] },
       { channel: IPC_CHANNELS.keyboardSettingsSave, args: [custom] }
     ]);
+  });
+
+  it('uses validated narrow channels for general settings', async () => {
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const hidden = {
+      version: 1 as const,
+      showInformationalNotices: false
+    };
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.generalSettingsGet
+        ? DEFAULT_GENERAL_SETTINGS
+        : hidden;
+    });
+
+    await expect(api.getGeneralSettings()).resolves.toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
+    await expect(api.saveGeneralSettings(hidden)).resolves.toEqual(hidden);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.generalSettingsGet, args: [] },
+      { channel: IPC_CHANNELS.generalSettingsSave, args: [hidden] }
+    ]);
+
+    await expect(
+      api.saveGeneralSettings({
+        version: 1,
+        showInformationalNotices: 'no'
+      } as never)
+    ).rejects.toBeDefined();
   });
 
   it('uses validated narrow channels for workspace trust', async () => {
