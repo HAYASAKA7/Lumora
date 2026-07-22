@@ -562,17 +562,59 @@ export type KeyboardShortcutChord = z.infer<
   typeof KeyboardShortcutChordSchema
 >;
 
+const EnabledProviderIdsSchema = z
+  .array(ProviderIdSchema)
+  .min(1)
+  .max(PROVIDER_IDS.length)
+  .superRefine((providers, context) => {
+    if (new Set(providers).size !== providers.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Enabled providers must be unique.'
+      });
+    }
+  })
+  .transform((providers) =>
+    PROVIDER_IDS.filter((provider) => providers.includes(provider))
+  );
+
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(1),
-  showInformationalNotices: z.boolean()
+  version: z.literal(2),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  enabledProviders: EnabledProviderIdsSchema
 });
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
-export const DEFAULT_GENERAL_SETTINGS = {
-  version: 1,
-  showInformationalNotices: true
-} as const satisfies GeneralSettings;
+export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
+  version: 2,
+  showInformationalNotices: true,
+  startMaximized: true,
+  checkProviderUpdatesAutomatically: true,
+  autoExpandSidebar: true,
+  enabledProviders: [...PROVIDER_IDS]
+};
+
+const LegacyGeneralSettingsSchema = z.strictObject({
+  version: z.literal(1),
+  showInformationalNotices: z.boolean()
+});
+
+export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
+  const current = GeneralSettingsSchema.safeParse(value);
+  if (current.success) return current.data;
+
+  const legacy = LegacyGeneralSettingsSchema.safeParse(value);
+  return legacy.success
+    ? GeneralSettingsSchema.parse({
+        ...DEFAULT_GENERAL_SETTINGS,
+        showInformationalNotices: legacy.data.showInformationalNotices
+      })
+    : GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+}
 
 const controlShortcut = (code: string): KeyboardShortcutChord => ({
   code,

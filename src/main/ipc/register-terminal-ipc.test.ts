@@ -252,7 +252,7 @@ describe('registerTerminalIpc', () => {
   it('validates and forwards general settings', async () => {
     const { handlers, runtimeService } = createHarness();
     const hidden = {
-      version: 1 as const,
+      ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false
     };
 
@@ -267,7 +267,7 @@ describe('registerTerminalIpc', () => {
     await expect(
       Promise.resolve().then(() =>
         handlers.get(IPC_CHANNELS.generalSettingsSave)!(trustedEvent, {
-          version: 1,
+          ...DEFAULT_GENERAL_SETTINGS,
           showInformationalNotices: 'no'
         })
       )

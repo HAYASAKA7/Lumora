@@ -500,7 +500,7 @@ describe('createLumoraApi', () => {
   it('uses validated narrow channels for general settings', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const hidden = {
-      version: 1 as const,
+      ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false
     };
     const api = createLumoraApi(async (channel, ...args) => {
@@ -521,7 +521,7 @@ describe('createLumoraApi', () => {
 
     await expect(
       api.saveGeneralSettings({
-        version: 1,
+        ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: 'no'
       } as never)
     ).rejects.toBeDefined();

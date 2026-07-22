@@ -15,6 +15,7 @@ import {
   TerminalProfileSchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
+  parseStoredGeneralSettings,
   type GeneralSettings,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
@@ -176,16 +177,13 @@ export class TerminalRepository {
       | { value_json: string }
       | undefined;
     if (row === undefined) {
-      return GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+      return parseStoredGeneralSettings(DEFAULT_GENERAL_SETTINGS);
     }
 
     try {
-      const parsed = GeneralSettingsSchema.safeParse(JSON.parse(row.value_json));
-      return parsed.success
-        ? parsed.data
-        : GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+      return parseStoredGeneralSettings(JSON.parse(row.value_json));
     } catch {
-      return GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+      return parseStoredGeneralSettings(DEFAULT_GENERAL_SETTINGS);
     }
   }
 

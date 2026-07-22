@@ -41,7 +41,7 @@ describe('GeneralSettingsPanel', () => {
         saveError="Lumora could not save this setting."
         saving
         settings={{
-          version: 1,
+          ...DEFAULT_GENERAL_SETTINGS,
           showInformationalNotices: false
         }}
       />

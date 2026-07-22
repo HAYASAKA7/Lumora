@@ -322,11 +322,24 @@ describe('TerminalRepository', () => {
 
   it('persists general settings and falls back when stored data is invalid', () => {
     const hidden: GeneralSettings = {
-      version: 1,
+      ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false
     };
 
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
+
+    database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES ('generalSettings.v1', ?, ?)`
+    ).run(JSON.stringify({
+      version: 1,
+      showInformationalNotices: false
+    }), timestamp);
+    expect(repository.getGeneralSettings()).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false
+    });
+
     expect(repository.saveGeneralSettings(hidden, timestamp)).toEqual(hidden);
     expect(repository.getGeneralSettings()).toEqual(hidden);
 

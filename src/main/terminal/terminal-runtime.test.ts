@@ -31,15 +31,15 @@ describe('createTerminalRuntime', () => {
       expect(runtime.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
       expect(
         runtime.saveGeneralSettings({
-          version: 1,
+          ...DEFAULT_GENERAL_SETTINGS,
           showInformationalNotices: false
         })
       ).toEqual({
-        version: 1,
+        ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       });
       expect(runtime.getGeneralSettings()).toEqual({
-        version: 1,
+        ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       });
     } finally {

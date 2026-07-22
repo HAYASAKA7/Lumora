@@ -577,7 +577,7 @@ describe('App', () => {
     expect(screen.queryByText('One live Claude warning.')).toBeNull();
     await waitFor(() =>
       expect(saveGeneralSettings).toHaveBeenCalledWith({
-        version: 1,
+        ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       })
     );
@@ -602,7 +602,7 @@ describe('App', () => {
       getCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
       getGeneralSettings: vi.fn().mockResolvedValue({
-        version: 1,
+        ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       })
     });

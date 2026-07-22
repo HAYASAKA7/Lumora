@@ -17,6 +17,8 @@ import {
   LaunchSettingsLayerSchema,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  parseStoredGeneralSettings,
+  PROVIDER_IDS,
   ProviderIdSchema,
   ProviderInstallationSchema,
   ProviderScanResultSchema,
@@ -1032,15 +1034,41 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 1,
-      showInformationalNotices: true
+      version: 2,
+      showInformationalNotices: true,
+      startMaximized: true,
+      checkProviderUpdatesAutomatically: true,
+      autoExpandSidebar: true,
+      enabledProviders: [...PROVIDER_IDS]
     });
+    expect(GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['claude', 'codex']
+    }).enabledProviders).toEqual(['codex', 'claude']);
     expect(GeneralSettingsSchema.safeParse({
-      version: 1,
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: []
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex', 'codex']
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: 'no'
     }).success).toBe(false);
     expect(GeneralSettingsSchema.safeParse({
-      version: 1
+      version: 2
     }).success).toBe(false);
+    expect(parseStoredGeneralSettings({
+      version: 1,
+      showInformationalNotices: false
+    })).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false
+    });
+    expect(parseStoredGeneralSettings({ version: 3 })).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
   });
 });
