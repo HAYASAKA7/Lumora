@@ -21,6 +21,7 @@ interface RegisterSystemIpcDependencies {
   platform: string;
   arch: string;
   appVersion: string;
+  claimStartupPresentation(): Promise<boolean>;
   developmentOrigin?: string;
 }
 
@@ -38,16 +39,25 @@ export function registerSystemIpc({
   platform,
   arch,
   appVersion,
+  claimStartupPresentation,
   developmentOrigin
 }: RegisterSystemIpcDependencies): void {
-  ipc.handle(IPC_CHANNELS.systemInfo, async (event): Promise<SystemInfo> => {
+  const assertTrustedRenderer = (event: IpcInvokeEventLike): void => {
     if (
       event.senderFrame === null ||
       !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
     ) {
       throw new IpcAccessError();
     }
+  };
+
+  ipc.handle(IPC_CHANNELS.systemInfo, async (event): Promise<SystemInfo> => {
+    assertTrustedRenderer(event);
 
     return SystemInfoSchema.parse({ platform, arch, appVersion });
+  });
+  ipc.handle(IPC_CHANNELS.startupPresentationClaim, async (event) => {
+    assertTrustedRenderer(event);
+    return claimStartupPresentation();
   });
 }

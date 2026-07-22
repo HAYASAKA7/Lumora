@@ -813,6 +813,8 @@ export type RuntimeEvent = z.infer<typeof RuntimeEventSchema>;
 
 export const ClipboardTextSchema = z.string().max(4_194_304);
 
+export const StartupPresentationClaimSchema = z.boolean();
+
 export const ClipboardWriteResultSchema = z.strictObject({
   accepted: z.literal(true)
 });
@@ -821,6 +823,7 @@ export type ClipboardText = z.infer<typeof ClipboardTextSchema>;
 
 export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
+  startupPresentationClaim: 'lumora:system:startup-presentation:claim',
   environmentScan: 'lumora:environment:scan',
   nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
@@ -857,6 +860,7 @@ export const IPC_CHANNELS = {
 
 export interface LumoraApi {
   getSystemInfo(): Promise<SystemInfo>;
+  claimStartupPresentation(): Promise<boolean>;
   scanDeveloperEnvironment(): Promise<DeveloperEnvironmentScanResult>;
   openNodeDownloadPage(): Promise<void>;
   scanProviders(): Promise<ProviderScanResult>;

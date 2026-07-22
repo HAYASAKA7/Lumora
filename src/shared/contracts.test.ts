@@ -169,6 +169,12 @@ describe('developer environment contracts', () => {
 });
 
 describe('IPC_CHANNELS', () => {
+  it('defines the one-time startup presentation claim channel', () => {
+    expect(IPC_CHANNELS.startupPresentationClaim).toBe(
+      'lumora:system:startup-presentation:claim'
+    );
+  });
+
   it('names every channel inside the Lumora namespace', () => {
     expect(Object.values(IPC_CHANNELS)).not.toHaveLength(0);
 

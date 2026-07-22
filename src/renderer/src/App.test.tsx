@@ -7,7 +7,7 @@ import {
   within
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useEffect, useRef } from 'react';
+import { StrictMode, useEffect, useRef } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
@@ -238,6 +238,7 @@ function runningRuntime(
 }
 
 interface CatalogApiOverrides {
+  claimStartupPresentation?: ReturnType<typeof vi.fn>;
   scanDeveloperEnvironment?: ReturnType<typeof vi.fn>;
   openNodeDownloadPage?: ReturnType<typeof vi.fn>;
   getCatalog?: ReturnType<typeof vi.fn>;
@@ -278,6 +279,8 @@ function setSystemInfoResult(
   Object.defineProperty(window, 'lumora', {
     configurable: true,
     value: {
+      claimStartupPresentation:
+        catalogApi.claimStartupPresentation ?? vi.fn().mockResolvedValue(false),
       getSystemInfo: result,
       scanProviders,
       scanDeveloperEnvironment:
@@ -2285,5 +2288,91 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Refresh catalog' })
     ).toBeEnabled();
+  });
+
+  it('holds startup through the real catalog refresh instead of showing cached zero counts', async () => {
+    const cachedCatalog: CatalogSnapshot = {
+      ...readyCatalog,
+      workspaces: [],
+      sessions: [],
+      providerFacets: []
+    };
+    const refreshed = deferred<CatalogSnapshot>();
+    const claimStartupPresentation = vi.fn().mockResolvedValue(true);
+    setSystemInfoResult(undefined, undefined, {
+      claimStartupPresentation,
+      getCatalog: vi.fn().mockResolvedValue(cachedCatalog),
+      refreshCatalog: vi.fn(() => refreshed.promise)
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(claimStartupPresentation).toHaveBeenCalledTimes(1)
+    );
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    await waitFor(() =>
+      expect(screen.getByText('Loading catalog')).toBeInTheDocument()
+    );
+
+    fireEvent.ended(video);
+    expect(
+      screen.getByRole('img', { name: 'Lumora startup final frame' })
+    ).toBeVisible();
+    expect(
+      screen.getByRole('status', { name: 'Lumora is starting' })
+    ).toHaveAttribute('data-state', 'holding-final-frame');
+
+    await act(async () => refreshed.resolve(readyCatalog));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('status', { name: 'Lumora is starting' })
+      ).not.toBeInTheDocument()
+    );
+    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+  });
+
+  it('does not settle startup from StrictMode provider scans that were superseded', async () => {
+    const firstScan = deferred<ProviderScanResult>();
+    const activeScan = deferred<ProviderScanResult>();
+    const scanProviders = vi
+      .fn()
+      .mockImplementationOnce(() => firstScan.promise)
+      .mockImplementationOnce(() => activeScan.promise);
+    setSystemInfoResult(undefined, scanProviders, {
+      claimStartupPresentation: vi.fn().mockResolvedValue(true)
+    });
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+
+    await waitFor(() => expect(scanProviders).toHaveBeenCalledTimes(2));
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    fireEvent.ended(video);
+
+    await act(async () => firstScan.resolve(readyProviderScan));
+
+    expect(
+      screen.getByRole('status', { name: 'Lumora is starting' })
+    ).toHaveAttribute('data-state', 'holding-final-frame');
+
+    await act(async () => activeScan.resolve(readyProviderScan));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('status', { name: 'Lumora is starting' })
+      ).not.toBeInTheDocument()
+    );
   });
 });

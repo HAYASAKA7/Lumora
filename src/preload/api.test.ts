@@ -44,6 +44,22 @@ describe('createLumoraApi', () => {
     expect(Object.isFrozen(api)).toBe(true);
   });
 
+  it('claims startup presentation through a validated boolean response', async () => {
+    const invoke = vi.fn().mockResolvedValue(true);
+    const api = createLumoraApi(invoke);
+
+    const firstClaim = api.claimStartupPresentation();
+    const strictModeClaim = api.claimStartupPresentation();
+
+    await expect(firstClaim).resolves.toBe(true);
+    await expect(strictModeClaim).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.startupPresentationClaim);
+
+    const invalidApi = createLumoraApi(vi.fn().mockResolvedValue('yes'));
+    await expect(invalidApi.claimStartupPresentation()).rejects.toThrow();
+  });
+
   it('uses narrow environment channels and validates their responses', async () => {
     const environmentScan = {
       checkedAt: '2026-07-17T01:00:00.000Z',

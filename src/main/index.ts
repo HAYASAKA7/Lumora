@@ -45,6 +45,7 @@ import {
   resolveRendererAssetPath
 } from './security-policy';
 import { createSingleWindowCreationGate } from './single-window-creation';
+import { createStartupPresentationController } from './startup-presentation';
 import {
   configurePackagedWindowsApplicationIdentity,
   configurePackagedWindowsTaskbarWindow
@@ -95,6 +96,7 @@ const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
       providerDependencies.probeVersion(executablePath, ['--version'])
   }
 );
+const startupPresentation = createStartupPresentationController();
 
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
@@ -174,7 +176,10 @@ async function createMainWindow({
   if (restore.maximized) {
     window.maximize();
   }
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    window.show();
+    startupPresentation.markWindowShown();
+  });
   window.on('closed', () => {
     if (activeWindowStateManager === windowStateManager) {
       activeWindowStateManager = null;
@@ -236,6 +241,7 @@ void app.whenReady().then(async () => {
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
+    claimStartupPresentation: () => startupPresentation.claim(),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerEnvironmentIpc({

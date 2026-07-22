@@ -8,6 +8,8 @@ import {
 } from 'react';
 
 import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
+import startupPosterUrl from './assets/lumora-startup-final.png';
+import startupVideoUrl from './assets/lumora-startup.mp4';
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../shared/contracts';
 import type {
   CatalogQuery,
@@ -41,6 +43,7 @@ import {
   SettingsView,
   type SettingsCategory
 } from './settings/SettingsView';
+import { StartupOverlay } from './startup/StartupOverlay';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -104,6 +107,24 @@ interface NewSessionIntent {
 }
 
 const EMPTY_CATALOG_QUERY: CatalogQuery = { text: '', provider: null };
+type StartupTask =
+  | 'system'
+  | 'providers'
+  | 'environment'
+  | 'catalog'
+  | 'profiles'
+  | 'runtimes'
+  | 'keyboard';
+
+const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
+  system: false,
+  providers: false,
+  environment: false,
+  catalog: false,
+  profiles: false,
+  runtimes: false,
+  keyboard: false
+};
 
 const ROUTES = [
   {
@@ -273,6 +294,11 @@ function SystemStatusBar({ status }: { status: SystemStatus }): ReactNode {
 }
 
 export default function App(): ReactNode {
+  const [startupShouldPlay, setStartupShouldPlay] = useState<boolean | null>(
+    null
+  );
+  const [startupDismissed, setStartupDismissed] = useState(false);
+  const [startupTasks, setStartupTasks] = useState(INITIAL_STARTUP_TASKS);
   const [activeRouteId, setActiveRouteId] = useState<RouteId>('home');
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     state: 'loading'
@@ -337,6 +363,11 @@ export default function App(): ReactNode {
   const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
+  const settleStartupTask = useCallback((task: StartupTask) => {
+    setStartupTasks((current) =>
+      current[task] ? current : { ...current, [task]: true }
+    );
+  }, []);
   catalogQueryRef.current = {
     text: debouncedSessionSearch,
     provider: sessionProvider
@@ -354,40 +385,48 @@ export default function App(): ReactNode {
     }
   }, [activeRouteId, activeRuntimeId, selectedWorkspaceId, settingsCategory]);
 
-  const refreshProviders = useCallback(() => {
+  const refreshProviders = useCallback(async () => {
     const requestId = providerRequestId.current + 1;
     providerRequestId.current = requestId;
     setProviderStatus({ state: 'loading' });
 
-    void window.lumora.scanProviders().then(
+    return window.lumora.scanProviders().then(
       (scan) => {
         if (providerRequestId.current === requestId) {
           setProviderStatus({ state: 'ready', scan });
+          return true;
         }
+        return false;
       },
       () => {
         if (providerRequestId.current === requestId) {
           setProviderStatus({ state: 'error' });
+          return true;
         }
+        return false;
       }
     );
   }, []);
 
-  const refreshEnvironment = useCallback(() => {
+  const refreshEnvironment = useCallback(async () => {
     const requestId = environmentRequestId.current + 1;
     environmentRequestId.current = requestId;
     setEnvironmentStatus({ state: 'loading' });
 
-    void window.lumora.scanDeveloperEnvironment().then(
+    return window.lumora.scanDeveloperEnvironment().then(
       (scan) => {
         if (environmentRequestId.current === requestId) {
           setEnvironmentStatus({ state: 'ready', scan });
+          return true;
         }
+        return false;
       },
       () => {
         if (environmentRequestId.current === requestId) {
           setEnvironmentStatus({ state: 'error' });
+          return true;
         }
+        return false;
       }
     );
   }, []);
@@ -399,20 +438,14 @@ export default function App(): ReactNode {
 
   useEffect(() => {
     let isCurrent = true;
-
-    void window.lumora.getSystemInfo().then(
-      (info) => {
-        if (isCurrent) {
-          setSystemStatus({ state: 'ready', info });
-        }
+    void window.lumora.claimStartupPresentation().then(
+      (shouldPlay) => {
+        if (isCurrent) setStartupShouldPlay(shouldPlay);
       },
       () => {
-        if (isCurrent) {
-          setSystemStatus({ state: 'error' });
-        }
+        if (isCurrent) setStartupShouldPlay(false);
       }
     );
-
     return () => {
       isCurrent = false;
     };
@@ -420,32 +453,64 @@ export default function App(): ReactNode {
 
   useEffect(() => {
     let isCurrent = true;
+
+    void window.lumora.getSystemInfo().then(
+      (info) => {
+        if (isCurrent) {
+          setSystemStatus({ state: 'ready', info });
+          settleStartupTask('system');
+        }
+      },
+      () => {
+        if (isCurrent) {
+          setSystemStatus({ state: 'error' });
+          settleStartupTask('system');
+        }
+      }
+    );
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [settleStartupTask]);
+
+  useEffect(() => {
+    let isCurrent = true;
     void window.lumora.getKeyboardSettings().then(
       (settings) => {
-        if (isCurrent) setKeyboardSettings(settings);
+        if (isCurrent) {
+          setKeyboardSettings(settings);
+          settleStartupTask('keyboard');
+        }
       },
-      () => undefined
+      () => {
+        if (isCurrent) settleStartupTask('keyboard');
+      }
     );
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [settleStartupTask]);
 
   useEffect(() => {
-    refreshProviders();
+    void refreshProviders().then((settled) => {
+      if (settled) settleStartupTask('providers');
+    });
 
     return () => {
       providerRequestId.current += 1;
     };
-  }, [refreshProviders]);
+  }, [refreshProviders, settleStartupTask]);
 
   useEffect(() => {
-    refreshEnvironment();
+    void refreshEnvironment().then((settled) => {
+      if (settled) settleStartupTask('environment');
+    });
 
     return () => {
       environmentRequestId.current += 1;
     };
-  }, [refreshEnvironment]);
+  }, [refreshEnvironment, settleStartupTask]);
 
   const updateRuntime = useCallback((runtime: RuntimeSummary) => {
     setRuntimes((current) => {
@@ -503,8 +568,15 @@ export default function App(): ReactNode {
   useEffect(() => {
     let current = true;
     void window.lumora.getTerminalProfiles().then(
-      (profiles) => { if (current) setTerminalProfiles(profiles); },
-      () => undefined
+      (profiles) => {
+        if (current) {
+          setTerminalProfiles(profiles);
+          settleStartupTask('profiles');
+        }
+      },
+      () => {
+        if (current) settleStartupTask('profiles');
+      }
     );
     void window.lumora.listRuntimes().then(
       (values) => {
@@ -517,8 +589,11 @@ export default function App(): ReactNode {
             )
             .map((runtime) => runtime.id)
         );
+        settleStartupTask('runtimes');
       },
-      () => undefined
+      () => {
+        if (current) settleStartupTask('runtimes');
+      }
     );
     const unsubscribe = window.lumora.onRuntimeEvent((event) => {
       if (event.type !== 'state') {
@@ -537,7 +612,7 @@ export default function App(): ReactNode {
       current = false;
       unsubscribe();
     };
-  }, [closeRuntimeTab, scheduleAfterExit, updateRuntime]);
+  }, [closeRuntimeTab, scheduleAfterExit, settleStartupTask, updateRuntime]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -568,6 +643,7 @@ export default function App(): ReactNode {
               setCatalogStatus({ state: 'ready', snapshot: refreshedSnapshot });
               setCatalogOperationError(null);
               setIsCatalogRefreshing(false);
+              settleStartupTask('catalog');
             }
           },
           () => {
@@ -576,6 +652,7 @@ export default function App(): ReactNode {
                 'Catalog refresh failed. Last saved data is still shown.'
               );
               setIsCatalogRefreshing(false);
+              settleStartupTask('catalog');
             }
           }
         );
@@ -584,6 +661,7 @@ export default function App(): ReactNode {
         if (catalogRequestId.current === requestId) {
           catalogReadyForQueries.current = true;
           setCatalogStatus({ state: 'error' });
+          settleStartupTask('catalog');
         }
       }
     );
@@ -591,7 +669,7 @@ export default function App(): ReactNode {
     return () => {
       catalogRequestId.current += 1;
     };
-  }, []);
+  }, [settleStartupTask]);
 
   useEffect(() => {
     if (!catalogReadyForQueries.current) {
@@ -991,9 +1069,23 @@ export default function App(): ReactNode {
       return next;
     });
   }, []);
+  const dismissStartupPresentation = useCallback(() => {
+    setStartupDismissed(true);
+  }, []);
+  const startupReady = Object.values(startupTasks).every(Boolean);
+  const startupPresentationActive =
+    startupShouldPlay === true && !startupDismissed;
+  const visibleCatalogStatus: CatalogViewStatus =
+    startupShouldPlay === true && !startupTasks.catalog
+      ? { state: 'loading' }
+      : catalogStatus;
 
   return (
-    <div className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}`}>
+    <>
+    <div
+      aria-hidden={startupPresentationActive ? true : undefined}
+      className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}`}
+    >
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -1067,8 +1159,8 @@ export default function App(): ReactNode {
             ) : null}
             {activeRuntimeId === null &&
             (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
-            catalogStatus.state === 'ready' &&
-            catalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
+            visibleCatalogStatus.state === 'ready' &&
+            visibleCatalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
               <button
                 className="refresh-button"
                 onClick={() => {
@@ -1131,7 +1223,7 @@ export default function App(): ReactNode {
                 }
                 providerSummary={providerSummary(providerStatus)}
                 runtimes={runtimes}
-                status={catalogStatus}
+                status={visibleCatalogStatus}
               />
             ) : activeRoute.id === 'workspaces' ? (
               selectedWorkspaceId === null ? (
@@ -1140,7 +1232,7 @@ export default function App(): ReactNode {
                   onAddWorkspace={addWorkspace}
                   onOpenWorkspace={openWorkspaceDetail}
                   onRefresh={refreshCatalog}
-                  status={catalogStatus}
+                  status={visibleCatalogStatus}
                 />
               ) : (
                 <WorkspaceSessionsView
@@ -1173,12 +1265,12 @@ export default function App(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 queryText={sessionSearch}
-                status={catalogStatus}
+                status={visibleCatalogStatus}
               />
             ) : activeRoute.id === 'settings' ? (
               <SettingsView
                 activeCategory={settingsCategory}
-                catalogReady={catalogStatus.state === 'ready'}
+                catalogReady={visibleCatalogStatus.state === 'ready'}
                 environmentStatus={environmentStatus}
                 onCategoryChange={setSettingsCategory}
                 onKeyboardSettingsChange={setKeyboardSettings}
@@ -1193,13 +1285,13 @@ export default function App(): ReactNode {
                 profiles={terminalProfiles}
                 providerStatus={providerStatus}
                 sessions={
-                  catalogStatus.state === 'ready'
-                    ? catalogStatus.snapshot.sessions
+                  visibleCatalogStatus.state === 'ready'
+                    ? visibleCatalogStatus.snapshot.sessions
                     : []
                 }
                 workspaces={
-                  catalogStatus.state === 'ready'
-                    ? catalogStatus.snapshot.workspaces
+                  visibleCatalogStatus.state === 'ready'
+                    ? visibleCatalogStatus.snapshot.workspaces
                     : []
                 }
               />
@@ -1226,8 +1318,8 @@ export default function App(): ReactNode {
                 runtimes={openRuntimes}
                 visible={terminalActive}
                 workspaces={
-                  catalogStatus.state === 'ready'
-                    ? catalogStatus.snapshot.workspaces
+                  visibleCatalogStatus.state === 'ready'
+                    ? visibleCatalogStatus.snapshot.workspaces
                     : []
                 }
               />
@@ -1243,21 +1335,21 @@ export default function App(): ReactNode {
           runtimes={runtimeSwitcherRuntimes}
           selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
           workspaces={
-            catalogStatus.state === 'ready'
-              ? catalogStatus.snapshot.workspaces
+            visibleCatalogStatus.state === 'ready'
+              ? visibleCatalogStatus.snapshot.workspaces
               : []
           }
         />
       ) : null}
 
-      {newSessionIntent !== null && catalogStatus.state === 'ready' ? (
+      {newSessionIntent !== null && visibleCatalogStatus.state === 'ready' ? (
         <NewSessionDialog
           initialWorkspaceId={newSessionIntent.initialWorkspaceId}
           onClose={() => setNewSessionIntent(null)}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}
           providerScan={providerStatus.state === 'ready' ? providerStatus.scan : null}
-          workspaces={catalogStatus.snapshot.workspaces}
+          workspaces={visibleCatalogStatus.snapshot.workspaces}
         />
       ) : null}
       {resumeIntent !== null ? (
@@ -1272,7 +1364,7 @@ export default function App(): ReactNode {
           workspace={resumeIntent.workspace}
         />
       ) : null}
-      {recoveryRuntime !== null && catalogStatus.state === 'ready' ? (
+      {recoveryRuntime !== null && visibleCatalogStatus.state === 'ready' ? (
         <RuntimeRecoveryDialog
           onClose={() => setRecoveryRuntime(null)}
           onStarted={handleRuntimeStarted}
@@ -1281,10 +1373,18 @@ export default function App(): ReactNode {
             providerStatus.state === 'ready' ? providerStatus.scan : null
           }
           runtime={recoveryRuntime}
-          sessions={catalogStatus.snapshot.sessions}
-          workspaces={catalogStatus.snapshot.workspaces}
+          sessions={visibleCatalogStatus.snapshot.sessions}
+          workspaces={visibleCatalogStatus.snapshot.workspaces}
         />
       ) : null}
     </div>
+      <StartupOverlay
+        onDismissed={dismissStartupPresentation}
+        posterSrc={startupPosterUrl}
+        ready={startupReady}
+        shouldPlay={startupDismissed ? false : startupShouldPlay}
+        videoSrc={startupVideoUrl}
+      />
+    </>
   );
 }

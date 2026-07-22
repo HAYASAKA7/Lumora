@@ -41,6 +41,19 @@ describe('window-state main-process integration', () => {
     expect(readyToShow).toBeGreaterThan(maximize);
   });
 
+  it('releases startup presentation only after the real window is shown', () => {
+    const readyToShow = source.indexOf("window.once('ready-to-show'");
+    const show = source.indexOf('window.show()', readyToShow);
+    const markWindowShown = source.indexOf(
+      'startupPresentation.markWindowShown()',
+      show
+    );
+
+    expect(readyToShow).toBeGreaterThan(-1);
+    expect(show).toBeGreaterThan(readyToShow);
+    expect(markWindowShown).toBeGreaterThan(show);
+  });
+
   it('serializes main-window preparation and blocks commitment during shutdown', () => {
     expect(source).toContain('createSingleWindowCreationGate({');
     expect(source).toContain(
