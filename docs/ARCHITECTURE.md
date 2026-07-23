@@ -168,6 +168,22 @@ an available display, and maximized state is persisted independently.
 
 ## Intentional future scope
 
+### Selectable runtime icon appearance
+
+Lumora may let users choose between its transparent and dark icon styles. This
+is intentionally limited to runtime surfaces that Electron can update reliably:
+the window and taskbar icon on Windows and Linux, and the Dock icon on macOS.
+The preference would be stored in General settings, applied on launch, and
+default to the transparent style.
+
+Packaged and operating-system-managed icons remain outside this preference.
+The Windows executable, installer, and shortcuts; the macOS application bundle;
+and Linux desktop launchers use icons selected during packaging and may also be
+cached by the operating system. Lumora should keep those surfaces transparent
+rather than rewriting installed files or publishing separate icon-style builds.
+The setting must therefore be presented as a runtime icon appearance choice,
+not as a promise to replace every installed application icon.
+
 ### Read-only session preview
 
 Lumora may add a Session Details view that lets users identify a saved session
