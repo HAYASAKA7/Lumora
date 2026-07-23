@@ -67,7 +67,7 @@ class FakePty implements PtyProcess {
   private nativeExited = false;
   private operationError: Error | null = null;
   private dataListener: ((data: string) => void) | null = null;
-  private exitListener: ((event: { exitCode: number }) => void) | null = null;
+  private exitListener: ((event: unknown) => void) | null = null;
 
   write(data: string): void {
     if (this.operationError !== null) throw this.operationError;
@@ -95,7 +95,7 @@ class FakePty implements PtyProcess {
     return { dispose: () => { this.dataListener = null; } };
   }
 
-  onExit(listener: (event: { exitCode: number }) => void) {
+  onExit(listener: (event: unknown) => void) {
     this.exitListener = listener;
     return { dispose: () => { this.exitListener = null; } };
   }
@@ -116,8 +116,12 @@ class FakePty implements PtyProcess {
     this.dataListener?.(data);
   }
 
-  emitExit(exitCode: number): void {
+  emitExit(exitCode: unknown): void {
     this.exitListener?.({ exitCode });
+  }
+
+  emitRawExit(event: unknown): void {
+    this.exitListener?.(event);
   }
 }
 
@@ -375,6 +379,42 @@ describe('RuntimeHost', () => {
         exitCode: 7,
         errorCode: 'PTY_RUNTIME_FAILED'
       }
+    });
+  });
+
+  it.each([
+    undefined,
+    null,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    '0',
+    1.5
+  ])('records an observed exit with invalid code %s', async (reportedExitCode) => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(() =>
+      pty.emitExit(reportedExitCode)
+    ).not.toThrow();
+    expect(host.attach(runtime.id).runtime).toMatchObject({
+      id: runtime.id,
+      state: 'completed',
+      endedAt: '2026-07-11T04:00:01.000Z',
+      exitCode: null,
+      errorCode: null
+    });
+  });
+
+  it('records an observed exit when the native event is malformed', async () => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(() => pty.emitRawExit(null)).not.toThrow();
+    expect(host.attach(runtime.id).runtime).toMatchObject({
+      id: runtime.id,
+      state: 'completed',
+      exitCode: null,
+      errorCode: null
     });
   });
 

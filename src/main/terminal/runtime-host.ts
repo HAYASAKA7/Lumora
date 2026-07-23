@@ -33,7 +33,7 @@ export interface PtyProcess {
   resize(cols: number, rows: number): void;
   kill(): void;
   onData(listener: (data: string) => void): Disposable;
-  onExit(listener: (event: { exitCode: number }) => void): Disposable;
+  onExit(listener: (event: unknown) => void): Disposable;
 }
 
 export interface PtySpawnOptions {
@@ -75,6 +75,11 @@ interface LiveRuntime {
   snapshot: string;
   outputSequence: number;
   subscriptions: Disposable[];
+}
+
+interface RuntimeExitOutcome {
+  state: 'completed' | 'failed';
+  exitCode: number | null;
 }
 
 export type TerminalRuntimeErrorCode =
@@ -208,7 +213,7 @@ export class RuntimeHost {
     this.live.set(runtimeId, live);
     live.subscriptions.push(
       process.onData((data) => this.handleOutput(runtimeId, data)),
-      process.onExit(({ exitCode }) => this.handleExit(runtimeId, exitCode))
+      process.onExit((event) => this.handleExit(runtimeId, event))
     );
     this.persistAndEmit(running);
     if (
@@ -313,7 +318,10 @@ export class RuntimeHost {
       await this.wait(500);
     }
     if (this.live.get(runtimeId) === live) {
-      this.finalize(runtimeId, null);
+      this.finalize(runtimeId, {
+        state: 'failed',
+        exitCode: null
+      });
     }
     return this.attach(runtimeId).runtime;
   }
@@ -374,11 +382,28 @@ export class RuntimeHost {
     }
   }
 
-  private handleExit(runtimeId: string, exitCode: number): void {
-    this.finalize(runtimeId, exitCode);
+  private handleExit(runtimeId: string, event: unknown): void {
+    const reportedExitCode =
+      typeof event === 'object' &&
+      event !== null &&
+      'exitCode' in event
+        ? event.exitCode
+        : null;
+    const exitCode =
+      typeof reportedExitCode === 'number' &&
+      Number.isSafeInteger(reportedExitCode)
+        ? reportedExitCode
+        : null;
+    this.finalize(runtimeId, {
+      state: exitCode === null || exitCode === 0 ? 'completed' : 'failed',
+      exitCode
+    });
   }
 
-  private finalize(runtimeId: string, exitCode: number | null): void {
+  private finalize(
+    runtimeId: string,
+    outcome: RuntimeExitOutcome
+  ): void {
     const live = this.live.get(runtimeId);
     if (live === undefined) {
       return;
@@ -389,10 +414,10 @@ export class RuntimeHost {
     this.live.delete(runtimeId);
     const runtime = RuntimeSummarySchema.parse({
       ...live.runtime,
-      state: exitCode === 0 ? 'completed' : 'failed',
+      state: outcome.state,
       endedAt: this.clock().toISOString(),
-      exitCode,
-      errorCode: exitCode === 0 ? null : 'PTY_RUNTIME_FAILED'
+      exitCode: outcome.exitCode,
+      errorCode: outcome.state === 'completed' ? null : 'PTY_RUNTIME_FAILED'
     });
     this.persistAndEmit(runtime);
   }
