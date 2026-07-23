@@ -275,19 +275,24 @@ export class RuntimeHost {
 
   write(value: RuntimeWriteRequest): void {
     const request = RuntimeWriteRequestSchema.parse(value);
-    this.requireLive(request.runtimeId).process.write(request.data);
+    const live = this.commandTarget(request.runtimeId);
+    if (live === null) return;
+    live.process.write(request.data);
   }
 
   resize(value: RuntimeResizeRequest): void {
     const request = RuntimeResizeRequestSchema.parse(value);
-    this.requireLive(request.runtimeId).process.resize(
+    const live = this.commandTarget(request.runtimeId);
+    if (live === null) return;
+    live.process.resize(
       request.cols,
       request.rows
     );
   }
 
   async terminate(runtimeId: string): Promise<RuntimeSummary> {
-    const live = this.requireLive(runtimeId);
+    const live = this.commandTarget(runtimeId);
+    if (live === null) return this.attach(runtimeId).runtime;
     live.process.write('\u0003');
     await this.wait(1_500);
     if (this.live.get(runtimeId) === live) {
@@ -312,12 +317,19 @@ export class RuntimeHost {
     );
   }
 
-  private requireLive(runtimeId: string): LiveRuntime {
+  private commandTarget(runtimeId: string): LiveRuntime | null {
     const live = this.live.get(runtimeId);
-    if (live === undefined) {
+    if (live !== undefined) return live;
+    const runtime = this.list().find(
+      (candidate) => candidate.id === runtimeId
+    );
+    if (runtime === undefined) {
+      throw new TerminalRuntimeError('RUNTIME_NOT_FOUND');
+    }
+    if (runtime.state === 'launching' || runtime.state === 'running') {
       throw new TerminalRuntimeError('RUNTIME_NOT_LIVE');
     }
-    return live;
+    return null;
   }
 
   private handleOutput(runtimeId: string, data: string): void {

@@ -12,6 +12,8 @@ import { TERMINAL_INTERRUPT_CONFIRMATION_MS } from './terminal-interrupt-guard';
 
 const xterm = vi.hoisted(() => ({
   attachCustomKeyEventHandler: vi.fn(),
+  dataHandler: null as ((data: string) => void) | null,
+  resizeHandler: null as ((size: { cols: number; rows: number }) => void) | null,
   customKeyEventHandler: null as ((event: KeyboardEvent) => boolean) | null,
   fitTerminal: vi.fn(),
   focusTerminal: vi.fn(),
@@ -45,8 +47,24 @@ vi.mock('@xterm/xterm', () => ({
     }
     loadAddon(): void {}
     open(): void {}
-    onData(): { dispose(): void } { return { dispose() {} }; }
-    onResize(): { dispose(): void } { return { dispose() {} }; }
+    onData(listener: (data: string) => void): { dispose(): void } {
+      xterm.dataHandler = listener;
+      return {
+        dispose() {
+          if (xterm.dataHandler === listener) xterm.dataHandler = null;
+        }
+      };
+    }
+    onResize(
+      listener: (size: { cols: number; rows: number }) => void
+    ): { dispose(): void } {
+      xterm.resizeHandler = listener;
+      return {
+        dispose() {
+          if (xterm.resizeHandler === listener) xterm.resizeHandler = null;
+        }
+      };
+    }
     hasSelection(): boolean { return xterm.hasSelection(); }
     getSelection(): string { return xterm.getSelection(); }
     paste(value: string): void { xterm.pasteTerminal(value); }
@@ -123,6 +141,8 @@ describe('ManagedTerminal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     xterm.customKeyEventHandler = null;
+    xterm.dataHandler = null;
+    xterm.resizeHandler = null;
     xterm.textarea = document.createElement('textarea');
     xterm.hasSelection.mockReturnValue(false);
     xterm.getSelection.mockReturnValue('');
@@ -205,6 +225,50 @@ describe('ManagedTerminal', () => {
     });
     expect(xterm.terminalWrite).toHaveBeenCalledTimes(2);
     expect(xterm.terminalWrite).toHaveBeenLastCalledWith('next\r\n');
+  });
+
+  it('stops forwarding input and resize after the runtime finishes', async () => {
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      }
+    );
+    const onRuntimeChange = vi.fn();
+    const api = installLumora({ onRuntimeEvent });
+
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(onRuntimeChange).toHaveBeenCalledWith(runtime));
+    expect(xterm.dataHandler).not.toBeNull();
+    expect(xterm.resizeHandler).not.toBeNull();
+    vi.mocked(api.writeRuntime).mockClear();
+    vi.mocked(api.resizeRuntime).mockClear();
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: runtime.id,
+        runtime: {
+          ...runtime,
+          state: 'completed',
+          endedAt: '2026-07-11T04:05:00.000Z',
+          exitCode: 0
+        }
+      });
+      xterm.dataHandler?.('late input');
+      xterm.resizeHandler?.({ cols: 120, rows: 36 });
+    });
+
+    expect(api.writeRuntime).not.toHaveBeenCalled();
+    expect(api.resizeRuntime).not.toHaveBeenCalled();
   });
 
   it('defers live output while IME composition is active and flushes it in order', async () => {

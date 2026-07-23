@@ -4,7 +4,6 @@ import type { RuntimeEvent, RuntimeSummary } from '../../shared/contracts';
 import type { LaunchSpec } from './launch-service';
 import {
   RuntimeHost,
-  TerminalRuntimeError,
   type PtyProcess,
   type PtySpawnOptions
 } from './runtime-host';
@@ -347,9 +346,37 @@ describe('RuntimeHost', () => {
         errorCode: 'PTY_RUNTIME_FAILED'
       }
     });
-    expect(() => host.write({ runtimeId: runtime.id, data: 'late' })).toThrow(
-      TerminalRuntimeError
-    );
+  });
+
+  it('makes commands idempotent after a runtime exits', async () => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    pty.emitExit(0);
+
+    expect(() =>
+      host.write({ runtimeId: runtime.id, data: 'late' })
+    ).not.toThrow();
+    expect(() =>
+      host.resize({ runtimeId: runtime.id, cols: 120, rows: 36 })
+    ).not.toThrow();
+    await expect(host.terminate(runtime.id)).resolves.toMatchObject({
+      id: runtime.id,
+      state: 'completed'
+    });
+    expect(pty.writes).toEqual([]);
+    expect(pty.resizes).toEqual([]);
+    expect(pty.killed).toBe(false);
+  });
+
+  it('continues rejecting commands for unknown runtime ids', () => {
+    const { host } = harness();
+
+    expect(() =>
+      host.write({
+        runtimeId: '0198f8b6-18f3-7ca0-9f0f-abcdef012345',
+        data: 'invalid'
+      })
+    ).toThrowError('The terminal runtime was not found.');
   });
 
   it('normalizes spawn failures as launch_failed', async () => {

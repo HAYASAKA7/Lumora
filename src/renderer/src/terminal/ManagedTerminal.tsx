@@ -22,6 +22,10 @@ interface ManagedTerminalProps {
 
 const TERMINAL_BLOCK_SIZE = '100%';
 
+function isRuntimeLive(runtime: RuntimeSummary): boolean {
+  return runtime.state === 'launching' || runtime.state === 'running';
+}
+
 export function ManagedTerminal({
   active,
   focusRequestKey = 0,
@@ -35,6 +39,7 @@ export function ManagedTerminal({
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const interruptDeadlineRef = useRef<number | null>(null);
+  const acceptingInputRef = useRef(isRuntimeLive(runtime));
   const interruptTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [interruptArmed, setInterruptArmed] = useState(false);
@@ -185,11 +190,13 @@ export function ManagedTerminal({
         fitAddon.fit();
 
         const input = terminal.onData((data) => {
+          if (!acceptingInputRef.current) return;
           void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).catch(() => {
             if (alive) setError('Terminal input could not be delivered.');
           });
         });
         const resize = terminal.onResize(({ cols, rows }) => {
+          if (!acceptingInputRef.current) return;
           void window.lumora.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);
         });
         let attached = false;
@@ -207,7 +214,12 @@ export function ManagedTerminal({
           if (event.type === 'output') {
             if (attached) writeOutput(event);
             else pendingOutput.push(event);
-          } else onRuntimeChange(event.runtime);
+          } else {
+            if (!isRuntimeLive(event.runtime)) {
+              acceptingInputRef.current = false;
+            }
+            onRuntimeChange(event.runtime);
+          }
         });
         const observer =
           typeof ResizeObserver === 'undefined'
@@ -247,6 +259,9 @@ export function ManagedTerminal({
             pendingOutput
               .sort((left, right) => left.sequence - right.sequence)
               .forEach(writeOutput);
+            if (!isRuntimeLive(attachment.runtime)) {
+              acceptingInputRef.current = false;
+            }
             pendingOutput = [];
             onRuntimeChange(attachment.runtime);
             if (activeRef.current) terminal.focus();
@@ -269,6 +284,12 @@ export function ManagedTerminal({
       dispose();
     };
   }, [runtime.id, onRuntimeChange, clearInterruptGuard]);
+
+  useEffect(() => {
+    if (!isRuntimeLive(runtime)) {
+      acceptingInputRef.current = false;
+    }
+  }, [runtime]);
 
   useEffect(() => {
     if (!active) {
