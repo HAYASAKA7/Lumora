@@ -360,6 +360,58 @@ describe('CatalogRepository', () => {
     });
   });
 
+  it('writes each unique workspace once per provider scan', () => {
+    const database = createDatabase();
+    migrateCatalogDatabase(database);
+    database.exec(`
+      CREATE TABLE workspace_write_audit (
+        operation TEXT NOT NULL
+      );
+      CREATE TRIGGER audit_workspace_insert
+      AFTER INSERT ON workspace
+      BEGIN
+        INSERT INTO workspace_write_audit(operation) VALUES ('insert');
+      END;
+      CREATE TRIGGER audit_workspace_update
+      AFTER UPDATE ON workspace
+      BEGIN
+        INSERT INTO workspace_write_audit(operation) VALUES ('update');
+      END;
+    `);
+    const repository = new CatalogRepository(database);
+    const sharedWorkspace = workspace('a', '/work/shared');
+
+    repository.applyProviderScan({
+      provider: 'codex',
+      scanId: 'scan-shared',
+      scannedAt: '2026-07-11T03:01:00.000Z',
+      candidates: [
+        candidate({
+          nativeId: 'codex-session-1',
+          workspace: sharedWorkspace,
+          source: { key: 'thread:1', fingerprint: null }
+        }),
+        candidate({
+          nativeId: 'codex-session-2',
+          workspace: sharedWorkspace,
+          source: { key: 'thread:2', fingerprint: null }
+        }),
+        candidate({
+          nativeId: 'codex-session-3',
+          workspace: sharedWorkspace,
+          source: { key: 'thread:3', fingerprint: null }
+        })
+      ]
+    });
+
+    expect(
+      database
+        .prepare('SELECT operation FROM workspace_write_audit ORDER BY rowid')
+        .all()
+    ).toEqual([{ operation: 'insert' }]);
+    expect(snapshot(repository).sessions).toHaveLength(3);
+  });
+
   it('stores and returns source fingerprints with normalized candidates', () => {
     const repository = createRepository();
     const claudeCandidate = candidate({

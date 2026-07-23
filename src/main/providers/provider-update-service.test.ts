@@ -145,9 +145,8 @@ describe('ProviderUpdateService.update', () => {
   it('resolves a fresh executable and returns the post-update scan', async () => {
     const updatedCodex = { ...codex, version: 'codex-cli 1.3.0' };
     const registry = {
-      scan: vi.fn()
-        .mockResolvedValueOnce(scan())
-        .mockResolvedValueOnce(scan([updatedCodex, claude]))
+      scan: vi.fn().mockResolvedValue(scan()),
+      scanFresh: vi.fn().mockResolvedValue(scan([updatedCodex, claude]))
     };
     const runLifecycle = vi.fn(async () => undefined);
     const service = createProviderUpdateService({
@@ -163,7 +162,8 @@ describe('ProviderUpdateService.update', () => {
       installation: updatedCodex
     });
     expect(runLifecycle).toHaveBeenCalledWith('codex');
-    expect(registry.scan).toHaveBeenCalledTimes(2);
+    expect(registry.scan).toHaveBeenCalledOnce();
+    expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
 
   it('rejects unavailable providers before running an updater', async () => {
@@ -289,9 +289,8 @@ describe('ProviderUpdateService.install', () => {
       issue: null
     };
     const registry = {
-      scan: vi.fn()
-        .mockResolvedValueOnce(scan([missingGemini]))
-        .mockResolvedValueOnce(scan([readyGemini]))
+      scan: vi.fn().mockResolvedValue(scan([missingGemini])),
+      scanFresh: vi.fn().mockResolvedValue(scan([readyGemini]))
     };
     const runLifecycle = vi.fn(async () => undefined);
     const service = createProviderUpdateService({
@@ -307,6 +306,7 @@ describe('ProviderUpdateService.install', () => {
       installation: readyGemini
     });
     expect(runLifecycle).toHaveBeenCalledWith('gemini');
+    expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
 
   it('does not reinstall a provider that is already ready', async () => {

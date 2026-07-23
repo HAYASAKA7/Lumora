@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
 
 import {
   CatalogSnapshotSchema,
@@ -97,30 +97,41 @@ function normalizeTimestamp(value: string): string {
 }
 
 export class CatalogRepository {
+  private readonly statements = new Map<string, StatementSync>();
+
   constructor(private readonly database: DatabaseSync) {}
+
+  private prepare(sql: string): StatementSync {
+    const current = this.statements.get(sql);
+    if (current !== undefined) {
+      return current;
+    }
+    const statement = this.database.prepare(sql);
+    this.statements.set(sql, statement);
+    return statement;
+  }
 
   registerWorkspace(
     workspace: CanonicalWorkspacePath,
     origin: WorkspaceOrigin,
     timestamp: string
   ): void {
-    this.database
-      .prepare(
-        `INSERT INTO workspace (
-          id, identity_key, canonical_path, display_name, available,
-          origin, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          identity_key = excluded.identity_key,
-          canonical_path = excluded.canonical_path,
-          display_name = excluded.display_name,
-          available = excluded.available,
-          origin = CASE
-            WHEN workspace.origin = 'manual' THEN 'manual'
-            ELSE excluded.origin
-          END,
-          updated_at = excluded.updated_at`
-      )
+    this.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available,
+        origin, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        identity_key = excluded.identity_key,
+        canonical_path = excluded.canonical_path,
+        display_name = excluded.display_name,
+        available = excluded.available,
+        origin = CASE
+          WHEN workspace.origin = 'manual' THEN 'manual'
+          ELSE excluded.origin
+        END,
+        updated_at = excluded.updated_at`
+    )
       .run(
         workspace.id,
         workspace.identityKey,
@@ -161,7 +172,7 @@ export class CatalogRepository {
           left.source.key.localeCompare(right.source.key)
       );
 
-    const upsertSession = this.database.prepare(
+    const upsertSession = this.prepare(
       `INSERT INTO session (
         id, provider, native_id, workspace_id, title, normalized_title,
         created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
@@ -194,7 +205,7 @@ export class CatalogRepository {
         lifecycle = 'saved',
         source_freshness = 'current'`
     );
-    const upsertSource = this.database.prepare(
+    const upsertSource = this.prepare(
       `INSERT INTO session_source (
         provider, source_key, session_id, size, modified_at_ms,
         last_seen_scan_id, stale
@@ -208,9 +219,13 @@ export class CatalogRepository {
     );
 
     this.database.exec('BEGIN IMMEDIATE');
+    const writtenWorkspaces = new Set<string>();
     try {
       for (const current of validatedCandidates) {
-        this.registerWorkspace(current.workspace, 'discovered', scannedAt);
+        if (!writtenWorkspaces.has(current.workspace.id)) {
+          this.registerWorkspace(current.workspace, 'discovered', scannedAt);
+          writtenWorkspaces.add(current.workspace.id);
+        }
         const sessionId = createSessionId(current.provider, current.nativeId);
         upsertSession.run(
           sessionId,
@@ -234,23 +249,21 @@ export class CatalogRepository {
       }
 
       if (!preserveMissingSources) {
-        this.database
-          .prepare(
-            `UPDATE session_source
-             SET stale = 1
-             WHERE provider = ? AND last_seen_scan_id <> ?`
-          )
+        this.prepare(
+          `UPDATE session_source
+           SET stale = 1
+           WHERE provider = ? AND last_seen_scan_id <> ?`
+        )
           .run(provider, scanId);
       }
-      this.database
-        .prepare(
-          `UPDATE session
-           SET source_freshness = CASE WHEN EXISTS (
-             SELECT 1 FROM session_source source
-             WHERE source.session_id = session.id AND source.stale = 0
-           ) THEN 'current' ELSE 'stale' END
-           WHERE provider = ?`
-        )
+      this.prepare(
+        `UPDATE session
+         SET source_freshness = CASE WHEN EXISTS (
+           SELECT 1 FROM session_source source
+           WHERE source.session_id = session.id AND source.stale = 0
+         ) THEN 'current' ELSE 'stale' END
+         WHERE provider = ?`
+      )
         .run(provider);
       this.database.exec('COMMIT');
     } catch (error) {
@@ -261,21 +274,20 @@ export class CatalogRepository {
 
   findSource(provider: ProviderId, sourceKey: string): StoredCatalogSource | null {
     ProviderIdSchema.parse(provider);
-    const row = this.database
-      .prepare(
-        `SELECT
-          source.source_key, source.size, source.modified_at_ms,
-          session.id, session.provider, session.native_id, session.workspace_id,
-          session.title, session.created_at, session.updated_at,
-          session.lifetime_tokens,
-          session.lifecycle, session.source_freshness,
-          workspace.identity_key, workspace.canonical_path,
-          workspace.display_name, workspace.available
-        FROM session_source source
-        JOIN session ON session.id = source.session_id
-        JOIN workspace ON workspace.id = session.workspace_id
-        WHERE source.provider = ? AND source.source_key = ?`
-      )
+    const row = this.prepare(
+      `SELECT
+        source.source_key, source.size, source.modified_at_ms,
+        session.id, session.provider, session.native_id, session.workspace_id,
+        session.title, session.created_at, session.updated_at,
+        session.lifetime_tokens,
+        session.lifecycle, session.source_freshness,
+        workspace.identity_key, workspace.canonical_path,
+        workspace.display_name, workspace.available
+      FROM session_source source
+      JOIN session ON session.id = source.session_id
+      JOIN workspace ON workspace.id = session.workspace_id
+      WHERE source.provider = ? AND source.source_key = ?`
+    )
       .get(provider, sourceKey) as SourceRow | undefined;
 
     if (row === undefined) {
@@ -326,15 +338,14 @@ export class CatalogRepository {
       string,
       Partial<Record<ProviderId, number>>
     >();
-    for (const row of this.database
-      .prepare(
-        `SELECT session.workspace_id, session.provider,
-          COUNT(*) AS session_count
-        FROM session
-        WHERE session.source_freshness = 'current'
-          AND ${currentProviderCondition}
-        GROUP BY session.workspace_id, session.provider`
-      )
+    for (const row of this.prepare(
+      `SELECT session.workspace_id, session.provider,
+        COUNT(*) AS session_count
+      FROM session
+      WHERE session.source_freshness = 'current'
+        AND ${currentProviderCondition}
+      GROUP BY session.workspace_id, session.provider`
+    )
       .all(...visibleProviders) as unknown as ProviderCountRow[]) {
       const counts = providerCountsByWorkspace.get(row.workspace_id) ?? {};
       counts[row.provider] = row.session_count;
@@ -342,20 +353,19 @@ export class CatalogRepository {
     }
 
     const workspaces = (
-      this.database
-        .prepare(
-          `SELECT
-            workspace.id, workspace.identity_key, workspace.canonical_path,
-            workspace.display_name, workspace.available, workspace.origin,
-            MAX(session.updated_at) AS last_activity_at
-          FROM workspace
-          LEFT JOIN session ON session.workspace_id = workspace.id
-            AND session.source_freshness = 'current'
-            AND ${currentProviderCondition}
-          GROUP BY workspace.id
-          ORDER BY last_activity_at IS NULL, last_activity_at DESC,
-            workspace.display_name COLLATE NOCASE, workspace.id`
-        )
+      this.prepare(
+        `SELECT
+          workspace.id, workspace.identity_key, workspace.canonical_path,
+          workspace.display_name, workspace.available, workspace.origin,
+          MAX(session.updated_at) AS last_activity_at
+        FROM workspace
+        LEFT JOIN session ON session.workspace_id = workspace.id
+          AND session.source_freshness = 'current'
+          AND ${currentProviderCondition}
+        GROUP BY workspace.id
+        ORDER BY last_activity_at IS NULL, last_activity_at DESC,
+          workspace.display_name COLLATE NOCASE, workspace.id`
+      )
         .all(...visibleProviders) as unknown as WorkspaceRow[]
     ).map((row) => {
       const providerCounts = providerCountsByWorkspace.get(row.id) ?? {};
@@ -376,14 +386,13 @@ export class CatalogRepository {
 
     const facetCounts = new Map<ProviderId, number>(
       (
-        this.database
-          .prepare(
-            `SELECT session.provider, COUNT(*) AS session_count
-             FROM session
-             WHERE session.source_freshness = 'current'
-               AND ${currentProviderCondition}
-             GROUP BY session.provider`
-          )
+        this.prepare(
+          `SELECT session.provider, COUNT(*) AS session_count
+           FROM session
+           WHERE session.source_freshness = 'current'
+             AND ${currentProviderCondition}
+           GROUP BY session.provider`
+        )
           .all(...visibleProviders) as unknown as ProviderFacetRow[]
       ).map((row) => [row.provider, row.session_count])
     );
@@ -395,26 +404,25 @@ export class CatalogRepository {
     const normalizedText = normalizedSearchValue(query.text);
     const pattern = `%${escapeLike(normalizedText)}%`;
     const sessions = (
-      this.database
-        .prepare(
-          `SELECT
-            session.id, session.provider, session.native_id,
-            session.workspace_id, session.title, session.created_at,
-            session.updated_at, session.lifetime_tokens, session.lifecycle,
-            session.source_freshness
-          FROM session
-          JOIN workspace ON workspace.id = session.workspace_id
-          WHERE (
-            ? = '' OR
-            session.normalized_title LIKE ? ESCAPE '\\' OR
-            LOWER(workspace.display_name) LIKE ? ESCAPE '\\' OR
-            LOWER(workspace.canonical_path) LIKE ? ESCAPE '\\'
-          )
-          AND (? IS NULL OR session.provider = ?)
-          AND ${currentProviderCondition}
-          ORDER BY session.updated_at DESC, session.provider, session.native_id
-          LIMIT 25000`
+      this.prepare(
+        `SELECT
+          session.id, session.provider, session.native_id,
+          session.workspace_id, session.title, session.created_at,
+          session.updated_at, session.lifetime_tokens, session.lifecycle,
+          session.source_freshness
+        FROM session
+        JOIN workspace ON workspace.id = session.workspace_id
+        WHERE (
+          ? = '' OR
+          session.normalized_title LIKE ? ESCAPE '\\' OR
+          LOWER(workspace.display_name) LIKE ? ESCAPE '\\' OR
+          LOWER(workspace.canonical_path) LIKE ? ESCAPE '\\'
         )
+        AND (? IS NULL OR session.provider = ?)
+        AND ${currentProviderCondition}
+        ORDER BY session.updated_at DESC, session.provider, session.native_id
+        LIMIT 25000`
+      )
         .all(
           normalizedText,
           pattern,

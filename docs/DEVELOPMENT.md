@@ -96,6 +96,19 @@ npm test -- --run src/renderer/src/App.test.tsx -t "opens a live terminal"
 Tests that spawn Vite or esbuild child processes may require an unrestricted
 local shell in tightly sandboxed development environments.
 
+## Performance checks
+
+Run the synthetic catalog benchmark when changing provider discovery, session
+normalization, workspace canonicalization, or catalog persistence:
+
+```powershell
+npm run benchmark:catalog
+```
+
+The benchmark models 150 sessions across 30 workspaces. Its elapsed timings are
+local comparison signals, not CI thresholds. Normal regression tests enforce
+stable operation counts so differences in CI hardware do not cause flaky tests.
+
 ## Provider changes
 
 `src/shared/provider-definitions.ts` is the canonical provider registry. A

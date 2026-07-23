@@ -18,6 +18,7 @@
     "verify": "npm test && npm run typecheck && npm run build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
+    "benchmark:catalog": "vitest bench src/main/catalog/catalog-service.bench.ts --run --project node",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

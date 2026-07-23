@@ -35,6 +35,7 @@ import { createProviderReleaseSource } from './providers/provider-release-source
 import { runProviderLifecycle } from './providers/provider-lifecycle-runner';
 import { ProviderRegistry } from './providers/provider-registry';
 import { createProviderPolicy } from './providers/provider-policy';
+import { ProviderScanCoordinator } from './providers/provider-scan-coordinator';
 import { createProviderUpdateService } from './providers/provider-update-service';
 import { getRuntimePaths } from './runtime-paths';
 import {
@@ -86,14 +87,21 @@ const providerDependencies = {
 const providerRegistry = new ProviderRegistry(
   createProviderAdapters(providerDependencies)
 );
+const providerScanCoordinator = new ProviderScanCoordinator((providers) =>
+  providerRegistry.scan(providers)
+);
 const providerPolicy = createProviderPolicy();
 const scanEnabledProviders = () =>
-  providerRegistry.scan(providerPolicy.providers());
+  providerScanCoordinator.scan(providerPolicy.providers());
 const providerReleaseSource = createProviderReleaseSource({
   fetch: (input, init) => net.fetch(input, init)
 });
 const providerUpdateService = createProviderUpdateService({
-  registry: { scan: scanEnabledProviders },
+  registry: {
+    scan: scanEnabledProviders,
+    scanFresh: () =>
+      providerScanCoordinator.scanFresh(providerPolicy.providers())
+  },
   enabledProviders: () => providerPolicy.providers(),
   releases: providerReleaseSource,
   runLifecycle: (provider) =>

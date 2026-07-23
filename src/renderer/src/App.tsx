@@ -580,7 +580,11 @@ export default function App(): ReactNode {
     );
     const requestId = catalogRequestId.current + 1;
     catalogRequestId.current = requestId;
-    const snapshot = await window.lumora.getCatalog(catalogQueryRef.current);
+    const query = catalogQueryRef.current;
+    const snapshot =
+      query.text.length === 0 && query.provider === null
+        ? fullSnapshot
+        : await window.lumora.getCatalog(query);
     if (catalogRequestId.current === requestId) {
       catalogReadyForQueries.current = true;
       setCatalogStatus({ state: 'ready', snapshot });

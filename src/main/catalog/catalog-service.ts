@@ -261,6 +261,19 @@ export class CatalogService {
     providers: readonly ProviderId[]
   ): Promise<void> {
     const scannedAt = this.dependencies.clock().toISOString();
+    const canonicalWorkspaces = new Map<
+      string,
+      Promise<CanonicalWorkspacePath>
+    >();
+    const canonicalizeWorkspace = (
+      path: string
+    ): Promise<CanonicalWorkspacePath> => {
+      const current = canonicalWorkspaces.get(path);
+      if (current !== undefined) return current;
+      const pending = this.dependencies.canonicalizeWorkspace(path);
+      canonicalWorkspaces.set(path, pending);
+      return pending;
+    };
     const scan = await this.dependencies.scanProviders();
     const installations = new Map<ProviderId, ProviderInstallation>(
       scan.providers.map((installation) => [
@@ -350,7 +363,7 @@ export class CatalogService {
           candidates.push({
             provider,
             nativeId: session.data.nativeId,
-            workspace: await this.dependencies.canonicalizeWorkspace(
+            workspace: await canonicalizeWorkspace(
               session.data.workspacePath
             ),
             title: session.data.title,

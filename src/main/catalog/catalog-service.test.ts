@@ -385,6 +385,51 @@ describe('CatalogService', () => {
     );
   });
 
+  it('canonicalizes each unique workspace path once per refresh', async () => {
+    const repository = createRepository();
+    const canonicalizeWorkspace = vi.fn(async (path: string) =>
+      canonicalWorkspace(path)
+    );
+    const adapters = registry({
+      codex: vi.fn(async () =>
+        discovery('codex', [
+          record('codex', 'codex-1', '/work/shared'),
+          record('codex', 'codex-2', '/work/shared'),
+          record('codex', 'codex-3', '/work/other'),
+          record('codex', 'codex-4', '/work/shared')
+        ])
+      )
+    });
+    const service = new CatalogService(
+      dependencies({
+        repository,
+        registry: adapters,
+        canonicalizeWorkspace,
+        scanProviders: async () => scan([ready('codex')])
+      })
+    );
+
+    await service.refreshCatalog();
+
+    expect(canonicalizeWorkspace).toHaveBeenCalledTimes(2);
+    expect(canonicalizeWorkspace.mock.calls.map(([path]) => path)).toEqual([
+      '/work/shared',
+      '/work/other'
+    ]);
+    expect(repository.applyProviderScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'codex',
+        candidates: expect.arrayContaining([
+          expect.objectContaining({ nativeId: 'codex-1' }),
+          expect.objectContaining({ nativeId: 'codex-4' })
+        ])
+      })
+    );
+    expect(
+      repository.applyProviderScan.mock.calls[0]![0].candidates
+    ).toHaveLength(4);
+  });
+
   it('does not scan unavailable or launch-only providers', async () => {
     const repository = createRepository();
     const adapters = registry();

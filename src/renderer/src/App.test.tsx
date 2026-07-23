@@ -797,7 +797,7 @@ describe('App', () => {
       });
       expect(refreshCatalog).toHaveBeenCalledOnce();
       expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null });
-      expect(getCatalog).toHaveBeenCalledWith({ text: '', provider: null });
+      expect(getCatalog).not.toHaveBeenCalled();
       expect(
         screen.queryByText('Catalog refresh failed. Last saved data is still shown.')
       ).not.toBeInTheDocument();

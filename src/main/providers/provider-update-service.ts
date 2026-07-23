@@ -23,6 +23,7 @@ type ProviderIdentity = Pick<
 
 interface ProviderRegistryLike {
   scan(): Promise<ProviderScanResult>;
+  scanFresh?(): Promise<ProviderScanResult>;
 }
 
 export interface ProviderUpdateService {
@@ -185,7 +186,7 @@ export function createProviderUpdateService({
     provider: ProviderId
   ): Promise<ProviderUpdateResult> => {
     await runLifecycle(provider);
-    const after = await registry.scan();
+    const after = await (registry.scanFresh?.() ?? registry.scan());
     const installation = after.providers.find(
       (candidate) => candidate.provider === provider
     );
