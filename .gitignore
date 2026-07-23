@@ -7,6 +7,7 @@ coverage/
 .gax/
 .superpowers/
 docs/superpowers/
+docs/private/
 /patents/
 AI_Agent_Workspace_Manager_Design_Specification_v0.2.docx
 *.log
