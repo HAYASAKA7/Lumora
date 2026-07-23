@@ -28,6 +28,7 @@ import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
 import { findExecutable } from './platform/executable-locator';
+import { resolveApplicationEnvironment } from './platform/login-shell-path';
 import { probeVersion } from './platform/version-probe';
 import { createProviderAdapters } from './providers/provider-adapter';
 import { createProviderReleaseSource } from './providers/provider-release-source';
@@ -69,11 +70,18 @@ const { preloadPath, rendererRoot, windowIconPath } = getRuntimePaths(
     resourcesPath: process.resourcesPath
   }
 );
+let applicationEnvironment: Readonly<
+  Record<string, string | undefined>
+> = process.env;
 const providerDependencies = {
   findExecutable: (command: string) =>
-    findExecutable(command, { platform, env: process.env }),
+    findExecutable(command, { platform, env: applicationEnvironment }),
   probeVersion: (executablePath: string, args: readonly string[]) =>
-    probeVersion(executablePath, { platform, env: process.env, args })
+    probeVersion(executablePath, {
+      platform,
+      env: applicationEnvironment,
+      args
+    })
 };
 const providerRegistry = new ProviderRegistry(
   createProviderAdapters(providerDependencies)
@@ -91,7 +99,7 @@ const providerUpdateService = createProviderUpdateService({
   runLifecycle: (provider) =>
     runProviderLifecycle(provider, {
       platform,
-      env: process.env,
+      env: applicationEnvironment,
       findExecutable: providerDependencies.findExecutable
     })
 });
@@ -229,13 +237,17 @@ const mainWindowCreation = createSingleWindowCreationGate({
 });
 
 void app.whenReady().then(async () => {
+  applicationEnvironment = await resolveApplicationEnvironment({
+    platform,
+    env: process.env
+  });
   configureApplicationMenu(Menu, { platform });
   registerApplicationProtocol();
   catalogRuntime = createCatalogRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     homeDirectory: app.getPath('home'),
     platform,
-    env: process.env,
+    env: applicationEnvironment,
     scanProviders: scanEnabledProviders,
     enabledProviders: () => providerPolicy.providers()
   });
@@ -243,7 +255,7 @@ void app.whenReady().then(async () => {
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     handoffRootDirectory: join(app.getPath('userData'), 'handoffs'),
     platform,
-    env: process.env,
+    env: applicationEnvironment,
     scanProviders: scanEnabledProviders,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
