@@ -95,6 +95,13 @@ export class TerminalRuntimeError extends Error {
   }
 }
 
+export class PtyProcessExitedError extends Error {
+  constructor() {
+    super('The native terminal process has already exited.');
+    this.name = 'PtyProcessExitedError';
+  }
+}
+
 function defaultWait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -341,10 +348,12 @@ export class RuntimeHost {
   private invokePtyCommand(operation: () => void): void {
     try {
       operation();
-    } catch {
+    } catch (error) {
       // node-pty can reject commands after the native process exits but
       // before its JavaScript onExit event finalizes the runtime.
       // The exit event remains authoritative for the final state and code.
+      if (error instanceof PtyProcessExitedError) return;
+      throw error;
     }
   }
 

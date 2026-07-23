@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeEvent, RuntimeSummary } from '../../shared/contracts';
 import type { LaunchSpec } from './launch-service';
 import {
+  PtyProcessExitedError,
   RuntimeHost,
   type PtyProcess,
   type PtySpawnOptions
@@ -64,19 +65,22 @@ class FakePty implements PtyProcess {
   killed = false;
   private killError: Error | null = null;
   private nativeExited = false;
+  private operationError: Error | null = null;
   private dataListener: ((data: string) => void) | null = null;
   private exitListener: ((event: { exitCode: number }) => void) | null = null;
 
   write(data: string): void {
+    if (this.operationError !== null) throw this.operationError;
     if (this.nativeExited) {
-      throw new Error('Cannot write to a pty that has already exited');
+      throw new PtyProcessExitedError();
     }
     this.writes.push(data);
   }
 
   resize(cols: number, rows: number): void {
+    if (this.operationError !== null) throw this.operationError;
     if (this.nativeExited) {
-      throw new Error('Cannot resize a pty that has already exited');
+      throw new PtyProcessExitedError();
     }
     this.resizes.push([cols, rows]);
   }
@@ -98,6 +102,10 @@ class FakePty implements PtyProcess {
 
   rejectKill(error: Error): void {
     this.killError = error;
+  }
+
+  rejectOperations(error: Error): void {
+    this.operationError = error;
   }
 
   markNativeExit(): void {
@@ -418,6 +426,23 @@ describe('RuntimeHost', () => {
       exitCode: 0
     });
     expect(pty.killed).toBe(false);
+  });
+
+  it('continues reporting unrelated live PTY operation failures', async () => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    pty.rejectOperations(new Error('live pty failed'));
+
+    expect(() =>
+      host.write({ runtimeId: runtime.id, data: 'input' })
+    ).toThrow('live pty failed');
+    expect(() =>
+      host.resize({ runtimeId: runtime.id, cols: 120, rows: 36 })
+    ).toThrow('live pty failed');
+    expect(host.attach(runtime.id).runtime).toMatchObject({
+      id: runtime.id,
+      state: 'running'
+    });
   });
 
   it('preserves a live runtime when force-kill fails', async () => {
