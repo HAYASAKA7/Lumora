@@ -62,14 +62,21 @@ class FakePty implements PtyProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<[number, number]> = [];
   killed = false;
+  private nativeExited = false;
   private dataListener: ((data: string) => void) | null = null;
   private exitListener: ((event: { exitCode: number }) => void) | null = null;
 
   write(data: string): void {
+    if (this.nativeExited) {
+      throw new Error('Cannot write to a pty that has already exited');
+    }
     this.writes.push(data);
   }
 
   resize(cols: number, rows: number): void {
+    if (this.nativeExited) {
+      throw new Error('Cannot resize a pty that has already exited');
+    }
     this.resizes.push([cols, rows]);
   }
 
@@ -87,6 +94,10 @@ class FakePty implements PtyProcess {
     return { dispose: () => { this.exitListener = null; } };
   }
 
+  markNativeExit(): void {
+    this.nativeExited = true;
+  }
+
   emitData(data: string): void {
     this.dataListener?.(data);
   }
@@ -100,6 +111,7 @@ function harness(options: {
   spawnError?: Error;
   launch?: LaunchSpec & { command?: string | null };
   platform?: 'win32' | 'darwin' | 'linux';
+  exitDuringWait?: number;
 } = {}) {
   const pty = new FakePty();
   const stored: RuntimeSummary[] = [];
@@ -141,7 +153,11 @@ function harness(options: {
     platform: options.platform ?? 'linux',
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc',
-    wait: vi.fn(async () => undefined)
+    wait: vi.fn(async () => {
+      if (options.exitDuringWait !== undefined) {
+        pty.emitExit(options.exitDuringWait);
+      }
+    })
   });
   return { host, pty, repository, spawn, startReconciliation };
 }
@@ -377,6 +393,25 @@ describe('RuntimeHost', () => {
         data: 'invalid'
       })
     ).toThrowError('The terminal runtime was not found.');
+  });
+
+  it('absorbs native command failures while the exit callback is pending', async () => {
+    const { host, pty } = harness({ exitDuringWait: 0 });
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    pty.markNativeExit();
+
+    expect(() =>
+      host.write({ runtimeId: runtime.id, data: 'late' })
+    ).not.toThrow();
+    expect(() =>
+      host.resize({ runtimeId: runtime.id, cols: 120, rows: 36 })
+    ).not.toThrow();
+    await expect(host.terminate(runtime.id)).resolves.toMatchObject({
+      id: runtime.id,
+      state: 'completed',
+      exitCode: 0
+    });
+    expect(pty.killed).toBe(false);
   });
 
   it('normalizes spawn failures as launch_failed', async () => {

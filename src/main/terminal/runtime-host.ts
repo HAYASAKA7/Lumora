@@ -277,26 +277,34 @@ export class RuntimeHost {
     const request = RuntimeWriteRequestSchema.parse(value);
     const live = this.commandTarget(request.runtimeId);
     if (live === null) return;
-    live.process.write(request.data);
+    this.invokePtyCommand(() => {
+      live.process.write(request.data);
+    });
   }
 
   resize(value: RuntimeResizeRequest): void {
     const request = RuntimeResizeRequestSchema.parse(value);
     const live = this.commandTarget(request.runtimeId);
     if (live === null) return;
-    live.process.resize(
-      request.cols,
-      request.rows
-    );
+    this.invokePtyCommand(() => {
+      live.process.resize(
+        request.cols,
+        request.rows
+      );
+    });
   }
 
   async terminate(runtimeId: string): Promise<RuntimeSummary> {
     const live = this.commandTarget(runtimeId);
     if (live === null) return this.attach(runtimeId).runtime;
-    live.process.write('\u0003');
+    this.invokePtyCommand(() => {
+      live.process.write('\u0003');
+    });
     await this.wait(1_500);
     if (this.live.get(runtimeId) === live) {
-      live.process.kill();
+      this.invokePtyCommand(() => {
+        live.process.kill();
+      });
       await this.wait(500);
     }
     if (this.live.get(runtimeId) === live) {
@@ -330,6 +338,16 @@ export class RuntimeHost {
       throw new TerminalRuntimeError('RUNTIME_NOT_LIVE');
     }
     return null;
+  }
+
+  private invokePtyCommand(operation: () => void): void {
+    try {
+      operation();
+    } catch {
+      // node-pty can reject commands after the native process exits but
+      // before its JavaScript onExit event finalizes the runtime.
+      // The exit event remains authoritative for the final state and code.
+    }
   }
 
   private handleOutput(runtimeId: string, data: string): void {
