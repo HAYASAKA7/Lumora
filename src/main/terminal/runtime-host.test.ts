@@ -62,6 +62,7 @@ class FakePty implements PtyProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<[number, number]> = [];
   killed = false;
+  private killError: Error | null = null;
   private nativeExited = false;
   private dataListener: ((data: string) => void) | null = null;
   private exitListener: ((event: { exitCode: number }) => void) | null = null;
@@ -81,6 +82,7 @@ class FakePty implements PtyProcess {
   }
 
   kill(): void {
+    if (this.killError !== null) throw this.killError;
     this.killed = true;
   }
 
@@ -92,6 +94,10 @@ class FakePty implements PtyProcess {
   onExit(listener: (event: { exitCode: number }) => void) {
     this.exitListener = listener;
     return { dispose: () => { this.exitListener = null; } };
+  }
+
+  rejectKill(error: Error): void {
+    this.killError = error;
   }
 
   markNativeExit(): void {
@@ -410,6 +416,20 @@ describe('RuntimeHost', () => {
       id: runtime.id,
       state: 'completed',
       exitCode: 0
+    });
+    expect(pty.killed).toBe(false);
+  });
+
+  it('preserves a live runtime when force-kill fails', async () => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    pty.rejectKill(new Error('kill failed'));
+
+    await expect(host.terminate(runtime.id)).rejects.toThrow('kill failed');
+
+    expect(host.attach(runtime.id).runtime).toMatchObject({
+      id: runtime.id,
+      state: 'running'
     });
     expect(pty.killed).toBe(false);
   });

@@ -302,9 +302,7 @@ export class RuntimeHost {
     });
     await this.wait(1_500);
     if (this.live.get(runtimeId) === live) {
-      this.invokePtyCommand(() => {
-        live.process.kill();
-      });
+      live.process.kill();
       await this.wait(500);
     }
     if (this.live.get(runtimeId) === live) {
