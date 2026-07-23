@@ -579,6 +579,30 @@ const EnabledProviderIdsSchema = z
   );
 
 export const GeneralSettingsSchema = z.strictObject({
+  version: z.literal(3),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema
+});
+
+export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
+
+export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
+  version: 3,
+  showInformationalNotices: true,
+  startMaximized: true,
+  checkProviderUpdatesAutomatically: true,
+  autoExpandSidebar: true,
+  crossAgentWorkflowEnabled: false,
+  crossAgentHandoffRetentionDays: 30,
+  enabledProviders: [...PROVIDER_IDS]
+};
+
+const VersionTwoGeneralSettingsSchema = z.strictObject({
   version: z.literal(2),
   showInformationalNotices: z.boolean(),
   startMaximized: z.boolean(),
@@ -586,17 +610,6 @@ export const GeneralSettingsSchema = z.strictObject({
   autoExpandSidebar: z.boolean(),
   enabledProviders: EnabledProviderIdsSchema
 });
-
-export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
-
-export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 2,
-  showInformationalNotices: true,
-  startMaximized: true,
-  checkProviderUpdatesAutomatically: true,
-  autoExpandSidebar: true,
-  enabledProviders: [...PROVIDER_IDS]
-};
 
 const LegacyGeneralSettingsSchema = z.strictObject({
   version: z.literal(1),
@@ -606,6 +619,15 @@ const LegacyGeneralSettingsSchema = z.strictObject({
 export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
+
+  const versionTwo = VersionTwoGeneralSettingsSchema.safeParse(value);
+  if (versionTwo.success) {
+    return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      ...versionTwo.data,
+      version: 3
+    });
+  }
 
   const legacy = LegacyGeneralSettingsSchema.safeParse(value);
   return legacy.success
@@ -687,6 +709,7 @@ export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
     strategy: z.literal('resume'),
     sessionId: StableIdSchema,
+    provider: ProviderIdSchema.optional(),
     ...LaunchRequestBaseFields
   })
 ]);

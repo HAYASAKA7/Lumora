@@ -36,7 +36,24 @@ export interface SessionCatalogAdapter {
     installation: ReadyProviderInstallation
   ): SessionAdapterCompatibility;
   buildResumeArguments(nativeSessionId: string): readonly string[];
+  snapshotHandoff: SessionHandoffSnapshotter;
 }
+
+export interface SessionHandoffSnapshotRequest {
+  nativeSessionId: string;
+  sourceKeys: readonly string[];
+  installation: ReadyProviderInstallation;
+  sourceDirectory: string;
+}
+
+export interface SessionHandoffSnapshot {
+  raw: string;
+  sourceFiles: string[];
+}
+
+export type SessionHandoffSnapshotter = (
+  request: SessionHandoffSnapshotRequest
+) => Promise<SessionHandoffSnapshot>;
 
 export interface SessionCatalogRegistry {
   providers(): readonly ProviderId[];

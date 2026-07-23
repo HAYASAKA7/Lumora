@@ -54,6 +54,38 @@ describe('resolvePtyInvocation', () => {
     );
   });
 
+  it('quotes the fixed handoff prompt for a Windows command shim', () => {
+    const prompt = 'Read context at C:\\Users\\Test User\\Lumora\\context';
+    const invocation = resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'C:\\Tools\\codex.cmd',
+      args: [prompt],
+      command: null,
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      terminalProfile: {
+        id: 'a'.repeat(64), kind: 'detected', name: 'Command Prompt',
+        shellFamily: 'cmd', executablePath: 'C:\\Windows\\System32\\cmd.exe',
+        args: [], available: true, recommended: true
+      }
+    });
+
+    expect(invocation.args.at(-1)).toBe(
+      'call "%LUMORA_PROVIDER_EXECUTABLE%" "Read context at C:\\Users\\Test User\\Lumora\\context"'
+    );
+    expect(() => resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'C:\\Tools\\codex.cmd',
+      args: ['Read %SECRET%'],
+      command: null,
+      env: {},
+      terminalProfile: {
+        id: 'a'.repeat(64), kind: 'detected', name: 'Command Prompt',
+        shellFamily: 'cmd', executablePath: 'cmd.exe', args: [],
+        available: true, recommended: true
+      }
+    })).toThrow('cannot safely pass');
+  });
+
   it('launches providers through the selected PowerShell profile', () => {
     const invocation = resolvePtyInvocation({
       platform: 'win32',

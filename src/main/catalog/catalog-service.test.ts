@@ -107,7 +107,8 @@ function adapter(
     provider,
     discover,
     validateCompatibility,
-    buildResumeArguments: (nativeId) => [nativeId]
+    buildResumeArguments: (nativeId) => [nativeId],
+    snapshotHandoff: vi.fn()
   };
 }
 

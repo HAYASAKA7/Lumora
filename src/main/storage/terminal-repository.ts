@@ -476,6 +476,20 @@ export class TerminalRepository {
         };
   }
 
+  listCurrentSessionSourceKeys(sessionId: string): string[] {
+    return (
+      this.database.prepare(
+        `SELECT source.source_key
+         FROM session_source source
+         JOIN session ON session.id = source.session_id
+         WHERE source.session_id = ?
+           AND source.stale = 0
+           AND session.source_freshness = 'current'
+         ORDER BY source.source_key`
+      ).all(sessionId) as unknown as Array<{ source_key: string }>
+    ).map((row) => row.source_key);
+  }
+
   listCurrentSessionIdentities(
     provider: ProviderId,
     workspaceId: string

@@ -20,15 +20,22 @@ describe('GeneralSettingsPanel', () => {
       'Start with a maximized window',
       'Check provider updates automatically',
       'Auto-expand sidebar when navigating',
-      'Show informational notices'
+      'Show informational notices',
+      'Enable cross-agent session handoff'
     ];
     const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
     expect(panel).toHaveClass('catalog-panel', 'general-settings-panel');
     expect(header).toHaveClass('provider-panel-header');
-    for (const name of switches) {
+    for (const name of switches.slice(0, -1)) {
       expect(screen.getByRole('switch', { name })).toBeChecked();
     }
+    expect(screen.getByRole('switch', {
+      name: 'Enable cross-agent session handoff'
+    })).not.toBeChecked();
+    expect(screen.getByRole('combobox', {
+      name: 'Temporary handoff retention'
+    })).toBeDisabled();
     expect(
       screen.getByText(
         'Display non-critical diagnostics and helpful guidance throughout Lumora.'
@@ -43,6 +50,14 @@ describe('GeneralSettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       checkProviderUpdatesAutomatically: false
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Enable cross-agent session handoff'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      crossAgentWorkflowEnabled: true
     });
   });
 

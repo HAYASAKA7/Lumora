@@ -82,6 +82,11 @@ Provider files are inputs, not Lumora-managed storage. A malformed provider
 record produces a diagnostic without hiding healthy providers or deleting the
 last good catalog snapshot.
 
+Complete-session adapters also expose a bounded handoff snapshot operation.
+File-backed providers copy the selected source before parsing it; OpenCode uses
+its structured export command. This operation is separate from catalog scans
+and runs only for a user-confirmed cross-agent launch.
+
 ## Catalog flow
 
 ```text
@@ -123,6 +128,24 @@ Before spawning a process, the main process:
 5. creates a launch preview;
 6. starts the command through `node-pty` only after confirmation.
 
+For an exact native resume, Lumora passes the source provider's session ID as
+before. For an enabled cross-agent handoff, the main process instead:
+
+1. verifies that source and destination providers are enabled, installed,
+   compatible, and have complete session support;
+2. reserves an immutable launch plan while showing the normal launch preview;
+3. after workspace trust and final confirmation, copies the source into a new
+   Lumora-managed handoff directory;
+4. normalizes ordered user and assistant messages plus a compact, safe tool
+   activity ledger into bounded Markdown files; and
+5. launches a new destination-provider session with a bootstrap prompt that
+   identifies the managed directory, treats its contents as untrusted history,
+   follows the user's conversation language, summarizes the imported state,
+   and waits for the user.
+
+The destination receives a new native session identity. The source session and
+its provider-owned files remain available and unchanged.
+
 The runtime host owns terminal input, output, resize, state changes, and
 termination. The renderer attaches to it through IPC and receives sequenced
 runtime events. Lumora records managed runtime history, but generic PTYs cannot
@@ -145,11 +168,23 @@ Window size and maximized state are stored separately in `window-state.json`.
 Development builds append `-dev` to the default application-data path so they
 do not share data with an installed package.
 
+Cross-agent copies live outside SQLite under a dedicated `handoffs` directory
+inside `userData`. Each directory contains the immutable source copy,
+normalized context chunks, and a manifest. Startup and settings changes run
+bounded cleanup using the configured retention period. The feature defaults to
+off.
+
 ## Privacy and trust
 
 Lumora has no Lumora cloud synchronization. Provider session sources are read
 without rewriting them, and transcript bodies are not imported into Lumora's
 catalog.
+
+Cross-agent handoff is the explicit exception to the no-copy rule: after user
+confirmation, Lumora makes a temporary local copy for the selected transfer.
+The copy is not indexed, synced, or written back to either provider, and it is
+deleted by the configured retention policy. Historical session text is marked
+as untrusted context so it cannot silently replace Lumora's bootstrap rules.
 
 The provider CLI is still an independent program. It may read files, execute
 commands, or contact its own services according to the provider's configuration
@@ -187,9 +222,9 @@ not as a promise to replace every installed application icon.
 ### Read-only session preview
 
 Lumora may add a Session Details view that lets users identify a saved session
-before resuming it. This is intentionally deferred because it requires a
-provider-specific content-reading layer in addition to the existing metadata
-catalog.
+before resuming it. The handoff adapters now provide bounded provider-specific
+parsing, but an interactive preview still needs a separate on-demand contract,
+redaction policy, renderer view, and non-persistent cache lifecycle.
 
 The planned boundaries are:
 
@@ -217,6 +252,7 @@ must not prevent an otherwise valid session from being resumed.
 | --- | --- |
 | `src/main/catalog/` | Catalog composition, querying, and refresh runtime |
 | `src/main/providers/` | Provider discovery and session-source adapters |
+| `src/main/handoff/` | Temporary cross-agent context lifecycle and cleanup |
 | `src/main/terminal/` | Launch resolution, PTY runtime, recovery, reconciliation |
 | `src/main/storage/` | SQLite migrations and repositories |
 | `src/main/ipc/` | Validated privileged IPC handlers |

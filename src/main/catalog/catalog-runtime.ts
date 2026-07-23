@@ -16,6 +16,10 @@ import { buildResumeArguments } from '../providers/launch-command';
 import { discoverOpenCodeSessions } from '../providers/opencode-session-source';
 import { discoverQwenSessions } from '../providers/qwen-session-source';
 import {
+  createFileHandoffSnapshotter,
+  createOpenCodeHandoffSnapshotter
+} from '../providers/session-handoff-source';
+import {
   createSessionCatalogRegistry,
   validateInstalledProviderCompatibility,
   type SessionCatalogAdapter,
@@ -80,13 +84,16 @@ export function createCatalogRuntime({
     repository.findSource(provider, sourceKey);
   const adapter = (
     provider: ProviderId,
-    discover: SessionCatalogAdapter['discover']
+    discover: SessionCatalogAdapter['discover'],
+    snapshotHandoff: SessionCatalogAdapter['snapshotHandoff'] =
+      createFileHandoffSnapshotter(provider)
   ): SessionCatalogAdapter => ({
     provider,
     discover,
     validateCompatibility: validateInstalledProviderCompatibility,
     buildResumeArguments: (nativeSessionId) =>
-      buildResumeArguments(provider, nativeSessionId)
+      buildResumeArguments(provider, nativeSessionId),
+    snapshotHandoff
   });
   const registry = createSessionCatalogRegistry([
     adapter('codex', (installation) =>
@@ -111,8 +118,11 @@ export function createCatalogRuntime({
         lookupSource
       })
     ),
-    adapter('opencode', (installation) =>
-      discoverOpenCodeSessions({ installation, env, platform })
+    adapter(
+      'opencode',
+      (installation) =>
+        discoverOpenCodeSessions({ installation, env, platform }),
+      createOpenCodeHandoffSnapshotter({ env, platform })
     ),
     adapter('copilot', () =>
       discoverCopilotSessions({ homeDirectory, env, lookupSource })

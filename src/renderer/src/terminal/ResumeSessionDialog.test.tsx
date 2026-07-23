@@ -9,6 +9,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { ResumeSessionDialog } from './ResumeSessionDialog';
 
 const workspace: WorkspaceSummary = {
@@ -133,6 +134,7 @@ function renderDialog(overrides: {
   prepareLaunch?: ReturnType<typeof vi.fn>;
   trustWorkspaceForLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
+  crossAgentEnabled?: boolean;
 } = {}) {
   const prepareLaunch = overrides.prepareLaunch ?? vi.fn().mockResolvedValue(preview);
   const trustWorkspaceForLaunch =
@@ -149,6 +151,10 @@ function renderDialog(overrides: {
     <ResumeSessionDialog
       onClose={vi.fn()}
       onStarted={onStarted}
+      generalSettings={{
+        ...DEFAULT_GENERAL_SETTINGS,
+        crossAgentWorkflowEnabled: overrides.crossAgentEnabled ?? false
+      }}
       profiles={[profile, alternateProfile]}
       providerScan={providerScan}
       session={session}
@@ -183,6 +189,9 @@ describe('ResumeSessionDialog', () => {
     expect(
       screen.queryByRole('button', { name: 'Prepare launch' })
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', {
+      name: 'Resume with provider'
+    })).not.toBeInTheDocument();
 
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
     expect(screen.getByText('codexp')).toBeInTheDocument();
@@ -200,6 +209,43 @@ describe('ResumeSessionDialog', () => {
     );
     expect(onStarted).toHaveBeenCalledWith(runtime, preview);
     expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
+  });
+
+  it('prepares a new destination session when an enabled user selects another provider', async () => {
+    const crossPreview: LaunchPreview = {
+      ...preview,
+      strategy: 'new',
+      sessionId: null,
+      provider: 'claude',
+      executablePath: 'C:\\tools\\claude.exe',
+      args: ['Read the managed Lumora handoff context.']
+    };
+    const prepareLaunch = vi.fn(async (request) =>
+      request.provider === 'claude' ? crossPreview : preview
+    );
+    renderDialog({ prepareLaunch, crossAgentEnabled: true });
+
+    const provider = screen.getByRole('combobox', {
+      name: 'Resume with provider'
+    });
+    expect(provider).toHaveValue('codex');
+    fireEvent.change(provider, { target: { value: 'claude' } });
+
+    expect(await screen.findByText(
+      'This creates a new Claude Code session. The original Codex session remains unchanged.'
+    )).toBeVisible();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'resume',
+      sessionId: session.id,
+      provider: 'claude',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+    expect(await screen.findByText(
+      'Read the managed Lumora handoff context.'
+    )).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start handoff' })).toBeEnabled();
   });
 
   it('grants trust before resuming an untrusted workspace', async () => {
@@ -260,6 +306,7 @@ describe('ResumeSessionDialog', () => {
       }
     });
     const props = {
+      generalSettings: DEFAULT_GENERAL_SETTINGS,
       onClose: vi.fn(),
       onStarted: vi.fn(),
       profiles: [profile, alternateProfile],

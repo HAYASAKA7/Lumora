@@ -25,6 +25,7 @@ limits.
 - Add local workspaces and browse provider-owned sessions inside them.
 - Search saved sessions by title, workspace, and provider.
 - Start a new provider session or resume an exact native session.
+- Opt in to start a new provider session from another provider's saved context.
 - Keep active sessions mounted in managed terminal tabs while navigating Lumora.
 - Use custom shells, provider commands, aliases, and layered launch settings.
 - Review the effective launch command before a provider starts.
@@ -105,7 +106,9 @@ only include installed providers for which Lumora found resumable sessions.
 The **Home** page keeps a smaller recent-session list with direct Resume actions.
 
 Lumora reads supported provider metadata but does not rewrite provider session
-files or copy transcript bodies into its catalog.
+files or copy transcript bodies into its catalog. When cross-agent handoff is
+enabled, Lumora creates a separate temporary local copy only for the selected
+handoff; the original session remains unchanged.
 
 ## Managed terminals
 
@@ -124,6 +127,13 @@ Terminal clipboard behavior:
 <!-- SCREENSHOT: Add docs/screenshots/terminal.png (Managed terminal session). -->
 
 ## Settings
+
+### General
+
+Choose startup and navigation behavior, informational notices, and enabled
+providers. Cross-agent session handoff is off by default. When enabled, its
+retention setting controls when Lumora automatically deletes temporary managed
+session copies.
 
 ### Providers
 
@@ -194,12 +204,23 @@ All providers can be launched on Windows, macOS, and Linux when their command
 is installed and compatible. Launch-only providers remain available in
 Settings and New session, but do not appear in saved-session pages or filters.
 
+The six providers with complete session support can also be used as the source
+or destination of an opt-in cross-agent handoff. A handoff starts a new native
+session in the destination provider; it never converts or replaces the source
+provider's session.
+
 ## Data and privacy
 
 Lumora is local-first and has no Lumora cloud synchronization. It stores
 normalized session metadata, settings, trust decisions, window state, and
 managed runtime history in the operating system's application-data location.
 Provider session files remain provider-owned read-only inputs.
+
+An enabled cross-agent handoff stores an immutable source copy, normalized
+conversation files, and a small manifest under Lumora's local application-data
+directory. These files are used only to bootstrap the destination provider and
+are automatically removed according to the retention period in General
+settings. They are not added to the searchable catalog.
 
 Lumora does not add privacy guarantees beyond those of the provider CLI. The
 provider may contact its own services according to its terms and configuration.
@@ -209,6 +230,10 @@ provider may contact its own services according to its terms and configuration.
 - Generic PTY processes cannot be reattached after Lumora restarts. Lumora
   reports affected runtimes and lets you resume or restart them.
 - Antigravity, Cursor CLI, Amp, Crush, goose, and Aider are launch-only.
+- Cross-agent handoff is opt-in and depends on provider session formats. Lumora
+  preserves user and assistant messages, while compact tool-activity coverage
+  can vary by provider version. A handoff failure does not change the source
+  session or prevent exact native resume.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
 - WSL-specific orchestration, cloud sync, transcript full-text indexing,

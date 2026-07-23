@@ -40,12 +40,15 @@ function powershellArgumentsEnvironment(
 }
 
 function cmdArguments(args: readonly string[]): string {
-  if (args.some((argument) => !/^[A-Za-z0-9._:@/\\-]+$/.test(argument))) {
-    throw new Error(
-      'The selected command shell cannot safely pass this provider argument.'
-    );
-  }
-  return args.join(' ');
+  return args.map((argument) => {
+    if (/^[A-Za-z0-9._:@/\\-]+$/.test(argument)) return argument;
+    if (argument.length === 0 || /[\0\r\n"%!&|^<>]/.test(argument)) {
+      throw new Error(
+        'The selected command shell cannot safely pass this provider argument.'
+      );
+    }
+    return `"${argument}"`;
+  }).join(' ');
 }
 
 export function resolvePtyInvocation({

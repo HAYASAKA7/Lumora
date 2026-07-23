@@ -241,6 +241,7 @@ void app.whenReady().then(async () => {
   });
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
+    handoffRootDirectory: join(app.getPath('userData'), 'handoffs'),
     platform,
     env: process.env,
     scanProviders: scanEnabledProviders,

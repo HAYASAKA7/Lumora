@@ -776,6 +776,7 @@ describe('managed terminal contracts', () => {
     const resumeRequest = {
       strategy: 'resume',
       sessionId: 'c'.repeat(64),
+      provider: 'claude',
       terminalProfileId: profile.id,
       cols: 120,
       rows: 36
@@ -792,7 +793,6 @@ describe('managed terminal contracts', () => {
     expect(
       LaunchPrepareRequestSchema.safeParse({
         ...resumeRequest,
-        provider: 'codex',
         workspaceId: 'a'.repeat(64)
       }).success
     ).toBe(false);
@@ -1034,11 +1034,13 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 2,
+      version: 3,
       showInformationalNotices: true,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
       autoExpandSidebar: true,
+      crossAgentWorkflowEnabled: false,
+      crossAgentHandoffRetentionDays: 30,
       enabledProviders: [...PROVIDER_IDS]
     });
     expect(GeneralSettingsSchema.parse({
@@ -1058,7 +1060,15 @@ describe('managed terminal contracts', () => {
       showInformationalNotices: 'no'
     }).success).toBe(false);
     expect(GeneralSettingsSchema.safeParse({
-      version: 2
+      ...DEFAULT_GENERAL_SETTINGS,
+      crossAgentHandoffRetentionDays: 0
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      crossAgentHandoffRetentionDays: 366
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      version: 3
     }).success).toBe(false);
     expect(parseStoredGeneralSettings({
       version: 1,
@@ -1067,7 +1077,22 @@ describe('managed terminal contracts', () => {
       ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false
     });
-    expect(parseStoredGeneralSettings({ version: 3 })).toEqual(
+    expect(parseStoredGeneralSettings({
+      version: 2,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      enabledProviders: ['claude', 'codex']
+    })).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      enabledProviders: ['codex', 'claude']
+    });
+    expect(parseStoredGeneralSettings({ version: 4 })).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
   });

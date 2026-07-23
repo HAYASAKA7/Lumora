@@ -220,6 +220,30 @@ describe('TerminalRepository', () => {
     expect(repository.getSession('f'.repeat(64))).toBeNull();
   });
 
+  it('lists only current source keys for a handoff session', () => {
+    const sessionId = 'c'.repeat(64);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'native-thread', ?, 'Handoff', 'handoff', ?, ?,
+        'saved', 'current')`
+    ).run(sessionId, workspaceId, timestamp, timestamp);
+    const insert = database.prepare(
+      `INSERT INTO session_source (
+        provider, source_key, session_id, size, modified_at_ms,
+        last_seen_scan_id, stale
+      ) VALUES ('codex', ?, ?, 100, 1000, 'scan-1', ?)`
+    );
+    insert.run('D:\\sessions\\current.jsonl', sessionId, 0);
+    insert.run('D:\\sessions\\stale.jsonl', sessionId, 1);
+
+    expect(repository.listCurrentSessionSourceKeys(sessionId)).toEqual([
+      'D:\\sessions\\current.jsonl'
+    ]);
+    expect(repository.listCurrentSessionSourceKeys('f'.repeat(64))).toEqual([]);
+  });
+
   it('stores provider launch commands and clears overrides', () => {
     const configurable = repository as unknown as {
       listProviderLaunchConfigs(): unknown;

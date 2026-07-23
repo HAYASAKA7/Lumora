@@ -31,13 +31,20 @@ const GENERAL_SETTINGS = [
     label: 'Show informational notices',
     description:
       'Display non-critical diagnostics and helpful guidance throughout Lumora.'
+  },
+  {
+    key: 'crossAgentWorkflowEnabled',
+    label: 'Enable cross-agent session handoff',
+    description:
+      'Start a new provider session from a temporary local copy of another provider session.'
   }
 ] as const satisfies ReadonlyArray<{
   key:
     | 'startMaximized'
     | 'checkProviderUpdatesAutomatically'
     | 'autoExpandSidebar'
-    | 'showInformationalNotices';
+    | 'showInformationalNotices'
+    | 'crossAgentWorkflowEnabled';
   label: string;
   description: string;
 }>;
@@ -57,7 +64,7 @@ export function GeneralSettingsPanel({
         <div>
           <p className="card-label">Interface</p>
           <h2 id="general-settings-title">General</h2>
-          <p>Choose how Lumora starts, navigates, and checks for updates.</p>
+          <p>Choose how Lumora starts, navigates, checks, and transfers context.</p>
         </div>
       </header>
 
@@ -91,6 +98,31 @@ export function GeneralSettingsPanel({
           </label>
         );
       })}
+
+      <label className="general-setting-card">
+        <span className="general-setting-copy">
+          <strong>Temporary handoff retention</strong>
+          <span id="general-handoff-retention-description">
+            Automatically delete Lumora's managed session copies after this time.
+          </span>
+        </span>
+        <select
+          aria-describedby="general-handoff-retention-description"
+          aria-label="Temporary handoff retention"
+          disabled={saving || !settings.crossAgentWorkflowEnabled}
+          onChange={(event) => onChange({
+            ...settings,
+            crossAgentHandoffRetentionDays: Number(event.currentTarget.value)
+          })}
+          value={settings.crossAgentHandoffRetentionDays}
+        >
+          {[1, 7, 30, 60, 90, 180, 365].map((days) => (
+            <option key={days} value={days}>
+              {days === 1 ? '1 day' : `${days} days`}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {saveError === null ? null : (
         <p className="general-setting-error" role="alert">

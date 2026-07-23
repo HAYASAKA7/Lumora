@@ -1176,6 +1176,21 @@ button {
   line-height: 1.5;
 }
 
+.general-setting-card > select {
+  flex: 0 0 auto;
+  min-width: 112px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.general-setting-card > select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .settings-switch {
   position: relative;
   display: inline-flex;
@@ -2543,6 +2558,17 @@ button {
 
 .resume-launch-fields {
   grid-template-columns: minmax(220px, 1fr);
+}
+
+.handoff-explanation {
+  padding: 11px 13px;
+  margin: 4px 0 16px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .resume-session-details {

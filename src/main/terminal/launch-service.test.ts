@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+  GeneralSettings,
   LaunchSettingsLayer,
   ProviderScanResult,
   TerminalProfile
 } from '../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../shared/contracts';
+import type { HandoffPlan } from '../handoff/handoff-service';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
 import { buildResumeArguments } from '../providers/launch-command';
 import {
@@ -55,7 +58,11 @@ const sessionCatalogRegistry = createSessionCatalogRegistry(
       discover: vi.fn(),
       validateCompatibility: () => ({ compatible: true }),
       buildResumeArguments: (nativeSessionId) =>
-        buildResumeArguments(provider, nativeSessionId)
+        buildResumeArguments(provider, nativeSessionId),
+      snapshotHandoff: vi.fn(async () => ({
+        raw: '{"messages":[]}',
+        sourceFiles: ['/tmp/source.json']
+      }))
     })
   )
 );
@@ -83,6 +90,8 @@ function harness(overrides: {
   baseline?: readonly string[] | Error;
   trusted?: boolean;
   sessionCatalogRegistry?: ReturnType<typeof createSessionCatalogRegistry>;
+  generalSettings?: GeneralSettings;
+  sourceKeys?: readonly string[];
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentWorkspace =
@@ -129,6 +138,12 @@ function harness(overrides: {
       overrides.profile === undefined ? profile : overrides.profile
     ),
     getSession: vi.fn(() => currentSession),
+    getGeneralSettings: vi.fn(() =>
+      overrides.generalSettings ?? DEFAULT_GENERAL_SETTINGS
+    ),
+    listCurrentSessionSourceKeys: vi.fn(() =>
+      [...(overrides.sourceKeys ?? ['/sessions/codex.jsonl'])]
+    ),
     getProviderLaunchCommand: vi.fn(() => overrides.command ?? null),
     listLaunchSettingsLayers: vi.fn(() => currentLayers),
     listProfiles: vi.fn(() => profiles),
@@ -140,12 +155,38 @@ function harness(overrides: {
     return overrides.baseline ?? [];
   });
   let currentScan = overrides.scan ?? scan;
+  const handoffPlan: HandoffPlan = {
+    id: '019c0000-0000-7000-8000-000000000010',
+    sourceSessionId: sessionId,
+    sourceNativeId: nativeId,
+    sourceProvider: 'codex',
+    destinationProvider: 'claude',
+    retentionDays: 30,
+    directory: '/data/handoffs/019c0000-0000-7000-8000-000000000010',
+    sourceDirectory: '/data/handoffs/019c0000-0000-7000-8000-000000000010/source',
+    contextDirectory: '/data/handoffs/019c0000-0000-7000-8000-000000000010/context',
+    manifestPath: '/data/handoffs/019c0000-0000-7000-8000-000000000010/manifest.json',
+    prompt: 'Read the managed Lumora handoff context.',
+    createdAt: '2026-07-11T04:00:00.000Z',
+    expiresAt: '2026-08-10T04:00:00.000Z'
+  };
+  const handoffService = {
+    reserve: vi.fn(() => handoffPlan),
+    materialize: vi.fn(async (
+      plan: HandoffPlan,
+      acquire: (sourceDirectory: string) => Promise<unknown>
+    ) => {
+      await acquire(plan.sourceDirectory);
+      return { manifestPath: plan.manifestPath, contextFiles: [] };
+    })
+  };
   const service = new LaunchService({
     repository,
     sessionCatalogRegistry: overrides.sessionCatalogRegistry ?? sessionCatalogRegistry,
     scanProviders: vi.fn(async () => currentScan),
     isExecutablePath: vi.fn(async () => true),
     captureSessionBaseline,
+    handoffService,
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
     clock: () => now,
@@ -155,6 +196,7 @@ function harness(overrides: {
     service,
     repository,
     captureSessionBaseline,
+    handoffService,
     setNow(value: string) {
       now = new Date(value);
     },
@@ -216,6 +258,82 @@ describe('LaunchService', () => {
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
       displayName: 'Repository cleanup'
     });
+  });
+
+  it('keeps native resume unchanged when its optional provider matches', async () => {
+    const { service, handoffService } = harness({ trusted: true });
+    const preview = await service.prepare({
+      strategy: 'resume',
+      sessionId,
+      provider: 'codex',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview).toMatchObject({
+      strategy: 'resume',
+      sessionId,
+      provider: 'codex',
+      args: ['resume', nativeId]
+    });
+    await service.consume(preview.launchToken);
+    expect(handoffService.reserve).not.toHaveBeenCalled();
+    expect(handoffService.materialize).not.toHaveBeenCalled();
+  });
+
+  it('rejects a different resume provider while cross-agent handoff is disabled', async () => {
+    await expect(harness().service.prepare({
+      strategy: 'resume',
+      sessionId,
+      provider: 'claude',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    })).rejects.toMatchObject({ code: 'CROSS_AGENT_DISABLED' });
+  });
+
+  it('materializes a trusted cross-agent handoff and launches a new destination session', async () => {
+    const enabled: GeneralSettings = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      crossAgentWorkflowEnabled: true
+    };
+    const { service, handoffService, captureSessionBaseline } = harness({
+      trusted: true,
+      generalSettings: enabled,
+      baseline: ['claude-existing']
+    });
+    const preview = await service.prepare({
+      strategy: 'resume',
+      sessionId,
+      provider: 'claude',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview).toMatchObject({
+      strategy: 'new',
+      sessionId: null,
+      provider: 'claude',
+      args: ['Read the managed Lumora handoff context.']
+    });
+    expect(handoffService.materialize).not.toHaveBeenCalled();
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      strategy: 'new',
+      sessionId: null,
+      nativeSessionId: null,
+      provider: 'claude',
+      reconciliationBaselineNativeIds: ['claude-existing']
+    });
+    expect(handoffService.materialize).toHaveBeenCalledTimes(1);
+    expect(
+      sessionCatalogRegistry.get('codex')?.snapshotHandoff
+    ).toHaveBeenCalledWith(expect.objectContaining({
+      nativeSessionId: nativeId,
+      sourceKeys: ['/sessions/codex.jsonl']
+    }));
+    expect(captureSessionBaseline).toHaveBeenCalledWith('claude', workspaceId);
   });
 
   it.each([
@@ -375,7 +493,8 @@ describe('LaunchService', () => {
             provider === 'codex'
               ? { compatible: false, recovery: 'Update Codex.' }
               : { compatible: true },
-          buildResumeArguments: (id) => buildResumeArguments(provider, id)
+          buildResumeArguments: (id) => buildResumeArguments(provider, id),
+          snapshotHandoff: vi.fn()
         })
       )
     );

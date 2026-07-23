@@ -29,6 +29,7 @@ import {
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import { findExecutable, isExecutableFile } from '../platform/executable-locator';
+import { HandoffService } from '../handoff/handoff-service';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
 import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
@@ -46,6 +47,11 @@ interface CreateTerminalRuntimeOptions {
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
   sessionCatalogRegistry: SessionCatalogRegistry;
+  handoffRootDirectory?: string;
+  handoffService?: Pick<
+    HandoffService,
+    'reserve' | 'materialize' | 'cleanupExpired'
+  >;
   refreshCatalog?(): Promise<unknown>;
   onGeneralSettingsSaved?(settings: GeneralSettings): void;
   clock?: () => Date;
@@ -89,6 +95,8 @@ export async function createTerminalRuntime({
   env,
   scanProviders,
   sessionCatalogRegistry,
+  handoffRootDirectory,
+  handoffService: providedHandoffService,
   refreshCatalog,
   onGeneralSettingsSaved,
   clock = () => new Date(),
@@ -104,6 +112,24 @@ export async function createTerminalRuntime({
   }
   const repository = new TerminalRepository(database);
   repository.markLiveRuntimesLost(clock().toISOString());
+  if (
+    providedHandoffService === undefined &&
+    handoffRootDirectory === undefined
+  ) {
+    database.close();
+    throw new Error('A managed handoff storage directory is required.');
+  }
+  const handoffService = providedHandoffService ?? new HandoffService({
+    rootDirectory: handoffRootDirectory as string,
+    clock
+  });
+  try {
+    await handoffService.cleanupExpired(
+      repository.getGeneralSettings().crossAgentHandoffRetentionDays
+    );
+  } catch {
+    // Handoff cleanup must not prevent Lumora from starting.
+  }
 
   const locate = (command: string) =>
     findExecutable(command, { platform, env });
@@ -129,6 +155,7 @@ export async function createTerminalRuntime({
         .listCurrentSessionIdentities(provider, workspaceId)
         .map((session) => session.nativeId);
     },
+    handoffService,
     platform,
     env,
     clock
@@ -207,6 +234,9 @@ export async function createTerminalRuntime({
         clock().toISOString()
       );
       onGeneralSettingsSaved?.(settings);
+      void handoffService
+        .cleanupExpired(settings.crossAgentHandoffRetentionDays)
+        .catch(() => undefined);
       return settings;
     },
     getKeyboardSettings() {

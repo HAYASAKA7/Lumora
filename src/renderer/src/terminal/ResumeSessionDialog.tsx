@@ -3,12 +3,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LaunchPrepareRequest,
   LaunchPreview,
+  GeneralSettings,
+  ProviderId,
   ProviderScanResult,
   RuntimeSummary,
   SessionSummary,
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { SESSION_PROVIDER_IDS } from '../../../shared/provider-definitions';
 import { LaunchDetails } from './LaunchDetails';
 import { useLaunchPreflight } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
@@ -16,6 +19,7 @@ import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 interface ResumeSessionDialogProps {
   session: SessionSummary;
   workspace: WorkspaceSummary;
+  generalSettings: GeneralSettings;
   profiles: readonly TerminalProfile[];
   providerScan: ProviderScanResult | null;
   onClose(): void;
@@ -25,6 +29,7 @@ interface ResumeSessionDialogProps {
 export function ResumeSessionDialog({
   session,
   workspace,
+  generalSettings,
   profiles,
   providerScan,
   onClose,
@@ -37,7 +42,20 @@ export function ResumeSessionDialog({
   const provider = providerScan?.providers.find(
     (installation) => installation.provider === session.provider
   );
+  const availableDestinations = useMemo(() => {
+    const supported = new Set<ProviderId>(SESSION_PROVIDER_IDS);
+    const enabled = new Set(generalSettings.enabledProviders);
+    return providerScan?.providers.filter(
+      (installation) =>
+        installation.state === 'ready' &&
+        supported.has(installation.provider) &&
+        enabled.has(installation.provider)
+    ) ?? [];
+  }, [generalSettings.enabledProviders, providerScan]);
   const [profileId, setProfileId] = useState('');
+  const [destinationProvider, setDestinationProvider] = useState<ProviderId>(
+    session.provider
+  );
   const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -50,7 +68,15 @@ export function ResumeSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
     setActionError(null);
-  }, [profileId]);
+  }, [destinationProvider, profileId]);
+  useEffect(() => {
+    setDestinationProvider(session.provider);
+  }, [session.id, session.provider]);
+  useEffect(() => {
+    if (!generalSettings.crossAgentWorkflowEnabled) {
+      setDestinationProvider(session.provider);
+    }
+  }, [generalSettings.crossAgentWorkflowEnabled, session.provider]);
   useEffect(() => {
     if (
       profileId !== '' &&
@@ -60,24 +86,29 @@ export function ResumeSessionDialog({
     }
   }, [availableProfiles, profileId]);
 
+  const destination = availableDestinations.find(
+    (installation) => installation.provider === destinationProvider
+  );
+  const isCrossAgent = destinationProvider !== session.provider;
   const canPrepare =
     availableProfiles.length > 0 &&
     (profileId === '' ||
       availableProfiles.some((profile) => profile.id === profileId)) &&
     workspace.available &&
     session.sourceFreshness === 'current' &&
-    provider?.state === 'ready';
+    destination?.state === 'ready';
   const request = useMemo<LaunchPrepareRequest | null>(
     () => canPrepare
       ? {
           strategy: 'resume',
           sessionId: session.id,
+          ...(isCrossAgent ? { provider: destinationProvider } : {}),
           terminalProfileId: profileId || null,
           cols: 100,
           rows: 30
         }
       : null,
-    [canPrepare, profileId, session.id]
+    [canPrepare, destinationProvider, isCrossAgent, profileId, session.id]
   );
   const preflight = useLaunchPreflight(request);
   const preview = preflight.preview;
@@ -135,7 +166,11 @@ export function ResumeSessionDialog({
           finishLaunchOperation(operation);
           return;
         }
-        setActionError('The provider session could not be resumed.');
+        setActionError(
+          isCrossAgent
+            ? 'The cross-agent handoff could not be started.'
+            : 'The provider session could not be resumed.'
+        );
         finishLaunchOperation(operation);
         preflight.retry();
       }
@@ -152,7 +187,9 @@ export function ResumeSessionDialog({
       >
         <header>
           <div>
-            <p className="card-label">Native provider resume</p>
+            <p className="card-label">
+              {isCrossAgent ? 'Cross-agent handoff' : 'Native provider resume'}
+            </p>
             <h2 id="resume-session-title">Resume session</h2>
           </div>
           <button
@@ -184,6 +221,27 @@ export function ResumeSessionDialog({
         </dl>
 
         <div className="launch-fields resume-launch-fields">
+          {generalSettings.crossAgentWorkflowEnabled ? (
+            <label>
+              <span>Resume with provider</span>
+              <select
+                disabled={starting}
+                onChange={(event) => setDestinationProvider(
+                  event.currentTarget.value as ProviderId
+                )}
+                value={destinationProvider}
+              >
+                {availableDestinations.map((installation) => (
+                  <option
+                    key={installation.provider}
+                    value={installation.provider}
+                  >
+                    {installation.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             <span>Terminal profile</span>
             <select
@@ -201,12 +259,21 @@ export function ResumeSessionDialog({
           </label>
         </div>
 
+        {isCrossAgent && destination !== undefined ? (
+          <p className="handoff-explanation">
+            This creates a new {destination.displayName} session. The original{' '}
+            {provider?.displayName ?? session.provider} session remains unchanged.
+          </p>
+        ) : null}
+
         {actionError === null ? null : (
           <div className="catalog-operation-error" role="alert">{actionError}</div>
         )}
 
         {preflight.status === 'preparing' ? (
-          <div className="launch-empty" role="status"><p>Preparing resume</p></div>
+          <div className="launch-empty" role="status">
+            <p>{isCrossAgent ? 'Preparing handoff' : 'Preparing resume'}</p>
+          </div>
         ) : preflight.status === 'failed' ? (
           <div className="catalog-operation-error" role="alert">
             <span>The resume preview could not be prepared.</span>{' '}
@@ -241,7 +308,9 @@ export function ResumeSessionDialog({
             onClick={start}
             type="button"
           >
-            {starting ? 'Resuming session' : 'Resume session'}
+            {starting
+              ? isCrossAgent ? 'Starting handoff' : 'Resuming session'
+              : isCrossAgent ? 'Start handoff' : 'Resume session'}
           </button>
         </footer>
       </section>

@@ -16,6 +16,8 @@ import {
 import {
   providerDefinition
 } from '../../shared/provider-definitions';
+import type { HandoffPlan, HandoffService } from '../handoff/handoff-service';
+import { buildInitialPromptArguments } from '../providers/launch-command';
 import type {
   ReadyProviderInstallation,
   SessionCatalogAdapter,
@@ -31,6 +33,8 @@ interface LaunchRepository {
   getWorkspace(workspaceId: string): WorkspaceLaunchInfo | null;
   getProfile(profileId: string): TerminalProfile | null;
   getSession(sessionId: string): SessionLaunchInfo | null;
+  getGeneralSettings(): import('../../shared/contracts').GeneralSettings;
+  listCurrentSessionSourceKeys(sessionId: string): string[];
   listProfiles(): TerminalProfile[];
   listLaunchSettingsLayers(): LaunchSettingsLayer[];
   isWorkspaceTrusted(workspaceId: string, canonicalPath: string): boolean;
@@ -50,6 +54,7 @@ interface LaunchServiceDependencies {
     provider: ProviderId,
     workspaceId: string
   ): Promise<readonly string[]>;
+  handoffService: Pick<HandoffService, 'reserve' | 'materialize'>;
   platform: SystemInfo['platform'];
   env: Environment;
   clock?: () => Date;
@@ -75,6 +80,11 @@ export interface LaunchSpec {
   cols: number;
   rows: number;
   createdAt: string;
+  handoff?: {
+    plan: HandoffPlan;
+    sourceKeys: string[];
+    sourceExecutablePath: string;
+  } | null;
 }
 
 interface PreparedLaunch {
@@ -89,6 +99,8 @@ export type TerminalLaunchErrorCode =
   | 'SESSION_UNAVAILABLE'
   | 'TERMINAL_PROFILE_UNAVAILABLE'
   | 'PROVIDER_UNAVAILABLE'
+  | 'CROSS_AGENT_DISABLED'
+  | 'HANDOFF_PREPARATION_FAILED'
   | 'LAUNCH_TOKEN_INVALID'
   | 'LAUNCH_TOKEN_EXPIRED';
 
@@ -98,6 +110,8 @@ const ERROR_MESSAGES: Record<TerminalLaunchErrorCode, string> = {
   SESSION_UNAVAILABLE: 'The selected session is unavailable.',
   TERMINAL_PROFILE_UNAVAILABLE: 'The selected terminal profile is unavailable.',
   PROVIDER_UNAVAILABLE: 'The selected provider is unavailable.',
+  CROSS_AGENT_DISABLED: 'Cross-agent handoff is disabled.',
+  HANDOFF_PREPARATION_FAILED: 'Lumora could not prepare the session handoff.',
   LAUNCH_TOKEN_INVALID: 'The launch preview is no longer valid.',
   LAUNCH_TOKEN_EXPIRED: 'The launch preview expired. Prepare it again.'
 };
@@ -133,7 +147,19 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
         terminalProfilePath: value.terminalProfile.executablePath,
         environmentNames: Object.keys(value.environment).sort(),
         cols: value.cols,
-        rows: value.rows
+        rows: value.rows,
+        handoff: value.handoff === undefined || value.handoff === null
+          ? null
+          : {
+              id: value.handoff.plan.id,
+              sourceSessionId: value.handoff.plan.sourceSessionId,
+              sourceNativeId: value.handoff.plan.sourceNativeId,
+              sourceProvider: value.handoff.plan.sourceProvider,
+              destinationProvider: value.handoff.plan.destinationProvider,
+              retentionDays: value.handoff.plan.retentionDays,
+              sourceKeys: value.handoff.sourceKeys,
+              sourceExecutablePath: value.handoff.sourceExecutablePath
+            }
       })
     )
     .digest('hex');
@@ -183,6 +209,8 @@ export class LaunchService {
     let nativeSessionId: string | null;
     let displayName: string;
     let args: string[];
+    let handoff: LaunchSpec['handoff'] = null;
+    let sourceSession: SessionLaunchInfo | null = null;
     if (request.strategy === 'new') {
       provider = request.provider;
       workspaceId = request.workspaceId;
@@ -195,16 +223,36 @@ export class LaunchService {
       if (session === null || session.sourceFreshness !== 'current') {
         throw new TerminalLaunchError('SESSION_UNAVAILABLE');
       }
-      provider = session.provider;
+      const destinationProvider = request.provider ?? session.provider;
+      provider = destinationProvider;
       workspaceId = session.workspaceId;
-      sessionId = session.id;
-      nativeSessionId = session.nativeId;
       displayName = session.title;
-      const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
-      if (adapter === null) {
-        throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+      if (destinationProvider === session.provider) {
+        sessionId = session.id;
+        nativeSessionId = session.nativeId;
+        const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
+        if (adapter === null) {
+          throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+        }
+        args = [...adapter.buildResumeArguments(nativeSessionId)];
+      } else {
+        const settings = this.dependencies.repository.getGeneralSettings();
+        if (!settings.crossAgentWorkflowEnabled) {
+          throw new TerminalLaunchError('CROSS_AGENT_DISABLED');
+        }
+        if (
+          !settings.enabledProviders.includes(session.provider) ||
+          !settings.enabledProviders.includes(destinationProvider) ||
+          this.dependencies.sessionCatalogRegistry.get(session.provider) === null ||
+          this.dependencies.sessionCatalogRegistry.get(destinationProvider) === null
+        ) {
+          throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+        }
+        sessionId = null;
+        nativeSessionId = null;
+        sourceSession = session;
+        args = [];
       }
-      args = [...adapter.buildResumeArguments(nativeSessionId)];
     }
     const workspace = this.dependencies.repository.getWorkspace(
       workspaceId
@@ -230,6 +278,40 @@ export class LaunchService {
     ) {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
+    if (sourceSession !== null) {
+      const sourceInstallation = scan.providers.find(
+        (candidate) => candidate.provider === sourceSession!.provider
+      );
+      const sourceAdapter = this.dependencies.sessionCatalogRegistry.get(
+        sourceSession.provider
+      );
+      if (
+        sourceInstallation?.state !== 'ready' ||
+        sourceAdapter === null ||
+        !isAdapterCompatible(sourceAdapter, sourceInstallation)
+      ) {
+        throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+      }
+      const settings = this.dependencies.repository.getGeneralSettings();
+      const sourceKeys = this.dependencies.repository
+        .listCurrentSessionSourceKeys(sourceSession.id);
+      if (sourceKeys.length === 0) {
+        throw new TerminalLaunchError('SESSION_UNAVAILABLE');
+      }
+      const plan = this.dependencies.handoffService.reserve({
+        sourceSessionId: sourceSession.id,
+        sourceNativeId: sourceSession.nativeId,
+        sourceProvider: sourceSession.provider,
+        destinationProvider: provider,
+        retentionDays: settings.crossAgentHandoffRetentionDays
+      });
+      args = buildInitialPromptArguments(provider, plan.prompt);
+      handoff = {
+        plan,
+        sourceKeys: [...sourceKeys].sort(),
+        sourceExecutablePath: sourceInstallation.executablePath
+      };
+    }
 
     const resolved = resolveLaunchSettings({
       provider,
@@ -247,7 +329,7 @@ export class LaunchService {
     const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
     if (
-      request.strategy === 'new' &&
+      (request.strategy === 'new' || handoff !== null) &&
       this.dependencies.sessionCatalogRegistry.get(provider) !== null
     ) {
       try {
@@ -261,7 +343,7 @@ export class LaunchService {
     const createdAt = this.clock();
     const partial = {
       displayName,
-      strategy: request.strategy,
+      strategy: handoff === null ? request.strategy : 'new' as const,
       sessionId,
       nativeSessionId,
       reconciliationBaselineNativeIds,
@@ -275,7 +357,8 @@ export class LaunchService {
       terminalProfile: profile,
       configuration: resolved.configuration,
       cols: request.cols,
-      rows: request.rows
+      rows: request.rows,
+      handoff
     };
     const spec: LaunchSpec = {
       ...partial,
@@ -369,6 +452,30 @@ export class LaunchService {
         throw new TerminalLaunchError('SESSION_UNAVAILABLE');
       }
     }
+    if (prepared.spec.handoff !== undefined && prepared.spec.handoff !== null) {
+      const handoff = prepared.spec.handoff;
+      const source = this.dependencies.repository.getSession(
+        handoff.plan.sourceSessionId
+      );
+      const settings = this.dependencies.repository.getGeneralSettings();
+      const sourceKeys = this.dependencies.repository
+        .listCurrentSessionSourceKeys(handoff.plan.sourceSessionId)
+        .sort();
+      if (
+        source === null ||
+        source.sourceFreshness !== 'current' ||
+        source.nativeId !== handoff.plan.sourceNativeId ||
+        source.provider !== handoff.plan.sourceProvider ||
+        source.workspaceId !== prepared.spec.workspaceId ||
+        !settings.crossAgentWorkflowEnabled ||
+        settings.crossAgentHandoffRetentionDays !== handoff.plan.retentionDays ||
+        !settings.enabledProviders.includes(handoff.plan.sourceProvider) ||
+        !settings.enabledProviders.includes(handoff.plan.destinationProvider) ||
+        !sameValue(sourceKeys, handoff.sourceKeys)
+      ) {
+        throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+      }
+    }
     const scan = await this.dependencies.scanProviders();
     const installation = scan.providers.find(
       (candidate) => candidate.provider === prepared.spec.provider
@@ -398,6 +505,19 @@ export class LaunchService {
     ) {
       throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
     }
+    if (
+      prepared.spec.handoff !== undefined &&
+      prepared.spec.handoff !== null &&
+      !sameValue(
+        buildInitialPromptArguments(
+          prepared.spec.provider,
+          prepared.spec.handoff.plan.prompt
+        ),
+        prepared.spec.args
+      )
+    ) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
     const resolved = resolveLaunchSettings({
       provider: prepared.spec.provider,
       workspaceId: prepared.spec.workspaceId,
@@ -422,6 +542,36 @@ export class LaunchService {
     }
     if (!(await this.dependencies.isExecutablePath(prepared.spec.executablePath))) {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+    }
+    if (prepared.spec.handoff !== undefined && prepared.spec.handoff !== null) {
+      const handoff = prepared.spec.handoff;
+      const sourceInstallation = scan.providers.find(
+        (candidate) => candidate.provider === handoff.plan.sourceProvider
+      );
+      const sourceAdapter = this.dependencies.sessionCatalogRegistry.get(
+        handoff.plan.sourceProvider
+      );
+      if (
+        sourceInstallation?.state !== 'ready' ||
+        sourceInstallation.executablePath !== handoff.sourceExecutablePath ||
+        sourceAdapter === null ||
+        !isAdapterCompatible(sourceAdapter, sourceInstallation)
+      ) {
+        throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+      }
+      try {
+        await this.dependencies.handoffService.materialize(
+          handoff.plan,
+          (sourceDirectory) => sourceAdapter.snapshotHandoff({
+            nativeSessionId: handoff.plan.sourceNativeId,
+            sourceKeys: handoff.sourceKeys,
+            installation: sourceInstallation,
+            sourceDirectory
+          })
+        );
+      } catch {
+        throw new TerminalLaunchError('HANDOFF_PREPARATION_FAILED');
+      }
     }
     return prepared.spec;
   }

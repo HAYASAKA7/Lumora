@@ -117,10 +117,13 @@ Test each platform package, not only an unpacked development build.
    output or an external page scrollbar.
 7. Resume a provider with complete session support and confirm the exact native
    session opens with configured launch settings.
-8. Exit the provider and confirm its tab closes and saved-session views refresh.
-9. Restart Lumora and confirm workspaces, settings, trust decisions, window
+8. Enable cross-agent handoff, transfer one saved session to a different
+   full-session provider, and confirm the destination starts as a new session,
+   uses the user's conversation language, and leaves the source unchanged.
+9. Exit the provider and confirm its tab closes and saved-session views refresh.
+10. Restart Lumora and confirm workspaces, settings, trust decisions, window
    state, and history persist.
-10. Confirm an unpackaged development build still uses separate application
+11. Confirm an unpackaged development build still uses separate application
     data from the installed package.
 
 Record the package filename and result for every target.

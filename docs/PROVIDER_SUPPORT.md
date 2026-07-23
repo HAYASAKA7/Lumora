@@ -8,6 +8,10 @@ two levels:
 - **Launch only**: detection, configuration, version checking where available,
   and new-session launch. Saved sessions are not imported or resumed.
 
+Every full-session provider can participate in the optional cross-agent
+handoff workflow as either source or destination. A handoff creates a new
+destination session from a temporary copy; it is not exact native resume.
+
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
 columns below record hands-on testing with the real provider executable. Leave a
@@ -70,8 +74,13 @@ For every provider and target operating system:
 6. Resume that exact session, verify its context in the provider, exit, and
    confirm the catalog refreshes again.
 7. Repeat the launch with a custom provider command or shell wrapper.
+8. Enable cross-agent handoff, choose a different installed full-session
+   provider in the resume dialog, and confirm that a new destination session
+   receives the conversation while the source still resumes normally.
+9. Use a non-English source conversation and confirm the destination continues
+   in the user's language rather than Lumora's English bootstrap language.
 
-For launch-only providers, steps 5 and 6 do not apply.
+For launch-only providers, steps 5, 6, 8, and 9 do not apply.
 
 ## Why some providers are launch-only
 

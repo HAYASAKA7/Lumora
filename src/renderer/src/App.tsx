@@ -1480,6 +1480,7 @@ export default function App(): ReactNode {
       ) : null}
       {resumeIntent !== null ? (
         <ResumeSessionDialog
+          generalSettings={generalSettings ?? DEFAULT_GENERAL_SETTINGS}
           onClose={() => setResumeIntent(null)}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}

@@ -120,6 +120,20 @@ the session is still being written, or the catalog has not refreshed.
 finish writing, then refresh the catalog. Launch-only providers do not appear in
 saved-session lists or filters.
 
+### A cross-agent handoff cannot be prepared
+
+**Symptom:** The destination provider is absent from the resume dialog, or the
+handoff fails before its terminal starts.
+
+**Likely cause:** Cross-agent handoff is disabled, either provider is disabled
+or unavailable, the source provider is still writing the session, or Lumora
+cannot create a stable bounded copy of that provider version's session data.
+
+**Resolution:** Enable the feature in **Settings > General**, enable both
+providers, confirm that both are installed and have full session support, let
+the source session finish writing, then refresh and retry. Exact native resume
+remains available because a failed handoff does not modify the source.
+
 ### A workspace does not appear
 
 **Symptom:** A project directory is absent from the Workspaces page.

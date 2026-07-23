@@ -11,7 +11,8 @@ function adapter(provider: ProviderId): SessionCatalogAdapter {
     provider,
     discover: vi.fn(),
     validateCompatibility: () => ({ compatible: true }),
-    buildResumeArguments: (nativeId) => [nativeId]
+    buildResumeArguments: (nativeId) => [nativeId],
+    snapshotHandoff: vi.fn()
   };
 }
 
@@ -64,5 +65,6 @@ describe('createSessionCatalogRegistry', () => {
         issue: null
       })
     ).toEqual({ compatible: true });
+    expect(registry.get('qwen')?.snapshotHandoff).toBeTypeOf('function');
   });
 });

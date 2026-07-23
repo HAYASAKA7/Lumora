@@ -74,6 +74,12 @@ describe('createCatalogRuntime', () => {
       'codex'
     ]);
     expect(runtime.registry.get('aider')).toBeNull();
+    expect(runtime.registry.get('codex')?.snapshotHandoff).toBeTypeOf(
+      'function'
+    );
+    expect(runtime.registry.get('opencode')?.snapshotHandoff).toBeTypeOf(
+      'function'
+    );
     expect(runtime.close).not.toThrow();
     expect(runtime.close).not.toThrow();
   });

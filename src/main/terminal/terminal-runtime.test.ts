@@ -13,6 +13,11 @@ const testPlatform =
 describe('createTerminalRuntime', () => {
   it('exposes persisted General settings through the runtime boundary', async () => {
     const onGeneralSettingsSaved = vi.fn();
+    const handoffService = {
+      reserve: vi.fn(),
+      materialize: vi.fn(),
+      cleanupExpired: vi.fn(async () => ({ removed: 0 }))
+    };
     const runtime = await createTerminalRuntime({
       databasePath: ':memory:',
       platform: testPlatform,
@@ -25,6 +30,7 @@ describe('createTerminalRuntime', () => {
         providers: () => [],
         get: () => null
       },
+      handoffService,
       onGeneralSettingsSaved,
       clock: () => new Date('2026-07-22T04:00:00.000Z')
     });
@@ -48,6 +54,7 @@ describe('createTerminalRuntime', () => {
         ...DEFAULT_GENERAL_SETTINGS,
         showInformationalNotices: false
       });
+      expect(handoffService.cleanupExpired).toHaveBeenCalledWith(30);
     } finally {
       runtime.close();
     }
