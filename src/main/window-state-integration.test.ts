@@ -61,6 +61,65 @@ describe('window-state main-process integration', () => {
     expect(markWindowShown).toBeGreaterThan(show);
   });
 
+  it('keeps only the claimed startup presentation active in the background', () => {
+    const createWindow = source.indexOf('new BrowserWindow(');
+    const createBackgroundActivity = source.indexOf(
+      'createStartupBackgroundActivityController(window.webContents)',
+      createWindow
+    );
+    const readyToShow = source.indexOf(
+      "window.once('ready-to-show'",
+      createBackgroundActivity
+    );
+    const show = source.indexOf('window.show()', readyToShow);
+    const closed = source.indexOf("window.on('closed'", readyToShow);
+    const dispose = source.indexOf(
+      'startupBackgroundActivity.dispose()',
+      closed
+    );
+
+    expect(createBackgroundActivity).toBeGreaterThan(createWindow);
+    expect(readyToShow).toBeGreaterThan(createBackgroundActivity);
+    const prepareStartup = source.indexOf(
+      'startupPresentation.isClaimAvailable()',
+      createBackgroundActivity
+    );
+    const startBeforeFirstPaint = source.indexOf(
+      'startupBackgroundActivity.start()',
+      prepareStartup
+    );
+    expect(prepareStartup).toBeGreaterThan(createBackgroundActivity);
+    expect(startBeforeFirstPaint).toBeLessThan(readyToShow);
+    expect(source).toContain(
+      'activeStartupBackgroundActivity = startupBackgroundActivity'
+    );
+    const claim = source.indexOf(
+      'claimStartupPresentation: async (senderId)'
+    );
+    const captureController = source.indexOf(
+      'const startupBackgroundActivity =',
+      claim
+    );
+    const awaitClaim = source.indexOf(
+      'await startupPresentation.claim()',
+      captureController
+    );
+    const start = source.indexOf(
+      'startupBackgroundActivity?.start()',
+      awaitClaim
+    );
+
+    expect(claim).toBeGreaterThan(-1);
+    expect(captureController).toBeGreaterThan(claim);
+    expect(awaitClaim).toBeGreaterThan(captureController);
+    expect(start).toBeGreaterThan(awaitClaim);
+    expect(source).toContain(
+      'activeStartupBackgroundActivityId === senderId'
+    );
+    expect(source).toContain('completeStartupPresentation: (senderId)');
+    expect(dispose).toBeGreaterThan(closed);
+  });
+
   it('serializes main-window preparation and blocks commitment during shutdown', () => {
     expect(source).toContain('createSingleWindowCreationGate({');
     expect(source).toContain(

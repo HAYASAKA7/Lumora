@@ -1194,6 +1194,7 @@ export default function App(): ReactNode {
   );
   const dismissStartupPresentation = useCallback(() => {
     setStartupDismissed(true);
+    void window.lumora.completeStartupPresentation().catch(() => undefined);
   }, []);
   const startupReady = Object.values(startupTasks).every(Boolean);
   const startupPresentationActive =

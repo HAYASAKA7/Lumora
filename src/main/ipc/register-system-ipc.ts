@@ -1,5 +1,6 @@
 import {
   IPC_CHANNELS,
+  StartupPresentationCompletionSchema,
   SystemInfoSchema,
   type SystemInfo
 } from '../../shared/contracts';
@@ -7,6 +8,7 @@ import { isTrustedRendererUrl } from '../security-policy';
 
 interface IpcInvokeEventLike {
   senderFrame: { url: string } | null;
+  sender: { id: number };
 }
 
 interface IpcRegistrar {
@@ -21,7 +23,8 @@ interface RegisterSystemIpcDependencies {
   platform: string;
   arch: string;
   appVersion: string;
-  claimStartupPresentation(): Promise<boolean>;
+  claimStartupPresentation(senderId: number): Promise<boolean>;
+  completeStartupPresentation(senderId: number): void;
   developmentOrigin?: string;
 }
 
@@ -40,6 +43,7 @@ export function registerSystemIpc({
   arch,
   appVersion,
   claimStartupPresentation,
+  completeStartupPresentation,
   developmentOrigin
 }: RegisterSystemIpcDependencies): void {
   const assertTrustedRenderer = (event: IpcInvokeEventLike): void => {
@@ -58,6 +62,13 @@ export function registerSystemIpc({
   });
   ipc.handle(IPC_CHANNELS.startupPresentationClaim, async (event) => {
     assertTrustedRenderer(event);
-    return claimStartupPresentation();
+    return claimStartupPresentation(event.sender.id);
+  });
+  ipc.handle(IPC_CHANNELS.startupPresentationComplete, async (event) => {
+    assertTrustedRenderer(event);
+    completeStartupPresentation(event.sender.id);
+    return StartupPresentationCompletionSchema.parse({
+      acknowledged: true
+    });
   });
 }

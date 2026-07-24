@@ -48,7 +48,11 @@ import {
   resolveRendererAssetPath
 } from './security-policy';
 import { createSingleWindowCreationGate } from './single-window-creation';
-import { createStartupPresentationController } from './startup-presentation';
+import {
+  createStartupBackgroundActivityController,
+  createStartupPresentationController,
+  type StartupBackgroundActivityController
+} from './startup-presentation';
 import {
   configurePackagedWindowsApplicationIdentity,
   configurePackagedWindowsTaskbarWindow
@@ -125,7 +129,11 @@ let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
+let activeStartupBackgroundActivity:
+  | StartupBackgroundActivityController
+  | null = null;
 let pendingWindowStateFlush: Promise<void> = Promise.resolve();
+let activeStartupBackgroundActivityId: number | null = null;
 let shutdownStarted = false;
 
 configureDevelopmentDataPaths(app);
@@ -185,6 +193,14 @@ async function createMainWindow({
     ...secureWindowOptions,
     ...(restore.normalBounds === null ? {} : restore.normalBounds)
   });
+  const startupBackgroundActivityId = window.webContents.id;
+  const startupBackgroundActivity =
+    createStartupBackgroundActivityController(window.webContents);
+  if (startupPresentation.isClaimAvailable()) {
+    startupBackgroundActivity.start();
+  }
+  activeStartupBackgroundActivity = startupBackgroundActivity;
+  activeStartupBackgroundActivityId = startupBackgroundActivityId;
   configurePackagedWindowsTaskbarWindow(window, {
     platform,
     packaged: app.isPackaged,
@@ -207,6 +223,11 @@ async function createMainWindow({
     startupPresentation.markWindowShown();
   });
   window.on('closed', () => {
+    startupBackgroundActivity.dispose();
+    if (activeStartupBackgroundActivity === startupBackgroundActivity) {
+      activeStartupBackgroundActivityId = null;
+      activeStartupBackgroundActivity = null;
+    }
     if (activeWindowStateManager === windowStateManager) {
       activeWindowStateManager = null;
     }
@@ -276,7 +297,22 @@ void app.whenReady().then(async () => {
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
-    claimStartupPresentation: () => startupPresentation.claim(),
+    claimStartupPresentation: async (senderId) => {
+      const startupBackgroundActivity =
+        activeStartupBackgroundActivityId === senderId
+          ? activeStartupBackgroundActivity
+          : null;
+      const shouldPlay = await startupPresentation.claim();
+      if (shouldPlay) {
+        startupBackgroundActivity?.start();
+      }
+      return shouldPlay;
+    },
+    completeStartupPresentation: (senderId) => {
+      if (activeStartupBackgroundActivityId === senderId) {
+        activeStartupBackgroundActivity?.complete();
+      }
+    },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerEnvironmentIpc({

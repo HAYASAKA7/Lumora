@@ -177,6 +177,9 @@ describe('IPC_CHANNELS', () => {
     expect(IPC_CHANNELS.startupPresentationClaim).toBe(
       'lumora:system:startup-presentation:claim'
     );
+    expect(IPC_CHANNELS.startupPresentationComplete).toBe(
+      'lumora:system:startup-presentation:complete'
+    );
   });
 
   it('names every channel inside the Lumora namespace', () => {

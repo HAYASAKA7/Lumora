@@ -242,6 +242,7 @@ function runningRuntime(
 
 interface CatalogApiOverrides {
   claimStartupPresentation?: ReturnType<typeof vi.fn>;
+  completeStartupPresentation?: ReturnType<typeof vi.fn>;
   scanDeveloperEnvironment?: ReturnType<typeof vi.fn>;
   openNodeDownloadPage?: ReturnType<typeof vi.fn>;
   getCatalog?: ReturnType<typeof vi.fn>;
@@ -286,6 +287,9 @@ function setSystemInfoResult(
     value: {
       claimStartupPresentation:
         catalogApi.claimStartupPresentation ?? vi.fn().mockResolvedValue(false),
+      completeStartupPresentation:
+        catalogApi.completeStartupPresentation ??
+        vi.fn().mockResolvedValue(undefined),
       getSystemInfo: result,
       scanProviders,
       scanDeveloperEnvironment:
@@ -2578,8 +2582,10 @@ describe('App', () => {
     };
     const refreshed = deferred<CatalogSnapshot>();
     const claimStartupPresentation = vi.fn().mockResolvedValue(true);
+    const completeStartupPresentation = vi.fn().mockResolvedValue(undefined);
     setSystemInfoResult(undefined, undefined, {
       claimStartupPresentation,
+      completeStartupPresentation,
       getCatalog: vi.fn().mockResolvedValue(cachedCatalog),
       refreshCatalog: vi.fn(() => refreshed.promise)
     });
@@ -2613,6 +2619,7 @@ describe('App', () => {
         screen.queryByRole('status', { name: 'Lumora is starting' })
       ).not.toBeInTheDocument()
     );
+    expect(completeStartupPresentation).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
   });
 

@@ -7,6 +7,11 @@ import {
   type ReactNode
 } from 'react';
 
+import {
+  STARTUP_PRESENTATION_FADE_MS,
+  STARTUP_PRESENTATION_TIMEOUT_MS
+} from '../../../shared/startup-presentation';
+
 interface StartupOverlayProps {
   shouldPlay: boolean | null;
   ready: boolean;
@@ -23,8 +28,8 @@ export function StartupOverlay({
   videoSrc,
   posterSrc,
   onDismissed,
-  timeoutMs = 15_000,
-  fadeDurationMs = 500
+  timeoutMs = STARTUP_PRESENTATION_TIMEOUT_MS,
+  fadeDurationMs = STARTUP_PRESENTATION_FADE_MS
 }: StartupOverlayProps): ReactNode {
   const [mediaFinished, setMediaFinished] = useState(false);
   const [leaving, setLeaving] = useState(false);

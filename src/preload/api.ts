@@ -29,6 +29,7 @@ import {
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   StartupPresentationClaimSchema,
+  StartupPresentationCompletionSchema,
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
@@ -59,6 +60,12 @@ export function createLumoraApi(
         IPC_CHANNELS.startupPresentationClaim
       ).then((value) => StartupPresentationClaimSchema.parse(value));
       return startupPresentationClaim;
+    },
+    async completeStartupPresentation() {
+      const value = await invoke(
+        IPC_CHANNELS.startupPresentationComplete
+      );
+      StartupPresentationCompletionSchema.parse(value);
     },
     async getSystemInfo() {
       const value = await invoke(IPC_CHANNELS.systemInfo);
