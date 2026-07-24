@@ -69,7 +69,7 @@ function selectorSpecificity(selector: string): Specificity {
 }
 
 function compareSpecificity(left: Specificity, right: Specificity): number {
-  for (let index = 0; index < left.length; index += 1) {
+  for (const index of [0, 1, 2] as const) {
     const difference = left[index] - right[index];
     if (difference !== 0) {
       return difference;
@@ -91,13 +91,19 @@ function winningPseudoElementDeclaration(
   const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
 
   for (const match of normalizedStyles.matchAll(flatRulePattern)) {
-    const declarations = effectiveDeclarations(match[2]);
+    const selectorList = match[1];
+    const ruleBody = match[2];
+    if (selectorList === undefined || ruleBody === undefined) {
+      continue;
+    }
+
+    const declarations = effectiveDeclarations(ruleBody);
     const value = declarations.get(property);
     if (value === undefined) {
       continue;
     }
 
-    for (const rawSelector of match[1].split(',')) {
+    for (const rawSelector of selectorList.split(',')) {
       const selector = normalizeSelector(rawSelector);
       if (!selector.endsWith(pseudoElement)) {
         continue;
@@ -133,7 +139,13 @@ function groupedRule(expectedMembers: readonly string[]): string {
   const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
 
   for (const match of normalizedStyles.matchAll(flatRulePattern)) {
-    const actual = match[1]
+    const selectorList = match[1];
+    const ruleBody = match[2];
+    if (selectorList === undefined || ruleBody === undefined) {
+      continue;
+    }
+
+    const actual = selectorList
       .split(',')
       .map(normalizeSelector)
       .sort();
@@ -142,7 +154,7 @@ function groupedRule(expectedMembers: readonly string[]): string {
       actual.every((member, index) => member === expected[index]);
 
     if (matches) {
-      return match[2];
+      return ruleBody;
     }
   }
 
