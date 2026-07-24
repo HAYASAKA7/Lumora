@@ -235,7 +235,11 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByRole('textbox', {
       name: 'Task for the new session'
     })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Fork session' })).toBeDisabled();
+    const forkButton = screen.getByRole('button', { name: 'Fork session' });
+    expect(forkButton).toBeDisabled();
+    expect(forkButton).toHaveClass('launch-action-button');
+    expect(forkButton).not.toHaveClass('is-pending');
+    expect(screen.getByText('Enter a task to prepare the fork.')).toBeVisible();
     expect(screen.getByText(
       'The source session is active. Both sessions use the same workspace, so concurrent file edits may conflict.'
     )).toBeVisible();
@@ -243,13 +247,12 @@ describe('ResumeSessionDialog', () => {
     const taskInput = screen.getByRole('textbox', {
       name: 'Task for the new session'
     });
-    fireEvent.change(taskInput, { target: { value: 'Fix' } });
     fireEvent.change(taskInput, {
       target: { value: 'Fix the failing tests.' }
     });
-    expect(prepareLaunch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ strategy: 'fork' })
-    );
+    expect(screen.queryByText(
+      'The selected session is not currently available to fork.'
+    )).not.toBeInTheDocument();
 
     await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
       strategy: 'fork',

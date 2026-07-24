@@ -846,6 +846,14 @@ button {
   opacity: 0.58;
 }
 
+.launch-action-button:disabled {
+  cursor: not-allowed;
+}
+
+.launch-action-button.is-pending:disabled {
+  cursor: wait;
+}
+
 .refresh-button .icon {
   width: 16px;
   height: 16px;

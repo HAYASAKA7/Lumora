@@ -61,7 +61,6 @@ export function ResumeSessionDialog({
   const [profileId, setProfileId] = useState('');
   const [continuation, setContinuation] = useState<'resume' | 'new'>('resume');
   const [task, setTask] = useState('');
-  const [forkPreflightTask, setForkPreflightTask] = useState('');
   const [destinationProvider, setDestinationProvider] = useState<ProviderId>(
     session.provider
   );
@@ -130,18 +129,6 @@ export function ResumeSessionDialog({
     task.trim().length > 0 &&
     task.length <= 4_096 &&
     !/[\0\r\n]/.test(task);
-  useEffect(() => {
-    if (!isNativeFork || !validForkTask) {
-      setForkPreflightTask('');
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      setForkPreflightTask(task);
-    }, 300);
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [isNativeFork, task, validForkTask]);
   const canPrepare =
     availableProfiles.length > 0 &&
     (profileId === '' ||
@@ -151,8 +138,7 @@ export function ResumeSessionDialog({
     (continuation === 'resume'
       ? provider?.state === 'ready'
       : destination?.state === 'ready') &&
-    (!isNativeFork ||
-      (validForkTask && forkPreflightTask === task));
+    (!isNativeFork || validForkTask);
   const request = useMemo<LaunchPrepareRequest | null>(
     () => canPrepare
       ? continuation === 'resume'
@@ -167,7 +153,7 @@ export function ResumeSessionDialog({
           ? {
               strategy: 'fork',
               sessionId: session.id,
-              task: forkPreflightTask,
+              task,
               terminalProfileId: profileId || null,
               cols: 100,
               rows: 30
@@ -188,7 +174,7 @@ export function ResumeSessionDialog({
       isNativeFork,
       profileId,
       session.id,
-      forkPreflightTask
+      task
     ]
   );
   const preflight = useLaunchPreflight(request);
@@ -434,7 +420,9 @@ export function ResumeSessionDialog({
         ) : preview === null ? (
           <div className="launch-empty">
             <p>
-              {isCrossAgent
+              {isNativeFork && !validForkTask
+                ? 'Enter a task to prepare the fork.'
+                : isCrossAgent
                 ? 'The selected session is not currently available to hand off.'
                 : isNativeFork
                   ? 'The selected session is not currently available to fork.'
@@ -456,7 +444,11 @@ export function ResumeSessionDialog({
 
         <footer>
           <button
-            className="refresh-button"
+            className={`refresh-button launch-action-button${
+              preflight.status === 'preparing' || starting
+                ? ' is-pending'
+                : ''
+            }`}
             disabled={
               preview === null ||
               preflight.status !== 'ready' ||
