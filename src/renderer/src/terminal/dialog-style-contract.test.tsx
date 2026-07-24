@@ -22,6 +22,54 @@ function rule(selector: string): string {
   return normalizedStyles.slice(bodyStart, bodyEnd);
 }
 
+function effectiveDeclarations(ruleBody: string): ReadonlyMap<string, string> {
+  const declarations = new Map<string, string>();
+
+  for (const declaration of ruleBody.split(';')) {
+    const separator = declaration.indexOf(':');
+    if (separator < 0) {
+      continue;
+    }
+
+    const property = declaration.slice(0, separator).trim();
+    const value = declaration.slice(separator + 1).trim();
+    if (property) {
+      declarations.set(property, value);
+    }
+  }
+
+  return declarations;
+}
+
+function normalizeSelector(selector: string): string {
+  return selector.trim().replace(/\s+/g, ' ');
+}
+
+function groupedRule(expectedMembers: readonly string[]): string {
+  const expected = expectedMembers.map(normalizeSelector).sort();
+  const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
+
+  for (const match of normalizedStyles.matchAll(flatRulePattern)) {
+    const actual = match[1]
+      .split(',')
+      .map(normalizeSelector)
+      .sort();
+    const matches =
+      actual.length === expected.length &&
+      actual.every((member, index) => member === expected[index]);
+
+    if (matches) {
+      return match[2];
+    }
+  }
+
+  expect(
+    undefined,
+    `Missing CSS rule for selector members: ${expected.join(', ')}`
+  ).toBeDefined();
+  return '';
+}
+
 function nestedBlocks(selector: string): readonly string[] {
   const blocks: string[] = [];
   let searchStart = 0;
@@ -65,10 +113,11 @@ function nestedBlocks(selector: string): readonly string[] {
 describe('popup layout styles', () => {
   it('keeps standard dialogs content-sized and viewport bounded', () => {
     const dialog = rule('.new-session-dialog');
-    expect(dialog).toContain('--modal-shell-inset: 18px');
-    expect(dialog).toContain('--modal-section-gap: 12px');
-    expect(dialog).toContain('--modal-control-gap: 8px');
-    expect(dialog).toContain('--modal-scrollbar-size: 8px');
+    const dialogDeclarations = effectiveDeclarations(dialog);
+    expect(dialogDeclarations.get('--modal-shell-inset')).toBe('18px');
+    expect(dialogDeclarations.get('--modal-section-gap')).toBe('12px');
+    expect(dialogDeclarations.get('--modal-control-gap')).toBe('8px');
+    expect(dialogDeclarations.get('--modal-scrollbar-size')).toBe('8px');
     expect(dialog).toContain('display: grid');
     expect(dialog).toContain(
       'grid-template-rows: auto minmax(0, auto) auto'
@@ -78,10 +127,12 @@ describe('popup layout styles', () => {
       'max-height: calc(100vh - 56px)'
     );
     expect(dialog).not.toContain('height: min(');
-    expect(dialog).toContain(
-      'padding: var(--modal-shell-inset) calc(var(--modal-shell-inset) - var(--modal-scrollbar-size))'
+    expect(dialogDeclarations.get('padding')).toBe(
+      'var(--modal-shell-inset) calc(var(--modal-shell-inset) - var(--modal-scrollbar-size))'
     );
-    expect(dialog).toContain('row-gap: var(--modal-section-gap)');
+    expect(dialogDeclarations.get('row-gap')).toBe(
+      'var(--modal-section-gap)'
+    );
     expect(dialog).toContain('overflow: hidden');
 
     expect(rule('.terminal-details-dialog')).toContain(
@@ -95,53 +146,62 @@ describe('popup layout styles', () => {
   });
 
   it('aligns modal content symmetrically outside fixed scrollbar gutters', () => {
-    const body = rule('.dialog-body');
-    expect(body).toContain('display: grid');
-    expect(body).toContain('gap: var(--modal-section-gap)');
-    expect(body).toContain('scrollbar-gutter: stable both-edges');
+    const body = effectiveDeclarations(rule('.dialog-body'));
+    expect(body.get('display')).toBe('grid');
+    expect(body.get('gap')).toBe('var(--modal-section-gap)');
+    expect(body.get('scrollbar-gutter')).toBe('stable both-edges');
 
-    const scrollingSections = rule(
-      '.launch-readiness,\n.resume-workflow-stage'
+    const scrollingSections = effectiveDeclarations(
+      groupedRule(['.launch-readiness', '.resume-workflow-stage'])
     );
-    expect(scrollingSections).toContain(
-      'margin-inline: calc(-1 * var(--modal-scrollbar-size))'
+    expect(scrollingSections.get('margin-inline')).toBe(
+      'calc(-1 * var(--modal-scrollbar-size))'
     );
-    expect(scrollingSections).toContain(
-      'scrollbar-gutter: stable both-edges'
+    expect(scrollingSections.get('scrollbar-gutter')).toBe(
+      'stable both-edges'
     );
 
-    expect(
-      rule(
-        '.dialog-body::-webkit-scrollbar,\n' +
-        '.launch-readiness::-webkit-scrollbar,\n' +
+    const scrollbars = effectiveDeclarations(
+      groupedRule([
+        '.dialog-body::-webkit-scrollbar',
+        '.launch-readiness::-webkit-scrollbar',
         '.resume-workflow-stage::-webkit-scrollbar'
-      )
-    ).toContain('width: var(--modal-scrollbar-size)');
+      ])
+    );
+    expect(scrollbars.get('width')).toBe('var(--modal-scrollbar-size)');
   });
 
   it('uses shared section and control gaps instead of competing margins', () => {
-    expect(rule('.launch-fields')).toContain(
-      'gap: var(--modal-control-gap)'
+    expect(effectiveDeclarations(rule('.launch-fields')).get('gap')).toBe(
+      'var(--modal-control-gap)'
     );
-    expect(rule('.launch-fields label')).toContain('margin: 0');
-
-    const scrollingSections = rule(
-      '.launch-readiness,\n.resume-workflow-stage'
-    );
-    expect(scrollingSections).toContain('gap: var(--modal-section-gap)');
-    expect(rule('.launch-readiness')).toContain('margin-top: 0');
-
     expect(
-      rule(
-        '.dialog-body > .card-description,\n' +
-        '.dialog-body > .resume-session-details,\n' +
-        '.dialog-body > .continuation-options,\n' +
-        '.dialog-body > .handoff-explanation,\n' +
-        '.dialog-body > .launch-details,\n' +
-        '.dialog-body > .workspace-trust-notice,\n' +
-        '.launch-readiness > .catalog-error'
-      )
-    ).toContain('margin: 0');
+      effectiveDeclarations(rule('.launch-fields label')).get('margin')
+    ).toBe('0');
+
+    const scrollingSections = effectiveDeclarations(
+      groupedRule(['.launch-readiness', '.resume-workflow-stage'])
+    );
+    expect(scrollingSections.get('gap')).toBe(
+      'var(--modal-section-gap)'
+    );
+    expect(
+      effectiveDeclarations(rule('.launch-readiness')).get('margin-top')
+    ).toBe('0');
+
+    const directSections = effectiveDeclarations(
+      groupedRule([
+        '.dialog-body > .card-description',
+        '.dialog-body > .resume-session-details',
+        '.dialog-body > .continuation-options',
+        '.dialog-body > .handoff-explanation',
+        '.dialog-body > .launch-details',
+        '.dialog-body > .workspace-trust-notice',
+        '.launch-readiness > .catalog-error',
+        '.new-session-dialog footer'
+      ])
+    );
+    expect(directSections.get('margin')).toBe('0');
   });
 
   it('reserves stable regions for launch readiness and resume workflow pages', () => {
