@@ -45,6 +45,89 @@ function normalizeSelector(selector: string): string {
   return selector.trim().replace(/\s+/g, ' ');
 }
 
+type Specificity = readonly [number, number, number];
+
+function selectorSpecificity(selector: string): Specificity {
+  const pseudoElements = selector.match(/::[\w-]+/g)?.length ?? 0;
+  const withoutPseudoElements = selector.replace(/::[\w-]+/g, '');
+  const withoutNot = withoutPseudoElements.replace(
+    /:not\(([^()]*)\)/g,
+    '$1'
+  );
+  const ids = withoutNot.match(/#[\w-]+/g)?.length ?? 0;
+  const classes = withoutNot.match(/\.[\w-]+/g)?.length ?? 0;
+  const attributes = withoutNot.match(/\[[^\]]+\]/g)?.length ?? 0;
+  const pseudoClasses = withoutNot.match(/:(?!:)[\w-]+/g)?.length ?? 0;
+  const types =
+    withoutNot.match(/(?:^|[\s>+~,(])([a-zA-Z][\w-]*)/g)?.length ?? 0;
+
+  return [
+    ids,
+    classes + attributes + pseudoClasses,
+    types + pseudoElements
+  ];
+}
+
+function compareSpecificity(left: Specificity, right: Specificity): number {
+  for (let index = 0; index < left.length; index += 1) {
+    const difference = left[index] - right[index];
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
+}
+
+function winningPseudoElementDeclaration(
+  element: Element,
+  pseudoElement: string,
+  property: string
+): string | undefined {
+  const candidates: Array<{
+    value: string;
+    specificity: Specificity;
+    sourceOrder: number;
+  }> = [];
+  const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
+
+  for (const match of normalizedStyles.matchAll(flatRulePattern)) {
+    const declarations = effectiveDeclarations(match[2]);
+    const value = declarations.get(property);
+    if (value === undefined) {
+      continue;
+    }
+
+    for (const rawSelector of match[1].split(',')) {
+      const selector = normalizeSelector(rawSelector);
+      if (!selector.endsWith(pseudoElement)) {
+        continue;
+      }
+
+      const originatingElementSelector = selector.slice(
+        0,
+        -pseudoElement.length
+      );
+      if (element.matches(originatingElementSelector)) {
+        candidates.push({
+          value,
+          specificity: selectorSpecificity(selector),
+          sourceOrder: match.index ?? 0
+        });
+      }
+    }
+  }
+
+  candidates.sort((left, right) => {
+    const specificityOrder = compareSpecificity(
+      left.specificity,
+      right.specificity
+    );
+    return specificityOrder || left.sourceOrder - right.sourceOrder;
+  });
+
+  return candidates.at(-1)?.value;
+}
+
 function groupedRule(expectedMembers: readonly string[]): string {
   const expected = expectedMembers.map(normalizeSelector).sort();
   const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
@@ -161,14 +244,29 @@ describe('popup layout styles', () => {
       'stable both-edges'
     );
 
-    const scrollbars = effectiveDeclarations(
-      groupedRule([
-        '.dialog-body::-webkit-scrollbar',
-        '.launch-readiness::-webkit-scrollbar',
-        '.resume-workflow-stage::-webkit-scrollbar'
-      ])
-    );
-    expect(scrollbars.get('width')).toBe('var(--modal-scrollbar-size)');
+    const appShell = document.createElement('div');
+    appShell.className = 'app-shell';
+    const dialog = document.createElement('div');
+    dialog.className = 'new-session-dialog';
+    appShell.append(dialog);
+
+    for (const className of [
+      'dialog-body',
+      'launch-readiness',
+      'resume-workflow-stage'
+    ]) {
+      const scrollingRegion = document.createElement('div');
+      scrollingRegion.className = className;
+      dialog.append(scrollingRegion);
+      expect(
+        winningPseudoElementDeclaration(
+          scrollingRegion,
+          '::-webkit-scrollbar',
+          'width'
+        ),
+        `${className} scrollbar width must win the CSS cascade`
+      ).toBe('var(--modal-scrollbar-size)');
+    }
   });
 
   it('uses shared section and control gaps instead of competing margins', () => {

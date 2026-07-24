@@ -2596,9 +2596,9 @@ button {
   scrollbar-gutter: stable both-edges;
 }
 
-.dialog-body::-webkit-scrollbar,
-.launch-readiness::-webkit-scrollbar,
-.resume-workflow-stage::-webkit-scrollbar {
+.app-shell .dialog-body::-webkit-scrollbar,
+.app-shell .launch-readiness::-webkit-scrollbar,
+.app-shell .resume-workflow-stage::-webkit-scrollbar {
   width: var(--modal-scrollbar-size);
 }
 
