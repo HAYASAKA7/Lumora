@@ -9,10 +9,9 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchDetails } from './LaunchDetails';
+import { LaunchReadiness } from './LaunchReadiness';
 import { resolveRuntimeRecovery } from './runtime-recovery';
 import { useLaunchPreflight } from './useLaunchPreflight';
-import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface RuntimeRecoveryDialogProps {
   runtime: RuntimeSummary;
@@ -224,36 +223,19 @@ export function RuntimeRecoveryDialog({
           </label>
         </div>
 
-        {blockingReason === null ? null : (
-          <div className="catalog-operation-error" role="alert">{blockingReason}</div>
-        )}
-        {actionError === null ? null : (
-          <div className="catalog-operation-error" role="alert">{actionError}</div>
-        )}
-
-        {preflight.status === 'preparing' ? (
-          <div className="launch-empty" role="status"><p>Preparing recovery</p></div>
-        ) : preflight.status === 'failed' ? (
-          <div className="catalog-operation-error" role="alert">
-            <span>The recovery preview could not be prepared.</span>{' '}
-            <button className="text-button" onClick={retry} type="button">Retry</button>
-          </div>
-        ) : preview === null ? (
-          <div className="launch-empty">
-            <p>Recovery is not currently available.</p>
-          </div>
-        ) : (
-          <>
-            <LaunchDetails preview={preview} />
-            {preview.workspaceTrusted || workspace === undefined ? null : (
-              <WorkspaceTrustNotice
-                confirmed={trustConfirmed}
-                onConfirmedChange={setTrustConfirmed}
-                workspace={workspace}
-              />
-            )}
-          </>
-        )}
+        <LaunchReadiness
+          actionError={actionError}
+          blockingReason={blockingReason}
+          emptyMessage="Recovery is not currently available."
+          failureMessage="The recovery preview could not be prepared."
+          onRetry={retry}
+          onTrustConfirmedChange={setTrustConfirmed}
+          preparingMessage="Preparing recovery"
+          preview={preview}
+          status={preflight.status}
+          trustConfirmed={trustConfirmed}
+          workspace={workspace}
+        />
         </div>
 
         <footer>

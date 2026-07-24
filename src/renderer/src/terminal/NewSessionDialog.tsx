@@ -9,9 +9,8 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { LaunchDetails } from './LaunchDetails';
+import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
-import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface NewSessionDialogProps {
   initialWorkspaceId?: string | null;
@@ -219,33 +218,18 @@ export function NewSessionDialog({
           </label>
         </div>
 
-        {actionError === null ? null : (
-          <div className="catalog-operation-error" role="alert">{actionError}</div>
-        )}
-
-        {preflight.status === 'preparing' ? (
-          <div className="launch-empty" role="status"><p>Preparing launch</p></div>
-        ) : preflight.status === 'failed' ? (
-          <div className="catalog-operation-error" role="alert">
-            <span>The launch preview could not be prepared.</span>{' '}
-            <button className="text-button" onClick={retry} type="button">Retry</button>
-          </div>
-        ) : preview === null ? (
-          <div className="launch-empty">
-            <p>Select an available workspace, provider, and terminal profile.</p>
-          </div>
-        ) : (
-          <>
-            <LaunchDetails preview={preview} />
-            {preview.workspaceTrusted || selectedWorkspace === undefined ? null : (
-              <WorkspaceTrustNotice
-                confirmed={trustConfirmed}
-                onConfirmedChange={setTrustConfirmed}
-                workspace={selectedWorkspace}
-              />
-            )}
-          </>
-        )}
+        <LaunchReadiness
+          actionError={actionError}
+          emptyMessage="Select an available workspace, provider, and terminal profile."
+          failureMessage="The launch preview could not be prepared."
+          onRetry={retry}
+          onTrustConfirmedChange={setTrustConfirmed}
+          preparingMessage="Preparing launch"
+          preview={preview}
+          status={preflight.status}
+          trustConfirmed={trustConfirmed}
+          workspace={selectedWorkspace}
+        />
         </div>
 
         <footer>

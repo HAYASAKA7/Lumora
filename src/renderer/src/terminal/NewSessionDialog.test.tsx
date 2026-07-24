@@ -165,6 +165,9 @@ describe('NewSessionDialog', () => {
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();
+    expect(
+      screen.getByRole('region', { name: 'Launch readiness' })
+    ).toBeInTheDocument();
   });
 
   it('requires a resolved preview before starting the exact launch token', async () => {
@@ -242,6 +245,16 @@ describe('NewSessionDialog', () => {
       name: 'I trust this workspace and want to run the provider here'
     });
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
+    const readiness = screen.getByRole('region', { name: 'Launch readiness' });
+    const trustNotice = screen.getByRole('region', {
+      name: 'Workspace trust required'
+    });
+    const launchDetails = readiness.querySelector('.launch-details');
+    expect(launchDetails).not.toBeNull();
+    expect(
+      trustNotice.compareDocumentPosition(launchDetails!) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
 
     fireEvent.click(confirmation);
     await waitFor(() =>

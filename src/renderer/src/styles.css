@@ -2558,27 +2558,15 @@ button {
 
 .new-session-dialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, auto) auto;
   width: min(760px, 100%);
-  height: min(var(--dialog-height), calc(100vh - 56px));
+  max-height: calc(100vh - 56px);
   padding: 24px;
   overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--shadow);
-}
-
-.new-session-launch-dialog {
-  --dialog-height: 600px;
-}
-
-.resume-session-dialog {
-  --dialog-height: 720px;
-}
-
-.runtime-recovery-dialog {
-  --dialog-height: 660px;
 }
 
 .dialog-body {
@@ -2591,6 +2579,46 @@ button {
 .new-session-dialog :focus-visible,
 .runtime-switcher :focus-visible {
   outline-offset: -3px;
+}
+
+.launch-readiness {
+  display: grid;
+  align-content: start;
+  block-size: 220px;
+  padding-right: 4px;
+  margin-top: 14px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.launch-readiness .workspace-trust-notice {
+  margin-top: 0;
+}
+
+.workspace-trust-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 0.78rem;
+}
+
+.workspace-trust-ready strong {
+  color: var(--success);
+}
+
+.resume-workflow-stage {
+  display: grid;
+  align-content: start;
+  block-size: 400px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .launch-fields {
@@ -3083,7 +3111,6 @@ button {
 }
 
 .terminal-details-dialog {
-  --dialog-height: 580px;
   width: min(900px, 100%);
 }
 
@@ -3235,7 +3262,7 @@ button {
   }
 
   .new-session-dialog {
-    height: min(var(--dialog-height), calc(100vh - 20px));
+    max-height: calc(100vh - 20px);
   }
 
   .new-session-dialog footer {

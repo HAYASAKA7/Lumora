@@ -196,6 +196,9 @@ describe('RuntimeRecoveryDialog', () => {
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();
+    expect(
+      screen.getByRole('region', { name: 'Launch readiness' })
+    ).toBeInTheDocument();
     expect(screen.getAllByText('Resume saved session')).toHaveLength(2);
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
       ''

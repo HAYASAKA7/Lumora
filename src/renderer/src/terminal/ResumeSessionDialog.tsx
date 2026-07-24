@@ -16,9 +16,8 @@ import {
   hasNativeForkSupport,
   supportsNativeForkVersion
 } from '../../../shared/provider-definitions';
-import { LaunchDetails } from './LaunchDetails';
+import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
-import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
 
 interface ResumeSessionDialogProps {
   session: SessionSummary;
@@ -293,7 +292,15 @@ export function ResumeSessionDialog({
           </div>
         </dl>
 
-        {canStartNewSession ? (
+        <section
+          aria-label={
+            continuation === 'new'
+              ? 'New session configuration'
+              : 'Session continuation'
+          }
+          className="resume-workflow-stage"
+        >
+        {canStartNewSession && continuation === 'resume' ? (
           <fieldset className="continuation-options">
             <legend>Continuation</legend>
             <label>
@@ -308,7 +315,7 @@ export function ResumeSessionDialog({
             </label>
             <label>
               <input
-                checked={continuation === 'new'}
+                checked={false}
                 disabled={starting}
                 name="session-continuation"
                 onChange={() => setContinuation('new')}
@@ -392,58 +399,52 @@ export function ResumeSessionDialog({
           </p>
         ) : null}
 
-        {actionError === null ? null : (
-          <div className="catalog-operation-error" role="alert">{actionError}</div>
-        )}
-
-        {preflight.status === 'preparing' ? (
-          <div className="launch-empty" role="status">
-            <p>
-              {isCrossAgent
-                ? 'Preparing handoff'
-                : isNativeFork
-                  ? 'Preparing fork'
-                  : 'Preparing resume'}
-            </p>
-          </div>
-        ) : preflight.status === 'failed' ? (
-          <div className="catalog-operation-error" role="alert">
-            <span>
-              {isCrossAgent
-                ? 'The handoff preview could not be prepared.'
-                : isNativeFork
-                  ? 'The fork preview could not be prepared.'
-                  : 'The resume preview could not be prepared.'}
-            </span>{' '}
-            <button className="text-button" onClick={retry} type="button">Retry</button>
-          </div>
-        ) : preview === null ? (
-          <div className="launch-empty">
-            <p>
-              {isNativeFork && !validForkTask
-                ? 'The initial task must be a single line.'
-                : isCrossAgent
+        <LaunchReadiness
+          actionError={actionError}
+          emptyMessage={
+            isNativeFork && !validForkTask
+              ? 'The initial task must be a single line.'
+              : isCrossAgent
                 ? 'The selected session is not currently available to hand off.'
                 : isNativeFork
                   ? 'The selected session is not currently available to fork.'
-                  : 'The selected session is not currently available to resume.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <LaunchDetails preview={preview} />
-            {preview.workspaceTrusted ? null : (
-              <WorkspaceTrustNotice
-                confirmed={trustConfirmed}
-                onConfirmedChange={setTrustConfirmed}
-                workspace={workspace}
-              />
-            )}
-          </>
-        )}
+                  : 'The selected session is not currently available to resume.'
+          }
+          failureMessage={
+            isCrossAgent
+              ? 'The handoff preview could not be prepared.'
+              : isNativeFork
+                ? 'The fork preview could not be prepared.'
+                : 'The resume preview could not be prepared.'
+          }
+          onRetry={retry}
+          onTrustConfirmedChange={setTrustConfirmed}
+          preparingMessage={
+            isCrossAgent
+              ? 'Preparing handoff'
+              : isNativeFork
+                ? 'Preparing fork'
+                : 'Preparing resume'
+          }
+          preview={preview}
+          status={preflight.status}
+          trustConfirmed={trustConfirmed}
+          workspace={workspace}
+        />
+        </section>
         </div>
 
         <footer>
+          {continuation === 'new' ? (
+            <button
+              className="text-button"
+              disabled={starting}
+              onClick={() => setContinuation('resume')}
+              type="button"
+            >
+              Back to resume
+            </button>
+          ) : null}
           <button
             className={`refresh-button launch-action-button${
               preflight.status === 'preparing' || starting

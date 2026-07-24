@@ -185,6 +185,13 @@ describe('ResumeSessionDialog', () => {
     } = renderDialog();
 
     expect(screen.getByText(session.title)).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Session continuation' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Launch readiness' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to resume' })).not.toBeInTheDocument();
     expect(screen.getByText('Codex')).toBeInTheDocument();
     expect(screen.getByText(workspace.canonicalPath)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
@@ -240,6 +247,11 @@ describe('ResumeSessionDialog', () => {
     fireEvent.click(screen.getByRole('radio', {
       name: 'Start a new session from this context'
     }));
+    expect(
+      screen.getByRole('region', { name: 'New session configuration' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to resume' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Session continuation' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', {
       name: 'Initial task (optional)'
     })).toBeVisible();
@@ -280,6 +292,14 @@ describe('ResumeSessionDialog', () => {
       'fork native-thread Fix the failing tests.'
     )).toBeInTheDocument();
     expect(forkButton).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to resume' }));
+    expect(
+      screen.getByRole('region', { name: 'Session continuation' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('region', {
+      name: 'New session configuration'
+    })).not.toBeInTheDocument();
   });
 
   it('does not offer native fork below the tested provider version', async () => {

@@ -25,14 +25,6 @@ export function WorkspaceTrustNotice({
         </div>
         <code>{workspace.canonicalPath}</code>
       </div>
-      <p>
-        The provider can read, change, and run files here using your
-        operating-system permissions.
-      </p>
-      <p>
-        Lumora records this approval, but it is not an OS sandbox and does not
-        restrict the provider beyond your account permissions.
-      </p>
       <label className="workspace-trust-confirmation">
         <input
           checked={confirmed}
@@ -41,6 +33,14 @@ export function WorkspaceTrustNotice({
         />
         <span>I trust this workspace and want to run the provider here</span>
       </label>
+      <p>
+        The provider can read, change, and run files here using your
+        operating-system permissions.
+      </p>
+      <p>
+        Lumora records this approval, but it is not an OS sandbox and does not
+        restrict the provider beyond your account permissions.
+      </p>
     </section>
   );
 }

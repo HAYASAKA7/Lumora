@@ -28,12 +28,18 @@ describe('WorkspaceTrustNotice', () => {
 
     expect(screen.getByText(workspace.displayName)).toBeInTheDocument();
     expect(screen.getByText(workspace.canonicalPath)).toBeInTheDocument();
-    expect(screen.getByText(/operating-system permissions/i)).toBeInTheDocument();
+    const permissionExplanation = screen.getByText(
+      /operating-system permissions/i
+    );
     expect(screen.getByText(/not an OS sandbox/i)).toBeInTheDocument();
 
     const checkbox = screen.getByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     });
+    expect(
+      checkbox.compareDocumentPosition(permissionExplanation) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
     expect(checkbox).not.toBeChecked();
     fireEvent.click(checkbox);
     expect(onConfirmedChange).toHaveBeenCalledWith(true);

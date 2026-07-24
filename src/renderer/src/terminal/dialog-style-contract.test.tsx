@@ -63,30 +63,19 @@ function nestedBlocks(selector: string): readonly string[] {
 }
 
 describe('popup layout styles', () => {
-  it('keeps standard dialogs stable while only their body scrolls', () => {
+  it('keeps standard dialogs content-sized and viewport bounded', () => {
     const dialog = rule('.new-session-dialog');
     expect(dialog).toContain('display: grid');
     expect(dialog).toContain(
-      'grid-template-rows: auto minmax(0, 1fr) auto'
+      'grid-template-rows: auto minmax(0, auto) auto'
     );
     expect(dialog).toContain('width: min(760px, 100%)');
     expect(dialog).toContain(
-      'height: min(var(--dialog-height), calc(100vh - 56px))'
+      'max-height: calc(100vh - 56px)'
     );
+    expect(dialog).not.toContain('height: min(');
     expect(dialog).toContain('overflow: hidden');
 
-    expect(rule('.new-session-launch-dialog')).toContain(
-      '--dialog-height: 600px'
-    );
-    expect(rule('.resume-session-dialog')).toContain(
-      '--dialog-height: 720px'
-    );
-    expect(rule('.runtime-recovery-dialog')).toContain(
-      '--dialog-height: 660px'
-    );
-    expect(rule('.terminal-details-dialog')).toContain(
-      '--dialog-height: 580px'
-    );
     expect(rule('.terminal-details-dialog')).toContain(
       'width: min(900px, 100%)'
     );
@@ -95,6 +84,16 @@ describe('popup layout styles', () => {
     expect(body).toContain('min-height: 0');
     expect(body).toContain('overflow-y: auto');
     expect(body).toContain('scrollbar-gutter: stable');
+  });
+
+  it('reserves stable regions for launch readiness and resume workflow pages', () => {
+    const readiness = rule('.launch-readiness');
+    expect(readiness).toContain('block-size: 220px');
+    expect(readiness).toContain('overflow-y: auto');
+    expect(readiness).toContain('scrollbar-gutter: stable');
+
+    const workflow = rule('.resume-workflow-stage');
+    expect(workflow).toContain('block-size: 400px');
   });
 
   it('keeps popup focus outlines inside clipped surfaces', () => {
@@ -122,10 +121,10 @@ describe('popup layout styles', () => {
     expect(list).not.toContain('scrollbar-gutter:');
   });
 
-  it('uses the available height for standard dialogs on narrow windows', () => {
+  it('caps standard dialogs to the available height on narrow windows', () => {
     const expectedRule =
       '.new-session-dialog {\n' +
-      '    height: min(var(--dialog-height), calc(100vh - 20px));\n' +
+      '    max-height: calc(100vh - 20px);\n' +
       '  }';
     expect(
       nestedBlocks('@media (max-width: 680px)').some((mobile) =>
