@@ -2512,11 +2512,19 @@ button {
   align-self: start;
 }
 
-.profile-form label,
-.launch-fields label {
+.profile-form label {
   display: grid;
   gap: 6px;
   margin: 16px 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.launch-fields label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
@@ -2557,11 +2565,16 @@ button {
 }
 
 .new-session-dialog {
+  --modal-shell-inset: 18px;
+  --modal-section-gap: 12px;
+  --modal-control-gap: 8px;
+  --modal-scrollbar-size: 8px;
   display: grid;
   grid-template-rows: auto minmax(0, auto) auto;
+  row-gap: var(--modal-section-gap);
   width: min(760px, 100%);
   max-height: calc(100vh - 56px);
-  padding: 24px;
+  padding: var(--modal-shell-inset) calc(var(--modal-shell-inset) - var(--modal-scrollbar-size));
   overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--line);
@@ -2569,11 +2582,24 @@ button {
   box-shadow: var(--shadow);
 }
 
+.new-session-dialog > header,
+.new-session-dialog > footer {
+  padding-inline: var(--modal-scrollbar-size);
+}
+
 .dialog-body {
+  display: grid;
+  align-content: start;
+  gap: var(--modal-section-gap);
   min-height: 0;
-  padding-right: 4px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
+}
+
+.dialog-body::-webkit-scrollbar,
+.launch-readiness::-webkit-scrollbar,
+.resume-workflow-stage::-webkit-scrollbar {
+  width: var(--modal-scrollbar-size);
 }
 
 .new-session-dialog :focus-visible,
@@ -2584,11 +2610,11 @@ button {
 .launch-readiness {
   display: grid;
   align-content: start;
+  gap: var(--modal-section-gap);
   block-size: 220px;
-  padding-right: 4px;
-  margin-top: 14px;
+  margin-top: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 
 .launch-readiness .workspace-trust-notice {
@@ -2615,16 +2641,23 @@ button {
 .resume-workflow-stage {
   display: grid;
   align-content: start;
+  gap: var(--modal-section-gap);
   block-size: 400px;
-  padding-right: 4px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
+}
+
+.launch-readiness,
+.resume-workflow-stage {
+  gap: var(--modal-section-gap);
+  margin-inline: calc(-1 * var(--modal-scrollbar-size));
+  scrollbar-gutter: stable both-edges;
 }
 
 .launch-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--modal-control-gap);
 }
 
 .resume-launch-fields {
@@ -2980,11 +3013,32 @@ button {
   border-radius: 10px;
 }
 
+.dialog-body > .card-description,
+.dialog-body > .resume-session-details,
+.dialog-body > .continuation-options,
+.dialog-body > .handoff-explanation,
+.dialog-body > .launch-details,
+.dialog-body > .workspace-trust-notice,
+.launch-readiness > .catalog-error,
+.new-session-dialog footer {
+  margin: 0;
+}
+
+.dialog-body > .card-description,
+.dialog-body > .resume-session-details,
+.dialog-body > .continuation-options,
+.dialog-body > .handoff-explanation,
+.dialog-body > .launch-details,
+.dialog-body > .workspace-trust-notice,
+.launch-readiness > .catalog-operation-error,
+.new-session-dialog footer {
+  margin: 0;
+}
+
 .new-session-dialog footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 18px;
 }
 
 .terminal-workspace {
