@@ -47,6 +47,10 @@ import {
   SettingsView,
   type SettingsCategory
 } from './settings/SettingsView';
+import {
+  readSidebarExpanded,
+  writeSidebarExpanded
+} from './sidebar/sidebar-preference';
 import { StartupOverlay } from './startup/StartupOverlay';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
@@ -355,7 +359,9 @@ export default function App(): ReactNode {
     useState<string | null>(null);
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('general');
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(() =>
+    readSidebarExpanded(window)
+  );
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
@@ -374,6 +380,11 @@ export default function App(): ReactNode {
   const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    writeSidebarExpanded(window, sidebarExpanded);
+  }, [sidebarExpanded]);
+
   const settleStartupTask = useCallback((task: StartupTask) => {
     setStartupTasks((current) =>
       current[task] ? current : { ...current, [task]: true }

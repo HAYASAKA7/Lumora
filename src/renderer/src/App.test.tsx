@@ -27,6 +27,7 @@ import type {
 } from '../../shared/contracts';
 import App from './App';
 import { CATALOG_EXIT_REFRESH_DELAY_MS } from './catalog/useCatalogAutoRefresh';
+import { SIDEBAR_EXPANSION_STORAGE_KEY } from './sidebar/sidebar-preference';
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
@@ -346,8 +347,32 @@ function setSystemInfoResult(
   });
 }
 
+function createLocalStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, value);
+    }
+  };
+}
+
 describe('App', () => {
-  beforeEach(() => setSystemInfoResult());
+  beforeEach(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: createLocalStorage()
+    });
+    setSystemInfoResult();
+  });
 
   it('uses the canonical Lumora brand artwork in the sidebar', () => {
     render(<App />);
@@ -368,6 +393,29 @@ describe('App', () => {
 
     expect(screen.queryByText('Discovery mode')).not.toBeInTheDocument();
     expect(document.querySelector('.sidebar-note')).not.toBeInTheDocument();
+  });
+
+  it('restores and persists the sidebar expansion state', async () => {
+    window.localStorage.setItem(
+      SIDEBAR_EXPANSION_STORAGE_KEY,
+      'collapsed'
+    );
+
+    render(<App />);
+
+    const shell = document.querySelector('.app-shell');
+    const expand = screen.getByRole('button', { name: 'Expand sidebar' });
+    expect(shell).toHaveClass('sidebar-collapsed');
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(expand);
+
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(SIDEBAR_EXPANSION_STORAGE_KEY)
+      ).toBe('expanded');
+    });
+    expect(shell).not.toHaveClass('sidebar-collapsed');
   });
 
   it('collapses and expands the sidebar without remounting navigation icons', async () => {
