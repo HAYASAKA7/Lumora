@@ -60,6 +60,7 @@ export function TerminalDetailsDialog({
           </button>
         </header>
 
+        <div className="dialog-body">
         <aside aria-label="Launch inspector" className="terminal-inspector">
           <dl>
             <div><dt>Provider</dt><dd>{runtime.provider}</dd></div>
@@ -75,6 +76,7 @@ export function TerminalDetailsDialog({
             <LaunchConfiguration preview={preview} />
           )}
         </aside>
+        </div>
       </section>
     </div>
   );

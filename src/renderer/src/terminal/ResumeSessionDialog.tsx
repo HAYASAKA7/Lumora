@@ -250,7 +250,7 @@ export function ResumeSessionDialog({
       <section
         aria-labelledby="resume-session-title"
         aria-modal="true"
-        className="new-session-dialog resume-session-dialog"
+        className="new-session-dialog"
         role="dialog"
       >
         <header>
@@ -274,7 +274,7 @@ export function ResumeSessionDialog({
           </button>
         </header>
 
-        <div className="resume-session-dialog-body">
+        <div className="dialog-body">
         <dl className="resume-session-details">
           <div>
             <dt>Session</dt>

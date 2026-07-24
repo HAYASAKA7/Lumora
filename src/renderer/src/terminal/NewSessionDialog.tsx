@@ -190,6 +190,7 @@ export function NewSessionDialog({
           <button aria-label="Close new session" className="text-button" onClick={onClose} type="button">Close</button>
         </header>
 
+        <div className="dialog-body">
         <div className="launch-fields">
           <label>
             <span>Workspace</span>
@@ -245,6 +246,7 @@ export function NewSessionDialog({
             )}
           </>
         )}
+        </div>
 
         <footer>
           <button

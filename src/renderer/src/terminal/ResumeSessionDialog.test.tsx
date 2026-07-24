@@ -233,8 +233,9 @@ describe('ResumeSessionDialog', () => {
     });
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveClass('resume-session-dialog');
-    expect(dialog.querySelector('.resume-session-dialog-body')).not.toBeNull();
+    expect(dialog.querySelector(
+      ':scope > .dialog-body'
+    )).not.toBeNull();
     fireEvent.click(screen.getByRole('radio', {
       name: 'Start a new session from this context'
     }));

@@ -191,6 +191,10 @@ describe('RuntimeRecoveryDialog', () => {
   it('previews and starts an exact native resume with configured defaults', async () => {
     const { prepareLaunch, startRuntime, onStarted } = renderDialog();
 
+    const dialog = screen.getByRole('dialog', { name: 'Recover lost runtime' });
+    expect(dialog.querySelector(
+      ':scope > .dialog-body'
+    )).not.toBeNull();
     expect(screen.getAllByText('Resume saved session')).toHaveLength(2);
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
       ''

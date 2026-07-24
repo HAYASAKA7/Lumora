@@ -196,6 +196,7 @@ export function RuntimeRecoveryDialog({
           </button>
         </header>
 
+        <div className="dialog-body">
         <p className="card-description">
           Lumora cannot reattach the previous terminal. Recovery creates a new
           managed runtime and keeps the lost record as history.
@@ -253,6 +254,7 @@ export function RuntimeRecoveryDialog({
             )}
           </>
         )}
+        </div>
 
         <footer>
           <button

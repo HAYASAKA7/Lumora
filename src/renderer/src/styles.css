@@ -2557,28 +2557,28 @@ button {
 }
 
 .new-session-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(760px, 100%);
-  max-height: calc(100vh - 56px);
+  height: min(720px, calc(100vh - 56px));
   padding: 24px;
-  overflow: auto;
+  overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--shadow);
 }
 
-.resume-session-dialog {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  height: min(720px, calc(100vh - 56px));
-  overflow: hidden;
-}
-
-.resume-session-dialog-body {
+.dialog-body {
   min-height: 0;
   padding-right: 4px;
   overflow-y: auto;
   scrollbar-gutter: stable;
+}
+
+.new-session-dialog :focus-visible,
+.runtime-switcher :focus-visible {
+  outline-offset: -3px;
 }
 
 .launch-fields {
@@ -3092,7 +3092,10 @@ button {
 }
 
 .runtime-switcher {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(440px, calc(100vw - 40px));
+  height: min(380px, calc(82vh - 24px));
   overflow: hidden;
   color: #dce7f5;
   background: var(--navy-900);
@@ -3117,8 +3120,11 @@ button {
 
 .runtime-switcher-list {
   display: grid;
+  min-height: 0;
   gap: 2px;
   padding: 0 7px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .runtime-switcher-option {
@@ -3221,7 +3227,7 @@ button {
     padding: 10px;
   }
 
-  .resume-session-dialog {
+  .new-session-dialog {
     height: calc(100vh - 20px);
   }
 

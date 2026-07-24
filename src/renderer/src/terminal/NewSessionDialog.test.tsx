@@ -160,6 +160,10 @@ describe('NewSessionDialog', () => {
     expect(screen.getByRole('combobox', { name: 'Workspace' })).toHaveValue(
       workspace.id
     );
+    const dialog = screen.getByRole('dialog', { name: 'New session' });
+    expect(dialog.querySelector(
+      ':scope > .dialog-body'
+    )).not.toBeNull();
   });
 
   it('requires a resolved preview before starting the exact launch token', async () => {
