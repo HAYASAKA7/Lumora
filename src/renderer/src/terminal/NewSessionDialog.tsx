@@ -179,7 +179,7 @@ export function NewSessionDialog({
       <section
         aria-labelledby="new-session-title"
         aria-modal="true"
-        className="new-session-dialog"
+        className="new-session-dialog new-session-launch-dialog"
         role="dialog"
       >
         <header>

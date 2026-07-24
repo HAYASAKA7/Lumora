@@ -178,7 +178,7 @@ export function RuntimeRecoveryDialog({
       <section
         aria-labelledby="runtime-recovery-title"
         aria-modal="true"
-        className="new-session-dialog"
+        className="new-session-dialog runtime-recovery-dialog"
         role="dialog"
       >
         <header>

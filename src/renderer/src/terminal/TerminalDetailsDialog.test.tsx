@@ -37,6 +37,7 @@ describe('TerminalDetailsDialog', () => {
 
     expect(screen.getByText('Fork')).toBeInTheDocument();
     const dialog = screen.getByRole('dialog', { name: 'Terminal details' });
+    expect(dialog).toHaveClass('terminal-details-dialog');
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();

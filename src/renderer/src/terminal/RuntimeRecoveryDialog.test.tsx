@@ -192,6 +192,7 @@ describe('RuntimeRecoveryDialog', () => {
     const { prepareLaunch, startRuntime, onStarted } = renderDialog();
 
     const dialog = screen.getByRole('dialog', { name: 'Recover lost runtime' });
+    expect(dialog).toHaveClass('runtime-recovery-dialog');
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();

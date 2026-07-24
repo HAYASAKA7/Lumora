@@ -161,6 +161,7 @@ describe('NewSessionDialog', () => {
       workspace.id
     );
     const dialog = screen.getByRole('dialog', { name: 'New session' });
+    expect(dialog).toHaveClass('new-session-launch-dialog');
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();

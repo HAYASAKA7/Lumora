@@ -233,6 +233,7 @@ describe('ResumeSessionDialog', () => {
     });
 
     const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('resume-session-dialog');
     expect(dialog.querySelector(
       ':scope > .dialog-body'
     )).not.toBeNull();

@@ -2560,13 +2560,25 @@ button {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(760px, 100%);
-  height: min(720px, calc(100vh - 56px));
+  height: min(var(--dialog-height), calc(100vh - 56px));
   padding: 24px;
   overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--shadow);
+}
+
+.new-session-launch-dialog {
+  --dialog-height: 600px;
+}
+
+.resume-session-dialog {
+  --dialog-height: 720px;
+}
+
+.runtime-recovery-dialog {
+  --dialog-height: 660px;
 }
 
 .dialog-body {
@@ -3071,6 +3083,7 @@ button {
 }
 
 .terminal-details-dialog {
+  --dialog-height: 580px;
   width: min(900px, 100%);
 }
 
@@ -3228,7 +3241,7 @@ button {
   }
 
   .new-session-dialog {
-    height: calc(100vh - 20px);
+    height: min(var(--dialog-height), calc(100vh - 20px));
   }
 
   .new-session-dialog footer {
