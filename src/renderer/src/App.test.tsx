@@ -1961,6 +1961,60 @@ describe('App', () => {
     }
   });
 
+  it('shows workspace names beside provider and token usage in Home recent sessions', async () => {
+    const catalogWithUsage: CatalogSnapshot = {
+      ...readyCatalog,
+      sessions: [
+        {
+          ...readyCatalog.sessions[0]!,
+          lifetimeTokens: 12_450
+        }
+      ]
+    };
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalogWithUsage),
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithUsage)
+    });
+    const { unmount } = render(<App />);
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Recent sessions'
+    });
+    const card = heading.closest('article');
+    const metadata = card?.querySelector('.recent-session-metadata');
+
+    expect(card).not.toBeNull();
+    expect(metadata).not.toBeNull();
+    expect(within(metadata as HTMLElement).getByText('Codex')).toBeInTheDocument();
+    expect(within(metadata as HTMLElement).getByText('Lumora')).toBeInTheDocument();
+    expect(
+      within(metadata as HTMLElement).getByText('12.5K tokens')
+    ).toBeInTheDocument();
+
+    unmount();
+    const catalogWithoutWorkspace: CatalogSnapshot = {
+      ...catalogWithUsage,
+      workspaces: []
+    };
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalogWithoutWorkspace),
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithoutWorkspace)
+    });
+    render(<App />);
+
+    const missingHeading = await screen.findByRole('heading', {
+      name: 'Recent sessions'
+    });
+    const missingMetadata = missingHeading
+      .closest('article')
+      ?.querySelector('.recent-session-metadata');
+
+    expect(missingMetadata).not.toBeNull();
+    expect(
+      within(missingMetadata as HTMLElement).queryByText('Lumora')
+    ).not.toBeInTheDocument();
+  });
+
   it('shows the real ready-provider count on Home', async () => {
     render(<App />);
 

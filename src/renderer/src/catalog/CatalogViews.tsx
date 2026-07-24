@@ -590,9 +590,10 @@ export function CatalogHomeSummary({
         ) : (
           <ul className="recent-session-list">
             {recentSessions.map((session) => {
+              const workspace = workspaces.get(session.workspaceId);
               const disabledReason = resolveSessionResumeDisabledReason({
                 session,
-                workspace: workspaces.get(session.workspaceId),
+                workspace,
                 providerScan,
                 profiles
               });
@@ -604,6 +605,14 @@ export function CatalogHomeSummary({
                       <span className="recent-session-provider">
                         {providerDefinition(session.provider).displayName}
                       </span>
+                      {workspace === undefined ? null : (
+                        <span
+                          className="recent-session-workspace"
+                          title={workspace.displayName}
+                        >
+                          {workspace.displayName}
+                        </span>
+                      )}
                       {session.lifetimeTokens === null ? null : (
                         <span className="session-token-usage">
                           {formatLifetimeTokens(session.lifetimeTokens)}

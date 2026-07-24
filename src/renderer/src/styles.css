@@ -2022,9 +2022,17 @@ button {
   white-space: nowrap;
 }
 
-.recent-session-provider {
+.recent-session-provider,
+.recent-session-workspace {
   color: var(--text-soft);
   font-size: 0.72rem;
+}
+
+.recent-session-workspace {
+  overflow: hidden;
+  max-width: 14rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recent-session-metadata {
