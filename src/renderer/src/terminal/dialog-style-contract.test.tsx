@@ -105,22 +105,21 @@ describe('popup layout styles', () => {
     expect(focus).toContain('outline-offset: -3px');
   });
 
-  it('keeps the runtime switcher stable while its list scrolls', () => {
+  it('keeps the runtime switcher content-sized like its former design', () => {
     const switcher = rule('.runtime-switcher');
-    expect(switcher).toContain('display: grid');
-    expect(switcher).toContain(
-      'grid-template-rows: auto minmax(0, 1fr) auto'
-    );
     expect(switcher).toContain(
       'width: min(440px, calc(100vw - 40px))'
     );
-    expect(switcher).toContain(
-      'height: min(380px, calc(82vh - 24px))'
-    );
+    expect(switcher).toContain('overflow: hidden');
+    expect(switcher).not.toContain('display: grid');
+    expect(switcher).not.toContain('grid-template-rows');
+    expect(switcher).not.toContain('height:');
 
     const list = rule('.runtime-switcher-list');
-    expect(list).toContain('min-height: 0');
-    expect(list).toContain('overflow-y: auto');
+    expect(list).toContain('display: grid');
+    expect(list).not.toContain('min-height:');
+    expect(list).not.toContain('overflow-y:');
+    expect(list).not.toContain('scrollbar-gutter:');
   });
 
   it('uses the available height for standard dialogs on narrow windows', () => {

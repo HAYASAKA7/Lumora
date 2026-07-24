@@ -3105,10 +3105,7 @@ button {
 }
 
 .runtime-switcher {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(440px, calc(100vw - 40px));
-  height: min(380px, calc(82vh - 24px));
   overflow: hidden;
   color: #dce7f5;
   background: var(--navy-900);
@@ -3133,11 +3130,8 @@ button {
 
 .runtime-switcher-list {
   display: grid;
-  min-height: 0;
   gap: 2px;
   padding: 0 7px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 .runtime-switcher-option {
