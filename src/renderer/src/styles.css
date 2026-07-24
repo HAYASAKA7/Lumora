@@ -2567,6 +2567,20 @@ button {
   box-shadow: var(--shadow);
 }
 
+.resume-session-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(720px, calc(100vh - 56px));
+  overflow: hidden;
+}
+
+.resume-session-dialog-body {
+  min-height: 0;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .launch-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3205,6 +3219,10 @@ button {
 
   .dialog-backdrop {
     padding: 10px;
+  }
+
+  .resume-session-dialog {
+    height: calc(100vh - 20px);
   }
 
   .new-session-dialog footer {

@@ -796,6 +796,29 @@ describe('managed terminal contracts', () => {
       rows: 36
     } as const;
     expect(LaunchPrepareRequestSchema.parse(forkRequest)).toEqual(forkRequest);
+    const promptlessForkRequest = {
+      strategy: 'fork',
+      sessionId: forkRequest.sessionId,
+      terminalProfileId: profile.id,
+      cols: 120,
+      rows: 36
+    } as const;
+    expect(LaunchPrepareRequestSchema.parse(promptlessForkRequest)).toEqual({
+      ...promptlessForkRequest,
+      task: ''
+    });
+    expect(
+      LaunchPrepareRequestSchema.parse({
+        ...promptlessForkRequest,
+        task: ''
+      })
+    ).toMatchObject({ strategy: 'fork', task: '' });
+    expect(
+      LaunchPrepareRequestSchema.parse({
+        ...promptlessForkRequest,
+        task: '   '
+      })
+    ).toMatchObject({ strategy: 'fork', task: '' });
     expect(
       LaunchPreviewSchema.parse({
         ...preview,
@@ -805,8 +828,6 @@ describe('managed terminal contracts', () => {
       })
     ).toMatchObject({ strategy: 'fork', sessionId: null });
     for (const task of [
-      '',
-      '   ',
       'line one\nline two',
       'line one\rline two',
       'bad\0task',

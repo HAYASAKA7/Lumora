@@ -126,7 +126,6 @@ export function ResumeSessionDialog({
   const isCrossAgent =
     continuation === 'new' && destinationProvider !== session.provider;
   const validForkTask =
-    task.trim().length > 0 &&
     task.length <= 4_096 &&
     !/[\0\r\n]/.test(task);
   const canPrepare =
@@ -251,7 +250,7 @@ export function ResumeSessionDialog({
       <section
         aria-labelledby="resume-session-title"
         aria-modal="true"
-        className="new-session-dialog"
+        className="new-session-dialog resume-session-dialog"
         role="dialog"
       >
         <header>
@@ -275,6 +274,7 @@ export function ResumeSessionDialog({
           </button>
         </header>
 
+        <div className="resume-session-dialog-body">
         <dl className="resume-session-details">
           <div>
             <dt>Session</dt>
@@ -343,12 +343,12 @@ export function ResumeSessionDialog({
           ) : null}
           {isNativeFork ? (
             <label>
-              <span>Task for the new session</span>
+              <span>Initial task (optional)</span>
               <input
                 disabled={starting}
                 maxLength={4_096}
                 onChange={(event) => setTask(event.currentTarget.value)}
-                placeholder="Describe the work for the fork"
+                placeholder="Describe the first task, or leave empty"
                 type="text"
                 value={task}
               />
@@ -421,7 +421,7 @@ export function ResumeSessionDialog({
           <div className="launch-empty">
             <p>
               {isNativeFork && !validForkTask
-                ? 'Enter a task to prepare the fork.'
+                ? 'The initial task must be a single line.'
                 : isCrossAgent
                 ? 'The selected session is not currently available to hand off.'
                 : isNativeFork
@@ -441,6 +441,7 @@ export function ResumeSessionDialog({
             )}
           </>
         )}
+        </div>
 
         <footer>
           <button

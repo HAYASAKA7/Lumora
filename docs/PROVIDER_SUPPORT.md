@@ -13,8 +13,9 @@ handoff workflow as either source or destination. A handoff creates a new
 destination session from a temporary copy; it is not exact native resume.
 
 Codex, Claude Code, and OpenCode additionally support provider-native session
-forks. Lumora passes the source session identity and a user-supplied task to the
-provider; the provider creates and owns the new session.
+forks. Lumora passes the source session identity and, when supplied, an optional
+initial task to the provider; the provider creates and owns the new session.
+Without a task, the fork opens ready for input in Lumora's terminal.
 
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
@@ -68,9 +69,9 @@ requires the provider command or a saved manual executable path.
 
 | Provider | Minimum tested version | Arguments after the configured provider command |
 | --- | --- | --- |
-| Codex | `0.120.0` | `fork <session-id> <task>` |
-| Claude Code | `1.0.90` | `--resume <session-id> --fork-session <task>` |
-| OpenCode | `1.0.0` | `--session <session-id> --fork --prompt <task>` |
+| Codex | `0.120.0` | `fork <session-id> [task]` |
+| Claude Code | `1.0.90` | `--resume <session-id> --fork-session [task]` |
+| OpenCode | `1.0.0` | `--session <session-id> --fork [--prompt <task>]` |
 
 Lumora only offers native fork when the installed version is at or above the
 tested minimum. An older or unparseable version can still use its other
@@ -91,9 +92,10 @@ For every provider and target operating system:
 6. Resume that exact session, verify its context in the provider, exit, and
    confirm the catalog refreshes again.
 7. Repeat the launch with a custom provider command or shell wrapper.
-8. For Codex, Claude Code, and OpenCode, fork the saved session with a new task;
-   confirm the new native session contains the source context, receives a
-   distinct identity, and leaves the original resumable.
+8. For Codex, Claude Code, and OpenCode, fork the saved session once without an
+   initial task and once with one; confirm each new native session contains the
+   source context, receives a distinct identity, and leaves the original
+   resumable.
 9. Enable cross-agent handoff, choose a different installed full-session
    provider in the resume dialog, and confirm that a new destination session
    receives the conversation while the source still resumes normally.

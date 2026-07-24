@@ -700,9 +700,9 @@ const LaunchRequestBaseFields = {
 };
 
 const ForkTaskSchema = z.string().max(4_096).refine(
-  (task) => task.trim().length > 0 && !/[\0\r\n]/.test(task),
+  (task) => !/[\0\r\n]/.test(task),
   'The native session fork task is invalid.'
-);
+).transform((task) => task.trim().length === 0 ? '' : task);
 
 export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
@@ -720,7 +720,7 @@ export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
     strategy: z.literal('fork'),
     sessionId: StableIdSchema,
-    task: ForkTaskSchema,
+    task: ForkTaskSchema.optional().default(''),
     ...LaunchRequestBaseFields
   })
 ]);

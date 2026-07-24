@@ -26,11 +26,23 @@ const INITIAL_PROMPT_ARGUMENTS: Partial<
 const FORK_ARGUMENTS: Partial<
   Record<ProviderId, (nativeSessionId: string, task: string) => string[]>
 > = {
-  codex: (nativeSessionId, task) => ['fork', nativeSessionId, task],
-  claude: (nativeSessionId, task) =>
-    ['--resume', nativeSessionId, '--fork-session', task],
-  opencode: (nativeSessionId, task) =>
-    ['--session', nativeSessionId, '--fork', '--prompt', task]
+  codex: (nativeSessionId, task) => [
+    'fork',
+    nativeSessionId,
+    ...(task === '' ? [] : [task])
+  ],
+  claude: (nativeSessionId, task) => [
+    '--resume',
+    nativeSessionId,
+    '--fork-session',
+    ...(task === '' ? [] : [task])
+  ],
+  opencode: (nativeSessionId, task) => [
+    '--session',
+    nativeSessionId,
+    '--fork',
+    ...(task === '' ? [] : ['--prompt', task])
+  ]
 };
 
 export function buildResumeArguments(
@@ -84,12 +96,9 @@ export function buildForkArguments(
   ) {
     throw new Error('The native session identity is invalid.');
   }
-  if (
-    task.trim().length === 0 ||
-    task.length > 4_096 ||
-    /[\0\r\n]/.test(task)
-  ) {
+  if (task.length > 4_096 || /[\0\r\n]/.test(task)) {
     throw new Error('The native session fork task is invalid.');
   }
-  return buildArguments(nativeSessionId, task);
+  const normalizedTask = task.trim().length === 0 ? '' : task;
+  return buildArguments(nativeSessionId, normalizedTask);
 }

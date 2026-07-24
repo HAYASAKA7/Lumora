@@ -103,8 +103,9 @@ The **Workspaces** page groups provider-owned sessions by project directory.
 Select a workspace card to open its saved-session list. Select a session card
 to open its continuation dialog. You can resume the original session, or—when
 the provider supports native fork—start a separate native session from the same
-context with a new task. Native forks keep the original provider session
-unchanged.
+context. The initial task is optional: leave it empty to enter instructions
+directly in the new terminal, or provide one to launch the fork with that task.
+Native forks keep the original provider session unchanged.
 
 The **All sessions** page searches across available workspaces. Provider filters
 only include installed providers for which Lumora found resumable sessions.

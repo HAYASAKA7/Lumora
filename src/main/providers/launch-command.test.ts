@@ -80,6 +80,18 @@ describe('buildForkArguments', () => {
   });
 
   it.each([
+    ['codex', ['fork', 'native-1']],
+    ['claude', ['--resume', 'native-1', '--fork-session']],
+    ['opencode', ['--session', 'native-1', '--fork']]
+  ] as const)(
+    'builds promptless %s native-fork arguments',
+    (provider, expected) => {
+      expect(buildForkArguments(provider, 'native-1', '')).toEqual(expected);
+      expect(buildForkArguments(provider, 'native-1', '   ')).toEqual(expected);
+    }
+  );
+
+  it.each([
     'gemini',
     'antigravity',
     'cursor',
@@ -96,8 +108,6 @@ describe('buildForkArguments', () => {
   });
 
   it.each([
-    '',
-    '   ',
     'line one\nline two',
     'line one\rline two',
     'bad\0task',

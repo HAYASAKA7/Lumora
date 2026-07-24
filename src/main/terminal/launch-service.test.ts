@@ -359,6 +359,54 @@ describe('LaunchService', () => {
     expect(handoffService.materialize).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['codex', ['fork', nativeId]],
+    ['claude', ['--resume', nativeId, '--fork-session']],
+    ['opencode', ['--session', nativeId, '--fork']]
+  ] as const)(
+    'prepares and consumes a promptless native %s fork',
+    async (provider, args) => {
+      const {
+        service,
+        captureSessionBaseline,
+        handoffService
+      } = harness({
+        trusted: true,
+        session: { ...session, provider },
+        baseline: ['existing-native']
+      });
+      const preview = await service.prepare({
+        strategy: 'fork',
+        sessionId,
+        task: '',
+        terminalProfileId: profileId,
+        cols: 100,
+        rows: 30
+      });
+
+      expect(preview).toMatchObject({
+        strategy: 'fork',
+        sessionId: null,
+        provider,
+        args
+      });
+      await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+        strategy: 'fork',
+        sessionId: null,
+        nativeSessionId: null,
+        reconciliationBaselineNativeIds: ['existing-native'],
+        fork: {
+          sourceSessionId: sessionId,
+          sourceNativeSessionId: nativeId,
+          task: ''
+        }
+      });
+      expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
+      expect(handoffService.reserve).not.toHaveBeenCalled();
+      expect(handoffService.materialize).not.toHaveBeenCalled();
+    }
+  );
+
   it('bounds a native fork title to the runtime contract limit', async () => {
     const { service } = harness({
       trusted: true,

@@ -138,9 +138,10 @@ before.
 
 For a native fork, Lumora revalidates the source identity and provider
 capability when the launch preview is consumed, passes the provider's native
-fork arguments plus the user's single-line task, and starts with no destination
-session identity. The existing reconciliation flow then links the runtime to
-the new provider-owned session without changing the source session.
+fork arguments plus the user's optional single-line initial task, and starts
+with no destination session identity. When the task is empty, no prompt argument
+is added. The existing reconciliation flow then links the runtime to the new
+provider-owned session without changing the source session.
 
 For an enabled cross-agent handoff, the main process instead:
 

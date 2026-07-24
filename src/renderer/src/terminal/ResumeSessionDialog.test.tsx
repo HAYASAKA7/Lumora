@@ -214,38 +214,50 @@ describe('ResumeSessionDialog', () => {
     expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
   });
 
-  it('prepares a native fork with a required task and warns for an active source', async () => {
-    const forkPreview: LaunchPreview = {
-      ...preview,
-      strategy: 'fork',
-      sessionId: null,
-      args: ['fork', session.nativeId, 'Fix the failing tests.']
-    };
-    const prepareLaunch = vi.fn(async (request) =>
-      request.strategy === 'fork' ? forkPreview : preview
-    );
+  it('prepares promptless and prompted native forks in a stable dialog', async () => {
+    const prepareLaunch = vi.fn(async (request) => {
+      if (request.strategy !== 'fork') return preview;
+      return {
+        ...preview,
+        strategy: 'fork' as const,
+        sessionId: null,
+        args:
+          request.task === ''
+            ? ['fork', session.nativeId]
+            : ['fork', session.nativeId, request.task]
+      };
+    });
     renderDialog({
       prepareLaunch,
       sourceSessionActive: true
     });
 
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('resume-session-dialog');
+    expect(dialog.querySelector('.resume-session-dialog-body')).not.toBeNull();
     fireEvent.click(screen.getByRole('radio', {
       name: 'Start a new session from this context'
     }));
     expect(screen.getByRole('textbox', {
-      name: 'Task for the new session'
+      name: 'Initial task (optional)'
     })).toBeVisible();
     const forkButton = screen.getByRole('button', { name: 'Fork session' });
-    expect(forkButton).toBeDisabled();
-    expect(forkButton).toHaveClass('launch-action-button');
-    expect(forkButton).not.toHaveClass('is-pending');
-    expect(screen.getByText('Enter a task to prepare the fork.')).toBeVisible();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'fork',
+      sessionId: session.id,
+      task: '',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+    expect(await screen.findByText('fork native-thread')).toBeInTheDocument();
+    expect(forkButton).toBeEnabled();
     expect(screen.getByText(
       'The source session is active. Both sessions use the same workspace, so concurrent file edits may conflict.'
     )).toBeVisible();
 
     const taskInput = screen.getByRole('textbox', {
-      name: 'Task for the new session'
+      name: 'Initial task (optional)'
     });
     fireEvent.change(taskInput, {
       target: { value: 'Fix the failing tests.' }
@@ -265,7 +277,7 @@ describe('ResumeSessionDialog', () => {
     expect(await screen.findByText(
       'fork native-thread Fix the failing tests.'
     )).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Fork session' })).toBeEnabled();
+    expect(forkButton).toBeEnabled();
   });
 
   it('does not offer native fork below the tested provider version', async () => {
