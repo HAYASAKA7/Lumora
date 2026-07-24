@@ -80,6 +80,16 @@ describe('createCatalogRuntime', () => {
     expect(runtime.registry.get('opencode')?.snapshotHandoff).toBeTypeOf(
       'function'
     );
+    expect(runtime.registry.get('codex')?.buildForkArguments).toBeTypeOf(
+      'function'
+    );
+    expect(runtime.registry.get('claude')?.buildForkArguments).toBeTypeOf(
+      'function'
+    );
+    expect(runtime.registry.get('opencode')?.buildForkArguments).toBeTypeOf(
+      'function'
+    );
+    expect(runtime.registry.get('gemini')?.buildForkArguments).toBeUndefined();
     expect(runtime.close).not.toThrow();
     expect(runtime.close).not.toThrow();
   });

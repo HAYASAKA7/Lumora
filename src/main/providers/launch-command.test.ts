@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildForkArguments,
   buildInitialPromptArguments,
   buildResumeArguments
 } from './launch-command';
@@ -65,4 +66,54 @@ describe('buildInitialPromptArguments', () => {
       'invalid'
     );
   });
+});
+
+describe('buildForkArguments', () => {
+  const task = 'Review the failing tests and fix the root cause.';
+
+  it.each([
+    ['codex', ['fork', 'native-1', task]],
+    ['claude', ['--resume', 'native-1', '--fork-session', task]],
+    ['opencode', ['--session', 'native-1', '--fork', '--prompt', task]]
+  ] as const)('builds atomic %s native-fork arguments', (provider, expected) => {
+    expect(buildForkArguments(provider, 'native-1', task)).toEqual(expected);
+  });
+
+  it.each([
+    'gemini',
+    'antigravity',
+    'cursor',
+    'copilot',
+    'qwen',
+    'amp',
+    'crush',
+    'goose',
+    'aider'
+  ] as const)('rejects unsupported provider %s', (provider) => {
+    expect(() => buildForkArguments(provider, 'native-1', task)).toThrow(
+      'does not support native session fork in Lumora'
+    );
+  });
+
+  it.each([
+    '',
+    '   ',
+    'line one\nline two',
+    'line one\rline two',
+    'bad\0task',
+    'x'.repeat(4_097)
+  ])('rejects invalid task %#', (invalidTask) => {
+    expect(() => buildForkArguments('codex', 'native-1', invalidTask)).toThrow(
+      'native session fork task is invalid'
+    );
+  });
+
+  it.each(['', '   ', 'bad\nid', 'bad\0id', 'x'.repeat(257)])(
+    'rejects invalid native session identity %#',
+    (nativeId) => {
+      expect(() => buildForkArguments('codex', nativeId, task)).toThrow(
+        'native session identity is invalid'
+      );
+    }
+  );
 });

@@ -14,7 +14,8 @@ import {
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import {
-  providerDefinition
+  providerDefinition,
+  supportsNativeForkVersion
 } from '../../shared/provider-definitions';
 import type { HandoffPlan, HandoffService } from '../handoff/handoff-service';
 import { buildInitialPromptArguments } from '../providers/launch-command';
@@ -63,7 +64,7 @@ interface LaunchServiceDependencies {
 
 export interface LaunchSpec {
   displayName: string;
-  strategy: 'new' | 'resume';
+  strategy: 'new' | 'resume' | 'fork';
   sessionId: string | null;
   nativeSessionId: string | null;
   reconciliationBaselineNativeIds: string[] | null;
@@ -85,6 +86,11 @@ export interface LaunchSpec {
     sourceKeys: string[];
     sourceExecutablePath: string;
   } | null;
+  fork?: {
+    sourceSessionId: string;
+    sourceNativeSessionId: string;
+    task: string;
+  } | null;
 }
 
 interface PreparedLaunch {
@@ -100,6 +106,7 @@ export type TerminalLaunchErrorCode =
   | 'TERMINAL_PROFILE_UNAVAILABLE'
   | 'PROVIDER_UNAVAILABLE'
   | 'CROSS_AGENT_DISABLED'
+  | 'NATIVE_FORK_UNAVAILABLE'
   | 'HANDOFF_PREPARATION_FAILED'
   | 'LAUNCH_TOKEN_INVALID'
   | 'LAUNCH_TOKEN_EXPIRED';
@@ -111,6 +118,8 @@ const ERROR_MESSAGES: Record<TerminalLaunchErrorCode, string> = {
   TERMINAL_PROFILE_UNAVAILABLE: 'The selected terminal profile is unavailable.',
   PROVIDER_UNAVAILABLE: 'The selected provider is unavailable.',
   CROSS_AGENT_DISABLED: 'Cross-agent handoff is disabled.',
+  NATIVE_FORK_UNAVAILABLE:
+    'The selected provider does not support native session fork.',
   HANDOFF_PREPARATION_FAILED: 'Lumora could not prepare the session handoff.',
   LAUNCH_TOKEN_INVALID: 'The launch preview is no longer valid.',
   LAUNCH_TOKEN_EXPIRED: 'The launch preview expired. Prepare it again.'
@@ -159,7 +168,15 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
               retentionDays: value.handoff.plan.retentionDays,
               sourceKeys: value.handoff.sourceKeys,
               sourceExecutablePath: value.handoff.sourceExecutablePath
-            }
+            },
+        fork:
+          value.fork === undefined || value.fork === null
+            ? null
+            : {
+                sourceSessionId: value.fork.sourceSessionId,
+                sourceNativeSessionId: value.fork.sourceNativeSessionId,
+                task: value.fork.task
+              }
       })
     )
     .digest('hex');
@@ -191,6 +208,13 @@ function isAdapterCompatible(
   }
 }
 
+const MAX_RUNTIME_DISPLAY_NAME_LENGTH = 256;
+
+function forkDisplayName(title: string): string {
+  const prefix = 'Fork of ';
+  return `${prefix}${title.slice(0, MAX_RUNTIME_DISPLAY_NAME_LENGTH - prefix.length)}`;
+}
+
 export class LaunchService {
   private readonly prepared = new Map<string, PreparedLaunch>();
   private readonly clock: () => Date;
@@ -210,6 +234,7 @@ export class LaunchService {
     let displayName: string;
     let args: string[];
     let handoff: LaunchSpec['handoff'] = null;
+    let fork: LaunchSpec['fork'] = null;
     let sourceSession: SessionLaunchInfo | null = null;
     if (request.strategy === 'new') {
       provider = request.provider;
@@ -223,11 +248,32 @@ export class LaunchService {
       if (session === null || session.sourceFreshness !== 'current') {
         throw new TerminalLaunchError('SESSION_UNAVAILABLE');
       }
-      const destinationProvider = request.provider ?? session.provider;
+      const destinationProvider =
+        request.strategy === 'resume'
+          ? request.provider ?? session.provider
+          : session.provider;
       provider = destinationProvider;
       workspaceId = session.workspaceId;
       displayName = session.title;
-      if (destinationProvider === session.provider) {
+      if (request.strategy === 'fork') {
+        const settings = this.dependencies.repository.getGeneralSettings();
+        const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
+        if (!settings.enabledProviders.includes(provider)) {
+          throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
+        }
+        if (adapter?.buildForkArguments === undefined) {
+          throw new TerminalLaunchError('NATIVE_FORK_UNAVAILABLE');
+        }
+        sessionId = null;
+        nativeSessionId = null;
+        displayName = forkDisplayName(session.title);
+        args = [...adapter.buildForkArguments(session.nativeId, request.task)];
+        fork = {
+          sourceSessionId: session.id,
+          sourceNativeSessionId: session.nativeId,
+          task: request.task
+        };
+      } else if (destinationProvider === session.provider) {
         sessionId = session.id;
         nativeSessionId = session.nativeId;
         const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
@@ -278,6 +324,12 @@ export class LaunchService {
     ) {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
+    if (
+      request.strategy === 'fork' &&
+      !supportsNativeForkVersion(provider, installation.version)
+    ) {
+      throw new TerminalLaunchError('NATIVE_FORK_UNAVAILABLE');
+    }
     if (sourceSession !== null) {
       const sourceInstallation = scan.providers.find(
         (candidate) => candidate.provider === sourceSession!.provider
@@ -316,7 +368,10 @@ export class LaunchService {
     const resolved = resolveLaunchSettings({
       provider,
       workspaceId: workspace.id,
-      sessionId,
+      sessionId:
+        request.strategy === 'fork'
+          ? fork?.sourceSessionId ?? null
+          : sessionId,
       requestedTerminalProfileId: request.terminalProfileId,
       layers: this.dependencies.repository.listLaunchSettingsLayers(),
       profiles: this.dependencies.repository.listProfiles()
@@ -329,7 +384,11 @@ export class LaunchService {
     const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
     if (
-      (request.strategy === 'new' || handoff !== null) &&
+      (
+        request.strategy === 'new' ||
+        request.strategy === 'fork' ||
+        handoff !== null
+      ) &&
       this.dependencies.sessionCatalogRegistry.get(provider) !== null
     ) {
       try {
@@ -358,7 +417,8 @@ export class LaunchService {
       configuration: resolved.configuration,
       cols: request.cols,
       rows: request.rows,
-      handoff
+      handoff,
+      fork
     };
     const spec: LaunchSpec = {
       ...partial,
@@ -476,6 +536,27 @@ export class LaunchService {
         throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
       }
     }
+    if (prepared.spec.strategy === 'fork') {
+      const fork = prepared.spec.fork;
+      const source =
+        fork === undefined || fork === null
+          ? null
+          : this.dependencies.repository.getSession(fork.sourceSessionId);
+      const settings = this.dependencies.repository.getGeneralSettings();
+      if (
+        fork === undefined ||
+        fork === null ||
+        source === null ||
+        source.sourceFreshness !== 'current' ||
+        source.id !== fork.sourceSessionId ||
+        source.nativeId !== fork.sourceNativeSessionId ||
+        source.provider !== prepared.spec.provider ||
+        source.workspaceId !== prepared.spec.workspaceId ||
+        !settings.enabledProviders.includes(source.provider)
+      ) {
+        throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+      }
+    }
     const scan = await this.dependencies.scanProviders();
     const installation = scan.providers.find(
       (candidate) => candidate.provider === prepared.spec.provider
@@ -491,7 +572,15 @@ export class LaunchService {
       prepared.spec.provider
     );
     if (
+      prepared.spec.strategy === 'fork' &&
+      !supportsNativeForkVersion(prepared.spec.provider, installation.version)
+    ) {
+      throw new TerminalLaunchError('NATIVE_FORK_UNAVAILABLE');
+    }
+    if (
       (prepared.spec.strategy === 'resume' && adapter === null) ||
+      (prepared.spec.strategy === 'fork' &&
+        adapter?.buildForkArguments === undefined) ||
       (adapter !== null && !isAdapterCompatible(adapter, installation))
     ) {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
@@ -518,10 +607,27 @@ export class LaunchService {
     ) {
       throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
     }
+    if (
+      prepared.spec.strategy === 'fork' &&
+      prepared.spec.fork !== undefined &&
+      prepared.spec.fork !== null &&
+      !sameValue(
+        adapter?.buildForkArguments?.(
+          prepared.spec.fork.sourceNativeSessionId,
+          prepared.spec.fork.task
+        ),
+        prepared.spec.args
+      )
+    ) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
     const resolved = resolveLaunchSettings({
       provider: prepared.spec.provider,
       workspaceId: prepared.spec.workspaceId,
-      sessionId: prepared.spec.sessionId,
+      sessionId:
+        prepared.spec.strategy === 'fork'
+          ? prepared.spec.fork?.sourceSessionId ?? null
+          : prepared.spec.sessionId,
       requestedTerminalProfileId: prepared.requestedTerminalProfileId,
       layers: this.dependencies.repository.listLaunchSettingsLayers(),
       profiles: this.dependencies.repository.listProfiles()

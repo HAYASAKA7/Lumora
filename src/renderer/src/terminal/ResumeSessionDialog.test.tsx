@@ -135,6 +135,8 @@ function renderDialog(overrides: {
   trustWorkspaceForLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
   crossAgentEnabled?: boolean;
+  sourceSessionActive?: boolean;
+  providerScan?: ProviderScanResult | null;
 } = {}) {
   const prepareLaunch = overrides.prepareLaunch ?? vi.fn().mockResolvedValue(preview);
   const trustWorkspaceForLaunch =
@@ -156,8 +158,9 @@ function renderDialog(overrides: {
         crossAgentWorkflowEnabled: overrides.crossAgentEnabled ?? false
       }}
       profiles={[profile, alternateProfile]}
-      providerScan={providerScan}
+      providerScan={overrides.providerScan === undefined ? providerScan : overrides.providerScan}
       session={session}
+      sourceSessionActive={overrides.sourceSessionActive ?? false}
       workspace={workspace}
     />
   );
@@ -211,6 +214,81 @@ describe('ResumeSessionDialog', () => {
     expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
   });
 
+  it('prepares a native fork with a required task and warns for an active source', async () => {
+    const forkPreview: LaunchPreview = {
+      ...preview,
+      strategy: 'fork',
+      sessionId: null,
+      args: ['fork', session.nativeId, 'Fix the failing tests.']
+    };
+    const prepareLaunch = vi.fn(async (request) =>
+      request.strategy === 'fork' ? forkPreview : preview
+    );
+    renderDialog({
+      prepareLaunch,
+      sourceSessionActive: true
+    });
+
+    fireEvent.click(screen.getByRole('radio', {
+      name: 'Start a new session from this context'
+    }));
+    expect(screen.getByRole('textbox', {
+      name: 'Task for the new session'
+    })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Fork session' })).toBeDisabled();
+    expect(screen.getByText(
+      'The source session is active. Both sessions use the same workspace, so concurrent file edits may conflict.'
+    )).toBeVisible();
+
+    const taskInput = screen.getByRole('textbox', {
+      name: 'Task for the new session'
+    });
+    fireEvent.change(taskInput, { target: { value: 'Fix' } });
+    fireEvent.change(taskInput, {
+      target: { value: 'Fix the failing tests.' }
+    });
+    expect(prepareLaunch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'fork' })
+    );
+
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'fork',
+      sessionId: session.id,
+      task: 'Fix the failing tests.',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+    expect(await screen.findByText(
+      'fork native-thread Fix the failing tests.'
+    )).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fork session' })).toBeEnabled();
+  });
+
+  it('does not offer native fork below the tested provider version', async () => {
+    renderDialog({
+      providerScan: {
+        ...providerScan,
+        providers: providerScan.providers.map((installation) =>
+          installation.provider === 'codex' &&
+          installation.state === 'ready'
+            ? { ...installation, version: 'codex-cli 0.119.9' }
+            : installation
+        )
+      }
+    });
+
+    expect(
+      await screen.findByText('resume native-thread')
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('radio', {
+      name: 'Start a new session from this context'
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', {
+      name: 'Task for the new session'
+    })).not.toBeInTheDocument();
+  });
+
   it('prepares a new destination session when an enabled user selects another provider', async () => {
     const crossPreview: LaunchPreview = {
       ...preview,
@@ -225,8 +303,11 @@ describe('ResumeSessionDialog', () => {
     );
     renderDialog({ prepareLaunch, crossAgentEnabled: true });
 
+    fireEvent.click(screen.getByRole('radio', {
+      name: 'Start a new session from this context'
+    }));
     const provider = screen.getByRole('combobox', {
-      name: 'Resume with provider'
+      name: 'Start with provider'
     });
     expect(provider).toHaveValue('codex');
     fireEvent.change(provider, { target: { value: 'claude' } });

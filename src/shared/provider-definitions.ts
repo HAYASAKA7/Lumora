@@ -131,6 +131,20 @@ const PROVIDERS_BY_ID = new Map<ProviderId, ProviderDefinition>(
   ])
 );
 
+const NATIVE_FORK_PROVIDER_IDS = new Set<ProviderId>([
+  'codex',
+  'claude',
+  'opencode'
+]);
+
+const NATIVE_FORK_MINIMUM_VERSIONS: Readonly<
+  Partial<Record<ProviderId, readonly [number, number, number]>>
+> = Object.freeze({
+  codex: [0, 120, 0],
+  claude: [1, 0, 90],
+  opencode: [1, 0, 0]
+});
+
 export const SESSION_PROVIDER_IDS = Object.freeze(
   PROVIDER_DEFINITIONS
     .filter(({ sessionSupport }) => sessionSupport === 'complete')
@@ -143,6 +157,34 @@ export function providerDefinition(provider: ProviderId): ProviderDefinition {
 
 export function hasCompleteSessionSupport(provider: ProviderId): boolean {
   return providerDefinition(provider).sessionSupport === 'complete';
+}
+
+export function hasNativeForkSupport(provider: ProviderId): boolean {
+  return NATIVE_FORK_PROVIDER_IDS.has(provider);
+}
+
+export function nativeForkMinimumVersion(provider: ProviderId): string | null {
+  const minimum = NATIVE_FORK_MINIMUM_VERSIONS[provider];
+  return minimum === undefined ? null : minimum.join('.');
+}
+
+export function supportsNativeForkVersion(
+  provider: ProviderId,
+  versionOutput: string | null
+): boolean {
+  const minimum = NATIVE_FORK_MINIMUM_VERSIONS[provider];
+  if (minimum === undefined || versionOutput === null) return false;
+  const match = /(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)(?![0-9])/.exec(
+    versionOutput
+  );
+  if (match === null) return false;
+  const installed = match.slice(1, 4).map(Number);
+  for (let index = 0; index < minimum.length; index += 1) {
+    if (installed[index] !== minimum[index]) {
+      return installed[index]! > minimum[index]!;
+    }
+  }
+  return true;
 }
 
 export function isCatalogProvider(provider: ProviderId): boolean {

@@ -2517,7 +2517,8 @@ button {
 .profile-form input,
 .profile-form select,
 .profile-form textarea,
-.launch-fields select {
+.launch-fields select,
+.launch-fields input[type='text'] {
   width: 100%;
   padding: 9px 10px;
   color: var(--text);
@@ -2568,6 +2569,40 @@ button {
   grid-template-columns: minmax(220px, 1fr);
 }
 
+.continuation-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  margin: 16px 0 2px;
+  border: 0;
+}
+
+.continuation-options legend {
+  margin-bottom: 7px;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.continuation-options label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.continuation-options input {
+  margin: 0;
+}
+
 .handoff-explanation {
   padding: 11px 13px;
   margin: 4px 0 16px;
@@ -2577,6 +2612,10 @@ button {
   border-radius: 9px;
   font-size: 0.78rem;
   line-height: 1.5;
+}
+
+.active-source-warning {
+  color: #8b5e16;
 }
 
 .resume-session-details {

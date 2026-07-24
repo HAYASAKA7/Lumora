@@ -648,10 +648,12 @@ export class TerminalRepository {
     let baseline: string[] | undefined;
     if (baselineNativeSessionIds !== undefined) {
       if (
-        runtime.strategy !== 'new' ||
+        runtime.strategy === 'resume' ||
         runtime.reconciliationState !== 'pending'
       ) {
-        throw new Error('Only pending new runtimes can persist a baseline.');
+        throw new Error(
+          'Only pending new or fork runtimes can persist a baseline.'
+        );
       }
       if (baselineNativeSessionIds.length > 25_000) {
         throw new Error('Runtime reconciliation baselines are too large.');
@@ -737,7 +739,7 @@ export class TerminalRepository {
         .get(runtimeId) as RuntimeRow | undefined;
       if (
         current === undefined ||
-        current.strategy !== 'new' ||
+        current.strategy === 'resume' ||
         current.reconciliation_state !== 'pending'
       ) {
         this.database.exec('ROLLBACK');
@@ -778,7 +780,7 @@ export class TerminalRepository {
           `UPDATE runtime_instance
            SET reconciliation_state = ?, session_id = ?, native_session_id = ?,
              display_name = ?
-           WHERE id = ? AND strategy = 'new' AND reconciliation_state = 'pending'`
+           WHERE id = ? AND strategy IN ('new', 'fork') AND reconciliation_state = 'pending'`
         )
         .run(result.state, sessionId, nativeSessionId, displayName, runtimeId);
       if (update.changes !== 1) {
@@ -832,7 +834,7 @@ export class TerminalRepository {
            FROM runtime_instance runtime
            JOIN runtime_reconciliation reconciliation
              ON reconciliation.runtime_id = runtime.id
-           WHERE runtime.strategy = 'new'
+           WHERE runtime.strategy IN ('new', 'fork')
              AND runtime.session_id IS NULL
              AND runtime.state IN ('launching', 'running')
              AND runtime.reconciliation_state IN ('unresolved', 'ambiguous')
@@ -914,7 +916,7 @@ export class TerminalRepository {
         `UPDATE runtime_instance
          SET reconciliation_state = 'linked', session_id = ?,
            native_session_id = ?, display_name = ?
-         WHERE id = ? AND strategy = 'new' AND session_id IS NULL
+         WHERE id = ? AND strategy IN ('new', 'fork') AND session_id IS NULL
            AND state IN ('launching', 'running')
            AND reconciliation_state IN ('unresolved', 'ambiguous')
            AND NOT EXISTS (

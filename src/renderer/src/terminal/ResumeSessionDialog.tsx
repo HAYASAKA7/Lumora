@@ -11,7 +11,11 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
-import { SESSION_PROVIDER_IDS } from '../../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  hasNativeForkSupport,
+  supportsNativeForkVersion
+} from '../../../shared/provider-definitions';
 import { LaunchDetails } from './LaunchDetails';
 import { useLaunchPreflight } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
@@ -22,6 +26,7 @@ interface ResumeSessionDialogProps {
   generalSettings: GeneralSettings;
   profiles: readonly TerminalProfile[];
   providerScan: ProviderScanResult | null;
+  sourceSessionActive?: boolean;
   onClose(): void;
   onStarted(runtime: RuntimeSummary, preview: LaunchPreview): void;
 }
@@ -32,6 +37,7 @@ export function ResumeSessionDialog({
   generalSettings,
   profiles,
   providerScan,
+  sourceSessionActive = false,
   onClose,
   onStarted
 }: ResumeSessionDialogProps): ReactNode {
@@ -53,6 +59,9 @@ export function ResumeSessionDialog({
     ) ?? [];
   }, [generalSettings.enabledProviders, providerScan]);
   const [profileId, setProfileId] = useState('');
+  const [continuation, setContinuation] = useState<'resume' | 'new'>('resume');
+  const [task, setTask] = useState('');
+  const [forkPreflightTask, setForkPreflightTask] = useState('');
   const [destinationProvider, setDestinationProvider] = useState<ProviderId>(
     session.provider
   );
@@ -68,9 +77,11 @@ export function ResumeSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
     setActionError(null);
-  }, [destinationProvider, profileId]);
+  }, [continuation, destinationProvider, profileId, task]);
   useEffect(() => {
     setDestinationProvider(session.provider);
+    setContinuation('resume');
+    setTask('');
   }, [session.id, session.provider]);
   useEffect(() => {
     if (!generalSettings.crossAgentWorkflowEnabled) {
@@ -86,29 +97,99 @@ export function ResumeSessionDialog({
     }
   }, [availableProfiles, profileId]);
 
-  const destination = availableDestinations.find(
+  const newSessionDestinations = availableDestinations.filter(
+    (installation) =>
+      installation.provider === session.provider
+        ? hasNativeForkSupport(session.provider) &&
+          supportsNativeForkVersion(session.provider, installation.version)
+        : generalSettings.crossAgentWorkflowEnabled
+  );
+  const newSessionDestinationKey = newSessionDestinations
+    .map((installation) => installation.provider)
+    .join(',');
+  useEffect(() => {
+    if (
+      continuation === 'new' &&
+      !newSessionDestinations.some(
+        (installation) => installation.provider === destinationProvider
+      )
+    ) {
+      const fallback = newSessionDestinations[0]?.provider;
+      if (fallback !== undefined) setDestinationProvider(fallback);
+    }
+  }, [continuation, destinationProvider, newSessionDestinationKey]);
+  const destination = newSessionDestinations.find(
     (installation) => installation.provider === destinationProvider
   );
-  const isCrossAgent = destinationProvider !== session.provider;
+  const canStartNewSession = newSessionDestinations.length > 0;
+  const isNativeFork =
+    continuation === 'new' && destinationProvider === session.provider;
+  const isCrossAgent =
+    continuation === 'new' && destinationProvider !== session.provider;
+  const validForkTask =
+    task.trim().length > 0 &&
+    task.length <= 4_096 &&
+    !/[\0\r\n]/.test(task);
+  useEffect(() => {
+    if (!isNativeFork || !validForkTask) {
+      setForkPreflightTask('');
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setForkPreflightTask(task);
+    }, 300);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isNativeFork, task, validForkTask]);
   const canPrepare =
     availableProfiles.length > 0 &&
     (profileId === '' ||
       availableProfiles.some((profile) => profile.id === profileId)) &&
     workspace.available &&
     session.sourceFreshness === 'current' &&
-    destination?.state === 'ready';
+    (continuation === 'resume'
+      ? provider?.state === 'ready'
+      : destination?.state === 'ready') &&
+    (!isNativeFork ||
+      (validForkTask && forkPreflightTask === task));
   const request = useMemo<LaunchPrepareRequest | null>(
     () => canPrepare
-      ? {
-          strategy: 'resume',
-          sessionId: session.id,
-          ...(isCrossAgent ? { provider: destinationProvider } : {}),
-          terminalProfileId: profileId || null,
-          cols: 100,
-          rows: 30
-        }
+      ? continuation === 'resume'
+        ? {
+            strategy: 'resume',
+            sessionId: session.id,
+            terminalProfileId: profileId || null,
+            cols: 100,
+            rows: 30
+          }
+        : isNativeFork
+          ? {
+              strategy: 'fork',
+              sessionId: session.id,
+              task: forkPreflightTask,
+              terminalProfileId: profileId || null,
+              cols: 100,
+              rows: 30
+            }
+          : {
+              strategy: 'resume',
+              sessionId: session.id,
+              provider: destinationProvider,
+              terminalProfileId: profileId || null,
+              cols: 100,
+              rows: 30
+            }
       : null,
-    [canPrepare, destinationProvider, isCrossAgent, profileId, session.id]
+    [
+      canPrepare,
+      continuation,
+      destinationProvider,
+      isNativeFork,
+      profileId,
+      session.id,
+      forkPreflightTask
+    ]
   );
   const preflight = useLaunchPreflight(request);
   const preview = preflight.preview;
@@ -169,7 +250,9 @@ export function ResumeSessionDialog({
         setActionError(
           isCrossAgent
             ? 'The cross-agent handoff could not be started.'
-            : 'The provider session could not be resumed.'
+            : isNativeFork
+              ? 'The native session fork could not be started.'
+              : 'The provider session could not be resumed.'
         );
         finishLaunchOperation(operation);
         preflight.retry();
@@ -188,7 +271,11 @@ export function ResumeSessionDialog({
         <header>
           <div>
             <p className="card-label">
-              {isCrossAgent ? 'Cross-agent handoff' : 'Native provider resume'}
+              {isCrossAgent
+                ? 'Cross-agent handoff'
+                : isNativeFork
+                  ? 'Native provider fork'
+                  : 'Native provider resume'}
             </p>
             <h2 id="resume-session-title">Resume session</h2>
           </div>
@@ -220,10 +307,36 @@ export function ResumeSessionDialog({
           </div>
         </dl>
 
-        <div className="launch-fields resume-launch-fields">
-          {generalSettings.crossAgentWorkflowEnabled ? (
+        {canStartNewSession ? (
+          <fieldset className="continuation-options">
+            <legend>Continuation</legend>
             <label>
-              <span>Resume with provider</span>
+              <input
+                checked={continuation === 'resume'}
+                disabled={starting}
+                name="session-continuation"
+                onChange={() => setContinuation('resume')}
+                type="radio"
+              />
+              <span>Resume original session</span>
+            </label>
+            <label>
+              <input
+                checked={continuation === 'new'}
+                disabled={starting}
+                name="session-continuation"
+                onChange={() => setContinuation('new')}
+                type="radio"
+              />
+              <span>Start a new session from this context</span>
+            </label>
+          </fieldset>
+        ) : null}
+
+        <div className="launch-fields resume-launch-fields">
+          {continuation === 'new' && newSessionDestinations.length > 1 ? (
+            <label>
+              <span>Start with provider</span>
               <select
                 disabled={starting}
                 onChange={(event) => setDestinationProvider(
@@ -231,7 +344,7 @@ export function ResumeSessionDialog({
                 )}
                 value={destinationProvider}
               >
-                {availableDestinations.map((installation) => (
+                {newSessionDestinations.map((installation) => (
                   <option
                     key={installation.provider}
                     value={installation.provider}
@@ -240,6 +353,19 @@ export function ResumeSessionDialog({
                   </option>
                 ))}
               </select>
+            </label>
+          ) : null}
+          {isNativeFork ? (
+            <label>
+              <span>Task for the new session</span>
+              <input
+                disabled={starting}
+                maxLength={4_096}
+                onChange={(event) => setTask(event.currentTarget.value)}
+                placeholder="Describe the work for the fork"
+                type="text"
+                value={task}
+              />
             </label>
           ) : null}
           <label>
@@ -259,6 +385,20 @@ export function ResumeSessionDialog({
           </label>
         </div>
 
+        {isNativeFork ? (
+          <p className="handoff-explanation">
+            This creates a new native {provider?.displayName ?? session.provider}{' '}
+            session. The original session remains unchanged.
+          </p>
+        ) : null}
+
+        {isNativeFork && sourceSessionActive ? (
+          <p className="handoff-explanation active-source-warning">
+            The source session is active. Both sessions use the same workspace,
+            so concurrent file edits may conflict.
+          </p>
+        ) : null}
+
         {isCrossAgent && destination !== undefined ? (
           <p className="handoff-explanation">
             This creates a new {destination.displayName} session. The original{' '}
@@ -272,16 +412,34 @@ export function ResumeSessionDialog({
 
         {preflight.status === 'preparing' ? (
           <div className="launch-empty" role="status">
-            <p>{isCrossAgent ? 'Preparing handoff' : 'Preparing resume'}</p>
+            <p>
+              {isCrossAgent
+                ? 'Preparing handoff'
+                : isNativeFork
+                  ? 'Preparing fork'
+                  : 'Preparing resume'}
+            </p>
           </div>
         ) : preflight.status === 'failed' ? (
           <div className="catalog-operation-error" role="alert">
-            <span>The resume preview could not be prepared.</span>{' '}
+            <span>
+              {isCrossAgent
+                ? 'The handoff preview could not be prepared.'
+                : isNativeFork
+                  ? 'The fork preview could not be prepared.'
+                  : 'The resume preview could not be prepared.'}
+            </span>{' '}
             <button className="text-button" onClick={retry} type="button">Retry</button>
           </div>
         ) : preview === null ? (
           <div className="launch-empty">
-            <p>The selected session is not currently available to resume.</p>
+            <p>
+              {isCrossAgent
+                ? 'The selected session is not currently available to hand off.'
+                : isNativeFork
+                  ? 'The selected session is not currently available to fork.'
+                  : 'The selected session is not currently available to resume.'}
+            </p>
           </div>
         ) : (
           <>
@@ -309,8 +467,16 @@ export function ResumeSessionDialog({
             type="button"
           >
             {starting
-              ? isCrossAgent ? 'Starting handoff' : 'Resuming session'
-              : isCrossAgent ? 'Start handoff' : 'Resume session'}
+              ? isCrossAgent
+                ? 'Starting handoff'
+                : isNativeFork
+                  ? 'Starting fork'
+                  : 'Resuming session'
+              : isCrossAgent
+                ? 'Start handoff'
+                : isNativeFork
+                  ? 'Fork session'
+                  : 'Resume session'}
           </button>
         </footer>
       </section>

@@ -1504,6 +1504,9 @@ export default function App(): ReactNode {
             providerStatus.state === 'ready' ? providerStatus.scan : null
           }
           session={resumeIntent.session}
+          sourceSessionActive={liveRuntimes.some(
+            (runtime) => runtime.sessionId === resumeIntent.session.id
+          )}
           workspace={resumeIntent.workspace}
         />
       ) : null}

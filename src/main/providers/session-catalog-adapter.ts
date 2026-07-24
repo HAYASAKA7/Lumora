@@ -36,6 +36,10 @@ export interface SessionCatalogAdapter {
     installation: ReadyProviderInstallation
   ): SessionAdapterCompatibility;
   buildResumeArguments(nativeSessionId: string): readonly string[];
+  buildForkArguments?(
+    nativeSessionId: string,
+    task: string
+  ): readonly string[];
   snapshotHandoff: SessionHandoffSnapshotter;
 }
 

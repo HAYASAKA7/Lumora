@@ -323,4 +323,81 @@ describe('provider lifecycle migration', () => {
       { provider: 'qwen', size: null, modified_at_ms: null }
     ]);
   });
+
+  it('preserves runtime reconciliation data while enabling fork runtimes', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 14)
+    );
+    const timestamp = '2026-07-24T02:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    const profileId = 'b'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'workspace-key', '/work/lumora', 'Lumora', 1, 'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO terminal_profile (
+        id, kind, name, shell_family, executable_path, args_json,
+        available, recommended, created_at, updated_at
+      ) VALUES (?, 'detected', 'Bash', 'bash', '/bin/bash', '[]',
+        1, 1, ?, ?)`
+    ).run(profileId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO runtime_instance (
+        id, display_name, strategy, session_id, native_session_id,
+        reconciliation_state, provider, workspace_id, terminal_profile_id,
+        launch_hash, state, pid, created_at, started_at, ended_at,
+        exit_code, error_code
+      ) VALUES (?, 'Existing runtime', 'new', NULL, NULL, 'pending',
+        'codex', ?, ?, ?, 'running', 1234, ?, ?, NULL, NULL, NULL)`
+    ).run(
+      runtimeId,
+      workspaceId,
+      profileId,
+      'c'.repeat(64),
+      timestamp,
+      timestamp
+    );
+    database.prepare(
+      `INSERT INTO runtime_reconciliation (
+        runtime_id, baseline_native_ids_json
+      ) VALUES (?, '["native-before"]')`
+    ).run(runtimeId);
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(
+      database.prepare(
+        `SELECT strategy, display_name FROM runtime_instance WHERE id = ?`
+      ).get(runtimeId)
+    ).toEqual({ strategy: 'new', display_name: 'Existing runtime' });
+    expect(
+      database.prepare(
+        `SELECT baseline_native_ids_json FROM runtime_reconciliation
+         WHERE runtime_id = ?`
+      ).get(runtimeId)
+    ).toEqual({ baseline_native_ids_json: '["native-before"]' });
+    expect(() =>
+      database!.prepare(
+        `INSERT INTO runtime_instance (
+          id, display_name, strategy, session_id, native_session_id,
+          reconciliation_state, provider, workspace_id, terminal_profile_id,
+          launch_hash, state, pid, created_at, started_at, ended_at,
+          exit_code, error_code
+        ) VALUES (?, 'Fork runtime', 'fork', NULL, NULL, 'pending',
+          'codex', ?, ?, ?, 'launching', NULL, ?, NULL, NULL, NULL, NULL)`
+      ).run(
+        '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+        workspaceId,
+        profileId,
+        'd'.repeat(64),
+        timestamp
+      )
+    ).not.toThrow();
+  });
 });

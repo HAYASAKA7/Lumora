@@ -12,6 +12,10 @@ Every full-session provider can participate in the optional cross-agent
 handoff workflow as either source or destination. A handoff creates a new
 destination session from a temporary copy; it is not exact native resume.
 
+Codex, Claude Code, and OpenCode additionally support provider-native session
+forks. Lumora passes the source session identity and a user-supplied task to the
+provider; the provider creates and owns the new session.
+
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
 columns below record hands-on testing with the real provider executable. Leave a
@@ -60,6 +64,19 @@ Lumora uses these commands to identify an installed provider:
 A custom start command can wrap the detected executable, but detection still
 requires the provider command or a saved manual executable path.
 
+## Native fork commands
+
+| Provider | Minimum tested version | Arguments after the configured provider command |
+| --- | --- | --- |
+| Codex | `0.120.0` | `fork <session-id> <task>` |
+| Claude Code | `1.0.90` | `--resume <session-id> --fork-session <task>` |
+| OpenCode | `1.0.0` | `--session <session-id> --fork --prompt <task>` |
+
+Lumora only offers native fork when the installed version is at or above the
+tested minimum. An older or unparseable version can still use its other
+supported Lumora features, but native fork remains hidden and is rejected by
+the launch service.
+
 ## Manual provider checklist
 
 For every provider and target operating system:
@@ -74,13 +91,17 @@ For every provider and target operating system:
 6. Resume that exact session, verify its context in the provider, exit, and
    confirm the catalog refreshes again.
 7. Repeat the launch with a custom provider command or shell wrapper.
-8. Enable cross-agent handoff, choose a different installed full-session
+8. For Codex, Claude Code, and OpenCode, fork the saved session with a new task;
+   confirm the new native session contains the source context, receives a
+   distinct identity, and leaves the original resumable.
+9. Enable cross-agent handoff, choose a different installed full-session
    provider in the resume dialog, and confirm that a new destination session
    receives the conversation while the source still resumes normally.
-9. Use a non-English source conversation and confirm the destination continues
+10. Use a non-English source conversation and confirm the destination continues
    in the user's language rather than Lumora's English bootstrap language.
 
-For launch-only providers, steps 5, 6, 8, and 9 do not apply.
+For launch-only providers, steps 5, 6, 8, 9, and 10 do not apply. Native fork
+step 8 only applies to Codex, Claude Code, and OpenCode.
 
 ## Why some providers are launch-only
 

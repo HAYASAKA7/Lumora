@@ -158,7 +158,7 @@ export class RuntimeHost {
     });
     this.persistAndEmit(
       launching,
-      spec.strategy === 'new' && spec.reconciliationBaselineNativeIds !== null
+      spec.strategy !== 'resume' && spec.reconciliationBaselineNativeIds !== null
         ? spec.reconciliationBaselineNativeIds
         : undefined
     );

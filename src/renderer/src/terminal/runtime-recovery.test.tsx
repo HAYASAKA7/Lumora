@@ -44,6 +44,35 @@ describe('resolveRuntimeRecovery', () => {
     });
   });
 
+  it('resumes a reconciled lost fork through its discovered native identity', () => {
+    const reconciledFork = {
+      ...runtime,
+      strategy: 'fork' as const,
+      displayName: 'Fork of Repository cleanup'
+    };
+
+    expect(resolveRuntimeRecovery(reconciledFork, [session])).toEqual({
+      strategy: 'resume',
+      session
+    });
+  });
+
+  it('restarts an unreconciled lost fork as a fresh provider session', () => {
+    const pendingFork = {
+      ...runtime,
+      strategy: 'fork' as const,
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending' as const
+    };
+
+    expect(resolveRuntimeRecovery(pendingFork, [session])).toEqual({
+      strategy: 'new',
+      provider: runtime.provider,
+      workspaceId: runtime.workspaceId
+    });
+  });
+
   it.each([
     ['missing runtime link', { ...runtime, sessionId: null }, [session]],
     ['missing catalog row', runtime, []],

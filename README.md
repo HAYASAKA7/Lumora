@@ -25,6 +25,8 @@ limits.
 - Add local workspaces and browse provider-owned sessions inside them.
 - Search saved sessions by title, workspace, and provider.
 - Start a new provider session or resume an exact native session.
+- Fork Codex, Claude Code, or OpenCode sessions into a new native session while
+  leaving the original unchanged.
 - Opt in to start a new provider session from another provider's saved context.
 - Keep active sessions mounted in managed terminal tabs while navigating Lumora.
 - Use custom shells, provider commands, aliases, and layered launch settings.
@@ -99,7 +101,10 @@ continue to be controlled by the provider.
 
 The **Workspaces** page groups provider-owned sessions by project directory.
 Select a workspace card to open its saved-session list. Select a session card
-to resume it with the provider's native session identity.
+to open its continuation dialog. You can resume the original session, or—when
+the provider supports native fork—start a separate native session from the same
+context with a new task. Native forks keep the original provider session
+unchanged.
 
 The **All sessions** page searches across available workspaces. Provider filters
 only include installed providers for which Lumora found resumable sessions.
@@ -185,20 +190,20 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 
 ## Supported providers
 
-| Provider | Install/update | New session | Saved-session discovery and exact resume |
-| --- | --- | --- | --- |
-| Codex | Confirmed npm action | Yes | Yes |
-| Claude Code | Confirmed npm action | Yes | Yes |
-| Gemini CLI | Confirmed npm action | Yes | Yes |
-| OpenCode | Confirmed npm action | Yes | Yes |
-| GitHub Copilot CLI | Confirmed npm action | Yes | Yes |
-| Qwen Code | Confirmed npm action | Yes | Yes |
-| Antigravity | Official guide | Yes | No |
-| Cursor CLI | Official guide | Yes | No |
-| Amp | Official guide | Yes | No |
-| Crush | Confirmed npm action | Yes | No |
-| goose | Official guide | Yes | No |
-| Aider | Official guide | Yes | No |
+| Provider | Install/update | New session | Saved-session discovery and exact resume | Native fork |
+| --- | --- | --- | --- | --- |
+| Codex | Confirmed npm action | Yes | Yes | Yes |
+| Claude Code | Confirmed npm action | Yes | Yes | Yes |
+| Gemini CLI | Confirmed npm action | Yes | Yes | No |
+| OpenCode | Confirmed npm action | Yes | Yes | Yes |
+| GitHub Copilot CLI | Confirmed npm action | Yes | Yes | No |
+| Qwen Code | Confirmed npm action | Yes | Yes | No |
+| Antigravity | Official guide | Yes | No | No |
+| Cursor CLI | Official guide | Yes | No | No |
+| Amp | Official guide | Yes | No | No |
+| Crush | Confirmed npm action | Yes | No | No |
+| goose | Official guide | Yes | No | No |
+| Aider | Official guide | Yes | No | No |
 
 All providers can be launched on Windows, macOS, and Linux when their command
 is installed and compatible. Launch-only providers remain available in
@@ -216,7 +221,9 @@ normalized session metadata, settings, trust decisions, window state, and
 managed runtime history in the operating system's application-data location.
 Provider session files remain provider-owned read-only inputs.
 
-An enabled cross-agent handoff stores an immutable source copy, normalized
+A native same-provider fork delegates context handling to the provider and
+does not create a Lumora transcript copy. An enabled cross-agent handoff stores
+an immutable source copy, normalized
 conversation files, and a small manifest under Lumora's local application-data
 directory. These files are used only to bootstrap the destination provider and
 are automatically removed according to the retention period in General

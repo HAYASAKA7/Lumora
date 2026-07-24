@@ -23,6 +23,16 @@ const INITIAL_PROMPT_ARGUMENTS: Partial<
   qwen: (prompt) => ['-i', prompt]
 };
 
+const FORK_ARGUMENTS: Partial<
+  Record<ProviderId, (nativeSessionId: string, task: string) => string[]>
+> = {
+  codex: (nativeSessionId, task) => ['fork', nativeSessionId, task],
+  claude: (nativeSessionId, task) =>
+    ['--resume', nativeSessionId, '--fork-session', task],
+  opencode: (nativeSessionId, task) =>
+    ['--session', nativeSessionId, '--fork', '--prompt', task]
+};
+
 export function buildResumeArguments(
   provider: ProviderId,
   nativeSessionId: string
@@ -54,4 +64,32 @@ export function buildInitialPromptArguments(
     throw new Error('The cross-agent handoff prompt is invalid.');
   }
   return buildArguments(prompt);
+}
+
+export function buildForkArguments(
+  provider: ProviderId,
+  nativeSessionId: string,
+  task: string
+): string[] {
+  const buildArguments = FORK_ARGUMENTS[provider];
+  if (!buildArguments) {
+    throw new Error(
+      `${providerDefinition(provider).displayName} does not support native session fork in Lumora.`
+    );
+  }
+  if (
+    nativeSessionId.trim().length === 0 ||
+    nativeSessionId.length > 256 ||
+    /[\0\r\n]/.test(nativeSessionId)
+  ) {
+    throw new Error('The native session identity is invalid.');
+  }
+  if (
+    task.trim().length === 0 ||
+    task.length > 4_096 ||
+    /[\0\r\n]/.test(task)
+  ) {
+    throw new Error('The native session fork task is invalid.');
+  }
+  return buildArguments(nativeSessionId, task);
 }

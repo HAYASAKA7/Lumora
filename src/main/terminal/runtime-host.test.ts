@@ -224,6 +224,46 @@ describe('RuntimeHost', () => {
     expect(events.filter((event) => event.type === 'state')).toHaveLength(2);
   });
 
+  it('starts a native fork unlinked and reconciles it as a new provider session', async () => {
+    const forkLaunch: LaunchSpec = {
+      ...launchSpec,
+      displayName: 'Fork of Repository cleanup',
+      strategy: 'fork',
+      args: ['fork', 'native-thread-1', 'Fix the failing tests.'],
+      fork: {
+        sourceSessionId: 'd'.repeat(64),
+        sourceNativeSessionId: 'native-thread-1',
+        task: 'Fix the failing tests.'
+      }
+    };
+    const { host, repository, startReconciliation } = harness({
+      launch: forkLaunch
+    });
+
+    const runtime = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+
+    expect(runtime).toMatchObject({
+      displayName: 'Fork of Repository cleanup',
+      strategy: 'fork',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending'
+    });
+    expect(repository.saveRuntime).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ strategy: 'fork' }),
+      ['known-native']
+    );
+    expect(startReconciliation).toHaveBeenCalledWith({
+      runtimeId: runtime.id,
+      provider: 'codex',
+      workspaceId: launchSpec.workspaceId,
+      baselineNativeIds: ['known-native']
+    });
+  });
+
   it('copies resume identity into every runtime transition', async () => {
     const resumeLaunch: LaunchSpec = {
       ...launchSpec,

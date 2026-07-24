@@ -699,6 +699,11 @@ const LaunchRequestBaseFields = {
   ...TerminalDimensionsFields
 };
 
+const ForkTaskSchema = z.string().max(4_096).refine(
+  (task) => task.trim().length > 0 && !/[\0\r\n]/.test(task),
+  'The native session fork task is invalid.'
+);
+
 export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
     strategy: z.literal('new'),
@@ -711,13 +716,19 @@ export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
     sessionId: StableIdSchema,
     provider: ProviderIdSchema.optional(),
     ...LaunchRequestBaseFields
+  }),
+  z.strictObject({
+    strategy: z.literal('fork'),
+    sessionId: StableIdSchema,
+    task: ForkTaskSchema,
+    ...LaunchRequestBaseFields
   })
 ]);
 
 export const LaunchPreviewSchema = z.strictObject({
   launchToken: z.uuid(),
   launchHash: StableIdSchema,
-  strategy: z.enum(['new', 'resume']),
+  strategy: z.enum(['new', 'resume', 'fork']),
   sessionId: StableIdSchema.nullable(),
   provider: ProviderIdSchema,
   executablePath: z.string().min(1).max(32_768),
@@ -749,7 +760,7 @@ export const RuntimeErrorCodeSchema = z.enum([
   'PTY_RUNTIME_FAILED',
   'PTY_RUNTIME_LOST'
 ]);
-export const RuntimeStrategySchema = z.enum(['new', 'resume']);
+export const RuntimeStrategySchema = z.enum(['new', 'resume', 'fork']);
 export const RuntimeReconciliationStateSchema = z.enum([
   'not_required',
   'pending',
@@ -803,17 +814,17 @@ export const RuntimeSummarySchema = z.strictObject({
     });
   }
   if (
-    runtime.strategy === 'new' &&
+    runtime.strategy !== 'resume' &&
     runtime.reconciliationState === 'not_required'
   ) {
     context.addIssue({
       code: 'custom',
       path: ['reconciliationState'],
-      message: 'A new runtime requires an explicit reconciliation result.'
+      message: 'A new or fork runtime requires an explicit reconciliation result.'
     });
   }
   if (
-    runtime.strategy === 'new' &&
+    runtime.strategy !== 'resume' &&
     runtime.reconciliationState === 'linked' &&
     runtime.nativeSessionId === null
   ) {
@@ -824,14 +835,14 @@ export const RuntimeSummarySchema = z.strictObject({
     });
   }
   if (
-    runtime.strategy === 'new' &&
+    runtime.strategy !== 'resume' &&
     runtime.reconciliationState !== 'linked' &&
     (runtime.sessionId !== null || runtime.nativeSessionId !== null)
   ) {
     context.addIssue({
       code: 'custom',
       path: ['reconciliationState'],
-      message: 'An unlinked new runtime cannot carry session identity.'
+      message: 'An unlinked new or fork runtime cannot carry session identity.'
     });
   }
 });

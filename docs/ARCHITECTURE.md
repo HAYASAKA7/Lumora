@@ -82,6 +82,11 @@ Provider files are inputs, not Lumora-managed storage. A malformed provider
 record produces a diagnostic without hiding healthy providers or deleting the
 last good catalog snapshot.
 
+Codex, Claude Code, and OpenCode adapters also expose their documented native
+fork arguments. A native fork is a same-provider launch that references the
+source native session ID, creates a distinct provider-owned session identity,
+and never copies or rewrites the source transcript.
+
 Complete-session adapters also expose a bounded handoff snapshot operation.
 File-backed providers copy the selected source before parsing it; OpenCode uses
 its structured export command. This operation is separate from catalog scans
@@ -129,7 +134,15 @@ Before spawning a process, the main process:
 6. starts the command through `node-pty` only after confirmation.
 
 For an exact native resume, Lumora passes the source provider's session ID as
-before. For an enabled cross-agent handoff, the main process instead:
+before.
+
+For a native fork, Lumora revalidates the source identity and provider
+capability when the launch preview is consumed, passes the provider's native
+fork arguments plus the user's single-line task, and starts with no destination
+session identity. The existing reconciliation flow then links the runtime to
+the new provider-owned session without changing the source session.
+
+For an enabled cross-agent handoff, the main process instead:
 
 1. verifies that source and destination providers are enabled, installed,
    compatible, and have complete session support;

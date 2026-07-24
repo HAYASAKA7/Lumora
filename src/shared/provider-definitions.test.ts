@@ -4,7 +4,10 @@ import {
   PROVIDER_DEFINITIONS,
   SESSION_PROVIDER_IDS,
   hasCompleteSessionSupport,
-  providerDefinition
+  hasNativeForkSupport,
+  nativeForkMinimumVersion,
+  providerDefinition,
+  supportsNativeForkVersion
 } from './provider-definitions';
 
 describe('provider definitions', () => {
@@ -51,5 +54,47 @@ describe('provider definitions', () => {
         .filter(({ sessionSupport }) => sessionSupport === 'launch_only')
         .map(({ provider }) => provider)
     ).toEqual(['antigravity', 'cursor', 'amp', 'crush', 'goose', 'aider']);
+  });
+
+  it('exposes native fork support only for providers with stable launch commands', () => {
+    expect(
+      PROVIDER_DEFINITIONS
+        .filter(({ provider }) => hasNativeForkSupport(provider))
+        .map(({ provider }) => provider)
+    ).toEqual(['codex', 'claude', 'opencode']);
+    expect(hasNativeForkSupport('gemini')).toBe(false);
+    expect(hasNativeForkSupport('copilot')).toBe(false);
+    expect(hasNativeForkSupport('qwen')).toBe(false);
+    expect(hasNativeForkSupport('aider')).toBe(false);
+  });
+
+  it.each([
+    ['codex', 'codex-cli 0.120.0', '0.119.9'],
+    ['claude', '1.0.90 (Claude Code)', '1.0.89'],
+    ['opencode', 'opencode 1.0.0', '0.9.99']
+  ] as const)(
+    'requires a tested %s CLI version for native fork',
+    (provider, supported, unsupported) => {
+      expect(supportsNativeForkVersion(provider, supported)).toBe(true);
+      expect(supportsNativeForkVersion(provider, unsupported)).toBe(false);
+    }
+  );
+
+  it('accepts newer native-fork versions and rejects unverifiable versions', () => {
+    expect(supportsNativeForkVersion('codex', 'codex-cli 0.145.0')).toBe(true);
+    expect(supportsNativeForkVersion('claude', '2.1.212 (Claude Code)')).toBe(
+      true
+    );
+    expect(supportsNativeForkVersion('opencode', '1.18.4')).toBe(true);
+    expect(supportsNativeForkVersion('codex', null)).toBe(false);
+    expect(supportsNativeForkVersion('codex', 'nightly')).toBe(false);
+    expect(supportsNativeForkVersion('gemini', '99.0.0')).toBe(false);
+  });
+
+  it('publishes the tested minimum versions for provider guidance', () => {
+    expect(nativeForkMinimumVersion('codex')).toBe('0.120.0');
+    expect(nativeForkMinimumVersion('claude')).toBe('1.0.90');
+    expect(nativeForkMinimumVersion('opencode')).toBe('1.0.0');
+    expect(nativeForkMinimumVersion('gemini')).toBeNull();
   });
 });

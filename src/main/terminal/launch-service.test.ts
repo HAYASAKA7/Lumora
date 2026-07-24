@@ -9,12 +9,18 @@ import type {
 import { DEFAULT_GENERAL_SETTINGS } from '../../shared/contracts';
 import type { HandoffPlan } from '../handoff/handoff-service';
 import type { SessionLaunchInfo } from '../storage/terminal-repository';
-import { buildResumeArguments } from '../providers/launch-command';
+import {
+  buildForkArguments,
+  buildResumeArguments
+} from '../providers/launch-command';
 import {
   createSessionCatalogRegistry,
   type SessionCatalogAdapter
 } from '../providers/session-catalog-adapter';
-import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  hasNativeForkSupport
+} from '../../shared/provider-definitions';
 import { LaunchService, TerminalLaunchError } from './launch-service';
 
 const workspaceId = 'a'.repeat(64);
@@ -46,7 +52,14 @@ const scan: ProviderScanResult = {
     displayName: provider,
     state: 'ready' as const,
     executablePath: `/usr/local/bin/${provider}`,
-    version: '1.0.0',
+    version:
+      provider === 'codex'
+        ? 'codex-cli 0.145.0'
+        : provider === 'claude'
+          ? '2.1.212 (Claude Code)'
+          : provider === 'opencode'
+            ? '1.18.4'
+            : '1.0.0',
     issue: null
   }))
 };
@@ -59,6 +72,10 @@ const sessionCatalogRegistry = createSessionCatalogRegistry(
       validateCompatibility: () => ({ compatible: true }),
       buildResumeArguments: (nativeSessionId) =>
         buildResumeArguments(provider, nativeSessionId),
+      ...(hasNativeForkSupport(provider) && {
+        buildForkArguments: (nativeSessionId: string, task: string) =>
+          buildForkArguments(provider, nativeSessionId, task)
+      }),
       snapshotHandoff: vi.fn(async () => ({
         raw: '{"messages":[]}',
         sourceFiles: ['/tmp/source.json']
@@ -154,7 +171,7 @@ function harness(overrides: {
     if (overrides.baseline instanceof Error) throw overrides.baseline;
     return overrides.baseline ?? [];
   });
-  let currentScan = overrides.scan ?? scan;
+  let currentScan: ProviderScanResult = overrides.scan ?? scan;
   const handoffPlan: HandoffPlan = {
     id: '019c0000-0000-7000-8000-000000000010',
     sourceSessionId: sessionId,
@@ -291,6 +308,176 @@ describe('LaunchService', () => {
       cols: 100,
       rows: 30
     })).rejects.toMatchObject({ code: 'CROSS_AGENT_DISABLED' });
+  });
+
+  it.each([
+    ['codex', ['fork', nativeId, 'Fix the failing tests.']],
+    ['claude', ['--resume', nativeId, '--fork-session', 'Fix the failing tests.']],
+    ['opencode', ['--session', nativeId, '--fork', '--prompt', 'Fix the failing tests.']]
+  ] as const)('prepares and consumes a native %s fork as an unlinked new identity', async (
+    provider,
+    args
+  ) => {
+    const {
+      service,
+      captureSessionBaseline,
+      handoffService
+    } = harness({
+      trusted: true,
+      session: { ...session, provider },
+      baseline: ['existing-native']
+    });
+    const preview = await service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview).toMatchObject({
+      strategy: 'fork',
+      sessionId: null,
+      provider,
+      args
+    });
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      displayName: 'Fork of Repository cleanup',
+      strategy: 'fork',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationBaselineNativeIds: ['existing-native'],
+      fork: {
+        sourceSessionId: sessionId,
+        sourceNativeSessionId: nativeId,
+        task: 'Fix the failing tests.'
+      }
+    });
+    expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
+    expect(handoffService.reserve).not.toHaveBeenCalled();
+    expect(handoffService.materialize).not.toHaveBeenCalled();
+  });
+
+  it('bounds a native fork title to the runtime contract limit', async () => {
+    const { service } = harness({
+      trusted: true,
+      session: { ...session, title: 'x'.repeat(256) }
+    });
+    const preview = await service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Continue safely.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    const spec = await service.consume(preview.launchToken);
+    expect(spec.displayName).toHaveLength(256);
+    expect(spec.displayName).toBe(`Fork of ${'x'.repeat(248)}`);
+  });
+
+  it('uses a configured provider command for a native fork', async () => {
+    const { service } = harness({
+      command: 'codexp --profile work',
+      trusted: true
+    });
+    const preview = await service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(preview).toMatchObject({
+      command: 'codexp --profile work',
+      args: ['fork', nativeId, 'Fix the failing tests.']
+    });
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      command: 'codexp --profile work'
+    });
+  });
+
+  it('rejects native fork for an installed CLI below the tested minimum', async () => {
+    const oldScan: ProviderScanResult = {
+      ...scan,
+      providers: scan.providers.map((installation) =>
+        installation.provider === 'codex' &&
+        installation.state === 'ready'
+          ? { ...installation, version: 'codex-cli 0.119.9' }
+          : installation
+      )
+    };
+
+    await expect(harness({ scan: oldScan }).service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    })).rejects.toMatchObject({ code: 'NATIVE_FORK_UNAVAILABLE' });
+  });
+
+  it('rejects a prepared fork when the installed CLI is downgraded', async () => {
+    const { service, setScan } = harness({ trusted: true });
+    const preview = await service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    setScan({
+      ...scan,
+      providers: scan.providers.map((installation) =>
+        installation.provider === 'codex' &&
+        installation.state === 'ready'
+          ? { ...installation, version: 'codex-cli 0.119.9' }
+          : installation
+      )
+    });
+
+    await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
+      code: 'NATIVE_FORK_UNAVAILABLE'
+    });
+  });
+
+  it('rejects native fork when the provider adapter has no fork capability', async () => {
+    await expect(harness({
+      session: { ...session, provider: 'gemini' }
+    }).service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    })).rejects.toMatchObject({ code: 'NATIVE_FORK_UNAVAILABLE' });
+  });
+
+  it('invalidates a native fork when the source identity changes after preview', async () => {
+    const { service, setSession } = harness({
+      trusted: true,
+      baseline: ['existing-native']
+    });
+    const preview = await service.prepare({
+      strategy: 'fork',
+      sessionId,
+      task: 'Fix the failing tests.',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    setSession({ ...session, nativeId: 'changed-native' });
+
+    await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
+      code: 'LAUNCH_TOKEN_INVALID'
+    });
   });
 
   it('materializes a trusted cross-agent handoff and launches a new destination session', async () => {

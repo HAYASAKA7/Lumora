@@ -787,6 +787,44 @@ describe('managed terminal contracts', () => {
     expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual(
       resumeRequest
     );
+    const forkRequest = {
+      strategy: 'fork',
+      sessionId: 'c'.repeat(64),
+      task: 'Review the current implementation and fix the failing test.',
+      terminalProfileId: profile.id,
+      cols: 120,
+      rows: 36
+    } as const;
+    expect(LaunchPrepareRequestSchema.parse(forkRequest)).toEqual(forkRequest);
+    expect(
+      LaunchPreviewSchema.parse({
+        ...preview,
+        strategy: 'fork',
+        sessionId: null,
+        args: ['fork', 'native-session', forkRequest.task]
+      })
+    ).toMatchObject({ strategy: 'fork', sessionId: null });
+    for (const task of [
+      '',
+      '   ',
+      'line one\nline two',
+      'line one\rline two',
+      'bad\0task',
+      'x'.repeat(4_097)
+    ]) {
+      expect(
+        LaunchPrepareRequestSchema.safeParse({
+          ...forkRequest,
+          task
+        }).success
+      ).toBe(false);
+    }
+    expect(
+      LaunchPrepareRequestSchema.safeParse({
+        ...forkRequest,
+        provider: 'claude'
+      }).success
+    ).toBe(false);
     expect(
       LaunchPrepareRequestSchema.parse({
         ...request,
@@ -911,6 +949,34 @@ describe('managed terminal contracts', () => {
       nativeSessionId: null,
       reconciliationState: 'pending'
     })).toMatchObject({ strategy: 'new', reconciliationState: 'pending' });
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'fork',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending'
+    }).success).toBe(true);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'fork',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-fork-1',
+      reconciliationState: 'linked'
+    }).success).toBe(true);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'fork',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'not_required'
+    }).success).toBe(false);
+    expect(RuntimeSummarySchema.safeParse({
+      ...runtimeBase,
+      strategy: 'fork',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-fork-1',
+      reconciliationState: 'ambiguous'
+    }).success).toBe(false);
     expect(RuntimeSummarySchema.safeParse({
       ...runtimeBase,
       strategy: 'resume',

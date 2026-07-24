@@ -18,6 +18,12 @@ const IDENTITY_MATCH_LABELS: Record<
   unresolved: 'Not found — unlinked'
 };
 
+const LAUNCH_TYPE_LABELS: Record<RuntimeSummary['strategy'], string> = {
+  new: 'New session',
+  resume: 'Resume',
+  fork: 'Fork'
+};
+
 interface TerminalDetailsDialogProps {
   runtime: RuntimeSummary;
   preview: LaunchPreview | undefined;
@@ -60,7 +66,7 @@ export function TerminalDetailsDialog({
             <div><dt>Process</dt><dd>{runtime.pid ?? 'Not live'}</dd></div>
             <div><dt>Executable</dt><dd>{preview?.executablePath ?? 'Saved runtime'}</dd></div>
             <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
-            <div><dt>Launch type</dt><dd>{runtime.strategy === 'resume' ? 'Resume' : 'New session'}</dd></div>
+            <div><dt>Launch type</dt><dd>{LAUNCH_TYPE_LABELS[runtime.strategy]}</dd></div>
             <div><dt>Identity match</dt><dd>{IDENTITY_MATCH_LABELS[runtime.reconciliationState]}</dd></div>
             <div><dt>Session</dt><dd>{runtime.sessionId?.slice(0, 12) ?? 'Not linked'}</dd></div>
             <div><dt>Launch hash</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>

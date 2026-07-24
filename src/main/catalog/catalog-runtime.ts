@@ -12,7 +12,10 @@ import { discoverClaudeSessions } from '../providers/claude-session-source';
 import { discoverCopilotSessions } from '../providers/copilot-session-source';
 import { discoverCodexSessions } from '../providers/codex-app-server';
 import { discoverJsonSessions } from '../providers/json-session-source';
-import { buildResumeArguments } from '../providers/launch-command';
+import {
+  buildForkArguments,
+  buildResumeArguments
+} from '../providers/launch-command';
 import { discoverOpenCodeSessions } from '../providers/opencode-session-source';
 import { discoverQwenSessions } from '../providers/qwen-session-source';
 import {
@@ -25,7 +28,10 @@ import {
   type SessionCatalogAdapter,
   type SessionCatalogRegistry
 } from '../providers/session-catalog-adapter';
-import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  hasNativeForkSupport
+} from '../../shared/provider-definitions';
 import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
@@ -87,14 +93,23 @@ export function createCatalogRuntime({
     discover: SessionCatalogAdapter['discover'],
     snapshotHandoff: SessionCatalogAdapter['snapshotHandoff'] =
       createFileHandoffSnapshotter(provider)
-  ): SessionCatalogAdapter => ({
-    provider,
-    discover,
-    validateCompatibility: validateInstalledProviderCompatibility,
-    buildResumeArguments: (nativeSessionId) =>
-      buildResumeArguments(provider, nativeSessionId),
-    snapshotHandoff
-  });
+  ): SessionCatalogAdapter => {
+    const buildNativeFork = hasNativeForkSupport(provider)
+      ? {
+          buildForkArguments: (nativeSessionId: string, task: string) =>
+            buildForkArguments(provider, nativeSessionId, task)
+        }
+      : {};
+    return {
+      provider,
+      discover,
+      validateCompatibility: validateInstalledProviderCompatibility,
+      buildResumeArguments: (nativeSessionId) =>
+        buildResumeArguments(provider, nativeSessionId),
+      ...buildNativeFork,
+      snapshotHandoff
+    };
+  };
   const registry = createSessionCatalogRegistry([
     adapter('codex', (installation) =>
       discoverCodexSessions({

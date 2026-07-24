@@ -496,6 +496,51 @@ describe('TerminalRepository', () => {
     ]);
   });
 
+  it('persists and reconciles a native-fork runtime as a new provider identity', () => {
+    const profileId = 'b'.repeat(64);
+    const runtimeId = '0198f8b6-18f3-7ca0-9f0f-123456789abf';
+    const forkSessionId = 'd'.repeat(64);
+    repository.reconcileDetectedProfiles([profile(profileId)], timestamp);
+    repository.saveRuntime({
+      id: runtimeId,
+      displayName: 'Fork of Repository cleanup',
+      strategy: 'fork',
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'pending',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      launchHash: 'e'.repeat(64),
+      state: 'running',
+      pid: 4321,
+      createdAt: timestamp,
+      startedAt: timestamp,
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    }, ['known-native']);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'fork-native', ?, 'Forked work',
+        'forked work', ?, ?, 'active', 'current')`
+    ).run(forkSessionId, workspaceId, timestamp, timestamp);
+
+    expect(repository.applyRuntimeReconciliation(runtimeId, {
+      state: 'linked',
+      sessionId: forkSessionId,
+      nativeSessionId: 'fork-native'
+    })).toMatchObject({
+      strategy: 'fork',
+      displayName: 'Forked work',
+      sessionId: forkSessionId,
+      nativeSessionId: 'fork-native',
+      reconciliationState: 'linked'
+    });
+  });
+
   it('retains resume identity through lifecycle updates and catalog unlink', () => {
     const profileId = 'b'.repeat(64);
     const sessionId = 'c'.repeat(64);
