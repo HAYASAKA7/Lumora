@@ -78,10 +78,10 @@ function compareSpecificity(left: Specificity, right: Specificity): number {
   return 0;
 }
 
-function winningPseudoElementDeclaration(
+function winningDeclaration(
   element: Element,
-  pseudoElement: string,
-  property: string
+  property: string,
+  pseudoElement = ''
 ): string | undefined {
   const candidates: Array<{
     value: string;
@@ -105,14 +105,16 @@ function winningPseudoElementDeclaration(
 
     for (const rawSelector of selectorList.split(',')) {
       const selector = normalizeSelector(rawSelector);
-      if (!selector.endsWith(pseudoElement)) {
+      if (pseudoElement && !selector.endsWith(pseudoElement)) {
+        continue;
+      }
+      if (!pseudoElement && selector.includes('::')) {
         continue;
       }
 
-      const originatingElementSelector = selector.slice(
-        0,
-        -pseudoElement.length
-      );
+      const originatingElementSelector = pseudoElement
+        ? selector.slice(0, -pseudoElement.length)
+        : selector;
       if (element.matches(originatingElementSelector)) {
         candidates.push({
           value,
@@ -271,10 +273,10 @@ describe('popup layout styles', () => {
       scrollingRegion.className = className;
       dialog.append(scrollingRegion);
       expect(
-        winningPseudoElementDeclaration(
+        winningDeclaration(
           scrollingRegion,
-          '::-webkit-scrollbar',
-          'width'
+          'width',
+          '::-webkit-scrollbar'
         ),
         `${className} scrollbar width must win the CSS cascade`
       ).toBe('var(--modal-scrollbar-size)');
@@ -299,19 +301,42 @@ describe('popup layout styles', () => {
       effectiveDeclarations(rule('.launch-readiness')).get('margin-top')
     ).toBe('0');
 
-    const directSections = effectiveDeclarations(
-      groupedRule([
-        '.dialog-body > .card-description',
-        '.dialog-body > .resume-session-details',
-        '.dialog-body > .continuation-options',
-        '.dialog-body > .handoff-explanation',
-        '.dialog-body > .launch-details',
-        '.dialog-body > .workspace-trust-notice',
-        '.launch-readiness > .catalog-error',
-        '.new-session-dialog footer'
-      ])
-    );
-    expect(directSections.get('margin')).toBe('0');
+    const dialog = document.createElement('div');
+    dialog.className = 'new-session-dialog';
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <p class="card-description"></p>
+        <dl class="resume-session-details"></dl>
+        <section class="resume-workflow-stage">
+          <fieldset class="continuation-options"></fieldset>
+          <p class="handoff-explanation"></p>
+          <section class="launch-readiness">
+            <div class="catalog-operation-error"></div>
+            <section class="workspace-trust-notice"></section>
+            <details class="launch-details"></details>
+          </section>
+        </section>
+      </div>
+      <footer></footer>
+    `;
+
+    for (const selector of [
+      '.card-description',
+      '.resume-session-details',
+      '.continuation-options',
+      '.handoff-explanation',
+      '.catalog-operation-error',
+      '.workspace-trust-notice',
+      '.launch-details',
+      'footer'
+    ]) {
+      const section = dialog.querySelector(selector);
+      expect(section, `Missing rendered section ${selector}`).not.toBeNull();
+      expect(
+        winningDeclaration(section!, 'margin'),
+        `${selector} must rely on the shared 12px grid gap`
+      ).toBe('0');
+    }
   });
 
   it('reserves stable regions for launch readiness and resume workflow pages', () => {

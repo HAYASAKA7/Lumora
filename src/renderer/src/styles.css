@@ -3015,21 +3015,10 @@ button {
 
 .dialog-body > .card-description,
 .dialog-body > .resume-session-details,
-.dialog-body > .continuation-options,
-.dialog-body > .handoff-explanation,
-.dialog-body > .launch-details,
-.dialog-body > .workspace-trust-notice,
-.launch-readiness > .catalog-error,
-.new-session-dialog footer {
-  margin: 0;
-}
-
-.dialog-body > .card-description,
-.dialog-body > .resume-session-details,
-.dialog-body > .continuation-options,
-.dialog-body > .handoff-explanation,
-.dialog-body > .launch-details,
-.dialog-body > .workspace-trust-notice,
+.resume-workflow-stage > .continuation-options,
+.resume-workflow-stage > .handoff-explanation,
+.launch-readiness > .launch-details,
+.launch-readiness > .workspace-trust-notice,
 .launch-readiness > .catalog-operation-error,
 .new-session-dialog footer {
   margin: 0;
