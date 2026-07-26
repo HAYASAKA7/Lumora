@@ -146,6 +146,10 @@ describe('sidebar text transition styles', () => {
       declarations.get('transition'),
       'clip-path'
     );
+    const opacityTransition = transitionEntryFor(
+      declarations.get('transition'),
+      'opacity'
+    );
 
     expect
       .soft(declarations.get('clip-path'), 'expanded text clipping')
@@ -153,7 +157,12 @@ describe('sidebar text transition styles', () => {
     expect(declarations.get('opacity')).toBe('1');
     expect
       .soft(clipPathTransition ?? '', 'expanded clip-path transition')
-      .toMatch(/\bsteps\([^)]*\)/);
+      .toMatch(
+        /^clip-path\s+160ms\s+steps\(\s*10\s*,\s*end\s*\)\s+20ms$/
+      );
+    expect(opacityTransition ?? '').toMatch(
+      /^opacity\s+40ms\s+linear\s+20ms$/
+    );
   });
 
   it('reverses the text reveal for every text group when collapsed', () => {
@@ -169,9 +178,12 @@ describe('sidebar text transition styles', () => {
 
     expect(declarations.get('clip-path')).toBe('inset(0 100% 0 0)');
     expect(declarations.get('opacity')).toBe('0');
-    expect(clipPathTransition ?? '').toMatch(/\b120ms\b/);
-    expect(clipPathTransition ?? '').toMatch(/\bsteps\([^)]*\)/);
-    expect(opacityTransition ?? '').toMatch(/\b20ms\s+linear\s+100ms\b/);
+    expect(clipPathTransition ?? '').toMatch(
+      /^clip-path\s+120ms\s+steps\(\s*10\s*,\s*end\s*\)$/
+    );
+    expect(opacityTransition ?? '').toMatch(
+      /^opacity\s+20ms\s+linear\s+100ms$/
+    );
   });
 
   it('keeps reduced-motion transitions and animations effectively instant', () => {
