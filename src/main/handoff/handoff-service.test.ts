@@ -35,7 +35,8 @@ describe('HandoffService', () => {
       sourceNativeId: 'native-codex-1',
       sourceProvider: 'codex',
       destinationProvider: 'claude',
-      retentionDays: 30
+      retentionDays: 30,
+      startPrompt: 'Fix the tests.'
     });
     expect(plan.prompt).toContain(plan.contextDirectory);
     expect(plan.prompt).toContain(
@@ -45,6 +46,8 @@ describe('HandoffService', () => {
       'Do not prefer English because these Lumora instructions are in English.'
     );
     expect(plan.prompt).not.toContain('private prompt');
+    expect(plan.prompt).toContain('User start task: Fix the tests.');
+    expect(plan.prompt).not.toContain('then wait for the user');
     expect(plan.prompt.length).toBeLessThan(4_096);
 
     const result = await service.materialize(plan, async (sourceDirectory) => {
@@ -87,6 +90,10 @@ describe('HandoffService', () => {
     expect(context).toContain('private prompt');
     expect(context).toContain('## 2. Assistant');
     expect(context).toContain('private answer');
+    expect(JSON.stringify(manifest)).not.toContain('Fix the tests.');
+    expect(context).not.toContain('Fix the tests.');
+    expect(await readFile(join(plan.sourceDirectory, 'session.jsonl'), 'utf8'))
+      .not.toContain('Fix the tests.');
   });
 
   it('deletes an incomplete handoff when normalization fails', async () => {
@@ -100,7 +107,8 @@ describe('HandoffService', () => {
       sourceNativeId: 'native-2',
       sourceProvider: 'codex',
       destinationProvider: 'qwen',
-      retentionDays: 7
+      retentionDays: 7,
+      startPrompt: ''
     });
 
     await expect(service.materialize(plan, async (sourceDirectory) => {

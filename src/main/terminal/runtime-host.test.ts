@@ -233,7 +233,7 @@ describe('RuntimeHost', () => {
       fork: {
         sourceSessionId: 'd'.repeat(64),
         sourceNativeSessionId: 'native-thread-1',
-        task: 'Fix the failing tests.'
+        startPrompt: 'Fix the failing tests.'
       }
     };
     const { host, repository, startReconciliation } = harness({

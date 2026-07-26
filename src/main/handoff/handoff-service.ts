@@ -34,6 +34,7 @@ interface HandoffReservationInput {
   sourceProvider: ProviderId;
   destinationProvider: ProviderId;
   retentionDays: number;
+  startPrompt: string;
 }
 
 export interface HandoffPlan extends HandoffReservationInput {
@@ -88,7 +89,15 @@ function expiresAt(createdAt: Date, retentionDays: number): string {
   ).toISOString();
 }
 
-function handoffPrompt(contextDirectory: string): string {
+function normalizeStartPrompt(startPrompt: string): string {
+  if (startPrompt.length > 4_096 || /[\0\r\n]/.test(startPrompt)) {
+    throw new Error('The handoff start prompt is too long or invalid.');
+  }
+  return startPrompt.trim().length === 0 ? '' : startPrompt;
+}
+
+function handoffPrompt(contextDirectory: string, startPrompt: string): string {
+  const normalizedStartPrompt = normalizeStartPrompt(startPrompt);
   const prompt = [
     'This is a new session created by Lumora from another provider.',
     `Read every numbered Markdown file in this managed context directory: ${contextDirectory}`,
@@ -96,7 +105,12 @@ function handoffPrompt(contextDirectory: string): string {
     'Use the language the user uses in the imported conversation and future messages.',
     'Do not prefer English because these Lumora instructions are in English.',
     'Identify the user objective, completed work, remaining work, and uncertainties.',
-    'Briefly summarize that understanding, then wait for the user before taking further action.'
+    normalizedStartPrompt === ''
+      ? 'Briefly summarize that understanding, then wait for the user before taking further action.'
+      : 'Briefly summarize that understanding, then complete the user start task below.',
+    ...(normalizedStartPrompt === ''
+      ? []
+      : ['User start task:', normalizedStartPrompt])
   ].join(' ');
   if (prompt.length > 4_096 || /[\0\r\n]/.test(prompt)) {
     throw new Error('The managed handoff prompt is too long or invalid.');
@@ -227,7 +241,7 @@ export class HandoffService {
       sourceDirectory: join(directory, 'source'),
       contextDirectory,
       manifestPath: join(directory, 'manifest.json'),
-      prompt: handoffPrompt(contextDirectory),
+      prompt: handoffPrompt(contextDirectory, input.startPrompt),
       createdAt: created.toISOString(),
       expiresAt: expiresAt(created, retentionDays)
     });

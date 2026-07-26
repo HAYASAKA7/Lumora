@@ -70,11 +70,11 @@ const sessionCatalogRegistry = createSessionCatalogRegistry(
       provider,
       discover: vi.fn(),
       validateCompatibility: () => ({ compatible: true }),
-      buildResumeArguments: (nativeSessionId) =>
-        buildResumeArguments(provider, nativeSessionId),
+      buildResumeArguments: (nativeSessionId, startPrompt) =>
+        buildResumeArguments(provider, nativeSessionId, startPrompt),
       ...(hasNativeForkSupport(provider) && {
-        buildForkArguments: (nativeSessionId: string, task: string) =>
-          buildForkArguments(provider, nativeSessionId, task)
+        buildForkArguments: (nativeSessionId: string, startPrompt: string) =>
+          buildForkArguments(provider, nativeSessionId, startPrompt)
       }),
       snapshotHandoff: vi.fn(async () => ({
         raw: '{"messages":[]}',
@@ -184,6 +184,7 @@ function harness(overrides: {
     contextDirectory: '/data/handoffs/019c0000-0000-7000-8000-000000000010/context',
     manifestPath: '/data/handoffs/019c0000-0000-7000-8000-000000000010/manifest.json',
     prompt: 'Read the managed Lumora handoff context.',
+    startPrompt: '',
     createdAt: '2026-07-11T04:00:00.000Z',
     expiresAt: '2026-08-10T04:00:00.000Z'
   };
@@ -236,6 +237,104 @@ function harness(overrides: {
 }
 
 describe('LaunchService', () => {
+  it('submits provider-native start prompts for new and exact resume launches', async () => {
+    const newPreview = await harness().service.prepare({
+      strategy: 'new',
+      startPrompt: 'Fix the failing tests.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    expect(newPreview.args).toEqual(['Fix the failing tests.']);
+
+    const resumePreview = await harness().service.prepare({
+      strategy: 'resume',
+      startPrompt: 'Review the result.',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    expect(resumePreview.args).toEqual([
+      'resume',
+      nativeId,
+      'Review the result.'
+    ]);
+  });
+
+  it('keeps blank launches promptless and hashes different prompts separately', async () => {
+    const { service } = harness();
+    const blank = await service.prepare({
+      strategy: 'new',
+      startPrompt: '   ',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    const prompted = await service.prepare({
+      strategy: 'new',
+      startPrompt: 'Fix the failing tests.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    expect(blank.args).toEqual([]);
+    expect(prompted.args).toEqual(['Fix the failing tests.']);
+    expect(prompted.launchHash).not.toBe(blank.launchHash);
+  });
+
+  it('recomputes exact resume arguments with the prepared start prompt', async () => {
+    const buildResume = vi.fn((id: string, startPrompt: string) =>
+      buildResumeArguments('codex', id, startPrompt)
+    );
+    const registry = createSessionCatalogRegistry(
+      SESSION_PROVIDER_IDS.map((provider) =>
+        provider === 'codex'
+          ? {
+              provider,
+              discover: vi.fn(),
+              validateCompatibility: () => ({ compatible: true }),
+              buildResumeArguments: buildResume,
+              buildForkArguments: (id: string, startPrompt: string) =>
+                buildForkArguments('codex', id, startPrompt),
+              snapshotHandoff: vi.fn()
+            }
+          : sessionCatalogRegistry.get(provider)!
+      )
+    );
+    const { service } = harness({
+      trusted: true,
+      sessionCatalogRegistry: registry
+    });
+    const preview = await service.prepare({
+      strategy: 'resume',
+      startPrompt: 'Fix the failing tests.',
+      sessionId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    await service.consume(preview.launchToken);
+    expect(buildResume).toHaveBeenNthCalledWith(
+      1,
+      nativeId,
+      'Fix the failing tests.'
+    );
+    expect(buildResume).toHaveBeenNthCalledWith(
+      2,
+      nativeId,
+      'Fix the failing tests.'
+    );
+  });
+
   it.each([
     ['codex', ['resume', nativeId]],
     ['claude', ['--resume', nativeId]],
@@ -249,6 +348,7 @@ describe('LaunchService', () => {
     await expect(
       service.prepare({
         strategy: 'resume',
+        startPrompt: '',
         sessionId,
         terminalProfileId: profileId,
         cols: 100,
@@ -266,6 +366,7 @@ describe('LaunchService', () => {
     const { service } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       terminalProfileId: profileId,
       cols: 100,
@@ -281,6 +382,7 @@ describe('LaunchService', () => {
     const { service, handoffService } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -302,6 +404,7 @@ describe('LaunchService', () => {
   it('rejects a different resume provider while cross-agent handoff is disabled', async () => {
     await expect(harness().service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       provider: 'claude',
       terminalProfileId: profileId,
@@ -330,7 +433,7 @@ describe('LaunchService', () => {
     const preview = await service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -351,7 +454,7 @@ describe('LaunchService', () => {
       fork: {
         sourceSessionId: sessionId,
         sourceNativeSessionId: nativeId,
-        task: 'Fix the failing tests.'
+        startPrompt: 'Fix the failing tests.'
       }
     });
     expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
@@ -378,7 +481,7 @@ describe('LaunchService', () => {
       const preview = await service.prepare({
         strategy: 'fork',
         sessionId,
-        task: '',
+        startPrompt: '',
         terminalProfileId: profileId,
         cols: 100,
         rows: 30
@@ -398,7 +501,7 @@ describe('LaunchService', () => {
         fork: {
           sourceSessionId: sessionId,
           sourceNativeSessionId: nativeId,
-          task: ''
+          startPrompt: ''
         }
       });
       expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
@@ -415,7 +518,7 @@ describe('LaunchService', () => {
     const preview = await service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Continue safely.',
+      startPrompt: 'Continue safely.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -434,7 +537,7 @@ describe('LaunchService', () => {
     const preview = await service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -463,7 +566,7 @@ describe('LaunchService', () => {
     await expect(harness({ scan: oldScan }).service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -475,7 +578,7 @@ describe('LaunchService', () => {
     const preview = await service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -501,7 +604,7 @@ describe('LaunchService', () => {
     }).service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -516,7 +619,7 @@ describe('LaunchService', () => {
     const preview = await service.prepare({
       strategy: 'fork',
       sessionId,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: profileId,
       cols: 100,
       rows: 30
@@ -540,6 +643,7 @@ describe('LaunchService', () => {
     });
     const preview = await service.prepare({
       strategy: 'resume',
+      startPrompt: 'Fix the tests after importing context.',
       sessionId,
       provider: 'claude',
       terminalProfileId: profileId,
@@ -553,6 +657,11 @@ describe('LaunchService', () => {
       provider: 'claude',
       args: ['Read the managed Lumora handoff context.']
     });
+    expect(handoffService.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startPrompt: 'Fix the tests after importing context.'
+      })
+    );
     expect(handoffService.materialize).not.toHaveBeenCalled();
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
       strategy: 'new',
@@ -601,6 +710,7 @@ describe('LaunchService', () => {
     });
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       provider,
       workspaceId,
       terminalProfileId: profileId,
@@ -618,6 +728,7 @@ describe('LaunchService', () => {
     await expect(
       harness({ session: null }).service.prepare({
         strategy: 'resume',
+        startPrompt: '',
         sessionId,
         terminalProfileId: profileId,
         cols: 100,
@@ -630,6 +741,7 @@ describe('LaunchService', () => {
         session: { ...session, sourceFreshness: 'stale' }
       }).service.prepare({
         strategy: 'resume',
+        startPrompt: '',
         sessionId,
         terminalProfileId: profileId,
         cols: 100,
@@ -642,6 +754,7 @@ describe('LaunchService', () => {
     const { service, setSession } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       terminalProfileId: profileId,
       cols: 100,
@@ -660,6 +773,7 @@ describe('LaunchService', () => {
       session: { ...session, provider: 'opencode', nativeId: 'ses_01JABC' }
     }).service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       terminalProfileId: profileId,
       cols: 100,
@@ -698,6 +812,7 @@ describe('LaunchService', () => {
 
     const preview = await service.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       terminalProfileId: null,
       cols: 100,
@@ -735,7 +850,7 @@ describe('LaunchService', () => {
     );
     const providerHarness = harness({ trusted: true });
     const providerPreview = await providerHarness.service.prepare({
-      strategy: 'new', workspaceId, provider: 'codex', terminalProfileId: profileId,
+      strategy: 'new', startPrompt: '', workspaceId, provider: 'codex', terminalProfileId: profileId,
       cols: 80, rows: 24
     });
     providerHarness.setScan({
@@ -754,7 +869,7 @@ describe('LaunchService', () => {
       sessionCatalogRegistry: incompatibleRegistry
     });
     await expect(compatibilityHarness.service.prepare({
-      strategy: 'resume', sessionId, terminalProfileId: profileId,
+      strategy: 'resume', startPrompt: '', sessionId, terminalProfileId: profileId,
       cols: 80, rows: 24
     })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
   });
@@ -766,6 +881,7 @@ describe('LaunchService', () => {
     });
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -783,6 +899,7 @@ describe('LaunchService', () => {
     }).service;
     const failedPreview = await failed.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -799,6 +916,7 @@ describe('LaunchService', () => {
     }).service;
     const resumePreview = await resume.prepare({
       strategy: 'resume',
+      startPrompt: '',
       sessionId,
       terminalProfileId: profileId,
       cols: 100,
@@ -815,6 +933,7 @@ describe('LaunchService', () => {
       const { service } = harness();
       const preview = await service.prepare({
         strategy: 'new',
+        startPrompt: '',
         workspaceId,
         provider,
         terminalProfileId: profileId,
@@ -842,6 +961,7 @@ describe('LaunchService', () => {
     const { service } = harness();
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -859,6 +979,7 @@ describe('LaunchService', () => {
     const { service } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -877,6 +998,7 @@ describe('LaunchService', () => {
     const { service, repository } = harness();
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -912,6 +1034,7 @@ describe('LaunchService', () => {
     const expiredHarness = harness();
     const expiredPreview = await expiredHarness.service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -930,6 +1053,7 @@ describe('LaunchService', () => {
     const unavailableHarness = harness();
     const unavailablePreview = await unavailableHarness.service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -953,6 +1077,7 @@ describe('LaunchService', () => {
     const driftHarness = harness();
     const driftPreview = await driftHarness.service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -983,6 +1108,7 @@ describe('LaunchService', () => {
 
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -998,6 +1124,7 @@ describe('LaunchService', () => {
   it('captures a provider command in the immutable preview and launch hash', async () => {
     const nativePreview = await harness().service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -1006,6 +1133,7 @@ describe('LaunchService', () => {
     });
     const commandPreview = await harness({ command: 'codexp' }).service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -1021,6 +1149,7 @@ describe('LaunchService', () => {
     const { service } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -1043,6 +1172,7 @@ describe('LaunchService', () => {
     const { service, setNow } = harness();
     const preview = await service.prepare({
       strategy: 'new',
+      startPrompt: '',
       workspaceId,
       provider: 'codex',
       terminalProfileId: profileId,
@@ -1068,6 +1198,7 @@ describe('LaunchService', () => {
     await expect(
       unavailableWorkspace.prepare({
         strategy: 'new',
+        startPrompt: '',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,
@@ -1082,6 +1213,7 @@ describe('LaunchService', () => {
     await expect(
       unavailableProfile.prepare({
         strategy: 'new',
+        startPrompt: '',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,
@@ -1114,6 +1246,7 @@ describe('LaunchService', () => {
     await expect(
       unavailableProvider.prepare({
         strategy: 'new',
+        startPrompt: '',
         workspaceId,
         provider: 'codex',
         terminalProfileId: profileId,

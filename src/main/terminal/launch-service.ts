@@ -18,7 +18,7 @@ import {
   supportsNativeForkVersion
 } from '../../shared/provider-definitions';
 import type { HandoffPlan, HandoffService } from '../handoff/handoff-service';
-import { buildInitialPromptArguments } from '../providers/launch-command';
+import { buildNewArguments } from '../providers/launch-command';
 import type {
   ReadyProviderInstallation,
   SessionCatalogAdapter,
@@ -89,7 +89,7 @@ export interface LaunchSpec {
   fork?: {
     sourceSessionId: string;
     sourceNativeSessionId: string;
-    task: string;
+    startPrompt: string;
   } | null;
 }
 
@@ -97,6 +97,7 @@ interface PreparedLaunch {
   spec: LaunchSpec;
   expiresAtMs: number;
   requestedTerminalProfileId: string | null;
+  startPrompt: string;
 }
 
 export type TerminalLaunchErrorCode =
@@ -175,7 +176,7 @@ function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string
             : {
                 sourceSessionId: value.fork.sourceSessionId,
                 sourceNativeSessionId: value.fork.sourceNativeSessionId,
-                task: value.fork.task
+                startPrompt: value.fork.startPrompt
               }
       })
     )
@@ -242,7 +243,7 @@ export class LaunchService {
       sessionId = null;
       nativeSessionId = null;
       displayName = `New ${providerDefinition(provider).displayName} session`;
-      args = [];
+      args = buildNewArguments(provider, request.startPrompt);
     } else {
       const session = this.dependencies.repository.getSession(request.sessionId);
       if (session === null || session.sourceFreshness !== 'current') {
@@ -267,11 +268,11 @@ export class LaunchService {
         sessionId = null;
         nativeSessionId = null;
         displayName = forkDisplayName(session.title);
-        args = [...adapter.buildForkArguments(session.nativeId, request.task)];
+        args = [...adapter.buildForkArguments(session.nativeId, request.startPrompt)];
         fork = {
           sourceSessionId: session.id,
           sourceNativeSessionId: session.nativeId,
-          task: request.task
+          startPrompt: request.startPrompt
         };
       } else if (destinationProvider === session.provider) {
         sessionId = session.id;
@@ -280,7 +281,7 @@ export class LaunchService {
         if (adapter === null) {
           throw new TerminalLaunchError('SESSION_UNAVAILABLE');
         }
-        args = [...adapter.buildResumeArguments(nativeSessionId)];
+        args = [...adapter.buildResumeArguments(nativeSessionId, request.startPrompt)];
       } else {
         const settings = this.dependencies.repository.getGeneralSettings();
         if (!settings.crossAgentWorkflowEnabled) {
@@ -355,9 +356,10 @@ export class LaunchService {
         sourceNativeId: sourceSession.nativeId,
         sourceProvider: sourceSession.provider,
         destinationProvider: provider,
-        retentionDays: settings.crossAgentHandoffRetentionDays
+        retentionDays: settings.crossAgentHandoffRetentionDays,
+        startPrompt: request.startPrompt
       });
-      args = buildInitialPromptArguments(provider, plan.prompt);
+      args = buildNewArguments(provider, plan.prompt);
       handoff = {
         plan,
         sourceKeys: [...sourceKeys].sort(),
@@ -430,7 +432,8 @@ export class LaunchService {
     this.prepared.set(token, {
       spec,
       expiresAtMs,
-      requestedTerminalProfileId: request.terminalProfileId
+      requestedTerminalProfileId: request.terminalProfileId,
+      startPrompt: request.startPrompt
     });
 
     return LaunchPreviewSchema.parse({
@@ -586,9 +589,22 @@ export class LaunchService {
       throw new TerminalLaunchError('PROVIDER_UNAVAILABLE');
     }
     if (
+      prepared.spec.strategy === 'new' &&
+      (prepared.spec.handoff === undefined || prepared.spec.handoff === null) &&
+      !sameValue(
+        buildNewArguments(prepared.spec.provider, prepared.startPrompt),
+        prepared.spec.args
+      )
+    ) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
+    if (
       prepared.spec.strategy === 'resume' &&
       !sameValue(
-        adapter?.buildResumeArguments(prepared.spec.nativeSessionId as string),
+        adapter?.buildResumeArguments(
+          prepared.spec.nativeSessionId as string,
+          prepared.startPrompt
+        ),
         prepared.spec.args
       )
     ) {
@@ -598,7 +614,7 @@ export class LaunchService {
       prepared.spec.handoff !== undefined &&
       prepared.spec.handoff !== null &&
       !sameValue(
-        buildInitialPromptArguments(
+        buildNewArguments(
           prepared.spec.provider,
           prepared.spec.handoff.plan.prompt
         ),
@@ -614,7 +630,7 @@ export class LaunchService {
       !sameValue(
         adapter?.buildForkArguments?.(
           prepared.spec.fork.sourceNativeSessionId,
-          prepared.spec.fork.task
+          prepared.spec.fork.startPrompt
         ),
         prepared.spec.args
       )
