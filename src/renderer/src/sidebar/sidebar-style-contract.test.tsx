@@ -205,6 +205,24 @@ describe('sidebar text transition styles', () => {
     );
   });
 
+  it('fades out the expanded divider before text reveal begins', () => {
+    const declarations = groupedRule(styles, ['.nav-label-divider']);
+
+    expect(declarations.get('opacity')).toBe('0');
+    expect(declarations.get('transition')).toBe('opacity 40ms linear');
+  });
+
+  it('reveals the collapsed divider after text clipping finishes', () => {
+    const declarations = groupedRule(styles, [
+      '.sidebar-collapsed .nav-label-divider'
+    ]);
+
+    expect(declarations.get('opacity')).toBe('1');
+    expect(declarations.get('transition')).toBe(
+      'opacity 40ms linear 260ms'
+    );
+  });
+
   it('keeps reduced-motion transitions and animations effectively instant', () => {
     const reducedMotion = nestedBlock(
       styles,

@@ -460,7 +460,7 @@ describe('App', () => {
     expect(home.querySelector('.icon')).toBe(homeIcon);
   });
 
-  it('keeps the latest sidebar state and icon identity through rapid toggle bursts', async () => {
+  it('keeps the latest sidebar state, preference, and icon identity after repeated toggles', async () => {
     render(<App />);
 
     const shell = document.querySelector('.app-shell');

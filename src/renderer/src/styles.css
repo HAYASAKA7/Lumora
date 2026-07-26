@@ -295,7 +295,7 @@ button {
   height: 1px;
   background: #677b95;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 40ms linear;
 }
 
 .nav-item {
@@ -345,6 +345,7 @@ button {
 
 .sidebar-collapsed .nav-label-divider {
   opacity: 1;
+  transition: opacity 40ms linear 260ms;
 }
 
 .workspace-frame {
