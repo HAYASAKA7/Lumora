@@ -131,6 +131,15 @@ const PROVIDERS_BY_ID = new Map<ProviderId, ProviderDefinition>(
   ])
 );
 
+const VERIFIED_START_PROMPT_PROVIDER_IDS = new Set<ProviderId>([
+  'codex',
+  'claude',
+  'gemini',
+  'opencode',
+  'copilot',
+  'qwen'
+]);
+
 const NATIVE_FORK_PROVIDER_IDS = new Set<ProviderId>([
   'codex',
   'claude',
@@ -157,6 +166,12 @@ export function providerDefinition(provider: ProviderId): ProviderDefinition {
 
 export function hasCompleteSessionSupport(provider: ProviderId): boolean {
   return providerDefinition(provider).sessionSupport === 'complete';
+}
+
+export function hasVerifiedStartPromptSupport(
+  provider: ProviderId
+): boolean {
+  return VERIFIED_START_PROMPT_PROVIDER_IDS.has(provider);
 }
 
 export function hasNativeForkSupport(provider: ProviderId): boolean {

@@ -1,53 +1,109 @@
 import type { ProviderId } from '../../shared/contracts';
 import { providerDefinition } from '../../shared/provider-definitions';
 
+const NEW_ARGUMENTS: Partial<
+  Record<ProviderId, (startPrompt: string) => string[]>
+> = {
+  codex: (startPrompt) => [startPrompt],
+  claude: (startPrompt) => [startPrompt],
+  gemini: (startPrompt) => ['-i', startPrompt],
+  opencode: (startPrompt) => ['--prompt', startPrompt],
+  copilot: (startPrompt) => ['-i', startPrompt],
+  qwen: (startPrompt) => ['-i', startPrompt]
+};
+
 const RESUME_ARGUMENTS: Partial<
-  Record<ProviderId, (nativeSessionId: string) => string[]>
+  Record<
+    ProviderId,
+    (nativeSessionId: string, startPrompt: string) => string[]
+  >
 > = {
-  codex: (nativeSessionId) => ['resume', nativeSessionId],
-  claude: (nativeSessionId) => ['--resume', nativeSessionId],
-  gemini: (nativeSessionId) => ['--resume', nativeSessionId],
-  opencode: (nativeSessionId) => ['--session', nativeSessionId],
-  copilot: (nativeSessionId) => ['--session-id', nativeSessionId],
-  qwen: (nativeSessionId) => ['--resume', nativeSessionId]
-};
-
-const INITIAL_PROMPT_ARGUMENTS: Partial<
-  Record<ProviderId, (prompt: string) => string[]>
-> = {
-  codex: (prompt) => [prompt],
-  claude: (prompt) => [prompt],
-  gemini: (prompt) => ['-i', prompt],
-  opencode: (prompt) => ['--prompt', prompt],
-  copilot: (prompt) => ['-i', prompt],
-  qwen: (prompt) => ['-i', prompt]
-};
-
-const FORK_ARGUMENTS: Partial<
-  Record<ProviderId, (nativeSessionId: string, task: string) => string[]>
-> = {
-  codex: (nativeSessionId, task) => [
-    'fork',
+  codex: (nativeSessionId, startPrompt) => [
+    'resume',
     nativeSessionId,
-    ...(task === '' ? [] : [task])
+    ...(startPrompt === '' ? [] : [startPrompt])
   ],
-  claude: (nativeSessionId, task) => [
+  claude: (nativeSessionId, startPrompt) => [
     '--resume',
     nativeSessionId,
-    '--fork-session',
-    ...(task === '' ? [] : [task])
+    ...(startPrompt === '' ? [] : [startPrompt])
   ],
-  opencode: (nativeSessionId, task) => [
+  gemini: (nativeSessionId, startPrompt) => [
+    '--resume',
+    nativeSessionId,
+    ...(startPrompt === '' ? [] : [startPrompt])
+  ],
+  opencode: (nativeSessionId, startPrompt) => [
     '--session',
     nativeSessionId,
-    '--fork',
-    ...(task === '' ? [] : ['--prompt', task])
+    ...(startPrompt === '' ? [] : ['--prompt', startPrompt])
+  ],
+  copilot: (nativeSessionId, startPrompt) => [
+    '--session-id',
+    nativeSessionId,
+    ...(startPrompt === '' ? [] : ['-i', startPrompt])
+  ],
+  qwen: (nativeSessionId, startPrompt) => [
+    '--resume',
+    nativeSessionId,
+    ...(startPrompt === '' ? [] : [startPrompt])
   ]
 };
 
+const FORK_ARGUMENTS: Partial<
+  Record<
+    ProviderId,
+    (nativeSessionId: string, startPrompt: string) => string[]
+  >
+> = {
+  codex: (nativeSessionId, startPrompt) => [
+    'fork',
+    nativeSessionId,
+    ...(startPrompt === '' ? [] : [startPrompt])
+  ],
+  claude: (nativeSessionId, startPrompt) => [
+    '--resume',
+    nativeSessionId,
+    '--fork-session',
+    ...(startPrompt === '' ? [] : [startPrompt])
+  ],
+  opencode: (nativeSessionId, startPrompt) => [
+    '--session',
+    nativeSessionId,
+    '--fork',
+    ...(startPrompt === '' ? [] : ['--prompt', startPrompt])
+  ]
+};
+
+function normalizeStartPrompt(startPrompt: string): string {
+  if (
+    startPrompt.length > 4_096 ||
+    /[\0\r\n]/.test(startPrompt)
+  ) {
+    throw new Error('The start prompt is invalid.');
+  }
+  return startPrompt.trim().length === 0 ? '' : startPrompt;
+}
+
+export function buildNewArguments(
+  provider: ProviderId,
+  startPrompt: string
+): string[] {
+  const normalizedStartPrompt = normalizeStartPrompt(startPrompt);
+  if (normalizedStartPrompt === '') return [];
+  const buildArguments = NEW_ARGUMENTS[provider];
+  if (!buildArguments) {
+    throw new Error(
+      `${providerDefinition(provider).displayName} does not support a start prompt in Lumora.`
+    );
+  }
+  return buildArguments(normalizedStartPrompt);
+}
+
 export function buildResumeArguments(
   provider: ProviderId,
-  nativeSessionId: string
+  nativeSessionId: string,
+  startPrompt = ''
 ): string[] {
   const buildArguments = RESUME_ARGUMENTS[provider];
   if (!buildArguments) {
@@ -55,33 +111,23 @@ export function buildResumeArguments(
       `${providerDefinition(provider).displayName} does not support exact session resume in Lumora.`
     );
   }
-  return buildArguments(nativeSessionId);
+  return buildArguments(
+    nativeSessionId,
+    normalizeStartPrompt(startPrompt)
+  );
 }
 
 export function buildInitialPromptArguments(
   provider: ProviderId,
-  prompt: string
+  startPrompt: string
 ): string[] {
-  const buildArguments = INITIAL_PROMPT_ARGUMENTS[provider];
-  if (!buildArguments) {
-    throw new Error(
-      `${providerDefinition(provider).displayName} does not support cross-agent handoff in Lumora.`
-    );
-  }
-  if (
-    prompt.trim().length === 0 ||
-    prompt.length > 4_096 ||
-    /[\0\r\n]/.test(prompt)
-  ) {
-    throw new Error('The cross-agent handoff prompt is invalid.');
-  }
-  return buildArguments(prompt);
+  return buildNewArguments(provider, startPrompt);
 }
 
 export function buildForkArguments(
   provider: ProviderId,
   nativeSessionId: string,
-  task: string
+  startPrompt: string
 ): string[] {
   const buildArguments = FORK_ARGUMENTS[provider];
   if (!buildArguments) {
@@ -96,9 +142,8 @@ export function buildForkArguments(
   ) {
     throw new Error('The native session identity is invalid.');
   }
-  if (task.length > 4_096 || /[\0\r\n]/.test(task)) {
-    throw new Error('The native session fork task is invalid.');
-  }
-  const normalizedTask = task.trim().length === 0 ? '' : task;
-  return buildArguments(nativeSessionId, normalizedTask);
+  return buildArguments(
+    nativeSessionId,
+    normalizeStartPrompt(startPrompt)
+  );
 }

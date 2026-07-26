@@ -96,16 +96,18 @@ export function createCatalogRuntime({
   ): SessionCatalogAdapter => {
     const buildNativeFork = hasNativeForkSupport(provider)
       ? {
-          buildForkArguments: (nativeSessionId: string, task: string) =>
-            buildForkArguments(provider, nativeSessionId, task)
+          buildForkArguments: (
+            nativeSessionId: string,
+            startPrompt: string
+          ) => buildForkArguments(provider, nativeSessionId, startPrompt)
         }
       : {};
     return {
       provider,
       discover,
       validateCompatibility: validateInstalledProviderCompatibility,
-      buildResumeArguments: (nativeSessionId) =>
-        buildResumeArguments(provider, nativeSessionId),
+      buildResumeArguments: (nativeSessionId, startPrompt) =>
+        buildResumeArguments(provider, nativeSessionId, startPrompt),
       ...buildNativeFork,
       snapshotHandoff
     };

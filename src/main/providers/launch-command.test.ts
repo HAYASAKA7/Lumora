@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildForkArguments,
-  buildInitialPromptArguments,
+  buildNewArguments,
   buildResumeArguments
 } from './launch-command';
 
@@ -42,10 +42,50 @@ describe('buildResumeArguments', () => {
       `${displayName} does not support exact session resume in Lumora.`
     );
   });
+  it.each([
+    ['codex', ['resume', 'native-1', 'Fix tests']],
+    ['claude', ['--resume', 'native-1', 'Fix tests']],
+    ['gemini', ['--resume', 'native-1', 'Fix tests']],
+    ['opencode', ['--session', 'native-1', '--prompt', 'Fix tests']],
+    ['copilot', ['--session-id', 'native-1', '-i', 'Fix tests']],
+    ['qwen', ['--resume', 'native-1', 'Fix tests']]
+  ] as const)(
+    'builds atomic prompted %s resume arguments',
+    (provider, expected) => {
+      expect(buildResumeArguments(provider, 'native-1', 'Fix tests')).toEqual(
+        expected
+      );
+    }
+  );
+
+  it('normalizes a whitespace-only resume prompt to promptless arguments', () => {
+    expect(buildResumeArguments('codex', 'native-1', '   ')).toEqual([
+      'resume',
+      'native-1'
+    ]);
+  });
 });
 
-describe('buildInitialPromptArguments', () => {
+describe('buildNewArguments', () => {
   const prompt = 'Read the Lumora handoff context.';
+
+  it.each([
+    'codex',
+    'claude',
+    'gemini',
+    'opencode',
+    'copilot',
+    'qwen',
+    'antigravity',
+    'cursor',
+    'amp',
+    'crush',
+    'goose',
+    'aider'
+  ] as const)('keeps a blank %s launch promptless', (provider) => {
+    expect(buildNewArguments(provider, '')).toEqual([]);
+    expect(buildNewArguments(provider, '   ')).toEqual([]);
+  });
 
   it.each([
     ['codex', [prompt]],
@@ -54,29 +94,29 @@ describe('buildInitialPromptArguments', () => {
     ['opencode', ['--prompt', prompt]],
     ['copilot', ['-i', prompt]],
     ['qwen', ['-i', prompt]]
-  ] as const)('builds atomic %s initial-prompt arguments', (provider, expected) => {
-    expect(buildInitialPromptArguments(provider, prompt)).toEqual(expected);
+  ] as const)('builds atomic %s start-prompt arguments', (provider, expected) => {
+    expect(buildNewArguments(provider, prompt)).toEqual(expected);
   });
 
   it('rejects launch-only providers and invalid prompts', () => {
-    expect(() => buildInitialPromptArguments('aider', prompt)).toThrow(
-      'does not support cross-agent handoff'
+    expect(() => buildNewArguments('aider', prompt)).toThrow(
+      'does not support a start prompt'
     );
-    expect(() => buildInitialPromptArguments('codex', 'bad\nprompt')).toThrow(
+    expect(() => buildNewArguments('codex', 'bad\nprompt')).toThrow(
       'invalid'
     );
   });
 });
 
 describe('buildForkArguments', () => {
-  const task = 'Review the failing tests and fix the root cause.';
+  const startPrompt = 'Review the failing tests and fix the root cause.';
 
   it.each([
-    ['codex', ['fork', 'native-1', task]],
-    ['claude', ['--resume', 'native-1', '--fork-session', task]],
-    ['opencode', ['--session', 'native-1', '--fork', '--prompt', task]]
+    ['codex', ['fork', 'native-1', startPrompt]],
+    ['claude', ['--resume', 'native-1', '--fork-session', startPrompt]],
+    ['opencode', ['--session', 'native-1', '--fork', '--prompt', startPrompt]]
   ] as const)('builds atomic %s native-fork arguments', (provider, expected) => {
-    expect(buildForkArguments(provider, 'native-1', task)).toEqual(expected);
+    expect(buildForkArguments(provider, 'native-1', startPrompt)).toEqual(expected);
   });
 
   it.each([
@@ -102,7 +142,7 @@ describe('buildForkArguments', () => {
     'goose',
     'aider'
   ] as const)('rejects unsupported provider %s', (provider) => {
-    expect(() => buildForkArguments(provider, 'native-1', task)).toThrow(
+    expect(() => buildForkArguments(provider, 'native-1', startPrompt)).toThrow(
       'does not support native session fork in Lumora'
     );
   });
@@ -112,16 +152,16 @@ describe('buildForkArguments', () => {
     'line one\rline two',
     'bad\0task',
     'x'.repeat(4_097)
-  ])('rejects invalid task %#', (invalidTask) => {
-    expect(() => buildForkArguments('codex', 'native-1', invalidTask)).toThrow(
-      'native session fork task is invalid'
+  ])('rejects invalid start prompt %#', (invalidStartPrompt) => {
+    expect(() => buildForkArguments('codex', 'native-1', invalidStartPrompt)).toThrow(
+      'start prompt is invalid'
     );
   });
 
   it.each(['', '   ', 'bad\nid', 'bad\0id', 'x'.repeat(257)])(
     'rejects invalid native session identity %#',
     (nativeId) => {
-      expect(() => buildForkArguments('codex', nativeId, task)).toThrow(
+      expect(() => buildForkArguments('codex', nativeId, startPrompt)).toThrow(
         'native session identity is invalid'
       );
     }

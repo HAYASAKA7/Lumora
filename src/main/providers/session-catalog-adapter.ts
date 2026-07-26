@@ -35,10 +35,13 @@ export interface SessionCatalogAdapter {
   validateCompatibility(
     installation: ReadyProviderInstallation
   ): SessionAdapterCompatibility;
-  buildResumeArguments(nativeSessionId: string): readonly string[];
+  buildResumeArguments(
+    nativeSessionId: string,
+    startPrompt: string
+  ): readonly string[];
   buildForkArguments?(
     nativeSessionId: string,
-    task: string
+    startPrompt: string
   ): readonly string[];
   snapshotHandoff: SessionHandoffSnapshotter;
 }

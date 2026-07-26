@@ -5,6 +5,7 @@ import {
   SESSION_PROVIDER_IDS,
   hasCompleteSessionSupport,
   hasNativeForkSupport,
+  hasVerifiedStartPromptSupport,
   nativeForkMinimumVersion,
   providerDefinition,
   supportsNativeForkVersion
@@ -54,6 +55,18 @@ describe('provider definitions', () => {
         .filter(({ sessionSupport }) => sessionSupport === 'launch_only')
         .map(({ provider }) => provider)
     ).toEqual(['antigravity', 'cursor', 'amp', 'crush', 'goose', 'aider']);
+  });
+
+  it('exposes start prompts only for verified interactive providers', () => {
+    expect(
+      PROVIDER_DEFINITIONS
+        .filter(({ provider }) => hasVerifiedStartPromptSupport(provider))
+        .map(({ provider }) => provider)
+    ).toEqual(['codex', 'claude', 'gemini', 'opencode', 'copilot', 'qwen']);
+    expect(hasVerifiedStartPromptSupport('codex')).toBe(true);
+    expect(hasVerifiedStartPromptSupport('qwen')).toBe(true);
+    expect(hasVerifiedStartPromptSupport('cursor')).toBe(false);
+    expect(hasVerifiedStartPromptSupport('aider')).toBe(false);
   });
 
   it('exposes native fork support only for providers with stable launch commands', () => {
