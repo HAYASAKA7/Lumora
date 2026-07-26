@@ -96,7 +96,10 @@ function transitionEntryFor(
   }
   entries.push(transition.slice(entryStart).trim());
 
-  return entries.find((entry) => entry.split(/\s+/).includes(property));
+  return entries.findLast((entry) => {
+    const tokens = entry.split(/\s+/);
+    return tokens.includes(property) || tokens.includes('all');
+  });
 }
 
 function nestedBlock(source: string, header: string): string {
@@ -127,6 +130,24 @@ function nestedBlock(source: string, header: string): string {
   ).toBeDefined();
   return '';
 }
+
+describe('transition entry selection', () => {
+  it.each([
+    {
+      override: 'later explicit property entry',
+      transition:
+        'clip-path 120ms steps(10, end), clip-path 1s linear',
+      expected: 'clip-path 1s linear'
+    },
+    {
+      override: 'later all entry',
+      transition: 'clip-path 120ms steps(10, end), all 1s linear',
+      expected: 'all 1s linear'
+    }
+  ])('uses the $override', ({ transition, expected }) => {
+    expect(transitionEntryFor(transition, 'clip-path')).toBe(expected);
+  });
+});
 
 describe('sidebar text transition styles', () => {
   const expandedSelectors = [
