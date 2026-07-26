@@ -158,9 +158,20 @@ describe('sidebar text transition styles', () => {
 
   it('reverses the text reveal for every text group when collapsed', () => {
     const declarations = groupedRule(styles, collapsedSelectors);
+    const clipPathTransition = transitionEntryFor(
+      declarations.get('transition'),
+      'clip-path'
+    );
+    const opacityTransition = transitionEntryFor(
+      declarations.get('transition'),
+      'opacity'
+    );
 
     expect(declarations.get('clip-path')).toBe('inset(0 100% 0 0)');
     expect(declarations.get('opacity')).toBe('0');
+    expect(clipPathTransition ?? '').toMatch(/\b120ms\b/);
+    expect(clipPathTransition ?? '').toMatch(/\bsteps\([^)]*\)/);
+    expect(opacityTransition ?? '').toMatch(/\b20ms\s+linear\s+100ms\b/);
   });
 
   it('keeps reduced-motion transitions and animations effectively instant', () => {
