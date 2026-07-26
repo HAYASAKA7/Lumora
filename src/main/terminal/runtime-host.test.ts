@@ -256,6 +256,12 @@ describe('RuntimeHost', () => {
       expect.objectContaining({ strategy: 'fork' }),
       ['known-native']
     );
+    expect(repository.saveRuntime.mock.calls[0]?.[0]).not.toHaveProperty(
+      'startPrompt'
+    );
+    expect(JSON.stringify(repository.saveRuntime.mock.calls)).not.toContain(
+      'Fix the failing tests.'
+    );
     expect(startReconciliation).toHaveBeenCalledWith({
       runtimeId: runtime.id,
       provider: 'codex',
