@@ -89,7 +89,7 @@ button {
   min-height: 620px;
   overflow: hidden;
   background: var(--navy-950);
-  transition: grid-template-columns 180ms ease;
+  transition: grid-template-columns 340ms ease;
 }
 
 .app-shell.sidebar-collapsed {
@@ -246,8 +246,8 @@ button {
   opacity: 1;
   clip-path: inset(0 0 0 0);
   transition:
-    clip-path 160ms steps(10, end) 20ms,
-    opacity 40ms linear 20ms;
+    clip-path 300ms steps(10, end) 40ms,
+    opacity 50ms linear 40ms;
 }
 
 .brand strong {
@@ -339,8 +339,8 @@ button {
   opacity: 0;
   clip-path: inset(0 100% 0 0);
   transition:
-    clip-path 120ms steps(10, end),
-    opacity 20ms linear 100ms;
+    clip-path 260ms steps(10, end),
+    opacity 30ms linear 230ms;
 }
 
 .sidebar-collapsed .nav-label-divider {

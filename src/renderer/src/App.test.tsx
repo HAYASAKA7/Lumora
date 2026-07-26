@@ -460,6 +460,39 @@ describe('App', () => {
     expect(home.querySelector('.icon')).toBe(homeIcon);
   });
 
+  it('keeps the latest sidebar state and icon identity through rapid toggle bursts', async () => {
+    render(<App />);
+
+    const shell = document.querySelector('.app-shell');
+    const toggle = screen.getByRole('button', { name: 'Collapse sidebar' });
+    const home = screen.getByRole('button', { name: 'Home' });
+    const homeIcon = home.querySelector('.icon');
+
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+
+    expect(shell).toHaveClass('sidebar-collapsed');
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(SIDEBAR_EXPANSION_STORAGE_KEY)
+      ).toBe('collapsed');
+    });
+    expect(home.querySelector('.icon')).toBe(homeIcon);
+
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+
+    expect(shell).not.toHaveClass('sidebar-collapsed');
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(SIDEBAR_EXPANSION_STORAGE_KEY)
+      ).toBe('expanded');
+    });
+    expect(home.querySelector('.icon')).toBe(homeIcon);
+  });
+
   it('uses customized platform-aware shortcuts in collapsed sidebar titles', async () => {
     const getKeyboardSettings = vi.fn().mockResolvedValue({
       ...DEFAULT_KEYBOARD_SETTINGS,

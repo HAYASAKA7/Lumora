@@ -178,11 +178,9 @@ describe('sidebar text transition styles', () => {
     expect(declarations.get('opacity')).toBe('1');
     expect
       .soft(clipPathTransition ?? '', 'expanded clip-path transition')
-      .toMatch(
-        /^clip-path\s+160ms\s+steps\(\s*10\s*,\s*end\s*\)\s+20ms$/
-      );
-    expect(opacityTransition ?? '').toMatch(
-      /^opacity\s+40ms\s+linear\s+20ms$/
+      .toBe('clip-path 300ms steps(10, end) 40ms');
+    expect(opacityTransition ?? '').toBe(
+      'opacity 50ms linear 40ms'
     );
   });
 
@@ -199,11 +197,11 @@ describe('sidebar text transition styles', () => {
 
     expect(declarations.get('clip-path')).toBe('inset(0 100% 0 0)');
     expect(declarations.get('opacity')).toBe('0');
-    expect(clipPathTransition ?? '').toMatch(
-      /^clip-path\s+120ms\s+steps\(\s*10\s*,\s*end\s*\)$/
+    expect(clipPathTransition ?? '').toBe(
+      'clip-path 260ms steps(10, end)'
     );
-    expect(opacityTransition ?? '').toMatch(
-      /^opacity\s+20ms\s+linear\s+100ms$/
+    expect(opacityTransition ?? '').toBe(
+      'opacity 30ms linear 230ms'
     );
   });
 
@@ -223,6 +221,16 @@ describe('sidebar text transition styles', () => {
     );
     expect(declarations.get('animation-duration')).toBe(
       '0.01ms !important'
+    );
+  });
+});
+
+describe('sidebar shell transition styles', () => {
+  it('resizes the sidebar track at the coordinated slower pace', () => {
+    const declarations = groupedRule(styles, ['.app-shell']);
+
+    expect(declarations.get('transition')).toBe(
+      'grid-template-columns 340ms ease'
     );
   });
 });
