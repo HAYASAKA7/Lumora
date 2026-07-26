@@ -244,7 +244,10 @@ button {
   overflow: hidden;
   white-space: nowrap;
   opacity: 1;
-  transition: opacity 120ms ease;
+  clip-path: inset(0 0 0 0);
+  transition:
+    clip-path 160ms steps(10, end) 20ms,
+    opacity 40ms linear 20ms;
 }
 
 .brand strong {
@@ -334,6 +337,10 @@ button {
 .sidebar-collapsed .nav-label-text,
 .sidebar-collapsed .nav-item-label {
   opacity: 0;
+  clip-path: inset(0 100% 0 0);
+  transition:
+    clip-path 120ms steps(10, end),
+    opacity 20ms linear 100ms;
 }
 
 .sidebar-collapsed .nav-label-divider {
