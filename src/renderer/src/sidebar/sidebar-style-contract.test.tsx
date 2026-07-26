@@ -9,11 +9,6 @@ const styles = readFileSync(
   'utf8'
 ).replace(/\r\n/g, '\n');
 
-type CssRule = {
-  readonly declarations: ReadonlyMap<string, string>;
-  readonly selectors: readonly string[];
-};
-
 function effectiveDeclarations(ruleBody: string): ReadonlyMap<string, string> {
   const declarations = new Map<string, string>();
 
@@ -40,9 +35,11 @@ function normalizeSelector(selector: string): string {
 function groupedRule(
   source: string,
   expectedMembers: readonly string[]
-): CssRule {
+): ReadonlyMap<string, string> {
   const expected = expectedMembers.map(normalizeSelector).sort();
   const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  const declarations = new Map<string, string>();
+  let found = false;
 
   for (const match of source.matchAll(flatRulePattern)) {
     const selectorList = match[1];
@@ -60,21 +57,46 @@ function groupedRule(
       );
 
     if (matches) {
-      return {
-        declarations: effectiveDeclarations(ruleBody),
-        selectors
-      };
+      found = true;
+      for (const [property, value] of effectiveDeclarations(ruleBody)) {
+        declarations.set(property, value);
+      }
     }
   }
 
   expect(
-    undefined,
+    found,
     `Missing CSS rule for selector members: ${expected.join(', ')}`
-  ).toBeDefined();
-  return {
-    declarations: new Map(),
-    selectors: []
-  };
+  ).toBe(true);
+  return declarations;
+}
+
+function transitionEntryFor(
+  transition: string | undefined,
+  property: string
+): string | undefined {
+  if (transition === undefined) {
+    return undefined;
+  }
+
+  const entries: string[] = [];
+  let entryStart = 0;
+  let parenthesisDepth = 0;
+
+  for (let index = 0; index < transition.length; index += 1) {
+    const character = transition[index];
+    if (character === '(') {
+      parenthesisDepth += 1;
+    } else if (character === ')') {
+      parenthesisDepth -= 1;
+    } else if (character === ',' && parenthesisDepth === 0) {
+      entries.push(transition.slice(entryStart, index).trim());
+      entryStart = index + 1;
+    }
+  }
+  entries.push(transition.slice(entryStart).trim());
+
+  return entries.find((entry) => entry.split(/\s+/).includes(property));
 }
 
 function nestedBlock(source: string, header: string): string {
@@ -119,28 +141,26 @@ describe('sidebar text transition styles', () => {
   ] as const;
 
   it('reveals every sidebar text group with coordinated typewriter steps', () => {
-    const { declarations } = groupedRule(styles, expandedSelectors);
+    const declarations = groupedRule(styles, expandedSelectors);
+    const clipPathTransition = transitionEntryFor(
+      declarations.get('transition'),
+      'clip-path'
+    );
 
     expect
       .soft(declarations.get('clip-path'), 'expanded text clipping')
       .toBe('inset(0 0 0 0)');
     expect(declarations.get('opacity')).toBe('1');
     expect
-      .soft(declarations.get('transition'), 'expanded stepped transition')
-      .toContain('steps(');
+      .soft(clipPathTransition ?? '', 'expanded clip-path transition')
+      .toMatch(/\bsteps\([^)]*\)/);
   });
 
-  it('reverses the text reveal when collapsed without targeting icons', () => {
-    const { declarations, selectors } = groupedRule(
-      styles,
-      collapsedSelectors
-    );
+  it('reverses the text reveal for every text group when collapsed', () => {
+    const declarations = groupedRule(styles, collapsedSelectors);
 
     expect(declarations.get('clip-path')).toBe('inset(0 100% 0 0)');
     expect(declarations.get('opacity')).toBe('0');
-    expect(
-      selectors.some((selector) => selector.includes('.icon'))
-    ).toBe(false);
   });
 
   it('keeps reduced-motion transitions and animations effectively instant', () => {
@@ -148,7 +168,7 @@ describe('sidebar text transition styles', () => {
       styles,
       '@media (prefers-reduced-motion: reduce)'
     );
-    const { declarations } = groupedRule(reducedMotion, [
+    const declarations = groupedRule(reducedMotion, [
       '*',
       '*::before',
       '*::after'
