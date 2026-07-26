@@ -769,7 +769,10 @@ describe('managed terminal contracts', () => {
       expiresAt: '2026-07-11T04:05:00.000Z'
     } as const;
 
-    expect(LaunchPrepareRequestSchema.parse(request)).toEqual(request);
+    expect(LaunchPrepareRequestSchema.parse(request)).toEqual({
+      ...request,
+      startPrompt: ''
+    });
     expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
     const { workspaceTrusted: _workspaceTrusted, ...previewWithoutTrust } =
       preview;
@@ -784,13 +787,20 @@ describe('managed terminal contracts', () => {
       cols: 120,
       rows: 36
     } as const;
-    expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual(
-      resumeRequest
-    );
+    expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual({
+      ...resumeRequest,
+      startPrompt: ''
+    });
+    expect(
+      LaunchPrepareRequestSchema.parse({
+        ...resumeRequest,
+        startPrompt: '   '
+      })
+    ).toMatchObject({ strategy: 'resume', startPrompt: '' });
     const forkRequest = {
       strategy: 'fork',
       sessionId: 'c'.repeat(64),
-      task: 'Review the current implementation and fix the failing test.',
+      startPrompt: 'Review the current implementation and fix the failing test.',
       terminalProfileId: profile.id,
       cols: 120,
       rows: 36
@@ -805,29 +815,29 @@ describe('managed terminal contracts', () => {
     } as const;
     expect(LaunchPrepareRequestSchema.parse(promptlessForkRequest)).toEqual({
       ...promptlessForkRequest,
-      task: ''
+      startPrompt: ''
     });
     expect(
       LaunchPrepareRequestSchema.parse({
         ...promptlessForkRequest,
-        task: ''
+        startPrompt: ''
       })
-    ).toMatchObject({ strategy: 'fork', task: '' });
+    ).toMatchObject({ strategy: 'fork', startPrompt: '' });
     expect(
       LaunchPrepareRequestSchema.parse({
         ...promptlessForkRequest,
-        task: '   '
+        startPrompt: '   '
       })
-    ).toMatchObject({ strategy: 'fork', task: '' });
+    ).toMatchObject({ strategy: 'fork', startPrompt: '' });
     expect(
       LaunchPreviewSchema.parse({
         ...preview,
         strategy: 'fork',
         sessionId: null,
-        args: ['fork', 'native-session', forkRequest.task]
+        args: ['fork', 'native-session', forkRequest.startPrompt]
       })
     ).toMatchObject({ strategy: 'fork', sessionId: null });
-    for (const task of [
+    for (const startPrompt of [
       'line one\nline two',
       'line one\rline two',
       'bad\0task',
@@ -836,7 +846,7 @@ describe('managed terminal contracts', () => {
       expect(
         LaunchPrepareRequestSchema.safeParse({
           ...forkRequest,
-          task
+          startPrompt
         }).success
       ).toBe(false);
     }

@@ -694,15 +694,16 @@ const TerminalDimensionsFields = {
   rows: z.number().int().min(5).max(300)
 };
 
+const StartPromptSchema = z.string().max(4_096).refine(
+  (prompt) => !/[\0\r\n]/.test(prompt),
+  'The start prompt is invalid.'
+).transform((prompt) => prompt.trim().length === 0 ? '' : prompt);
+
 const LaunchRequestBaseFields = {
   terminalProfileId: StableIdSchema.nullable().default(null),
+  startPrompt: StartPromptSchema.optional().default(''),
   ...TerminalDimensionsFields
 };
-
-const ForkTaskSchema = z.string().max(4_096).refine(
-  (task) => !/[\0\r\n]/.test(task),
-  'The native session fork task is invalid.'
-).transform((task) => task.trim().length === 0 ? '' : task);
 
 export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
@@ -720,7 +721,6 @@ export const LaunchPrepareRequestSchema = z.discriminatedUnion('strategy', [
   z.strictObject({
     strategy: z.literal('fork'),
     sessionId: StableIdSchema,
-    task: ForkTaskSchema.optional().default(''),
     ...LaunchRequestBaseFields
   })
 ]);
