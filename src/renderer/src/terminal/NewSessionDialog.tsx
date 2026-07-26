@@ -9,6 +9,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { hasVerifiedStartPromptSupport } from '../../../shared/provider-definitions';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
@@ -51,6 +52,7 @@ export function NewSessionDialog({
     readyProviders[0]?.provider ?? 'codex'
   );
   const [profileId, setProfileId] = useState('');
+  const [startPrompt, setStartPrompt] = useState('');
   const [trustConfirmed, setTrustConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function NewSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
     setActionError(null);
-  }, [workspaceId, provider, profileId]);
+  }, [workspaceId, provider, profileId, startPrompt]);
   useEffect(() => {
     if (!availableWorkspaces.some((workspace) => workspace.id === workspaceId)) {
       setWorkspaceId(availableWorkspaces[0]?.id ?? '');
@@ -78,6 +80,9 @@ export function NewSessionDialog({
     }
   }, [availableProfiles, profileId]);
   useEffect(() => {
+    if (!hasVerifiedStartPromptSupport(provider)) setStartPrompt('');
+  }, [provider]);
+  useEffect(() => {
     if (!readyProviders.some((installation) => installation.provider === provider)) {
       setProvider(readyProviders[0]?.provider ?? 'codex');
     }
@@ -86,6 +91,7 @@ export function NewSessionDialog({
   const selectedWorkspace = availableWorkspaces.find(
     (workspace) => workspace.id === workspaceId
   );
+  const supportsStartPrompt = hasVerifiedStartPromptSupport(provider);
   const selectedProviderReady = readyProviders.some(
     (installation) => installation.provider === provider
   );
@@ -103,12 +109,13 @@ export function NewSessionDialog({
           strategy: 'new',
           workspaceId,
           provider,
+          startPrompt: supportsStartPrompt ? startPrompt : '',
           terminalProfileId: profileId || null,
           cols: 100,
           rows: 30
         }
       : null,
-    [canPrepare, profileId, provider, workspaceId]
+    [canPrepare, profileId, provider, startPrompt, supportsStartPrompt, workspaceId]
   );
   const preflight = useLaunchPreflight(request);
   const preview = preflight.preview;
@@ -207,6 +214,19 @@ export function NewSessionDialog({
               ))}
             </select>
           </label>
+          {supportsStartPrompt ? (
+            <label>
+              <span>Start prompt (optional)</span>
+              <input
+                disabled={starting}
+                maxLength={4_096}
+                onChange={(event) => setStartPrompt(event.currentTarget.value)}
+                placeholder="Describe the first task, or leave empty"
+                type="text"
+                value={startPrompt}
+              />
+            </label>
+          ) : null}
           <label>
             <span>Terminal profile</span>
             <select disabled={starting} onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>

@@ -195,6 +195,9 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByText('Codex')).toBeInTheDocument();
     expect(screen.getByText(workspace.canonicalPath)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();
+    expect(screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    })).toBeVisible();
     expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
     expect(
       screen.queryByRole('button', { name: 'Prepare launch' })
@@ -207,6 +210,7 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
+      startPrompt: '',
       sessionId: session.id,
       terminalProfileId: null,
       cols: 100,
@@ -219,6 +223,20 @@ describe('ResumeSessionDialog', () => {
     );
     expect(onStarted).toHaveBeenCalledWith(runtime, preview);
     expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    }), {
+      target: { value: 'Review the result.' }
+    });
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'resume',
+      startPrompt: 'Review the result.',
+      sessionId: session.id,
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
   });
 
   it('prepares promptless and prompted native forks in a stable dialog', async () => {
@@ -229,9 +247,9 @@ describe('ResumeSessionDialog', () => {
         strategy: 'fork' as const,
         sessionId: null,
         args:
-          request.task === ''
+          request.startPrompt === ''
             ? ['fork', session.nativeId]
-            : ['fork', session.nativeId, request.task]
+            : ['fork', session.nativeId, request.startPrompt]
       };
     });
     renderDialog({
@@ -253,13 +271,13 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByRole('button', { name: 'Back to resume' })).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Session continuation' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', {
-      name: 'Initial task (optional)'
+      name: 'Start prompt (optional)'
     })).toBeVisible();
     const forkButton = screen.getByRole('button', { name: 'Fork session' });
     await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
       strategy: 'fork',
       sessionId: session.id,
-      task: '',
+      startPrompt: '',
       terminalProfileId: null,
       cols: 100,
       rows: 30
@@ -271,7 +289,7 @@ describe('ResumeSessionDialog', () => {
     )).toBeVisible();
 
     const taskInput = screen.getByRole('textbox', {
-      name: 'Initial task (optional)'
+      name: 'Start prompt (optional)'
     });
     fireEvent.change(taskInput, {
       target: { value: 'Fix the failing tests.' }
@@ -283,7 +301,7 @@ describe('ResumeSessionDialog', () => {
     await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
       strategy: 'fork',
       sessionId: session.id,
-      task: 'Fix the failing tests.',
+      startPrompt: 'Fix the failing tests.',
       terminalProfileId: null,
       cols: 100,
       rows: 30
@@ -348,12 +366,16 @@ describe('ResumeSessionDialog', () => {
     });
     expect(provider).toHaveValue('codex');
     fireEvent.change(provider, { target: { value: 'claude' } });
+    expect(screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    })).toBeVisible();
 
     expect(await screen.findByText(
       'This creates a new Claude Code session. The original Codex session remains unchanged.'
     )).toBeVisible();
     await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
       strategy: 'resume',
+      startPrompt: '',
       sessionId: session.id,
       provider: 'claude',
       terminalProfileId: null,
@@ -364,6 +386,21 @@ describe('ResumeSessionDialog', () => {
       'Read the managed Lumora handoff context.'
     )).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start handoff' })).toBeEnabled();
+
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    }), {
+      target: { value: 'Fix the imported tests.' }
+    });
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'resume',
+      startPrompt: 'Fix the imported tests.',
+      sessionId: session.id,
+      provider: 'claude',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
   });
 
   it('grants trust before resuming an untrusted workspace', async () => {
@@ -483,6 +520,7 @@ describe('ResumeSessionDialog', () => {
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenLastCalledWith({
         strategy: 'resume',
+        startPrompt: '',
         sessionId: session.id,
         terminalProfileId: alternateProfile.id,
         cols: 100,

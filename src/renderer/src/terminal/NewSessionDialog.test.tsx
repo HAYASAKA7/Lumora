@@ -190,7 +190,17 @@ describe('NewSessionDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
+    const promptInput = screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    });
+    const profileSelect = screen.getByRole('combobox', {
+      name: 'Terminal profile'
+    });
+    expect(profileSelect).toHaveValue('');
+    expect(
+      promptInput.compareDocumentPosition(profileSelect) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
     expect(
       screen.queryByRole('button', { name: 'Prepare launch' })
     ).not.toBeInTheDocument();
@@ -203,6 +213,7 @@ describe('NewSessionDialog', () => {
     ).not.toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'new',
+      startPrompt: '',
       workspaceId: workspace.id,
       provider: 'codex',
       terminalProfileId: null,
@@ -216,6 +227,110 @@ describe('NewSessionDialog', () => {
     );
     expect(onStarted).toHaveBeenCalledWith(runtime, preview);
     expect(trustWorkspaceForLaunch).not.toHaveBeenCalled();
+  });
+
+  it('invalidates and reprepares when the start prompt changes', async () => {
+    const pending = deferred<LaunchPreview>();
+    const promptedPreview = {
+      ...preview,
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+      args: ['Fix the tests.']
+    };
+    const prepareLaunch = vi
+      .fn()
+      .mockResolvedValueOnce(preview)
+      .mockReturnValueOnce(pending.promise);
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(await screen.findByText('codexp')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    }), {
+      target: { value: 'Fix the tests.' }
+    });
+
+    expect(screen.queryByText('codexp')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start session' })).toBeDisabled();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'new',
+      startPrompt: 'Fix the tests.',
+      workspaceId: workspace.id,
+      provider: 'codex',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+
+    await act(async () => {
+      pending.resolve(promptedPreview);
+      await pending.promise;
+    });
+    expect(await screen.findByText('Fix the tests.')).toBeInTheDocument();
+  });
+
+  it('hides the field for an unverified launch-only provider', async () => {
+    const prepareLaunch = vi.fn().mockResolvedValue({
+      ...preview,
+      provider: 'antigravity',
+      executablePath: 'C:\\tools\\antigravity.exe',
+      command: null
+    });
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch,
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+    render(
+      <NewSessionDialog
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={{
+          scannedAt: scan.scannedAt,
+          providers: [{
+            provider: 'antigravity',
+            displayName: 'Antigravity',
+            state: 'ready',
+            executablePath: 'C:\\tools\\antigravity.exe',
+            version: '1.0.0',
+            issue: null
+          }]
+        }}
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.queryByRole('textbox', {
+      name: 'Start prompt (optional)'
+    })).not.toBeInTheDocument();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'new',
+      startPrompt: '',
+      workspaceId: workspace.id,
+      provider: 'antigravity',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
   });
 
   it('grants explicit trust before starting an untrusted workspace', async () => {
@@ -352,6 +467,7 @@ describe('NewSessionDialog', () => {
     expect(prepareLaunch.mock.calls).toEqual([
       [{
         strategy: 'new',
+        startPrompt: '',
         workspaceId: workspace.id,
         provider: 'claude',
         terminalProfileId: null,
@@ -403,6 +519,7 @@ describe('NewSessionDialog', () => {
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenCalledWith({
         strategy: 'new',
+        startPrompt: '',
         workspaceId: workspace.id,
         provider: 'gemini',
         terminalProfileId: null,

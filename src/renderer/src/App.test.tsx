@@ -1782,6 +1782,19 @@ describe('App', () => {
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
 
     expect(await within(dialog).findByText('resume codex-1')).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByRole('textbox', {
+      name: 'Start prompt (optional)'
+    }), {
+      target: { value: 'Review the catalog implementation.' }
+    });
+    await waitFor(() => expect(prepareLaunch).toHaveBeenLastCalledWith({
+      strategy: 'resume',
+      startPrompt: 'Review the catalog implementation.',
+      sessionId: session.id,
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume session' }));
 
     expect(await screen.findByRole('heading', { name: session.title })).toBeInTheDocument();
@@ -1791,8 +1804,9 @@ describe('App', () => {
     expect(
       screen.queryByRole('heading', { name: 'All sessions' })
     ).not.toBeInTheDocument();
-    expect(prepareLaunch).toHaveBeenCalledWith({
+    expect(prepareLaunch).toHaveBeenLastCalledWith({
       strategy: 'resume',
+      startPrompt: 'Review the catalog implementation.',
       sessionId: session.id,
       terminalProfileId: null,
       cols: 100,
@@ -1910,6 +1924,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
+      startPrompt: '',
       sessionId: session.id,
       terminalProfileId: null,
       cols: 100,

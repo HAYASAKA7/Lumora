@@ -21,6 +21,7 @@ const profile: TerminalProfile = {
 };
 const firstRequest: LaunchPrepareRequest = {
   strategy: 'new',
+  startPrompt: '',
   workspaceId,
   provider: 'codex',
   terminalProfileId: null,

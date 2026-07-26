@@ -93,6 +93,7 @@ export function RuntimeRecoveryDialog({
     return plan.strategy === 'resume'
       ? {
           strategy: 'resume',
+          startPrompt: '',
           sessionId: plan.session.id,
           terminalProfileId: profileId || null,
           cols: 100,
@@ -100,6 +101,7 @@ export function RuntimeRecoveryDialog({
         }
       : {
           strategy: 'new',
+          startPrompt: '',
           provider: plan.provider,
           workspaceId: plan.workspaceId,
           terminalProfileId: profileId || null,

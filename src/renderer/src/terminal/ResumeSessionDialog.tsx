@@ -14,6 +14,7 @@ import type {
 import {
   SESSION_PROVIDER_IDS,
   hasNativeForkSupport,
+  hasVerifiedStartPromptSupport,
   supportsNativeForkVersion
 } from '../../../shared/provider-definitions';
 import { LaunchReadiness } from './LaunchReadiness';
@@ -59,7 +60,7 @@ export function ResumeSessionDialog({
   }, [generalSettings.enabledProviders, providerScan]);
   const [profileId, setProfileId] = useState('');
   const [continuation, setContinuation] = useState<'resume' | 'new'>('resume');
-  const [task, setTask] = useState('');
+  const [startPrompt, setStartPrompt] = useState('');
   const [destinationProvider, setDestinationProvider] = useState<ProviderId>(
     session.provider
   );
@@ -75,12 +76,19 @@ export function ResumeSessionDialog({
   useEffect(() => {
     setTrustConfirmed(false);
     setActionError(null);
-  }, [continuation, destinationProvider, profileId, task]);
+  }, [continuation, destinationProvider, profileId, startPrompt]);
   useEffect(() => {
     setDestinationProvider(session.provider);
     setContinuation('resume');
-    setTask('');
+    setStartPrompt('');
   }, [session.id, session.provider]);
+  useEffect(() => {
+    if (!hasVerifiedStartPromptSupport(
+      continuation === 'resume' ? session.provider : destinationProvider
+    )) {
+      setStartPrompt('');
+    }
+  }, [continuation, destinationProvider, session.provider]);
   useEffect(() => {
     if (!generalSettings.crossAgentWorkflowEnabled) {
       setDestinationProvider(session.provider);
@@ -124,9 +132,12 @@ export function ResumeSessionDialog({
     continuation === 'new' && destinationProvider === session.provider;
   const isCrossAgent =
     continuation === 'new' && destinationProvider !== session.provider;
-  const validForkTask =
-    task.length <= 4_096 &&
-    !/[\0\r\n]/.test(task);
+  const promptProvider =
+    continuation === 'resume' ? session.provider : destinationProvider;
+  const supportsStartPrompt = hasVerifiedStartPromptSupport(promptProvider);
+  const validStartPrompt =
+    startPrompt.length <= 4_096 &&
+    !/[\0\r\n]/.test(startPrompt);
   const canPrepare =
     availableProfiles.length > 0 &&
     (profileId === '' ||
@@ -136,13 +147,14 @@ export function ResumeSessionDialog({
     (continuation === 'resume'
       ? provider?.state === 'ready'
       : destination?.state === 'ready') &&
-    (!isNativeFork || validForkTask);
+    (!supportsStartPrompt || validStartPrompt);
   const request = useMemo<LaunchPrepareRequest | null>(
     () => canPrepare
       ? continuation === 'resume'
         ? {
             strategy: 'resume',
             sessionId: session.id,
+            startPrompt: supportsStartPrompt ? startPrompt : '',
             terminalProfileId: profileId || null,
             cols: 100,
             rows: 30
@@ -151,7 +163,7 @@ export function ResumeSessionDialog({
           ? {
               strategy: 'fork',
               sessionId: session.id,
-              task,
+              startPrompt: supportsStartPrompt ? startPrompt : '',
               terminalProfileId: profileId || null,
               cols: 100,
               rows: 30
@@ -160,6 +172,7 @@ export function ResumeSessionDialog({
               strategy: 'resume',
               sessionId: session.id,
               provider: destinationProvider,
+              startPrompt: supportsStartPrompt ? startPrompt : '',
               terminalProfileId: profileId || null,
               cols: 100,
               rows: 30
@@ -172,7 +185,8 @@ export function ResumeSessionDialog({
       isNativeFork,
       profileId,
       session.id,
-      task
+      startPrompt,
+      supportsStartPrompt
     ]
   );
   const preflight = useLaunchPreflight(request);
@@ -348,16 +362,16 @@ export function ResumeSessionDialog({
               </select>
             </label>
           ) : null}
-          {isNativeFork ? (
+          {supportsStartPrompt ? (
             <label>
-              <span>Initial task (optional)</span>
+              <span>Start prompt (optional)</span>
               <input
                 disabled={starting}
                 maxLength={4_096}
-                onChange={(event) => setTask(event.currentTarget.value)}
+                onChange={(event) => setStartPrompt(event.currentTarget.value)}
                 placeholder="Describe the first task, or leave empty"
                 type="text"
-                value={task}
+                value={startPrompt}
               />
             </label>
           ) : null}
@@ -402,8 +416,8 @@ export function ResumeSessionDialog({
         <LaunchReadiness
           actionError={actionError}
           emptyMessage={
-            isNativeFork && !validForkTask
-              ? 'The initial task must be a single line.'
+            supportsStartPrompt && !validStartPrompt
+              ? 'The start prompt must be a single line.'
               : isCrossAgent
                 ? 'The selected session is not currently available to hand off.'
                 : isNativeFork
