@@ -363,6 +363,7 @@ export const TerminalProfileIdSchema = StableIdSchema;
 
 const TerminalArgumentSchema = z.string().max(4_096);
 const TerminalArgumentsSchema = z.array(TerminalArgumentSchema).max(16);
+const LaunchArgumentSchema = z.string().max(16_384);
 
 export const TerminalProfileSchema = z.strictObject({
   id: TerminalProfileIdSchema,
@@ -732,7 +733,7 @@ export const LaunchPreviewSchema = z.strictObject({
   sessionId: StableIdSchema.nullable(),
   provider: ProviderIdSchema,
   executablePath: z.string().min(1).max(32_768),
-  args: z.array(TerminalArgumentSchema).max(64),
+  args: z.array(LaunchArgumentSchema).max(64),
   command: ProviderLaunchConfigSchema.shape.command.default(null),
   workingDirectory: z.string().min(1).max(32_768),
   workspaceTrusted: z.boolean(),

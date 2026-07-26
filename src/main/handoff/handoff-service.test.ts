@@ -96,6 +96,26 @@ describe('HandoffService', () => {
       .not.toContain('Fix the tests.');
   });
 
+  it('accepts the full user prompt allowance inside a bounded managed prompt', async () => {
+    const service = new HandoffService({
+      rootDirectory: await root(),
+      createId: () => '019c0000-0000-7000-8000-000000000004'
+    });
+    const startPrompt = 'x'.repeat(4_096);
+    const plan = service.reserve({
+      sourceSessionId: 'd'.repeat(64),
+      sourceNativeId: 'native-4',
+      sourceProvider: 'codex',
+      destinationProvider: 'claude',
+      retentionDays: 7,
+      startPrompt
+    });
+
+    expect(plan.prompt.length).toBeGreaterThan(4_096);
+    expect(plan.prompt.length).toBeLessThanOrEqual(8_192);
+    expect(plan.prompt).toContain(startPrompt);
+  });
+
   it('deletes an incomplete handoff when normalization fails', async () => {
     const rootDirectory = await root();
     const service = new HandoffService({

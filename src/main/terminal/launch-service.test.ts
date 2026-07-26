@@ -109,6 +109,7 @@ function harness(overrides: {
   sessionCatalogRegistry?: ReturnType<typeof createSessionCatalogRegistry>;
   generalSettings?: GeneralSettings;
   sourceKeys?: readonly string[];
+  createToken?: () => string;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentWorkspace =
@@ -208,7 +209,9 @@ function harness(overrides: {
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
     clock: () => now,
-    createToken: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    createToken:
+      overrides.createToken ??
+      (() => '0198f8b6-18f3-7ca0-9f0f-123456789abc')
   });
   return {
     service,
@@ -288,6 +291,63 @@ describe('LaunchService', () => {
     expect(blank.args).toEqual([]);
     expect(prompted.args).toEqual(['Fix the failing tests.']);
     expect(prompted.launchHash).not.toBe(blank.launchHash);
+  });
+
+  it('invalidates a superseded launch preview when its prompt changes', async () => {
+    let tokenIndex = 0;
+    const tokens = [
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+    ];
+    const { service } = harness({
+      trusted: true,
+      createToken: () => tokens[tokenIndex++]!
+    });
+    const first = await service.prepare({
+      strategy: 'new',
+      startPrompt: 'First task.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    const second = await service.prepare({
+      strategy: 'new',
+      startPrompt: 'Second task.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+
+    await expect(service.consume(first.launchToken)).rejects.toMatchObject({
+      code: 'LAUNCH_TOKEN_INVALID'
+    });
+    await expect(service.consume(second.launchToken)).resolves.toMatchObject({
+      args: ['Second task.']
+    });
+  });
+
+  it('salts otherwise identical launch hashes with the launch token', async () => {
+    const request = {
+      strategy: 'new' as const,
+      startPrompt: 'Same task.',
+      provider: 'codex' as const,
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    };
+    const first = await harness({
+      createToken: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    }).service.prepare(request);
+    const second = await harness({
+      createToken: () => '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+    }).service.prepare(request);
+
+    expect(first.launchHash).not.toBe(second.launchHash);
   });
 
   it('recomputes exact resume arguments with the prepared start prompt', async () => {
@@ -416,7 +476,7 @@ describe('LaunchService', () => {
   it.each([
     ['codex', ['fork', nativeId, 'Fix the failing tests.']],
     ['claude', ['--resume', nativeId, '--fork-session', 'Fix the failing tests.']],
-    ['opencode', ['--session', nativeId, '--fork', '--prompt', 'Fix the failing tests.']]
+    ['opencode', ['--session', nativeId, '--fork', '--prompt=Fix the failing tests.']]
   ] as const)('prepares and consumes a native %s fork as an unlinked new identity', async (
     provider,
     args

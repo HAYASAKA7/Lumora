@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import {
   LaunchPrepareRequestSchema,
@@ -18,7 +18,10 @@ import {
   supportsNativeForkVersion
 } from '../../shared/provider-definitions';
 import type { HandoffPlan, HandoffService } from '../handoff/handoff-service';
-import { buildNewArguments } from '../providers/launch-command';
+import {
+  buildManagedHandoffArguments,
+  buildNewArguments
+} from '../providers/launch-command';
 import type {
   ReadyProviderInstallation,
   SessionCatalogAdapter,
@@ -140,8 +143,11 @@ function environmentWithProfile(
   return { ...env, SHELL: profile.executablePath };
 }
 
-function launchHash(value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>): string {
-  return createHash('sha256')
+function launchHash(
+  value: Omit<LaunchSpec, 'launchHash' | 'createdAt'>,
+  launchToken: string
+): string {
+  return createHmac('sha256', launchToken)
     .update(
       JSON.stringify({
         strategy: value.strategy,
@@ -218,8 +224,13 @@ function forkDisplayName(title: string): string {
 
 export class LaunchService {
   private readonly prepared = new Map<string, PreparedLaunch>();
+  private readonly expiryTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   private readonly clock: () => Date;
   private readonly createToken: () => string;
+  private prepareGeneration = 0;
 
   constructor(private readonly dependencies: LaunchServiceDependencies) {
     this.clock = dependencies.clock ?? (() => new Date());
@@ -228,6 +239,9 @@ export class LaunchService {
 
   async prepare(value: LaunchPrepareRequest): Promise<LaunchPreview> {
     const request = LaunchPrepareRequestSchema.parse(value);
+    const generation = ++this.prepareGeneration;
+    this.clearPrepared();
+    const token = this.createToken();
     let provider: ProviderId;
     let workspaceId: string;
     let sessionId: string | null;
@@ -359,7 +373,7 @@ export class LaunchService {
         retentionDays: settings.crossAgentHandoffRetentionDays,
         startPrompt: request.startPrompt
       });
-      args = buildNewArguments(provider, plan.prompt);
+      args = buildManagedHandoffArguments(provider, plan.prompt);
       handoff = {
         plan,
         sourceKeys: [...sourceKeys].sort(),
@@ -424,17 +438,25 @@ export class LaunchService {
     };
     const spec: LaunchSpec = {
       ...partial,
-      launchHash: launchHash(partial),
+      launchHash: launchHash(partial, token),
       createdAt: createdAt.toISOString()
     };
-    const token = this.createToken();
     const expiresAtMs = createdAt.getTime() + 5 * 60 * 1_000;
+    if (generation !== this.prepareGeneration) {
+      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
+    }
     this.prepared.set(token, {
       spec,
       expiresAtMs,
       requestedTerminalProfileId: request.terminalProfileId,
       startPrompt: request.startPrompt
     });
+    const expiryTimer = setTimeout(
+      () => this.removePrepared(token),
+      Math.max(0, expiresAtMs - this.clock().getTime())
+    );
+    expiryTimer.unref?.();
+    this.expiryTimers.set(token, expiryTimer);
 
     return LaunchPreviewSchema.parse({
       launchToken: token,
@@ -480,7 +502,7 @@ export class LaunchService {
 
   async consume(token: string): Promise<LaunchSpec> {
     const prepared = this.getPrepared(token);
-    this.prepared.delete(token);
+    this.removePrepared(token);
 
     const workspace = this.dependencies.repository.getWorkspace(
       prepared.spec.workspaceId
@@ -614,7 +636,7 @@ export class LaunchService {
       prepared.spec.handoff !== undefined &&
       prepared.spec.handoff !== null &&
       !sameValue(
-        buildNewArguments(
+        buildManagedHandoffArguments(
           prepared.spec.provider,
           prepared.spec.handoff.plan.prompt
         ),
@@ -704,9 +726,24 @@ export class LaunchService {
       throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
     }
     if (this.clock().getTime() > prepared.expiresAtMs) {
-      this.prepared.delete(token);
+      this.removePrepared(token);
       throw new TerminalLaunchError('LAUNCH_TOKEN_EXPIRED');
     }
     return prepared;
+  }
+
+  private removePrepared(token: string): void {
+    this.prepared.delete(token);
+    const expiryTimer = this.expiryTimers.get(token);
+    if (expiryTimer !== undefined) {
+      clearTimeout(expiryTimer);
+      this.expiryTimers.delete(token);
+    }
+  }
+
+  private clearPrepared(): void {
+    for (const token of this.prepared.keys()) {
+      this.removePrepared(token);
+    }
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildForkArguments,
+  buildManagedHandoffArguments,
   buildNewArguments,
   buildResumeArguments
 } from './launch-command';
@@ -45,10 +46,10 @@ describe('buildResumeArguments', () => {
   it.each([
     ['codex', ['resume', 'native-1', 'Fix tests']],
     ['claude', ['--resume', 'native-1', 'Fix tests']],
-    ['gemini', ['--resume', 'native-1', 'Fix tests']],
-    ['opencode', ['--session', 'native-1', '--prompt', 'Fix tests']],
-    ['copilot', ['--session-id', 'native-1', '-i', 'Fix tests']],
-    ['qwen', ['--resume', 'native-1', 'Fix tests']]
+    ['gemini', ['--resume', 'native-1', '--prompt-interactive=Fix tests']],
+    ['opencode', ['--session', 'native-1', '--prompt=Fix tests']],
+    ['copilot', ['--session-id', 'native-1', '--interactive=Fix tests']],
+    ['qwen', ['--resume', 'native-1', '--prompt-interactive=Fix tests']]
   ] as const)(
     'builds atomic prompted %s resume arguments',
     (provider, expected) => {
@@ -64,6 +65,22 @@ describe('buildResumeArguments', () => {
       'native-1'
     ]);
   });
+
+  it.each([
+    ['codex', ['resume', 'native-1', '--', '--help']],
+    ['claude', ['--resume', 'native-1', '--', '--help']],
+    ['gemini', ['--resume', 'native-1', '--prompt-interactive=--help']],
+    ['opencode', ['--session', 'native-1', '--prompt=--help']],
+    ['copilot', ['--session-id', 'native-1', '--interactive=--help']],
+    ['qwen', ['--resume', 'native-1', '--prompt-interactive=--help']]
+  ] as const)(
+    'protects an option-like prompt for %s resume',
+    (provider, expected) => {
+      expect(buildResumeArguments(provider, 'native-1', '--help')).toEqual(
+        expected
+      );
+    }
+  );
 });
 
 describe('buildNewArguments', () => {
@@ -90,10 +107,10 @@ describe('buildNewArguments', () => {
   it.each([
     ['codex', [prompt]],
     ['claude', [prompt]],
-    ['gemini', ['-i', prompt]],
-    ['opencode', ['--prompt', prompt]],
-    ['copilot', ['-i', prompt]],
-    ['qwen', ['-i', prompt]]
+    ['gemini', [`--prompt-interactive=${prompt}`]],
+    ['opencode', [`--prompt=${prompt}`]],
+    ['copilot', [`--interactive=${prompt}`]],
+    ['qwen', [`--prompt-interactive=${prompt}`]]
   ] as const)('builds atomic %s start-prompt arguments', (provider, expected) => {
     expect(buildNewArguments(provider, prompt)).toEqual(expected);
   });
@@ -106,6 +123,33 @@ describe('buildNewArguments', () => {
       'invalid'
     );
   });
+
+  it.each([
+    ['codex', ['--', '--help']],
+    ['claude', ['--', '--help']],
+    ['gemini', ['--prompt-interactive=--help']],
+    ['opencode', ['--prompt=--help']],
+    ['copilot', ['--interactive=--help']],
+    ['qwen', ['--prompt-interactive=--help']]
+  ] as const)(
+    'protects an option-like prompt for a new %s session',
+    (provider, expected) => {
+      expect(buildNewArguments(provider, '--help')).toEqual(expected);
+    }
+  );
+
+  it('keeps the user prompt limit while accepting a larger managed handoff prompt', () => {
+    const managedPrompt = 'x'.repeat(5_000);
+    expect(() => buildNewArguments('codex', managedPrompt)).toThrow(
+      'start prompt is invalid'
+    );
+    expect(buildManagedHandoffArguments('codex', managedPrompt)).toEqual([
+      managedPrompt
+    ]);
+    expect(() =>
+      buildManagedHandoffArguments('codex', 'x'.repeat(8_193))
+    ).toThrow('managed handoff prompt is invalid');
+  });
 });
 
 describe('buildForkArguments', () => {
@@ -114,7 +158,7 @@ describe('buildForkArguments', () => {
   it.each([
     ['codex', ['fork', 'native-1', startPrompt]],
     ['claude', ['--resume', 'native-1', '--fork-session', startPrompt]],
-    ['opencode', ['--session', 'native-1', '--fork', '--prompt', startPrompt]]
+    ['opencode', ['--session', 'native-1', '--fork', `--prompt=${startPrompt}`]]
   ] as const)('builds atomic %s native-fork arguments', (provider, expected) => {
     expect(buildForkArguments(provider, 'native-1', startPrompt)).toEqual(expected);
   });
@@ -163,6 +207,18 @@ describe('buildForkArguments', () => {
     (nativeId) => {
       expect(() => buildForkArguments('codex', nativeId, startPrompt)).toThrow(
         'native session identity is invalid'
+      );
+    }
+  );
+
+  it.each([
+    ['codex', ['fork', 'native-1', '--', '--help']],
+    ['claude', ['--resume', 'native-1', '--fork-session', '--', '--help']]
+  ] as const)(
+    'protects an option-like positional prompt for %s fork',
+    (provider, expected) => {
+      expect(buildForkArguments(provider, 'native-1', '--help')).toEqual(
+        expected
       );
     }
   );

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { extname } from 'node:path';
 
 import type { SystemInfo, TerminalProfile } from '../../shared/contracts';
@@ -11,6 +12,7 @@ interface ResolvePtyInvocationInput {
   command: string | null;
   env: Environment;
   terminalProfile: TerminalProfile;
+  isExecutableFile?: (path: string) => boolean;
 }
 
 export interface PtyInvocation {
@@ -51,13 +53,66 @@ function cmdArguments(args: readonly string[]): string {
   }).join(' ');
 }
 
+function needsPowerShellArgumentBridge(args: readonly string[]): boolean {
+  return args.some(
+    (argument) =>
+      argument.length === 0 || /[\0\r\n"%!&|^<>]/.test(argument)
+  );
+}
+
+function windowsPowerShellPath(env: Environment): string {
+  const systemRoot = readEnvironmentValue(env, 'SystemRoot');
+  return systemRoot === undefined
+    ? 'powershell.exe'
+    : `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+}
+
+function powershellProviderExecutable(
+  executablePath: string,
+  isExecutableFile: (path: string) => boolean
+): string {
+  const extension = extname(executablePath).toLowerCase();
+  if (extension !== '.cmd' && extension !== '.bat') return executablePath;
+  const powershellShim = executablePath.slice(0, -4) + '.ps1';
+  if (isExecutableFile(powershellShim)) return powershellShim;
+  throw new Error(
+    'The selected command shell cannot safely pass this provider argument.'
+  );
+}
+
+function powershellProviderInvocation(
+  env: Environment,
+  executablePath: string,
+  args: readonly string[],
+  isExecutableFile: (path: string) => boolean
+): PtyInvocation {
+  const providerEnvironment = {
+    ...env,
+    LUMORA_PROVIDER_EXECUTABLE:
+      powershellProviderExecutable(executablePath, isExecutableFile)
+  };
+  return {
+    executablePath: windowsPowerShellPath(env),
+    args: [
+      '-NoLogo',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      '$lumoraArgs = @($env:LUMORA_PROVIDER_ARGUMENTS | ConvertFrom-Json); & $env:LUMORA_PROVIDER_EXECUTABLE @lumoraArgs; exit $LASTEXITCODE'
+    ],
+    env: powershellArgumentsEnvironment(providerEnvironment, args)
+  };
+}
+
 export function resolvePtyInvocation({
   platform,
   executablePath,
   args,
   command,
   env,
-  terminalProfile
+  terminalProfile,
+  isExecutableFile = existsSync
 }: ResolvePtyInvocationInput): PtyInvocation {
   if (command !== null) {
     if (terminalProfile.shellFamily === 'other') {
@@ -195,6 +250,18 @@ export function resolvePtyInvocation({
   }
 
   if (platform === 'win32' && terminalProfile.shellFamily === 'cmd') {
+    if (needsPowerShellArgumentBridge(args)) {
+      const extension = extname(executablePath).toLowerCase();
+      if (extension === '.cmd' || extension === '.bat') {
+        return powershellProviderInvocation(
+          env,
+          executablePath,
+          args,
+          isExecutableFile
+        );
+      }
+      return { executablePath, args: [...args], env: { ...env } };
+    }
     const suffix = args.length === 0 ? '' : ` ${cmdArguments(args)}`;
     return {
       executablePath: terminalProfile.executablePath,
@@ -216,6 +283,14 @@ export function resolvePtyInvocation({
     platform === 'win32' && (extension === '.cmd' || extension === '.bat');
   if (!isWindowsCommandShim) {
     return { executablePath, args: [...args], env: { ...env } };
+  }
+  if (needsPowerShellArgumentBridge(args)) {
+    return powershellProviderInvocation(
+      env,
+      executablePath,
+      args,
+      isExecutableFile
+    );
   }
 
   return {

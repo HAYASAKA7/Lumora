@@ -774,6 +774,18 @@ describe('managed terminal contracts', () => {
       startPrompt: ''
     });
     expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
+    expect(
+      LaunchPreviewSchema.parse({
+        ...preview,
+        args: ['x'.repeat(8_200)]
+      }).args[0]
+    ).toHaveLength(8_200);
+    expect(
+      LaunchPreviewSchema.safeParse({
+        ...preview,
+        args: ['x'.repeat(16_385)]
+      }).success
+    ).toBe(false);
     const { workspaceTrusted: _workspaceTrusted, ...previewWithoutTrust } =
       preview;
     expect(LaunchPreviewSchema.safeParse(previewWithoutTrust).success).toBe(

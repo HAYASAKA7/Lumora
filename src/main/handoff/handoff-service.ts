@@ -112,7 +112,7 @@ function handoffPrompt(contextDirectory: string, startPrompt: string): string {
       ? []
       : ['User start task:', normalizedStartPrompt])
   ].join(' ');
-  if (prompt.length > 4_096 || /[\0\r\n]/.test(prompt)) {
+  if (prompt.length > 8_192 || /[\0\r\n]/.test(prompt)) {
     throw new Error('The managed handoff prompt is too long or invalid.');
   }
   return prompt;

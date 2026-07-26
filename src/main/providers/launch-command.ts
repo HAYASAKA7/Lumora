@@ -1,15 +1,36 @@
 import type { ProviderId } from '../../shared/contracts';
 import { providerDefinition } from '../../shared/provider-definitions';
 
+const USER_START_PROMPT_LIMIT = 4_096;
+const MANAGED_HANDOFF_PROMPT_LIMIT = 8_192;
+
+function positionalPromptArguments(startPrompt: string): string[] {
+  if (startPrompt === '') return [];
+  return startPrompt.startsWith('-')
+    ? ['--', startPrompt]
+    : [startPrompt];
+}
+
+function attachedPromptArgument(
+  option: string,
+  startPrompt: string
+): string[] {
+  return startPrompt === '' ? [] : [`${option}=${startPrompt}`];
+}
+
 const NEW_ARGUMENTS: Partial<
   Record<ProviderId, (startPrompt: string) => string[]>
 > = {
-  codex: (startPrompt) => [startPrompt],
-  claude: (startPrompt) => [startPrompt],
-  gemini: (startPrompt) => ['-i', startPrompt],
-  opencode: (startPrompt) => ['--prompt', startPrompt],
-  copilot: (startPrompt) => ['-i', startPrompt],
-  qwen: (startPrompt) => ['-i', startPrompt]
+  codex: positionalPromptArguments,
+  claude: positionalPromptArguments,
+  gemini: (startPrompt) =>
+    attachedPromptArgument('--prompt-interactive', startPrompt),
+  opencode: (startPrompt) =>
+    attachedPromptArgument('--prompt', startPrompt),
+  copilot: (startPrompt) =>
+    attachedPromptArgument('--interactive', startPrompt),
+  qwen: (startPrompt) =>
+    attachedPromptArgument('--prompt-interactive', startPrompt)
 };
 
 const RESUME_ARGUMENTS: Partial<
@@ -21,32 +42,32 @@ const RESUME_ARGUMENTS: Partial<
   codex: (nativeSessionId, startPrompt) => [
     'resume',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...positionalPromptArguments(startPrompt)
   ],
   claude: (nativeSessionId, startPrompt) => [
     '--resume',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...positionalPromptArguments(startPrompt)
   ],
   gemini: (nativeSessionId, startPrompt) => [
     '--resume',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...attachedPromptArgument('--prompt-interactive', startPrompt)
   ],
   opencode: (nativeSessionId, startPrompt) => [
     '--session',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : ['--prompt', startPrompt])
+    ...attachedPromptArgument('--prompt', startPrompt)
   ],
   copilot: (nativeSessionId, startPrompt) => [
     '--session-id',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : ['-i', startPrompt])
+    ...attachedPromptArgument('--interactive', startPrompt)
   ],
   qwen: (nativeSessionId, startPrompt) => [
     '--resume',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...attachedPromptArgument('--prompt-interactive', startPrompt)
   ]
 };
 
@@ -59,45 +80,74 @@ const FORK_ARGUMENTS: Partial<
   codex: (nativeSessionId, startPrompt) => [
     'fork',
     nativeSessionId,
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...positionalPromptArguments(startPrompt)
   ],
   claude: (nativeSessionId, startPrompt) => [
     '--resume',
     nativeSessionId,
     '--fork-session',
-    ...(startPrompt === '' ? [] : [startPrompt])
+    ...positionalPromptArguments(startPrompt)
   ],
   opencode: (nativeSessionId, startPrompt) => [
     '--session',
     nativeSessionId,
     '--fork',
-    ...(startPrompt === '' ? [] : ['--prompt', startPrompt])
+    ...attachedPromptArgument('--prompt', startPrompt)
   ]
 };
 
-function normalizeStartPrompt(startPrompt: string): string {
-  if (
-    startPrompt.length > 4_096 ||
-    /[\0\r\n]/.test(startPrompt)
-  ) {
-    throw new Error('The start prompt is invalid.');
+function normalizePrompt(
+  prompt: string,
+  limit: number,
+  errorMessage: string
+): string {
+  if (prompt.length > limit || /[\0\r\n]/.test(prompt)) {
+    throw new Error(errorMessage);
   }
-  return startPrompt.trim().length === 0 ? '' : startPrompt;
+  return prompt.trim().length === 0 ? '' : prompt;
 }
 
-export function buildNewArguments(
+function normalizeStartPrompt(startPrompt: string): string {
+  return normalizePrompt(
+    startPrompt,
+    USER_START_PROMPT_LIMIT,
+    'The start prompt is invalid.'
+  );
+}
+
+function buildNewPromptArguments(
   provider: ProviderId,
-  startPrompt: string
+  prompt: string
 ): string[] {
-  const normalizedStartPrompt = normalizeStartPrompt(startPrompt);
-  if (normalizedStartPrompt === '') return [];
+  if (prompt === '') return [];
   const buildArguments = NEW_ARGUMENTS[provider];
   if (!buildArguments) {
     throw new Error(
       `${providerDefinition(provider).displayName} does not support a start prompt in Lumora.`
     );
   }
-  return buildArguments(normalizedStartPrompt);
+  return buildArguments(prompt);
+}
+
+export function buildNewArguments(
+  provider: ProviderId,
+  startPrompt: string
+): string[] {
+  return buildNewPromptArguments(provider, normalizeStartPrompt(startPrompt));
+}
+
+export function buildManagedHandoffArguments(
+  provider: ProviderId,
+  managedPrompt: string
+): string[] {
+  return buildNewPromptArguments(
+    provider,
+    normalizePrompt(
+      managedPrompt,
+      MANAGED_HANDOFF_PROMPT_LIMIT,
+      'The managed handoff prompt is invalid.'
+    )
+  );
 }
 
 export function buildResumeArguments(

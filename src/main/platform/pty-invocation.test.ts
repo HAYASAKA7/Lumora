@@ -72,12 +72,77 @@ describe('resolvePtyInvocation', () => {
     expect(invocation.args.at(-1)).toBe(
       'call "%LUMORA_PROVIDER_EXECUTABLE%" "Read context at C:\\Users\\Test User\\Lumora\\context"'
     );
+    const unsafePrompt = 'Compare A & B and %VALUE%!';
+    const unsafeInvocation = resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'C:\\Tools\\codex.cmd',
+      args: [unsafePrompt],
+      command: null,
+      env: { SystemRoot: 'C:\\Windows' },
+      terminalProfile: {
+        id: 'a'.repeat(64), kind: 'detected', name: 'Command Prompt',
+        shellFamily: 'cmd', executablePath: 'cmd.exe', args: [],
+        available: true, recommended: true
+      },
+      isExecutableFile: (path) => path === 'C:\\Tools\\codex.ps1'
+    });
+    expect(unsafeInvocation.executablePath).toBe(
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    );
+    expect(unsafeInvocation.args.join(' ')).not.toContain(unsafePrompt);
+    expect(unsafeInvocation.env.LUMORA_PROVIDER_ARGUMENTS).toBe(
+      JSON.stringify([unsafePrompt])
+    );
+    expect(unsafeInvocation.env.LUMORA_PROVIDER_EXECUTABLE).toBe(
+      'C:\\Tools\\codex.ps1'
+    );
+  });
+
+  it('rejects unsafe arguments for a batch provider without a safe shim', () => {
+    expect(() => resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'C:\\Tools\\codex.bat',
+      args: ['Compare A & B and %VALUE%!'],
+      command: null,
+      env: { SystemRoot: 'C:\\Windows' },
+      terminalProfile: {
+        id: 'a'.repeat(64), kind: 'custom', name: 'Native host',
+        shellFamily: 'other', executablePath: 'native', args: [],
+        available: true, recommended: false
+      },
+      isExecutableFile: () => false
+    })).toThrow('cannot safely pass');
+  });
+
+  it('launches a native provider directly when cmd cannot preserve its arguments', () => {
+    const prompt = 'Compare A & B and %VALUE%!';
+    const invocation = resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'C:\\Tools\\codex.exe',
+      args: [prompt],
+      command: null,
+      env: { SystemRoot: 'C:\\Windows' },
+      terminalProfile: {
+        id: 'a'.repeat(64), kind: 'detected', name: 'Command Prompt',
+        shellFamily: 'cmd', executablePath: 'cmd.exe', args: [],
+        available: true, recommended: true
+      }
+    });
+
+    expect(invocation).toEqual({
+      executablePath: 'C:\\Tools\\codex.exe',
+      args: [prompt],
+      env: { SystemRoot: 'C:\\Windows' }
+    });
+  });
+
+  it('does not reinterpret a custom cmd command under another shell', () => {
     expect(() => resolvePtyInvocation({
       platform: 'win32',
       executablePath: 'C:\\Tools\\codex.cmd',
-      args: ['Read %SECRET%'],
-      command: null,
-      env: {},
+      args: ['Compare A & B and %VALUE%!'],
+      command: 'set MODE=review & codexp',
+      env: { SystemRoot: 'C:\\Windows' },
       terminalProfile: {
         id: 'a'.repeat(64), kind: 'detected', name: 'Command Prompt',
         shellFamily: 'cmd', executablePath: 'cmd.exe', args: [],
