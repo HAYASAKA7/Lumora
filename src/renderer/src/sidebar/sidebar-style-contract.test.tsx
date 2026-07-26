@@ -237,6 +237,7 @@ describe('sidebar text transition styles', () => {
     expect(declarations.get('transition-duration')).toBe(
       '0.01ms !important'
     );
+    expect(declarations.get('transition-delay')).toBe('0ms !important');
     expect(declarations.get('animation-duration')).toBe(
       '0.01ms !important'
     );
