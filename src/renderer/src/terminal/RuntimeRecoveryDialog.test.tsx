@@ -211,6 +211,7 @@ describe('RuntimeRecoveryDialog', () => {
     expect(await screen.findByText('codexp')).toBeInTheDocument();
     expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
+      startPrompt: '',
       sessionId: session.id,
       terminalProfileId: null,
       cols: 100,
@@ -241,6 +242,7 @@ describe('RuntimeRecoveryDialog', () => {
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenCalledWith({
         strategy: 'new',
+        startPrompt: '',
         provider: 'codex',
         workspaceId: workspace.id,
         terminalProfileId: null,
