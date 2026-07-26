@@ -117,13 +117,6 @@ export function buildResumeArguments(
   );
 }
 
-export function buildInitialPromptArguments(
-  provider: ProviderId,
-  startPrompt: string
-): string[] {
-  return buildNewArguments(provider, startPrompt);
-}
-
 export function buildForkArguments(
   provider: ProviderId,
   nativeSessionId: string,
