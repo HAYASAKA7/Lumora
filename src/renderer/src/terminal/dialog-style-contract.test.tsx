@@ -283,6 +283,14 @@ describe('popup layout styles', () => {
     }
   });
 
+  it('gives the new-session start prompt its own full-width row', () => {
+    expect(
+      effectiveDeclarations(rule('.new-session-start-prompt')).get(
+        'grid-column'
+      )
+    ).toBe('1 / -1');
+  });
+
   it('uses shared section and control gaps instead of competing margins', () => {
     expect(effectiveDeclarations(rule('.launch-fields')).get('gap')).toBe(
       'var(--modal-control-gap)'

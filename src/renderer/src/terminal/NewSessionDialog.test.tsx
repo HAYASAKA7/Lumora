@@ -196,9 +196,11 @@ describe('NewSessionDialog', () => {
     const profileSelect = screen.getByRole('combobox', {
       name: 'Terminal profile'
     });
+    const promptField = promptInput.closest('label');
     expect(profileSelect).toHaveValue('');
+    expect(promptField).toHaveClass('new-session-start-prompt');
     expect(
-      promptInput.compareDocumentPosition(profileSelect) &
+      profileSelect.compareDocumentPosition(promptInput) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0);
     expect(

@@ -2669,6 +2669,10 @@ button {
   gap: var(--modal-control-gap);
 }
 
+.new-session-start-prompt {
+  grid-column: 1 / -1;
+}
+
 .resume-launch-fields {
   grid-template-columns: minmax(220px, 1fr);
 }

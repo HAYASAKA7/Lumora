@@ -214,8 +214,17 @@ export function NewSessionDialog({
               ))}
             </select>
           </label>
+          <label>
+            <span>Terminal profile</span>
+            <select disabled={starting} onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
+              <option value="">Configured default</option>
+              {availableProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>{profile.name}</option>
+              ))}
+            </select>
+          </label>
           {supportsStartPrompt ? (
-            <label>
+            <label className="new-session-start-prompt">
               <span>Start prompt (optional)</span>
               <input
                 disabled={starting}
@@ -227,15 +236,6 @@ export function NewSessionDialog({
               />
             </label>
           ) : null}
-          <label>
-            <span>Terminal profile</span>
-            <select disabled={starting} onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
-              <option value="">Configured default</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>{profile.name}</option>
-              ))}
-            </select>
-          </label>
         </div>
 
         <LaunchReadiness
