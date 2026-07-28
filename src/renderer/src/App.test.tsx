@@ -1160,6 +1160,60 @@ describe('App', () => {
     ).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('keeps dragged visual tab order independent from the MRU switcher', async () => {
+    const first = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789af0'),
+      displayName: 'First session'
+    };
+    const second = {
+      ...runningRuntime(
+        '0198f8b6-18f3-7ca0-9f0f-123456789af1',
+        'claude'
+      ),
+      displayName: 'Second session'
+    };
+    const third = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789af2'),
+      displayName: 'Third session'
+    };
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second, third]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: [first, second, third].find((item) => item.id === runtimeId)!,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    fireEvent.click(
+      await screen.findByRole('tab', { name: /Third session/ })
+    );
+    const firstTab = screen.getByRole('tab', { name: /First session/ });
+    fireEvent.keyDown(firstTab, {
+      altKey: true,
+      code: 'ArrowRight',
+      key: 'ArrowRight',
+      shiftKey: true
+    });
+
+    expect(
+      screen.getAllByRole('tab').map((tab) => tab.textContent)
+    ).toEqual([
+      expect.stringContaining('Second session'),
+      expect.stringContaining('First session'),
+      expect.stringContaining('Third session')
+    ]);
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(
+      screen.getByRole('option', { name: /First session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('moves a pending switch selection forward when that runtime exits', async () => {
     const first = {
       ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ae0'),

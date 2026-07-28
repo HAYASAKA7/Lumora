@@ -105,6 +105,103 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('reorders a tab after a pointer drag without activating it', () => {
+    const secondRuntime: RuntimeSummary = {
+      ...runtime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: 'Release notes'
+    };
+    const onActivate = vi.fn();
+    const onReorder = vi.fn();
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={onActivate}
+        onReorder={onReorder}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    vi.spyOn(tabs[0]!, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      right: 100,
+      width: 100
+    } as DOMRect);
+    vi.spyOn(tabs[1]!, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 200,
+      width: 100
+    } as DOMRect);
+
+    fireEvent.pointerDown(tabs[0]!, {
+      button: 0,
+      clientX: 50,
+      pointerId: 1
+    });
+    fireEvent.pointerMove(screen.getByRole('tablist'), {
+      clientX: 175,
+      pointerId: 1
+    });
+    fireEvent.pointerUp(screen.getByRole('tablist'), {
+      clientX: 175,
+      pointerId: 1
+    });
+    fireEvent.click(tabs[0]!);
+
+    expect(onReorder).toHaveBeenCalledWith(runtime.id, 1);
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it('moves a focused tab with Alt+Shift+Arrow keys and ignores boundaries', () => {
+    const secondRuntime: RuntimeSummary = {
+      ...runtime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: 'Release notes'
+    };
+    const onReorder = vi.fn();
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onReorder={onReorder}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    fireEvent.keyDown(tabs[0]!, {
+      altKey: true,
+      code: 'ArrowRight',
+      key: 'ArrowRight',
+      shiftKey: true
+    });
+    fireEvent.keyDown(tabs[0]!, {
+      altKey: true,
+      code: 'ArrowLeft',
+      key: 'ArrowLeft',
+      shiftKey: true
+    });
+
+    expect(onReorder).toHaveBeenCalledTimes(1);
+    expect(onReorder).toHaveBeenCalledWith(runtime.id, 1);
+    expect(
+      screen.getByText('Repository cleanup moved to position 2 of 2.')
+    ).toBeInTheDocument();
+  });
+
   it('offers Stop without a manual tab close action for a live runtime', () => {
     const liveRuntime: RuntimeSummary = {
       ...runtime,
@@ -175,7 +272,7 @@ describe('TerminalWorkspace', () => {
         onRuntimeChange={vi.fn()}
         platform="win32"
         previews={new Map()}
-        runtimes={[runtime, secondRuntime]}
+        runtimes={[secondRuntime, runtime]}
         visible
         workspaces={[workspace]}
       />

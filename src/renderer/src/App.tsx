@@ -65,6 +65,7 @@ import {
 import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
+import { moveRuntimeTab } from './terminal/runtime-tab-order';
 
 type RouteId =
   | 'home'
@@ -573,6 +574,16 @@ export default function App(): ReactNode {
     setRuntimeMru((current) => touchRuntimeMru(current, runtimeId));
     setActiveRuntimeId(runtimeId);
   }, []);
+
+  const reorderRuntimeTab = useCallback(
+    (runtimeId: string, destinationIndex: number) => {
+      setOpenRuntimeIds((current) => {
+        const next = moveRuntimeTab(current, runtimeId, destinationIndex);
+        return next === current ? current : [...next];
+      });
+    },
+    []
+  );
 
   const closeRuntimeTab = useCallback((runtimeId: string) => {
     setRuntimeMru((current) => current.filter((id) => id !== runtimeId));
@@ -1450,6 +1461,7 @@ export default function App(): ReactNode {
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
                 focusRequestKey={terminalFocusRequestKey}
                 onActivate={activateRuntime}
+                onReorder={reorderRuntimeTab}
                 onRuntimeChange={updateRuntime}
                 platform={
                   systemStatus.state === 'ready'

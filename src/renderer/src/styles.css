@@ -3064,6 +3064,7 @@ button {
 }
 
 .terminal-tab {
+  position: relative;
   display: grid;
   min-width: 130px;
   padding: 7px 12px;
@@ -3072,6 +3073,43 @@ button {
   background: transparent;
   border-radius: 8px 8px 0 0;
   cursor: pointer;
+  touch-action: pan-y;
+}
+
+.terminal-tab-dragging {
+  opacity: 0.62;
+}
+
+.terminal-tab-drop-before::before,
+.terminal-tab-drop-after::after {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  content: '';
+  background: #32cdd3;
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgb(50 205 211 / 55%);
+}
+
+.terminal-tab-drop-before::before {
+  left: -2px;
+}
+
+.terminal-tab-drop-after::after {
+  right: -2px;
+}
+
+.terminal-reorder-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .terminal-tab[aria-selected="true"] {
