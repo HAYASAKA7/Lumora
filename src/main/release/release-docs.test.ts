@@ -32,7 +32,7 @@ describe('unsigned MVP release documentation', () => {
       'provider-owned sessions',
       '<h1 align="center">Lumora</h1>',
       'resources/icons/lumora/source/lumora-symbol-gradient.svg',
-      '<!-- DEMO: Add docs/media/lumora-demo.mp4',
+      'docs/screenshots/home_sidebar_expanded.png',
       '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
       'docs/ARCHITECTURE.md',
       'docs/DEVELOPMENT.md',
@@ -42,7 +42,7 @@ describe('unsigned MVP release documentation', () => {
     }
 
     expect(readme).toMatch(
-      /<p align="center">\s*<img[^>]+alt="Lumora"[^>]+>\s*<\/p>/
+      /<p align="center">\s*<img[^>]+alt="Lumora logo"[^>]+>\s*<\/p>/
     );
     expect(readme).not.toContain('## Build locally');
     expect(readme).not.toContain('## Create the draft prerelease');
