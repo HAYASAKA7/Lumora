@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-28
+
 ### Added
 
 - Allow open terminal tabs to be reordered by dragging or with

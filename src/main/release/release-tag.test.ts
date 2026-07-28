@@ -23,9 +23,9 @@ describe('release tag validation', () => {
     const { assertReleaseTag, verifyReleaseTag } = loadVerifier();
 
     expect(() => assertReleaseTag('v0.1.0', '0.1.0')).not.toThrow();
-    expect(verifyReleaseTag({ rootDir, tag: 'v0.1.0' })).toEqual({
-      tag: 'v0.1.0',
-      version: '0.1.0'
+    expect(verifyReleaseTag({ rootDir, tag: 'v0.1.1' })).toEqual({
+      tag: 'v0.1.1',
+      version: '0.1.1'
     });
   });
 

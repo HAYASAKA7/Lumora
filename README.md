@@ -169,6 +169,10 @@ Active terminals stay mounted while you move between Lumora pages. Use the tab
 bar or `Ctrl+Tab` to switch between active sessions. When the provider process
 exits, Lumora closes its tab and refreshes the catalog.
 
+Drag terminal tabs to arrange their visible left-to-right order. `Ctrl+Tab`
+continues to use most-recently-used order. When a tab itself has focus,
+`Alt+Shift+Left` and `Alt+Shift+Right` move it one position.
+
 Terminal clipboard behavior:
 
 - **Windows and Linux:** `Ctrl+V` pastes. `Ctrl+Shift+C` and `Ctrl+Shift+V`
@@ -238,6 +242,7 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | Default shortcut | Action |
 | --- | --- |
 | `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order |
+| `Alt+Shift+Left` / `Alt+Shift+Right` | Move the focused terminal tab |
 | `Ctrl+T` | Return to running terminals and focus terminal input |
 | `Ctrl+Shift+L` | Collapse or expand the sidebar |
 | `Ctrl+1` | Open Home |
@@ -358,6 +363,7 @@ provider may contact its own services according to its terms and configuration.
 - [Architecture and privacy model](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
 - [Packaging and release guide](docs/RELEASING.md)
+- [Changelog](CHANGELOG.md)
 
 ## Development
 

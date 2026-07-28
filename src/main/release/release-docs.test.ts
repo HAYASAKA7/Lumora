@@ -36,7 +36,8 @@ describe('unsigned MVP release documentation', () => {
       '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
       'docs/ARCHITECTURE.md',
       'docs/DEVELOPMENT.md',
-      'docs/RELEASING.md'
+      'docs/RELEASING.md',
+      'CHANGELOG.md'
     ]) {
       expect(readme).toContain(documentation);
     }
@@ -67,8 +68,8 @@ describe('unsigned MVP release documentation', () => {
       '## Create the draft prerelease',
       'Product name: **Lumora**',
       'Author: **HAYASAKA7**',
-      'git tag v0.1.0',
-      'git push origin v0.1.0',
+      'git tag v0.1.1',
+      'git push origin v0.1.1',
       'Lumora unsigned prerelease',
       'SHA256SUMS.txt',
       'draft prerelease',
