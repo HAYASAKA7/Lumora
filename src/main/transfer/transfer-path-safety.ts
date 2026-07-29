@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, rm } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -63,12 +63,4 @@ export async function assertRegularFile(path: string): Promise<number> {
     );
   }
   return status.size;
-}
-
-export async function createTransferTestDirectory(): Promise<string> {
-  return mkdtemp(resolve(tmpdir(), 'lumora-transfer-test-'));
-}
-
-export async function removeTransferTestDirectory(path: string): Promise<void> {
-  await rm(path, { recursive: true, force: true });
 }

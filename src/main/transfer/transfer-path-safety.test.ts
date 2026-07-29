@@ -1,4 +1,5 @@
-import { mkdir, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -7,19 +8,17 @@ import {
   assertContainedPath,
   assertRegularFile,
   assertSafeArchiveEntryName,
-  createTransferTestDirectory,
-  removeTransferTestDirectory
 } from './transfer-path-safety';
 
 describe('transfer path safety', () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await createTransferTestDirectory();
+    root = await mkdtemp(join(tmpdir(), 'lumora-transfer-path-'));
   });
 
   afterEach(async () => {
-    await removeTransferTestDirectory(root);
+    await rm(root, { recursive: true, force: true });
   });
 
   it.each(['../secret', '/absolute', 'C:/absolute', 'a\\b', 'a/../b', 'a//b', '.'])('rejects unsafe archive entry %s', (name) => {

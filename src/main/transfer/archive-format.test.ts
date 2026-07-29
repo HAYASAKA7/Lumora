@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -8,10 +9,7 @@ import {
   openSessionArchive,
   writeSessionArchive
 } from './archive-format';
-import {
-  createTransferTestDirectory,
-  removeTransferTestDirectory
-} from './transfer-path-safety';
+
 
 const manifest = {
   formatVersion: 1,
@@ -30,11 +28,11 @@ describe('session archive format', () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await createTransferTestDirectory();
+    root = await mkdtemp(join(tmpdir(), 'lumora-transfer-format-'));
   });
 
   afterEach(async () => {
-    await removeTransferTestDirectory(root);
+    await rm(root, { recursive: true, force: true });
   });
 
   it('round trips an encrypted multi-entry archive through tiny chunks', async () => {
