@@ -590,6 +590,75 @@ describe('ManagedTerminal', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
+  it('pastes clipboard text on terminal right-click and restores focus', async () => {
+    const readClipboardText = vi.fn().mockResolvedValue('from right click');
+    installLumora({ readClipboardText });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    const terminal = screen.getByLabelText('codex terminal');
+    await waitFor(() => expect(xterm.focusTerminal).toHaveBeenCalled());
+    xterm.focusTerminal.mockClear();
+
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true
+    });
+    fireEvent(terminal, event);
+
+    expect(event.defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(xterm.pasteTerminal).toHaveBeenCalledWith('from right click')
+    );
+    expect(readClipboardText).toHaveBeenCalledOnce();
+    expect(xterm.focusTerminal).toHaveBeenCalledOnce();
+  });
+
+  it('does not paste empty clipboard text on right-click', async () => {
+    const readClipboardText = vi.fn().mockResolvedValue('');
+    installLumora({ readClipboardText });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="linux"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    fireEvent.contextMenu(screen.getByLabelText('codex terminal'));
+
+    await waitFor(() => expect(readClipboardText).toHaveBeenCalledOnce());
+    expect(xterm.pasteTerminal).not.toHaveBeenCalled();
+  });
+
+  it('reports right-click clipboard failures inline', async () => {
+    installLumora({
+      readClipboardText: vi.fn().mockRejectedValue(new Error('read failed'))
+    });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="darwin"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    fireEvent.contextMenu(screen.getByLabelText('codex terminal'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Clipboard text could not be pasted.'
+    );
+  });
+
   it('pastes clipboard text through xterm and restores active focus', async () => {
     const readClipboardText = vi.fn().mockResolvedValue('from clipboard');
     const api = installLumora({ readClipboardText });

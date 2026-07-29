@@ -82,6 +82,27 @@ export function ManagedTerminal({
         terminal.loadAddon(fitAddon);
         terminal.parser.registerOscHandler(52, () => true);
         terminal.open(target);
+        const pasteClipboardText = () => {
+          if (!alive || !acceptingInputRef.current) return;
+          setError(null);
+          void window.lumora.readClipboardText().then(
+            (text) => {
+              if (!alive || text.length === 0) return;
+              terminal.paste(text);
+              if (activeRef.current) terminal.focus();
+            },
+            () => {
+              if (alive) setError('Clipboard text could not be pasted.');
+            }
+          );
+        };
+        const contextMenu = (event: MouseEvent) => {
+          if (!acceptingInputRef.current) return;
+          event.preventDefault();
+          event.stopPropagation();
+          pasteClipboardText();
+        };
+        target.addEventListener('contextmenu', contextMenu);
         let composing = false;
         let outputFlushTimer: number | null = null;
         let deferredOutput: string[] = [];
@@ -175,16 +196,7 @@ export function ManagedTerminal({
             return false;
           }
 
-          void window.lumora.readClipboardText().then(
-            (text) => {
-              if (!alive || text.length === 0) return;
-              terminal.paste(text);
-              if (activeRef.current) terminal.focus();
-            },
-            () => {
-              if (alive) setError('Clipboard text could not be pasted.');
-            }
-          );
+          pasteClipboardText();
           return false;
         });
         fitAddon.fit();
@@ -232,6 +244,7 @@ export function ManagedTerminal({
             outputFlushTimer = null;
           }
           deferredOutput = [];
+          target.removeEventListener('contextmenu', contextMenu);
           terminal.textarea?.removeEventListener(
             'compositionstart',
             compositionStart
