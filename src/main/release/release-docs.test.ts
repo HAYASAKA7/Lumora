@@ -144,13 +144,14 @@ describe('unsigned MVP release documentation', () => {
     }
   });
   it('documents safe provider-native cross-device session transfer', async () => {
-    const [readme, transferGuide, architecture, providerSupport, troubleshooting] =
+    const [readme, transferGuide, architecture, providerSupport, troubleshooting, releaseGuide] =
       await Promise.all([
         readFile(readmePath, 'utf8'),
         readFile(new URL('../../../docs/SESSION_TRANSFER.md', import.meta.url), 'utf8'),
         readFile(new URL('../../../docs/ARCHITECTURE.md', import.meta.url), 'utf8'),
         readFile(providerSupportPath, 'utf8'),
-        readFile(troubleshootingGuidePath, 'utf8')
+        readFile(troubleshootingGuidePath, 'utf8'),
+        readFile(releaseGuidePath, 'utf8')
       ]);
 
     expect(readme).toContain('docs/SESSION_TRANSFER.md');
@@ -171,5 +172,7 @@ describe('unsigned MVP release documentation', () => {
     expect(architecture).toContain('never transfers provider credentials');
     expect(providerSupport).toContain('## Cross-device transfer verification');
     expect(troubleshooting).toContain('## Cross-device session transfer');
+    expect(releaseGuide).toContain('record-transfer-verification.cjs');
+    expect(releaseGuide).toContain('Never edit the verified route table by hand');
   });
 });

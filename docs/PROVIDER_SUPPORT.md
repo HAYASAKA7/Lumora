@@ -83,7 +83,16 @@ For every OpenCode route proposed for release:
 
 Only passing literal records may be added to the verified route table. Evidence
 for one provider version or operating-system pair never enables another.
-## Detection commands
+
+After all checks pass, use the release recorder rather than editing the table:
+
+```powershell
+node scripts/release/record-transfer-verification.cjs --provider opencode --source win32 --destination linux --version (opencode --version) --commit (git rev-parse HEAD)
+```
+
+Replace the platform values with the exact tested route. See
+[Releasing Lumora](RELEASING.md#enable-a-verified-transfer-route) for the commit
+and rebuild requirements.## Detection commands
 
 Lumora uses these commands to identify an installed provider:
 

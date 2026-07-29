@@ -130,6 +130,29 @@ Test each platform package, not only an unpacked development build.
 
 Record the package filename and result for every target.
 
+## Enable a verified transfer route
+
+Do this only after the exact packaged OpenCode source-to-destination route has
+passed every step in the transfer matrix in
+[Provider support and verification](PROVIDER_SUPPORT.md). A development build,
+a unit test, or a successful route on another provider version or operating
+system is not evidence for this route.
+
+From the verified Lumora commit, record one passing route:
+
+```powershell
+node scripts/release/record-transfer-verification.cjs --provider opencode --source win32 --destination linux --version (opencode --version) --commit (git rev-parse HEAD)
+```
+
+Use `win32`, `darwin`, or `linux` for both platform arguments. Repeat the command
+only for other combinations that independently passed. The recorder validates
+all values, generates a timestamped evidence hash, refuses duplicate routes,
+and rewrites the table in deterministic order.
+
+Never edit the verified route table by hand. Review the generated diff, run
+`npm run verify`, build the affected native packages again, and commit the route
+evidence separately. A failing or untested combination must remain absent and
+will continue to show **Not verified** in Lumora.
 ## Prepare a version
 
 Update both `package.json` and `package-lock.json` to the same semantic version.
