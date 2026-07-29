@@ -92,6 +92,51 @@ const profile: TerminalProfile = {
 };
 
 describe('WorkspaceSessionsView', () => {
+  it('exports only selected sessions from the open workspace', async () => {
+    const onExport = vi.fn();
+    render(
+      <WorkspaceSessionsView
+        isRefreshing={false}
+        onBack={vi.fn()}
+        onExport={onExport}
+        onLoadExportCapabilities={vi.fn().mockResolvedValue([
+          {
+            provider: 'codex',
+            displayName: 'Codex',
+            exportSupport: 'supported',
+            routes: [],
+            installGuidance: null
+          }
+        ])}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        operationError={null}
+        profiles={[profile]}
+        providerScan={providerScan}
+        status={{ state: 'ready', snapshot }}
+        workspaceId={workspaceId}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select sessions to export' })
+    );
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Workspace drill-down' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Export 1 session' })
+    );
+
+    expect(onExport).toHaveBeenCalledWith([snapshot.sessions[0]!.id]);
+    expect(onExport).not.toHaveBeenCalledWith(
+      expect.arrayContaining([snapshot.sessions[1]!.id])
+    );
+    expect(
+      screen.getByRole('button', { name: 'Select sessions to export' })
+    ).toBeInTheDocument();
+  });
   it('shows only the selected workspace sessions and forwards resume', () => {
     const onResume = vi.fn();
     render(

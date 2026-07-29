@@ -5,6 +5,7 @@ import type {
   ProviderId,
   ProviderScanResult,
   SessionSummary,
+  SessionTransferCapability,
   TerminalProfile,
   RuntimeSummary,
   WorkspaceSummary
@@ -20,9 +21,14 @@ import {
   providerDefinition
 } from '../../../shared/provider-definitions';
 import { formatLifetimeTokens } from './session-usage';
+import { useSessionExportSelection } from '../transfer/useSessionExportSelection';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
+const EMPTY_RUNNING_SESSION_IDS: ReadonlySet<string> = new Set();
+const NO_EXPORT_CAPABILITIES = async (): Promise<
+  SessionTransferCapability[]
+> => [];
 
 export type CatalogViewStatus =
   | { state: 'loading' }
@@ -199,6 +205,9 @@ interface SessionsViewProps {
   onDismissDiagnostic(identity: string): void;
   onRefresh(): void;
   onResume(session: SessionSummary): void;
+  onExport?(sessionIds: readonly string[]): void;
+  onLoadExportCapabilities?(): Promise<SessionTransferCapability[]>;
+  runningSessionIds?: ReadonlySet<string>;
 }
 
 function diagnosticIdentity(
@@ -212,13 +221,19 @@ const SessionRow = memo(function SessionRow({
   workspace,
   providerScan,
   profiles,
-  onResume
+  onResume,
+  exportSelection
 }: {
   session: SessionSummary;
   workspace: WorkspaceSummary | undefined;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume(session: SessionSummary): void;
+  exportSelection: null | {
+    selected: boolean;
+    disabledReason: string | null;
+    onToggle(): void;
+  };
 }): ReactNode {
   const disabledReason = resolveSessionResumeDisabledReason({
     session,
@@ -234,14 +249,26 @@ const SessionRow = memo(function SessionRow({
       title={disabledReason ?? undefined}
     >
       <td>
-        <button
-          aria-label={`Resume ${session.title}`}
-          className="session-row-action"
-          disabled={disabledReason !== null}
-          onClick={() => onResume(session)}
-          title={disabledReason ?? 'Resume this session'}
-          type="button"
-        />
+        {exportSelection === null ? (
+          <button
+            aria-label={`Resume ${session.title}`}
+            className="session-row-action"
+            disabled={disabledReason !== null}
+            onClick={() => onResume(session)}
+            title={disabledReason ?? 'Resume this session'}
+            type="button"
+          />
+        ) : (
+          <input
+            aria-label={session.title}
+            checked={exportSelection.selected}
+            className="session-export-checkbox"
+            disabled={exportSelection.disabledReason !== null}
+            onChange={exportSelection.onToggle}
+            title={exportSelection.disabledReason ?? 'Select session'}
+            type="checkbox"
+          />
+        )}
         <strong>{session.title}</strong>
       </td>
       <td>
@@ -290,7 +317,10 @@ export function SessionsView({
   onProviderChange,
   onDismissDiagnostic,
   onRefresh,
-  onResume
+  onResume,
+  onExport,
+  onLoadExportCapabilities = NO_EXPORT_CAPABILITIES,
+  runningSessionIds = EMPTY_RUNNING_SESSION_IDS
 }: SessionsViewProps): ReactNode {
   const sessionCount =
     status.state === 'ready' ? status.snapshot.sessions.length : 0;
@@ -299,6 +329,13 @@ export function SessionsView({
     resetKey: `${provider ?? 'all'}\u0000${queryText.trim()}`,
     initialCount: SESSION_BATCH_SIZE,
     batchSize: SESSION_BATCH_SIZE
+  });
+  const sessions = status.state === 'ready' ? status.snapshot.sessions : [];
+  const exportSelection = useSessionExportSelection({
+    sessions,
+    providerScan,
+    runningSessionIds,
+    loadCapabilities: onLoadExportCapabilities
   });
 
   if (status.state === 'loading') {
@@ -369,6 +406,37 @@ export function SessionsView({
         >
           {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
         </button>
+        {onExport === undefined ? null : exportSelection.active ? (
+          <div className="session-export-actions">
+            <button
+              className="secondary-button"
+              onClick={exportSelection.close}
+              type="button"
+            >
+              Cancel selection
+            </button>
+            <button
+              className="refresh-button"
+              disabled={exportSelection.selected.size === 0}
+              onClick={() => {
+                onExport([...exportSelection.selected]);
+                exportSelection.close();
+              }}
+              type="button"
+            >
+              Export {exportSelection.selected.size}{' '}
+              {exportSelection.selected.size === 1 ? 'session' : 'sessions'}
+            </button>
+          </div>
+        ) : (
+          <button
+            className="secondary-button"
+            onClick={() => void exportSelection.begin()}
+            type="button"
+          >
+            Select sessions to export
+          </button>
+        )}
       </div>
 
       {(showInformationalNotices ? snapshot.diagnostics : [])
@@ -400,6 +468,49 @@ export function SessionsView({
             </div>
           );
         })}
+
+      {exportSelection.active ? (
+        <div className="session-export-selection" aria-label="Export selection">
+          <div>
+            <strong>{exportSelection.selected.size} selected</strong>
+            <span>
+              {exportSelection.loading
+                ? 'Checking provider support'
+                : 'Select individual sessions or a complete provider scope.'}
+            </span>
+          </div>
+          <div className="session-export-provider-options">
+            {[...new Set(snapshot.sessions.map((session) => session.provider))].map(
+              (providerId) => {
+                const eligible =
+                  exportSelection.eligibleByProvider.get(providerId) ?? [];
+                return (
+                  <label key={providerId}>
+                    <input
+                      aria-label={`Select all ${providerDefinition(providerId).displayName} sessions`}
+                      checked={
+                        eligible.length > 0 &&
+                        eligible.every((session) =>
+                          exportSelection.selected.has(session.id)
+                        )
+                      }
+                      disabled={eligible.length === 0}
+                      onChange={() => exportSelection.toggleProvider(providerId)}
+                      type="checkbox"
+                    />
+                    <span>{providerDefinition(providerId).displayName}</span>
+                  </label>
+                );
+              }
+            )}
+          </div>
+          {exportSelection.error === null ? null : (
+            <span className="session-export-error" role="alert">
+              {exportSelection.error}
+            </span>
+          )}
+        </div>
+      ) : null}
 
       <div className="catalog-result-heading">
         <p className="card-label">Normalized provider metadata</p>
@@ -441,6 +552,17 @@ export function SessionsView({
                     <SessionRow
                       key={session.id}
                       onResume={onResume}
+                      exportSelection={
+                        exportSelection.active
+                          ? {
+                              selected: exportSelection.selected.has(session.id),
+                              disabledReason:
+                                exportSelection.disabledReason(session),
+                              onToggle: () =>
+                                exportSelection.toggleSession(session)
+                            }
+                          : null
+                      }
                       profiles={profiles}
                       providerScan={providerScan}
                       session={session}

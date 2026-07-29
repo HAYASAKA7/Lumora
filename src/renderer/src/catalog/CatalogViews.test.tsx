@@ -330,6 +330,63 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('selects every eligible provider session without selecting a running session', async () => {
+    const onExport = vi.fn();
+    const sessions = repeatedSessions(3);
+    const snapshot = {
+      ...catalogSnapshot,
+      sessions,
+      providerFacets: [{ provider: 'codex' as const, sessionCount: 3 }]
+    };
+    render(
+      <SessionsView
+        {...diagnosticProps}
+        isRefreshing={false}
+        onExport={onExport}
+        onLoadExportCapabilities={vi.fn().mockResolvedValue([
+          {
+            provider: 'codex',
+            displayName: 'Codex',
+            exportSupport: 'supported',
+            routes: [],
+            installGuidance: null
+          }
+        ])}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        profiles={[terminalProfile]}
+        provider={null}
+        providerScan={providerScan}
+        queryText=""
+        runningSessionIds={new Set([sessions[0]!.id])}
+        status={{ state: 'ready', snapshot }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select sessions to export' })
+    );
+    const running = await screen.findByRole('checkbox', {
+      name: sessions[0]!.title
+    });
+    expect(running).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Select all Codex sessions' })
+    );
+    const exportButton = screen.getByRole('button', {
+      name: 'Export 2 sessions'
+    });
+    expect(exportButton).toBeEnabled();
+    fireEvent.click(exportButton);
+
+    expect(onExport).toHaveBeenCalledWith([sessions[1]!.id, sessions[2]!.id]);
+    expect(
+      screen.getByRole('button', { name: 'Select sessions to export' })
+    ).toBeInTheDocument();
+  });
   it('keeps blocking catalog failures visible when informational notices are disabled', () => {
     const onRefresh = vi.fn();
     render(

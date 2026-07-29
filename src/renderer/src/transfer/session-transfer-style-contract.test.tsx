@@ -29,4 +29,15 @@ describe('Session Transfer style contract', () => {
     expect(body).toContain('overflow-y: auto');
     expect(body).toContain('scrollbar-gutter: stable both-edges');
   });
+  it('keeps the export workflow stable while its review content changes', () => {
+    const dialog = rule('.session-export-dialog');
+    expect(dialog).toContain('width: min(680px, calc(100vw - 48px))');
+    expect(dialog).toContain('height: min(610px, calc(100vh - 48px))');
+    expect(dialog).toContain('overflow: hidden');
+
+    const body = rule('.session-export-dialog .dialog-body');
+    expect(body).toContain('min-height: 0');
+    expect(body).toContain('overflow-y: auto');
+    expect(body).toContain('scrollbar-gutter: stable both-edges');
+  });
 });

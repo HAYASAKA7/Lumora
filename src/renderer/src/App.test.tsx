@@ -262,6 +262,9 @@ interface CatalogApiOverrides {
   onRuntimeEvent?: (
     listener: (event: RuntimeEvent) => void
   ) => () => void;
+  getTransferCapabilities?: ReturnType<typeof vi.fn>;
+  prepareSessionExport?: ReturnType<typeof vi.fn>;
+  executeSessionExport?: ReturnType<typeof vi.fn>;
 }
 
 function deferred<T>() {
@@ -343,9 +346,10 @@ function setSystemInfoResult(
       terminateRuntime: vi.fn(),
       onRuntimeEvent:
         catalogApi.onRuntimeEvent ?? vi.fn(() => () => undefined),
-      getTransferCapabilities: vi.fn().mockResolvedValue([]),
-      prepareSessionExport: vi.fn(),
-      executeSessionExport: vi.fn(),
+      getTransferCapabilities:
+        catalogApi.getTransferCapabilities ?? vi.fn().mockResolvedValue([]),
+      prepareSessionExport: catalogApi.prepareSessionExport ?? vi.fn(),
+      executeSessionExport: catalogApi.executeSessionExport ?? vi.fn(),
       chooseSessionImportArchive: vi.fn().mockResolvedValue(null),
       inspectSessionImport: vi.fn(),
       planSessionImport: vi.fn(),
@@ -597,6 +601,75 @@ describe('App', () => {
     await waitFor(() => expect(main.scrollTop).toBe(0));
   });
 
+  it('exports selected sessions through the app-level workflow', async () => {
+    const prepareSessionExport = vi.fn().mockResolvedValue({
+      planToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      sessions: [
+        {
+          sessionId: readyCatalog.sessions[0]!.id,
+          nativeSessionId: readyCatalog.sessions[0]!.nativeId,
+          provider: 'codex',
+          title: readyCatalog.sessions[0]!.title,
+          workspaceId: readyCatalog.sessions[0]!.workspaceId,
+          estimatedBytes: 1_024
+        }
+      ],
+      skipped: [],
+      estimatedBytes: 1_024,
+      expiresAt: '2026-07-29T13:00:00.000Z'
+    });
+    const executeSessionExport = vi.fn().mockResolvedValue({
+      operationId: '0198f8b6-18f3-7ca0-9f0f-abcdefabcdef',
+      direction: 'export',
+      completedAt: '2026-07-29T12:00:00.000Z',
+      status: 'completed',
+      importedCount: 0,
+      exportedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      providers: ['codex'],
+      items: []
+    });
+    setSystemInfoResult(undefined, undefined, {
+      getTransferCapabilities: vi.fn().mockResolvedValue([
+        {
+          provider: 'codex',
+          displayName: 'Codex',
+          exportSupport: 'supported',
+          routes: [],
+          installGuidance: null
+        }
+      ]),
+      prepareSessionExport,
+      executeSessionExport
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Select sessions to export' })
+    );
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Catalog implementation' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export 1 session' }));
+
+    expect(await screen.findByText('1 ready to export')).toBeInTheDocument();
+    expect(prepareSessionExport).toHaveBeenCalledWith({
+      sessionIds: [readyCatalog.sessions[0]!.id]
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Encrypt archive' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Choose destination and export' })
+    );
+
+    await waitFor(() =>
+      expect(executeSessionExport).toHaveBeenCalledWith({
+        planToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+        protection: { encrypted: false }
+      })
+    );
+  });
   it('keeps a dismissed session warning hidden across route navigation', async () => {
     const catalogWithWarning = {
       ...readyCatalog,

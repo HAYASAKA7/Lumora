@@ -3642,3 +3642,188 @@ button {
     height: calc(100vh - 20px);
   }
 }
+.session-export-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.session-export-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.session-export-selection > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-export-selection span,
+.session-export-error {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.session-export-error {
+  color: #a34040;
+}
+
+.session-export-provider-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.session-export-provider-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.session-export-checkbox,
+.workspace-session-export-checkbox {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.session-export-checkbox {
+  margin-right: 10px;
+}
+
+.workspace-session-export-checkbox {
+  align-self: center;
+}
+
+.session-export-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(680px, calc(100vw - 48px));
+  height: min(610px, calc(100vh - 48px));
+  max-height: none;
+  overflow: hidden;
+}
+
+.session-export-dialog .dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.transfer-ready-summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.transfer-provider-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transfer-provider-counts span {
+  padding: 7px 9px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.transfer-skipped-details {
+  padding: 12px 14px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-skipped-details summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.transfer-skipped-details ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+}
+
+.transfer-encryption-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-encryption-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-encryption-toggle small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.transfer-password-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transfer-unencrypted-warning {
+  padding: 12px 14px;
+  margin: 0;
+  color: #8b5d18;
+  font-size: 0.75rem;
+  background: #fff8e8;
+  border: 1px solid #ead39c;
+  border-radius: 10px;
+}
+
+@media (max-width: 700px) {
+  .session-export-selection,
+  .transfer-password-grid {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .session-export-selection {
+    flex-direction: column;
+  }
+
+  .session-export-provider-options {
+    justify-content: flex-start;
+  }
+
+  .session-export-dialog {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 20px);
+  }
+}
