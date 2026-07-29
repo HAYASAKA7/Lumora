@@ -43,4 +43,39 @@ describe('application environment integration', () => {
       'findExecutable(command, { platform, env })'
     );
   });
+  it('composes session transfer after recovered environment, catalog, and terminal runtimes', () => {
+    const resolveEnvironment = mainSource.indexOf(
+      'applicationEnvironment = await resolveApplicationEnvironment({'
+    );
+    const createCatalog = mainSource.indexOf('createCatalogRuntime({');
+    const createTerminal = mainSource.indexOf('createTerminalRuntime({');
+    const createTransfer = mainSource.indexOf('createSessionTransferRuntime({');
+
+    expect(createTransfer).toBeGreaterThan(resolveEnvironment);
+    expect(createTransfer).toBeGreaterThan(createCatalog);
+    expect(createTransfer).toBeGreaterThan(createTerminal);
+    const transferComposition = mainSource.slice(createTransfer);
+    expect(transferComposition).toContain(
+      'adapters: catalogRuntime.transferRegistry'
+    );
+    expect(transferComposition).toContain(
+      'activeSessions: () => terminalRuntime!.activeTransferSessions()'
+    );
+    expect(transferComposition).toContain('scanProviders: scanEnabledProviders');
+    expect(transferComposition).toContain(
+      'mainWindow.webContents.send(IPC_CHANNELS.transferEvent, event)'
+    );
+    expect(mainSource).toContain('registerTransferIpc({');
+  });
+
+  it('closes session transfer before terminal and catalog database owners', () => {
+    const beforeQuit = mainSource.slice(mainSource.indexOf("app.on('before-quit'"));
+    const closeTransfer = beforeQuit.indexOf('await transfer?.close()');
+    const closeTerminal = beforeQuit.indexOf('runtime?.close()');
+    const closeCatalog = beforeQuit.indexOf('catalogRuntime?.close()');
+
+    expect(closeTransfer).toBeGreaterThan(-1);
+    expect(closeTerminal).toBeGreaterThan(closeTransfer);
+    expect(closeCatalog).toBeGreaterThan(closeTerminal);
+  });
 });

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { stat, statfs } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -27,7 +29,9 @@ import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
+import { registerTransferIpc } from './ipc/register-transfer-ipc';
 import { findExecutable } from './platform/executable-locator';
+import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
 import { probeVersion } from './platform/version-probe';
 import { createProviderAdapters } from './providers/provider-adapter';
@@ -42,6 +46,10 @@ import {
   createTerminalRuntime,
   type TerminalRuntime
 } from './terminal/terminal-runtime';
+import {
+  createSessionTransferRuntime,
+  type SessionTransferRuntime
+} from './transfer/session-transfer-runtime';
 import {
   createSecureWindowOptions,
   installWindowGuards,
@@ -127,6 +135,7 @@ const startupPresentation = createStartupPresentationController();
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
+let transferRuntime: SessionTransferRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let activeStartupBackgroundActivity:
@@ -292,6 +301,68 @@ void app.whenReady().then(async () => {
       providerPolicy.replace(settings.enabledProviders)
   });
   providerPolicy.replace(terminalRuntime.getGeneralSettings().enabledProviders);
+  transferRuntime = await createSessionTransferRuntime({
+    databasePath: join(app.getPath('userData'), 'lumora.db'),
+    appUserDataPath: app.getPath('userData'),
+    serviceDependencies: {
+      platform,
+      adapters: catalogRuntime.transferRegistry,
+      catalog: catalogRuntime.transferCatalog,
+      activeSessions: () => terminalRuntime!.activeTransferSessions(),
+      scanProviders: scanEnabledProviders,
+      workspaceById: (workspaceId) => {
+        const workspace = catalogRuntime!.service
+          .getCatalog()
+          .workspaces.find((candidate) => candidate.id === workspaceId);
+        return workspace?.available === true
+          ? {
+              id: workspace.id,
+              canonicalPath: workspace.canonicalPath,
+              displayName: workspace.displayName
+            }
+          : null;
+      },
+      workspaceCandidates: async () =>
+        catalogRuntime!.service
+          .getCatalog()
+          .workspaces.filter((workspace) => workspace.available)
+          .map((workspace) => ({
+            workspaceId: workspace.id,
+            canonicalPath: workspace.canonicalPath,
+            displayName: workspace.displayName,
+            gitRemote: null,
+            markers: []
+          })),
+      workspaceProbes: {
+        isDirectory: async (path) => {
+          try {
+            return (await stat(path)).isDirectory();
+          } catch {
+            return false;
+          }
+        }
+      },
+      refreshCatalog: async () => {
+        await catalogRuntime!.service.refreshCatalog();
+        terminalRuntime!.synchronizeCatalogSessions();
+      },
+      freeDiskBytes: async (path) => {
+        const filesystem = await statfs(path);
+        return filesystem.bavail * filesystem.bsize;
+      },
+      clock: () => new Date(),
+      createToken: () => randomUUID(),
+      onProgress: (event) => {
+        if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.transferEvent, event);
+        }
+      }
+    }
+  });
+  const transferService = transferRuntime.service;
+  if (transferService === null) {
+    throw new Error('The session transfer service was not composed.');
+  }
   registerSystemIpc({
     ipc: ipcMain,
     platform: process.platform,
@@ -335,6 +406,27 @@ void app.whenReady().then(async () => {
     onCatalogRefreshed: () => terminalRuntime!.synchronizeCatalogSessions(),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  registerTransferIpc({
+    ipc: ipcMain,
+    service: transferService,
+    downloadsDirectory: app.getPath('downloads'),
+    lastDirectory: (direction) =>
+      transferRuntime!.repository.getLastDirectory(direction),
+    showSaveDialog: (options) => dialog.showSaveDialog(options),
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    registerWorkspace: async (path) => {
+      const canonical = await canonicalizeWorkspacePath(path, { platform });
+      const snapshot = await catalogRuntime!.service.registerWorkspace(path);
+      const workspace = snapshot.workspaces.find(
+        (candidate) => candidate.id === canonical.id
+      );
+      if (workspace === undefined || !workspace.available) {
+        throw new Error('The selected workspace could not be registered.');
+      }
+      return workspace;
+    },
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
   registerClipboardIpc({
     ipc: ipcMain,
     clipboard: {
@@ -370,12 +462,29 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   shutdownStarted = true;
   const runtime = terminalRuntime;
+  const transfer = transferRuntime;
   void (async () => {
     try {
-      await Promise.all([
-        runtime?.shutdown() ?? Promise.resolve(),
-        flushWindowState()
-      ]);
+      const shutdownErrors: unknown[] = [];
+      try {
+        await transfer?.close();
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+      if (transferRuntime === transfer) {
+        transferRuntime = null;
+      }
+      try {
+        await Promise.all([
+          runtime?.shutdown() ?? Promise.resolve(),
+          flushWindowState()
+        ]);
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+      if (shutdownErrors.length > 0) {
+        throw shutdownErrors[0];
+      }
     } catch (error) {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
     } finally {
@@ -395,10 +504,19 @@ app.on('before-quit', (event) => {
 app.on('will-quit', () => {
   unsubscribeTerminalEvents?.();
   unsubscribeTerminalEvents = null;
-  terminalRuntime?.close();
-  terminalRuntime = null;
-  catalogRuntime?.close();
-  catalogRuntime = null;
+  const transfer = transferRuntime;
+  transferRuntime = null;
+  const closeDatabaseOwners = () => {
+    terminalRuntime?.close();
+    terminalRuntime = null;
+    catalogRuntime?.close();
+    catalogRuntime = null;
+  };
+  if (transfer === null) {
+    closeDatabaseOwners();
+  } else {
+    void transfer.close().finally(closeDatabaseOwners);
+  }
 });
 
 app.on('window-all-closed', () => {

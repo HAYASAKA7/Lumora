@@ -597,4 +597,193 @@ describe('createLumoraApi', () => {
     ).rejects.toBeDefined();
     expect(invoke).not.toHaveBeenCalled();
   });
+  it('uses validated narrow channels for session transfer workflows and progress', async () => {
+    const token = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    const sessionId = 'a'.repeat(64);
+    const workspaceId = 'b'.repeat(64);
+    const expiresAt = '2026-07-29T08:15:00.000Z';
+    const capability = {
+      provider: 'opencode' as const,
+      displayName: 'OpenCode',
+      exportSupport: 'supported' as const,
+      routes: [
+        {
+          sourcePlatform: 'win32' as const,
+          destinationPlatform: 'win32' as const,
+          support: 'supported' as const
+        }
+      ],
+      installGuidance: null
+    };
+    const plannedSession = {
+      sessionId,
+      nativeSessionId: 'ses_transfer',
+      provider: 'opencode' as const,
+      title: 'Transfer session',
+      workspaceId,
+      estimatedBytes: 0
+    };
+    const exportPlan = {
+      planToken: token,
+      sessions: [plannedSession],
+      skipped: [],
+      estimatedBytes: 0,
+      expiresAt
+    };
+    const selection = {
+      selectionToken: token,
+      fileName: 'sessions.lumora-sessions',
+      encrypted: false
+    };
+    const inspection = {
+      inspectionToken: token,
+      archiveName: selection.fileName,
+      encrypted: false,
+      sourcePlatform: 'win32' as const,
+      providers: [
+        {
+          provider: 'opencode' as const,
+          displayName: 'OpenCode',
+          sessionCount: 1,
+          support: 'supported' as const,
+          installGuidance: null
+        }
+      ],
+      workspaces: [],
+      sessionCount: 1,
+      expiresAt
+    };
+    const importPlan = {
+      planToken: token,
+      ready: [plannedSession],
+      skipped: [],
+      providers: ['opencode' as const],
+      expiresAt
+    };
+    const result = {
+      operationId: token,
+      direction: 'import' as const,
+      completedAt: '2026-07-29T08:00:00.000Z',
+      status: 'completed' as const,
+      importedCount: 1,
+      exportedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      providers: ['opencode' as const],
+      items: [
+        {
+          sessionId,
+          provider: 'opencode' as const,
+          status: 'imported' as const,
+          reason: null,
+          message: 'Session imported.'
+        }
+      ]
+    };
+    const workspace = {
+      id: workspaceId,
+      displayName: 'Lumora',
+      canonicalPath: 'D:\\Projects\\Lumora',
+      available: true,
+      origin: 'manual' as const,
+      sessionCount: 1,
+      providerCounts: { opencode: 1 },
+      lastActivityAt: result.completedAt
+    };
+    const history = [
+      {
+        id: token,
+        direction: 'import' as const,
+        completedAt: result.completedAt,
+        importedCount: 1,
+        exportedCount: 0,
+        skippedCount: 0,
+        providers: ['opencode' as const]
+      }
+    ];
+    const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
+    let eventReceiver: ((value: unknown) => void) | undefined;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(
+      async (channel, ...args) => {
+        invocations.push({ channel, args });
+        if (channel === IPC_CHANNELS.transferCapabilitiesGet) return [capability];
+        if (channel === IPC_CHANNELS.transferExportPrepare) return exportPlan;
+        if (channel === IPC_CHANNELS.transferExportExecute) {
+          return { ...result, direction: 'export', importedCount: 0, exportedCount: 1 };
+        }
+        if (channel === IPC_CHANNELS.transferImportChoose) return selection;
+        if (channel === IPC_CHANNELS.transferImportInspect) return inspection;
+        if (channel === IPC_CHANNELS.transferImportPlan) return importPlan;
+        if (channel === IPC_CHANNELS.transferImportExecute) return result;
+        if (channel === IPC_CHANNELS.transferWorkspaceChoose) return workspace;
+        if (channel === IPC_CHANNELS.transferHistoryGet) return history;
+        if (channel === IPC_CHANNELS.transferOperationCancel) {
+          return { accepted: true };
+        }
+        throw new Error(`Unexpected transfer channel: ${channel}`);
+      },
+      (channel, listener) => {
+        expect(channel).toBe(IPC_CHANNELS.transferEvent);
+        eventReceiver = listener;
+        return unsubscribe;
+      }
+    );
+
+    await expect(api.getTransferCapabilities()).resolves.toEqual([capability]);
+    await expect(
+      api.prepareSessionExport({ sessionIds: [sessionId] })
+    ).resolves.toEqual(exportPlan);
+    await expect(
+      api.executeSessionExport({
+        planToken: token,
+        protection: { encrypted: false }
+      })
+    ).resolves.toMatchObject({ direction: 'export', exportedCount: 1 });
+    await expect(api.chooseSessionImportArchive()).resolves.toEqual(selection);
+    await expect(
+      api.inspectSessionImport({ selectionToken: token })
+    ).resolves.toEqual(inspection);
+    await expect(
+      api.planSessionImport({
+        inspectionToken: token,
+        providers: ['opencode'],
+        workspaceMappings: []
+      })
+    ).resolves.toEqual(importPlan);
+    await expect(
+      api.executeSessionImport({ planToken: token })
+    ).resolves.toEqual(result);
+    await expect(api.chooseTransferWorkspace()).resolves.toEqual(workspace);
+    await expect(api.getTransferHistory()).resolves.toEqual(history);
+    await expect(api.cancelTransferOperation(token)).resolves.toBeUndefined();
+
+    const listener = vi.fn();
+    const remove = api.onTransferEvent(listener);
+    eventReceiver?.({
+      operationId: token,
+      direction: 'import',
+      phase: 'verifying',
+      completed: 1,
+      total: 1,
+      message: 'Verifying session.'
+    });
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'verifying', completed: 1 })
+    );
+    remove();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(invocations.map(({ channel }) => channel)).toEqual([
+      IPC_CHANNELS.transferCapabilitiesGet,
+      IPC_CHANNELS.transferExportPrepare,
+      IPC_CHANNELS.transferExportExecute,
+      IPC_CHANNELS.transferImportChoose,
+      IPC_CHANNELS.transferImportInspect,
+      IPC_CHANNELS.transferImportPlan,
+      IPC_CHANNELS.transferImportExecute,
+      IPC_CHANNELS.transferWorkspaceChoose,
+      IPC_CHANNELS.transferHistoryGet,
+      IPC_CHANNELS.transferOperationCancel
+    ]);
+  });
 });
