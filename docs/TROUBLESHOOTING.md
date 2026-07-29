@@ -169,7 +169,8 @@ clipboard shortcut was not used.
 
 **Resolution:** On Windows and Linux, use `Ctrl+Shift+C` and `Ctrl+Shift+V` for
 unambiguous copy and paste; `Ctrl+V` also pastes. With selected text, `Ctrl+C`
-copies. On macOS, use `Command+C` and `Command+V`.
+copies. On macOS, use `Command+C` and `Command+V`. On every platform,
+right-click inside a live terminal to paste clipboard text.
 
 ### The first Ctrl+C does not interrupt the provider
 
@@ -178,8 +179,19 @@ notice but does not stop the running operation.
 
 **Likely cause:** Lumora guards against accidental interrupts.
 
-**Resolution:** Press `Ctrl+C` a second time while the notice is visible to send
-the interrupt. Any other terminal key clears the armed interrupt.
+**Resolution:** Press `Ctrl+C` a second time while the notice is visible to stop
+the managed runtime. Any other terminal key clears the armed interrupt.
+
+### Codex remains open after /exit or /quit
+
+**Symptom:** Codex begins exiting, but its terminal tab remains open.
+
+**Likely cause:** The Codex process completed its own cleanup but remained
+attached to the platform PTY.
+
+**Resolution:** Wait briefly. Lumora gives Codex time to exit normally, then
+closes the still-attached runtime. The same behavior applies when Codex is idle
+or running a workflow.
 
 ### A terminal tab closes by itself
 

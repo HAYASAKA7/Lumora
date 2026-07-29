@@ -176,10 +176,14 @@ continues to use most-recently-used order. When a tab itself has focus,
 Terminal clipboard behavior:
 
 - **Windows and Linux:** `Ctrl+V` pastes. `Ctrl+Shift+C` and `Ctrl+Shift+V`
-  always copy and paste. `Ctrl+C` copies when text is selected.
-- **macOS:** `Command+C` copies and `Command+V` pastes.
+  always copy and paste. `Ctrl+C` copies when text is selected. Right-click
+  pastes clipboard text directly into a live terminal.
+- **macOS:** `Command+C` copies and `Command+V` pastes. Right-click also pastes
+  clipboard text into a live terminal.
 - With no selection, the first `Ctrl+C` arms an interrupt and the second press
-  sends it to the provider. This reduces accidental process interruption.
+  stops the managed runtime. This reduces accidental process interruption.
+- Codex receives `/exit` and `/quit` normally. If its process remains attached
+  after the command, Lumora closes the runtime after a short grace period.
 
 <details>
   <summary><strong>Terminal details and profiles</strong></summary>

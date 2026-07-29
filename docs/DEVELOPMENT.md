@@ -155,7 +155,8 @@ Before release, test at least:
 
 1. new and resumed sessions;
 2. custom provider commands and shell profiles;
-3. terminal input, output, resize, copy, paste, and double-press interrupt;
+3. terminal input, output, resize, keyboard and right-click paste, selected-text
+   copy, confirmed double-`Ctrl+C` stop, and Codex `/exit` fallback;
 4. terminal switching while navigating application pages;
 5. automatic tab close and catalog refresh after process exit;
 6. workspace trust grant and revocation;

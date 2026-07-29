@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const readmePath = new URL('../../../README.md', import.meta.url);
+const packageJsonPath = new URL('../../../package.json', import.meta.url);
 const releaseGuidePath = new URL('../../../docs/RELEASING.md', import.meta.url);
 const troubleshootingGuidePath = new URL(
   '../../../docs/TROUBLESHOOTING.md',
@@ -62,14 +63,18 @@ describe('unsigned MVP release documentation', () => {
   });
 
   it('documents the controlled Lumora draft prerelease process', async () => {
-    const releaseGuide = await readFile(releaseGuidePath, 'utf8');
+    const [releaseGuide, packageJsonText] = await Promise.all([
+      readFile(releaseGuidePath, 'utf8'),
+      readFile(packageJsonPath, 'utf8')
+    ]);
+    const packageVersion = (JSON.parse(packageJsonText) as { version: string }).version;
 
     for (const documentation of [
       '## Create the draft prerelease',
       'Product name: **Lumora**',
       'Author: **HAYASAKA7**',
-      'git tag v0.1.1',
-      'git push origin v0.1.1',
+      `git tag v${packageVersion}`,
+      `git push origin v${packageVersion}`,
       'Lumora unsigned prerelease',
       'SHA256SUMS.txt',
       'draft prerelease',

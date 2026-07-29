@@ -111,8 +111,8 @@ Test each platform package, not only an unpacked development build.
 3. Start a session using a normal provider command.
 4. Start a session using a custom alias or wrapper command through an
    appropriate terminal profile.
-5. Check terminal input, output, resizing, copying, pasting, and double-press
-   `Ctrl+C` interruption.
+5. Check terminal input, output, resizing, copying, keyboard and right-click
+   pasting, confirmed double-`Ctrl+C` stop, and Codex `/exit` fallback.
 6. Navigate between pages and return to the mounted terminal without duplicate
    output or an external page scrollbar.
 7. Resume a provider with complete session support and confirm the exact native
@@ -146,11 +146,11 @@ change before creating the tag. The tag-triggered workflow runs
 
 ## Create the draft prerelease
 
-Push a tag that exactly matches the package version. For version `0.1.1`:
+Push a tag that exactly matches the package version. For version `0.1.2`:
 
 ```powershell
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The **Lumora unsigned prerelease** workflow then:

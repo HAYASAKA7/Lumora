@@ -12,6 +12,7 @@ interface ReleaseTagVerifier {
 
 const require = createRequire(import.meta.url);
 const rootDir = fileURLToPath(new URL('../../../', import.meta.url));
+const packageVersion = (require('../../../package.json') as { version: string }).version;
 
 function loadVerifier(): ReleaseTagVerifier {
   return require('../../../scripts/release/verify-release-tag.cjs') as ReleaseTagVerifier;
@@ -23,9 +24,9 @@ describe('release tag validation', () => {
     const { assertReleaseTag, verifyReleaseTag } = loadVerifier();
 
     expect(() => assertReleaseTag('v0.1.0', '0.1.0')).not.toThrow();
-    expect(verifyReleaseTag({ rootDir, tag: 'v0.1.1' })).toEqual({
-      tag: 'v0.1.1',
-      version: '0.1.1'
+    expect(verifyReleaseTag({ rootDir, tag: `v${packageVersion}` })).toEqual({
+      tag: `v${packageVersion}`,
+      version: packageVersion
     });
   });
 
