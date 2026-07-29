@@ -7,6 +7,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-29
+
+### Changed
+
+- Cap local Vitest runs at six workers to keep the desktop responsive while
+  preserving the complete test suite. CI continues to use runner-appropriate
+  Vitest parallelism.
+
 ## [0.1.2] - 2026-07-29
 
 ### Fixed
