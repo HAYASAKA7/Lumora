@@ -342,7 +342,18 @@ function setSystemInfoResult(
       resizeRuntime: vi.fn().mockResolvedValue(undefined),
       terminateRuntime: vi.fn(),
       onRuntimeEvent:
-        catalogApi.onRuntimeEvent ?? vi.fn(() => () => undefined)
+        catalogApi.onRuntimeEvent ?? vi.fn(() => () => undefined),
+      getTransferCapabilities: vi.fn().mockResolvedValue([]),
+      prepareSessionExport: vi.fn(),
+      executeSessionExport: vi.fn(),
+      chooseSessionImportArchive: vi.fn().mockResolvedValue(null),
+      inspectSessionImport: vi.fn(),
+      planSessionImport: vi.fn(),
+      executeSessionImport: vi.fn(),
+      chooseTransferWorkspace: vi.fn().mockResolvedValue(null),
+      getTransferHistory: vi.fn().mockResolvedValue([]),
+      cancelTransferOperation: vi.fn().mockResolvedValue(undefined),
+      onTransferEvent: vi.fn(() => () => undefined)
     }
   });
 }

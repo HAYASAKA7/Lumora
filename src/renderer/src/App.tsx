@@ -1430,6 +1430,7 @@ export default function App(): ReactNode {
                 onRefreshEnvironment={refreshEnvironment}
                 onRefreshProviders={refreshProviders}
                 onSaveEnabledProviders={saveEnabledProviders}
+                onSessionImportCompleted={refreshCatalog}
                 platform={
                   systemStatus.state === 'ready'
                     ? systemStatus.info.platform

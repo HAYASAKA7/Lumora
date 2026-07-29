@@ -62,6 +62,24 @@ vi.mock('./KeyboardShortcutsPanel', () => ({
   }) => <button onClick={() => onChange(KEYBOARD_SETTINGS)}>Keyboard content</button>
 }));
 
+vi.mock('../transfer/SessionTransferPanel', () => ({
+  SessionTransferPanel: ({
+    active,
+    onImportCompleted
+  }: {
+    active: boolean;
+    onImportCompleted(): Promise<unknown> | unknown;
+  }) => (
+    <button
+      data-active={String(active)}
+      onClick={() => void onImportCompleted()}
+      type="button"
+    >
+      Transfer content
+    </button>
+  )
+}));
+
 const KEYBOARD_SETTINGS: KeyboardSettings = {
   ...DEFAULT_KEYBOARD_SETTINGS,
   terminalSwitcher: {
@@ -79,6 +97,7 @@ interface HarnessProps {
   onKeyboardSettingsChange?: (settings: KeyboardSettings) => void;
   onRefreshEnvironment?: () => void;
   onRefreshProviders?: () => void;
+  onSessionImportCompleted?: () => Promise<unknown> | unknown;
   onSaveEnabledProviders?: (providers: readonly ProviderId[]) => Promise<boolean>;
   environmentStatus?: DeveloperEnvironmentStatus;
 }
@@ -89,8 +108,8 @@ function Harness({
   onGeneralSettingsChange = vi.fn(),
   onKeyboardSettingsChange = vi.fn(),
   onRefreshEnvironment = vi.fn(),
-  onRefreshProviders = vi.fn()
-  ,
+  onRefreshProviders = vi.fn(),
+  onSessionImportCompleted = vi.fn(),
   onSaveEnabledProviders = vi.fn().mockResolvedValue(true)
 }: HarnessProps) {
   const [activeCategory, setActiveCategory] =
@@ -111,6 +130,7 @@ function Harness({
       onRefreshEnvironment={onRefreshEnvironment}
       onRefreshProviders={onRefreshProviders}
       onSaveEnabledProviders={onSaveEnabledProviders}
+      onSessionImportCompleted={onSessionImportCompleted}
       platform="win32"
       profiles={[]}
       providerStatus={{ state: 'loading' }}
@@ -131,7 +151,8 @@ describe('SettingsView', () => {
       'Environment',
       'Launch',
       'Security',
-      'Keyboard'
+      'Keyboard',
+      'Transfer'
     ]);
     expect(screen.getByRole('tablist')).toHaveAccessibleName(
       'Settings categories'
@@ -155,6 +176,7 @@ describe('SettingsView', () => {
     expect(screen.getByText('Launch content')).toBeInTheDocument();
     expect(screen.getByText('Security content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
+    expect(screen.getByText('Transfer content')).toBeInTheDocument();
   });
 
   it('changes the visible category when a tab is clicked', () => {
@@ -189,16 +211,16 @@ describe('SettingsView', () => {
     expect(general).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(general, { key: 'ArrowLeft' });
-    const keyboard = screen.getByRole('tab', { name: 'Keyboard' });
-    expect(keyboard).toHaveFocus();
-    expect(keyboard).toHaveAttribute('aria-selected', 'true');
+    const transfer = screen.getByRole('tab', { name: 'Transfer' });
+    expect(transfer).toHaveFocus();
+    expect(transfer).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(keyboard, { key: 'Home' });
+    fireEvent.keyDown(transfer, { key: 'Home' });
     expect(general).toHaveFocus();
 
     fireEvent.keyDown(general, { key: 'End' });
-    expect(keyboard).toHaveFocus();
-    expect(keyboard).toHaveAttribute('aria-selected', 'true');
+    expect(transfer).toHaveFocus();
+    expect(transfer).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps category wrappers while catalog-dependent content is unavailable', () => {
@@ -210,13 +232,28 @@ describe('SettingsView', () => {
     expect(document.getElementById('settings-panel-launch')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-keyboard')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-transfer')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('General content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
+    expect(screen.getByText('Transfer content')).toBeInTheDocument();
     expect(screen.queryByText('Launch content')).not.toBeInTheDocument();
     expect(screen.queryByText('Security content')).not.toBeInTheDocument();
   });
 
+  it('activates Session Transfer lazily and passes completed imports upward', () => {
+    const onSessionImportCompleted = vi.fn().mockResolvedValue(undefined);
+    render(<Harness onSessionImportCompleted={onSessionImportCompleted} />);
+
+    const transferContent = screen.getByText('Transfer content');
+    expect(transferContent).toHaveAttribute('data-active', 'false');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Transfer' }));
+    expect(transferContent).toHaveAttribute('data-active', 'true');
+    fireEvent.click(transferContent);
+
+    expect(onSessionImportCompleted).toHaveBeenCalledOnce();
+  });
   it('passes provider and keyboard changes to its callers', () => {
     const onRefreshProviders = vi.fn();
     const onRefreshEnvironment = vi.fn();

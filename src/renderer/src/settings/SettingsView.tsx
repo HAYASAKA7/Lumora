@@ -20,6 +20,7 @@ import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { GeneralSettingsPanel } from './GeneralSettingsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
+import { SessionTransferPanel } from '../transfer/SessionTransferPanel';
 
 export type SettingsCategory =
   | 'general'
@@ -27,7 +28,8 @@ export type SettingsCategory =
   | 'environment'
   | 'launch'
   | 'security'
-  | 'keyboard';
+  | 'keyboard'
+  | 'transfer';
 
 interface SettingsViewProps {
   activeCategory: SettingsCategory;
@@ -45,6 +47,7 @@ interface SettingsViewProps {
   onSaveEnabledProviders: (
     providers: readonly GeneralSettings['enabledProviders'][number][]
   ) => Promise<boolean>;
+  onSessionImportCompleted: () => Promise<unknown> | unknown;
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
   providerStatus: ProviderScanStatus;
@@ -58,7 +61,8 @@ const SETTINGS_CATEGORIES = [
   { id: 'environment', label: 'Environment' },
   { id: 'launch', label: 'Launch' },
   { id: 'security', label: 'Security' },
-  { id: 'keyboard', label: 'Keyboard' }
+  { id: 'keyboard', label: 'Keyboard' },
+  { id: 'transfer', label: 'Transfer' }
 ] as const;
 
 export function SettingsView({
@@ -75,6 +79,7 @@ export function SettingsView({
   onRefreshEnvironment,
   onRefreshProviders,
   onSaveEnabledProviders,
+  onSessionImportCompleted,
   platform,
   profiles,
   providerStatus,
@@ -235,6 +240,20 @@ export function SettingsView({
         <KeyboardShortcutsPanel
           onChange={onKeyboardSettingsChange}
           platform={platform}
+        />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-transfer"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'transfer'}
+        id="settings-panel-transfer"
+        role="tabpanel"
+      >
+        <SessionTransferPanel
+          active={activeCategory === 'transfer'}
+          onImportCompleted={onSessionImportCompleted}
+          workspaces={workspaces}
         />
       </section>
     </div>

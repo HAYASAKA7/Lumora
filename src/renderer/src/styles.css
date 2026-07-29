@@ -3399,3 +3399,246 @@ button {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+.session-transfer-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.transfer-panel-header,
+.transfer-stage-heading,
+.transfer-section-heading,
+.transfer-history-list article {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.transfer-panel-header h2,
+.transfer-section-heading h3,
+.transfer-guidance h3 {
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
+.transfer-panel-header .card-description,
+.transfer-section-heading p,
+.transfer-guidance p {
+  margin: 6px 0 0;
+}
+
+.transfer-panel-sections {
+  display: grid;
+  gap: 24px;
+}
+
+.transfer-panel-sections > section:not(:last-child) {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.transfer-capability-table {
+  display: grid;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-capability-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.4fr) repeat(3, minmax(95px, 1fr));
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 9px 12px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.transfer-capability-row + .transfer-capability-row {
+  border-top: 1px solid var(--line);
+}
+
+.transfer-capability-row strong,
+.transfer-capability-heading {
+  color: var(--text);
+}
+
+.transfer-capability-heading {
+  min-height: 38px;
+  background: var(--surface);
+  font-size: 0.7rem;
+  font-weight: 720;
+}
+
+.transfer-history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.transfer-history-list article {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.transfer-history-list article > div {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-history-list span,
+.transfer-history-list time,
+.transfer-empty,
+.transfer-panel-loading {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.transfer-guidance {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.session-transfer-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(760px, calc(100vw - 48px));
+  height: min(680px, calc(100vh - 48px));
+  max-height: none;
+  overflow: hidden;
+}
+
+.session-transfer-dialog .dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.transfer-workflow-stage,
+.transfer-option-list,
+.transfer-workspace-list {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.transfer-option-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-option-card:has(input:checked) {
+  border-color: #aebed2;
+  box-shadow: inset 0 0 0 1px rgba(62, 83, 113, 0.08);
+}
+
+.transfer-option-card:has(input:disabled) {
+  opacity: 0.62;
+}
+
+.transfer-option-card span,
+.transfer-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transfer-option-card small,
+.transfer-field small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-field input,
+.transfer-field select {
+  width: 100%;
+}
+
+.transfer-workspace-field {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.transfer-summary-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.transfer-summary-grid strong {
+  color: var(--text);
+  font-size: 1.35rem;
+}
+
+.transfer-summary-grid span {
+  color: var(--text-muted);
+  font-size: 0.73rem;
+}
+
+.transfer-progress {
+  align-self: center;
+}
+
+.transfer-progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.transfer-progress-track span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  background: var(--blue);
+  border-radius: inherit;
+  transition: width 160ms ease;
+}
+
+@media (max-width: 700px) {
+  .transfer-panel-header,
+  .transfer-stage-heading,
+  .transfer-history-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .transfer-capability-table {
+    overflow-x: auto;
+  }
+
+  .transfer-capability-row {
+    min-width: 560px;
+  }
+
+  .session-transfer-dialog {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 20px);
+  }
+}
