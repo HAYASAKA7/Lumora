@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+import type {
+  SessionExportExecuteRequest,
+  SessionExportPlan,
+  SessionExportPrepareRequest,
+  SessionImportExecuteRequest,
+  SessionImportInspectRequest,
+  SessionImportInspection,
+  SessionImportPlan,
+  SessionImportPlanRequest,
+  SessionTransferArchiveSelection,
+  SessionTransferCapability,
+  SessionTransferProgressEvent,
+  SessionTransferResult,
+  TransferHistoryEntry
+} from './session-transfer';
+export * from './session-transfer';
+
 export const PlatformSchema = z.enum(['win32', 'darwin', 'linux']);
 
 export const SystemInfoSchema = z.strictObject({
@@ -951,7 +968,18 @@ export const IPC_CHANNELS = {
   runtimeWrite: 'lumora:terminal:runtime:write',
   runtimeResize: 'lumora:terminal:runtime:resize',
   runtimeTerminate: 'lumora:terminal:runtime:terminate',
-  runtimeEvent: 'lumora:terminal:runtime:event'
+  runtimeEvent: 'lumora:terminal:runtime:event',
+  transferCapabilitiesGet: 'lumora:transfer:capabilities:get',
+  transferExportPrepare: 'lumora:transfer:export:prepare',
+  transferExportExecute: 'lumora:transfer:export:execute',
+  transferImportChoose: 'lumora:transfer:import:choose',
+  transferImportInspect: 'lumora:transfer:import:inspect',
+  transferImportPlan: 'lumora:transfer:import:plan',
+  transferImportExecute: 'lumora:transfer:import:execute',
+  transferWorkspaceChoose: 'lumora:transfer:workspace:choose',
+  transferHistoryGet: 'lumora:transfer:history:get',
+  transferOperationCancel: 'lumora:transfer:operation:cancel',
+  transferEvent: 'lumora:transfer:event'
 } as const;
 
 export interface LumoraApi {
@@ -1000,4 +1028,27 @@ export interface LumoraApi {
   resizeRuntime(input: RuntimeResizeRequest): Promise<void>;
   terminateRuntime(runtimeId: string): Promise<RuntimeSummary>;
   onRuntimeEvent(listener: (event: RuntimeEvent) => void): () => void;
+  getTransferCapabilities(): Promise<SessionTransferCapability[]>;
+  prepareSessionExport(
+    input: SessionExportPrepareRequest
+  ): Promise<SessionExportPlan>;
+  executeSessionExport(
+    input: SessionExportExecuteRequest
+  ): Promise<SessionTransferResult | null>;
+  chooseSessionImportArchive(): Promise<
+    SessionTransferArchiveSelection | null
+  >;
+  inspectSessionImport(
+    input: SessionImportInspectRequest
+  ): Promise<SessionImportInspection>;
+  planSessionImport(input: SessionImportPlanRequest): Promise<SessionImportPlan>;
+  executeSessionImport(
+    input: SessionImportExecuteRequest
+  ): Promise<SessionTransferResult>;
+  chooseTransferWorkspace(): Promise<WorkspaceSummary | null>;
+  getTransferHistory(): Promise<TransferHistoryEntry[]>;
+  cancelTransferOperation(operationId: string): Promise<void>;
+  onTransferEvent(
+    listener: (event: SessionTransferProgressEvent) => void
+  ): () => void;
 }

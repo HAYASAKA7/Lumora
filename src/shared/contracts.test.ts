@@ -85,6 +85,20 @@ describe('ProviderIdSchema', () => {
   });
 });
 
+describe('session transfer IPC contracts', () => {
+  it('defines stable namespaced transfer channels', () => {
+    expect(IPC_CHANNELS.transferCapabilitiesGet).toBe(
+      'lumora:transfer:capabilities:get'
+    );
+    expect(IPC_CHANNELS.transferExportPrepare).toBe(
+      'lumora:transfer:export:prepare'
+    );
+    expect(IPC_CHANNELS.transferImportExecute).toBe(
+      'lumora:transfer:import:execute'
+    );
+    expect(IPC_CHANNELS.transferEvent).toBe('lumora:transfer:event');
+  });
+});
 describe('SystemInfoSchema', () => {
   it('accepts and preserves a complete supported system payload', () => {
     const payload = {

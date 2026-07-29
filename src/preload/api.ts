@@ -28,11 +28,27 @@ import {
   RuntimeStartRequestSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
+  SessionExportExecuteRequestSchema,
+  SessionExportPlanSchema,
+  SessionExportPrepareRequestSchema,
+  SessionImportExecuteRequestSchema,
+  SessionImportInspectRequestSchema,
+  SessionImportInspectionSchema,
+  SessionImportPlanRequestSchema,
+  SessionImportPlanSchema,
+  SessionTransferArchiveSelectionSchema,
+  SessionTransferCapabilityListSchema,
+  SessionTransferProgressEventSchema,
+  SessionTransferResultSchema,
+  TransferHistoryListSchema,
+  TransferOperationCancelRequestSchema,
+  TransferOperationCancelResultSchema,
   StartupPresentationClaimSchema,
   StartupPresentationCompletionSchema,
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
+  WorkspaceSummarySchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
   WorkspaceTrustGrantRequestSchema,
@@ -235,6 +251,61 @@ export function createLumoraApi(
     onRuntimeEvent(listener) {
       return subscribe(IPC_CHANNELS.runtimeEvent, (value) => {
         listener(RuntimeEventSchema.parse(value));
+      });
+    },
+    async getTransferCapabilities() {
+      const value = await invoke(IPC_CHANNELS.transferCapabilitiesGet);
+      return SessionTransferCapabilityListSchema.parse(value);
+    },
+    async prepareSessionExport(input) {
+      const request = SessionExportPrepareRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.transferExportPrepare, request);
+      return SessionExportPlanSchema.parse(value);
+    },
+    async executeSessionExport(input) {
+      const request = SessionExportExecuteRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.transferExportExecute, request);
+      return value === null ? null : SessionTransferResultSchema.parse(value);
+    },
+    async chooseSessionImportArchive() {
+      const value = await invoke(IPC_CHANNELS.transferImportChoose);
+      return value === null
+        ? null
+        : SessionTransferArchiveSelectionSchema.parse(value);
+    },
+    async inspectSessionImport(input) {
+      const request = SessionImportInspectRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.transferImportInspect, request);
+      return SessionImportInspectionSchema.parse(value);
+    },
+    async planSessionImport(input) {
+      const request = SessionImportPlanRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.transferImportPlan, request);
+      return SessionImportPlanSchema.parse(value);
+    },
+    async executeSessionImport(input) {
+      const request = SessionImportExecuteRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.transferImportExecute, request);
+      return SessionTransferResultSchema.parse(value);
+    },
+    async chooseTransferWorkspace() {
+      const value = await invoke(IPC_CHANNELS.transferWorkspaceChoose);
+      return value === null ? null : WorkspaceSummarySchema.parse(value);
+    },
+    async getTransferHistory() {
+      const value = await invoke(IPC_CHANNELS.transferHistoryGet);
+      return TransferHistoryListSchema.parse(value);
+    },
+    async cancelTransferOperation(operationId) {
+      const request = TransferOperationCancelRequestSchema.parse({
+        operationId
+      });
+      const value = await invoke(IPC_CHANNELS.transferOperationCancel, request);
+      TransferOperationCancelResultSchema.parse(value);
+    },
+    onTransferEvent(listener) {
+      return subscribe(IPC_CHANNELS.transferEvent, (value) => {
+        listener(SessionTransferProgressEventSchema.parse(value));
       });
     }
   };
