@@ -62,7 +62,11 @@ describe('createCatalogRuntime', () => {
       available: true,
       origin: 'manual'
     });
-    expect(runtime.registry.providers()).toEqual([
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'opencode')
+    ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });    expect(runtime.registry.providers()).toEqual([
       'codex',
       'claude',
       'gemini',

@@ -35,6 +35,11 @@ import {
 import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
+import { createOpenCodeTransferAdapter } from '../transfer/adapters/opencode-transfer-adapter';
+import {
+  createTransferAdapterRegistry,
+  type TransferAdapterRegistry
+} from '../transfer/transfer-adapter-registry';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -52,6 +57,7 @@ interface CreateCatalogRuntimeOptions {
 export interface CatalogRuntime {
   service: CatalogService;
   registry: SessionCatalogRegistry;
+  transferRegistry: TransferAdapterRegistry;
   close(): void;
 }
 
@@ -158,7 +164,9 @@ export function createCatalogRuntime({
       });
     })
   ]);
-  const service = new CatalogService({
+  const transferRegistry = createTransferAdapterRegistry({
+    adapters: [createOpenCodeTransferAdapter({ platform, env })]
+  });  const service = new CatalogService({
     scanProviders,
     enabledProviders,
     registry,
@@ -173,6 +181,7 @@ export function createCatalogRuntime({
   return {
     service,
     registry,
+    transferRegistry,
     close() {
       if (closed) {
         return;
