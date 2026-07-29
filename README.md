@@ -163,6 +163,24 @@ files or copy transcript bodies into its catalog. Cross-agent handoff creates a
 separate temporary local copy only for the selected handoff; the original
 session remains unchanged.
 
+## Move sessions between devices
+
+Lumora includes a guarded export-and-import workflow for provider-native session
+files. From **All sessions** or a workspace detail page, selection mode can
+collect eligible stopped sessions into an encrypted-by-default
+`.lumora-sessions` archive. On the destination device, **Settings > Transfer**
+lets you select installed providers, map source workspaces to existing local
+directories, and review duplicates and other exclusions before import.
+
+Transfer support is version- and route-specific. Lumora keeps a provider and
+operating-system route disabled until it passes packaged verification; an
+implemented adapter alone is not treated as proof that native sessions can be
+moved safely. The original archive and source sessions remain unchanged, so a
+provider skipped on the first import can be retried later.
+
+See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
+contents, password warning, mixed-provider behavior, workspace mapping, and
+current verification matrix.
 ## Managed terminals
 
 Active terminals stay mounted while you move between Lumora pages. Use the tab
@@ -363,6 +381,7 @@ provider may contact its own services according to its terms and configuration.
 ## Technical documentation
 
 - [Troubleshooting guide](docs/TROUBLESHOOTING.md)
+- [Cross-device session transfer](docs/SESSION_TRANSFER.md)
 - [Provider support and verification](docs/PROVIDER_SUPPORT.md)
 - [Architecture and privacy model](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)

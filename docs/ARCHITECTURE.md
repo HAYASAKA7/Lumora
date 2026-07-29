@@ -116,6 +116,67 @@ Catalog refreshes run at startup, on user request, on a schedule, and shortly
 after a managed provider exits. Search results use request ownership so a slow,
 stale response cannot replace a newer query.
 
+## Cross-device transfer flow
+
+Cross-device transfer moves provider-owned session files without changing the
+provider's native payload. It is distinct from cross-agent handoff: transfer
+continues with the same provider on another device, while handoff creates a new
+session in a different provider from normalized temporary context.
+
+```text
+stopped catalog sessions
+          |
+ capability and active-runtime gate
+          |
+ provider-native export adapter
+          |
+ streamed .lumora-sessions archive
+          |
+ native file transfer chosen by the user
+          |
+ authenticated inspection + workspace mapping
+          |
+ provider-native import + exact verification
+```
+
+The renderer receives opaque, expiring operation tokens rather than source,
+staging, or archive paths. Native dialogs select the archive and destination;
+all filesystem access, provider commands, extraction, and cleanup stay in the
+main process. Export preparation is repeated authoritatively before writing, so
+running, stale, unavailable, changed, and unverified sessions are excluded even
+when the renderer previously considered them selectable.
+
+An archive contains a strict manifest and one native payload per session. Entry
+names, counts, sizes, hashes, paths, decompressed size, and manifest structure
+are bounded and validated. Archive creation and extraction are streamed through
+temporary files rather than accumulated in renderer or main-process memory.
+Encrypted archives use scrypt-derived AES-256-GCM keys and authenticate the
+public envelope; encryption is enabled by default. Unencrypted export requires
+an explicit user choice.
+
+The manifest records only session identity, title, workspace mapping hints,
+source platform, provider version, and payload metadata. Transfer never includes
+provider configuration and never transfers provider credentials, authentication
+tokens, API keys, Lumora settings, environment variables, terminal profiles, or
+workspace files.
+
+Imports are mixed-provider aware. Unsupported, missing, disabled, or unverified
+providers remain untouched in the archive and can be retried later. Source
+workspace roots are mapped explicitly to existing destination directories;
+Lumora may register a chosen directory as a workspace but does not create or
+copy the project. Duplicate provider-native IDs are skipped before provider
+mutation and checked again at execution time.
+
+Every adapter must import through a documented provider-native path, verify the
+exact native ID, workspace, and title through fresh discovery, and expose a
+rollback path when the provider permits one. A failed verification triggers
+rollback; a fatal provider failure blocks later writes for that provider without
+preventing independent providers from completing. The catalog refreshes only
+after an import verifies successfully.
+
+Implementation is not capability evidence. Routes are keyed by provider,
+provider version, source platform, and destination platform, and remain disabled
+until packaged native verification records that exact combination.
 ## Launch and runtime flow
 
 Launch settings resolve in increasing precedence:
@@ -176,7 +237,8 @@ It stores:
 - layered launch settings;
 - keyboard preferences;
 - workspace trust decisions;
-- managed runtime and reconciliation history.
+- managed runtime and reconciliation history; and
+- non-sensitive transfer history plus the last export and import directories.
 
 Window size and maximized state are stored separately in `window-state.json`.
 Development builds append `-dev` to the default application-data path so they
@@ -188,13 +250,24 @@ normalized context chunks, and a manifest. Startup and settings changes run
 bounded cleanup using the configured retention period. The feature defaults to
 off.
 
+Cross-device imports use private operation staging directories under `userData`.
+Plans and selections expire after a bounded interval, successful operations and
+shutdown remove staging data, and startup removes abandoned operation
+directories. Full paths, passwords, archive contents, and provider payloads are
+not written to transfer history.
+
 ## Privacy and trust
 
 Lumora has no Lumora cloud synchronization. Provider session sources are read
 without rewriting them, and transcript bodies are not imported into Lumora's
 catalog.
 
-Cross-agent handoff is the explicit exception to the no-copy rule: after user
+Cross-device transfer and cross-agent handoff are explicit exceptions to the
+no-copy rule. Cross-device transfer copies only user-selected provider-native
+sessions into a user-chosen local archive; Lumora never uploads it and never
+rewrites the original provider source.
+
+For cross-agent handoff, after user
 confirmation, Lumora makes a temporary local copy for the selected transfer.
 The copy is not indexed, synced, or written back to either provider, and it is
 deleted by the configured retention policy. Historical session text is marked

@@ -43,6 +43,46 @@ When a combination passes, replace its pending value with the tested Lumora
 version, provider version, date, and result. Do not infer one operating system
 from another.
 
+## Cross-device transfer verification
+
+Cross-device transfer has a separate, stricter gate from saved-session support.
+A provider route is available only when the exact provider version, source
+operating system, and destination operating system have passed the packaged
+export/import matrix. Unit tests, a working session parser, or a successful
+same-device development run do not enable a route.
+
+| Provider | Transfer adapter | Export | Same-OS import | Cross-platform import |
+| --- | --- | --- | --- | --- |
+| OpenCode | Implemented; native structured export/import | Verification pending | Verification pending | Verification pending |
+| Codex | Planned | Verification pending | Verification pending | Verification pending |
+| Claude Code | Planned | Verification pending | Verification pending | Verification pending |
+| Gemini CLI | Planned | Verification pending | Verification pending | Verification pending |
+| GitHub Copilot CLI | Planned | Verification pending | Verification pending | Verification pending |
+| Qwen Code | Planned | Verification pending | Verification pending | Verification pending |
+
+A pending route is reported as **Not verified** under **Settings > Transfer**
+and cannot change provider-owned session files. OpenCode is the first adapter,
+but its initial matrix is intentionally empty until native packaged tests record
+evidence. See the [cross-device transfer guide](SESSION_TRANSFER.md) for user
+steps and archive boundaries.
+
+For every OpenCode route proposed for release:
+
+1. build and verify packaged Lumora on the native source and destination
+   operating systems;
+2. create and stop a uniquely identifiable OpenCode session;
+3. export it from packaged Lumora, transfer the archive, and import it;
+4. verify OpenCode discovers exactly one session with the original native
+   identity, mapped workspace, and title;
+5. resume it using OpenCode and confirm its context;
+6. repeat with a duplicate and confirm no provider data is overwritten;
+7. repeat with OpenCode missing or disabled and confirm no native write occurs;
+   and
+8. record the provider version, source and destination platforms, Lumora commit,
+   timestamp, and result.
+
+Only passing literal records may be added to the verified route table. Evidence
+for one provider version or operating-system pair never enables another.
 ## Detection commands
 
 Lumora uses these commands to identify an installed provider:

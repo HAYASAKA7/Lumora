@@ -7,6 +7,24 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add guarded cross-device session archives with encrypted-by-default export,
+  mixed-provider import, cross-platform workspace mapping, duplicate protection,
+  progress, cancellation, and non-sensitive transfer history.
+- Add bulk export selection to All sessions and workspace session lists. Running,
+  stale, unavailable, and unverified provider sessions remain disabled.
+- Add the first provider-native transfer adapter for OpenCode. Transfer routes
+  remain disabled until their exact provider version and operating-system pair
+  pass packaged verification.
+
+### Security
+
+- Keep provider files, archive paths, staging paths, and passwords in the main
+  process behind validated, expiring operation tokens.
+- Validate archive structure, paths, hashes, sizes, provider payload identity,
+  destination workspace directories, and post-import native discovery before a
+  transfer is accepted.
 ## [0.1.3] - 2026-07-29
 
 ### Changed

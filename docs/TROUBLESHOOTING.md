@@ -157,6 +157,73 @@ underlying provider data is still invalid or incomplete.
 session metadata, and refresh again. If the warning continues, collect its full
 message before reporting the issue.
 
+## Cross-device session transfer
+
+### A session cannot be selected for export
+
+**Symptom:** The session checkbox or provider-wide selection is disabled.
+
+**Likely cause:** The session is running or stale, the provider is unavailable,
+or the provider/version/operating-system transfer route has not passed packaged
+verification.
+
+**Resolution:** Stop the provider session, refresh the catalog and provider
+status, then open **Settings > Transfer**. A route shown as **Not verified** is
+intentionally unavailable and cannot be bypassed safely.
+
+### An archive password is rejected
+
+**Symptom:** Lumora cannot inspect an encrypted `.lumora-sessions` archive.
+
+**Likely cause:** The password is incorrect, the file was modified or truncated,
+or the selected file is not a Lumora session archive.
+
+**Resolution:** Retry with the exact export password and an unchanged copy of
+the archive. Lumora cannot recover the password. Re-export from the source
+device if the archive may be damaged. Do not disable integrity checks or extract
+the provider payload manually.
+
+### A provider in the archive cannot be selected
+
+**Symptom:** A provider is listed during import but remains disabled.
+
+**Likely cause:** The provider is not installed, is disabled in General
+settings, requires an update, or its source-to-destination route is not verified.
+The environment check is independent from archive inspection.
+
+**Resolution:** Install and authenticate the provider, enable it under
+**Settings > General**, refresh **Settings > Providers**, and check **Settings >
+Transfer** again. You can import supported providers now and retry the skipped
+provider later from the same mixed-provider archive.
+
+### A source workspace cannot be mapped
+
+**Symptom:** The source path does not exist on this device, or Lumora does not
+suggest the correct destination workspace.
+
+**Likely cause:** Workspace roots differ between Windows, macOS, and Linux, or
+more than one local workspace has similar mapping evidence.
+
+**Resolution:** Create or copy the project directory outside Lumora first. In
+the mapping step, choose an existing Lumora workspace or select **Add
+workspace** and register that existing directory. Lumora does not create project
+directories or transfer workspace files. Leave the source on **Skip this
+workspace** if no safe destination exists.
+
+### An import completes with skipped or failed sessions
+
+**Symptom:** The result is partial, contains duplicates, or stops later sessions
+for one provider.
+
+**Likely cause:** Native session IDs already exist, a provider changed after the
+review step, a workspace became unavailable, or the provider could not verify a
+native import. After a fatal provider error, Lumora blocks later writes for that
+provider while allowing independent providers to finish.
+
+**Resolution:** Read the result summary, correct the provider or workspace, and
+open the unchanged archive again. Duplicate sessions are intentionally skipped
+and must not be overwritten. A failed verified import is rolled back when the
+provider supports rollback; confirm the provider is healthy before retrying.
 ## Managed terminals
 
 ### Copy or paste does not behave as expected

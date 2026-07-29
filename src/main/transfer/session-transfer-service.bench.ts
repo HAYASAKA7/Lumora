@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Readable } from 'node:stream';
 
 import { afterAll, bench, describe } from 'vitest';
 
 import type { ProviderId } from '../../shared/contracts';
+import { writeSessionArchive } from './archive-format';
 import type { ProviderTransferAdapter } from './transfer-adapter';
 import type { TransferAdapterRegistry } from './transfer-adapter-registry';
 import {
@@ -13,6 +18,8 @@ import {
 const SESSION_COUNT = 1_000;
 const WORKSPACE_COUNT = 100;
 const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
+const STREAM_PAYLOAD_BYTES = 512 * 1024 * 1024;
+const STREAM_CHUNK_BYTES = 1024 * 1024;
 const PROVIDERS: readonly ProviderId[] = [
   'codex',
   'claude',
@@ -129,6 +136,62 @@ describe('session transfer planning', () => {
   );
 });
 
+describe('session archive streaming', () => {
+  bench(
+    'streams a generated 512 MiB provider payload without retaining it',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'lumora-transfer-benchmark-'));
+      const archivePath = join(root, 'stream.lumora-sessions');
+      const baseline = process.memoryUsage().rss;
+      let peakGrowth = 0;
+      const chunk = Buffer.alloc(STREAM_CHUNK_BYTES, 0x61);
+      const body = Readable.from(
+        (async function* generatePayload() {
+          let remaining = STREAM_PAYLOAD_BYTES;
+          while (remaining > 0) {
+            const size = Math.min(remaining, chunk.length);
+            peakGrowth = Math.max(
+              peakGrowth,
+              Math.max(0, process.memoryUsage().rss - baseline)
+            );
+            yield chunk.subarray(0, size);
+            remaining -= size;
+          }
+        })()
+      );
+      try {
+        const result = await writeSessionArchive({
+          outputPath: archivePath,
+          protection: { encrypted: false },
+          manifest: {
+            formatVersion: 1,
+            createdAt: '2026-07-29T08:00:00.000Z',
+            sourcePlatform: 'linux',
+            sessions: [{ provider: 'opencode', nativeSessionId: 'benchmark' }]
+          },
+          entries: [
+            {
+              name: 'sessions/opencode/benchmark.json',
+              body,
+              declaredSize: STREAM_PAYLOAD_BYTES
+            }
+          ]
+        });
+        if (result.entryCount !== 1) {
+          throw new Error('The streaming benchmark did not archive its payload.');
+        }
+        if (peakGrowth > MEMORY_LIMIT_BYTES) {
+          throw new Error(
+            `Transfer streaming exceeded the ${MEMORY_LIMIT_BYTES} byte RSS-growth limit.`
+          );
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+    { iterations: 1, warmupIterations: 0, time: 0, warmupTime: 0 }
+  );
+});
 afterAll(async () => {
   await service.dispose();
   console.info(

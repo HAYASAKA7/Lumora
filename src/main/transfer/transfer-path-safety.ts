@@ -1,6 +1,5 @@
 import { lstat } from 'node:fs/promises';
 import { lstatSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 export class TransferPathError extends Error {

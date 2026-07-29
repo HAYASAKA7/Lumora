@@ -34,4 +34,12 @@ describe('application scrollbar style contract', () => {
       '.xterm-viewport::-webkit-scrollbar-thumb'
     );
   });
+  it('keeps session transfer workflows inside rounded modal bounds', () => {
+    for (const selector of ['.session-transfer-dialog', '.session-export-dialog']) {
+      expect(declarationsFor(selector)).toContain('overflow: hidden');
+      expect(declarationsFor(`${selector} .dialog-body`)).toContain(
+        'overflow-y: auto'
+      );
+    }
+  });
 });

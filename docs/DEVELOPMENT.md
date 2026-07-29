@@ -47,6 +47,8 @@ or window state.
 | `npm run test:coverage` | Run tests with coverage enabled |
 | `npm run typecheck` | Check main/preload and renderer TypeScript projects |
 | `npm run verify` | Run tests, typechecking, and a production build |
+| `npm run benchmark:catalog` | Benchmark catalog refresh planning |
+| `npm run benchmark:transfer` | Benchmark transfer planning and streamed archive memory |
 | `npm run build` | Build main, preload, and renderer bundles into `out/` |
 | `npm run package:dir` | Create an unpacked native application in `dist/` |
 | `npm run package` | Build the native package configured for the host OS |
@@ -116,6 +118,19 @@ npm run benchmark:catalog
 The benchmark models 150 sessions across 30 workspaces. Its elapsed timings are
 local comparison signals, not CI thresholds. Normal regression tests enforce
 stable operation counts so differences in CI hardware do not cause flaky tests.
+
+Run the transfer benchmark when changing archive, workspace mapping, provider
+adapter, or transfer service code:
+
+```powershell
+npm run benchmark:transfer
+```
+
+It plans 1,000 sessions across 100 workspaces and 12 providers, then streams a
+generated 512 MiB provider payload through the real archive writer without
+retaining the payload in memory. The benchmark enforces a broad memory-growth
+bound and reports elapsed time for local comparison; it is not a provider or
+packaged route verification.
 
 ## Provider changes
 
