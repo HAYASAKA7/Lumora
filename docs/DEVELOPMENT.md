@@ -93,6 +93,14 @@ Run a named test:
 npm test -- --run src/renderer/src/App.test.tsx -t "opens a live terminal"
 ```
 
+Local Vitest runs use at most six workers so the desktop remains responsive
+while all test files still execute. CI leaves worker selection to Vitest and
+the runner. To override the local cap for a diagnostic run:
+
+```powershell
+npm test -- --maxWorkers=2
+```
+
 Tests that spawn Vite or esbuild child processes may require an unrestricted
 local shell in tightly sandboxed development environments.
 
