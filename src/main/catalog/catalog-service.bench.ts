@@ -96,6 +96,8 @@ describe('catalog refresh', () => {
       repository: {
         applyProviderScan: () => undefined,
         registerWorkspace: () => undefined,
+        getTransferSession: () => null,
+        hasNativeSession: () => false,
         getSnapshot: snapshot
       },
       clock: () => new Date('2026-07-23T07:30:00.000Z'),

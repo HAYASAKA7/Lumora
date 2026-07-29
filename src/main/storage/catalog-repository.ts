@@ -40,6 +40,29 @@ export interface StoredCatalogSource {
   candidate: CatalogCandidate;
 }
 
+export interface CatalogTransferSession {
+  readonly id: string;
+  readonly provider: ProviderId;
+  readonly nativeId: string;
+  readonly title: string;
+  readonly workspaceId: string;
+  readonly workspacePath: string;
+  readonly sourceKeys: readonly string[];
+}
+
+interface TransferSessionRow {
+  id: string;
+  provider: ProviderId;
+  native_id: string;
+  title: string;
+  workspace_id: string;
+  canonical_path: string;
+}
+
+interface TransferSourceRow {
+  source_key: string;
+}
+
 interface WorkspaceRow {
   id: string;
   identity_key: string;
@@ -316,6 +339,62 @@ export class CatalogRepository {
     });
 
     return { fingerprint, candidate: storedCandidate };
+  }
+
+  getTransferSession(sessionId: string): CatalogTransferSession | null {
+    if (!/^[a-f0-9]{64}$/.test(sessionId)) {
+      throw new Error('Catalog session IDs must be stable identifiers.');
+    }
+    const row = this.prepare(
+      `SELECT
+        session.id, session.provider, session.native_id, session.title,
+        session.workspace_id, workspace.canonical_path
+      FROM session
+      JOIN workspace ON workspace.id = session.workspace_id
+      WHERE session.id = ? AND session.source_freshness = 'current'`
+    )
+      .get(sessionId) as TransferSessionRow | undefined;
+    if (row === undefined) {
+      return null;
+    }
+
+    const sourceKeys = (
+      this.prepare(
+        `SELECT source_key
+         FROM session_source
+         WHERE session_id = ? AND stale = 0
+         ORDER BY source_key`
+      )
+        .all(sessionId) as unknown as TransferSourceRow[]
+    ).map(({ source_key }) => source_key);
+    if (sourceKeys.length === 0) {
+      return null;
+    }
+
+    return Object.freeze({
+      id: row.id,
+      provider: ProviderIdSchema.parse(row.provider),
+      nativeId: row.native_id,
+      title: row.title,
+      workspaceId: row.workspace_id,
+      workspacePath: row.canonical_path,
+      sourceKeys: Object.freeze(sourceKeys)
+    });
+  }
+
+  hasNativeSession(provider: ProviderId, nativeId: string): boolean {
+    ProviderIdSchema.parse(provider);
+    const normalizedNativeId = nativeId.trim();
+    if (normalizedNativeId.length === 0 || normalizedNativeId.length > 256) {
+      throw new Error('Provider session identities must be non-empty.');
+    }
+    return this.prepare(
+      `SELECT 1
+       FROM session
+       WHERE provider = ? AND native_id = ?
+       LIMIT 1`
+    )
+      .get(provider, normalizedNativeId) !== undefined;
   }
 
   getSnapshot({

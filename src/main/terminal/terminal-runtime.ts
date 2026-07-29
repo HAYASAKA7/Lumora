@@ -41,6 +41,49 @@ import { RuntimeHost, type PtySpawnOptions, type PtyProcess } from './runtime-ho
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
+export interface ActiveTransferScope {
+  readonly provider: RuntimeSummary['provider'];
+  readonly workspaceId: string;
+}
+
+export interface ActiveTransferSessions {
+  readonly sessionIds: readonly string[];
+  readonly unresolvedScopes: readonly ActiveTransferScope[];
+}
+
+export function collectActiveTransferSessions(
+  runtimes: readonly RuntimeSummary[]
+): ActiveTransferSessions {
+  const sessionIds = new Set<string>();
+  const unresolvedScopes = new Map<string, ActiveTransferScope>();
+
+  for (const runtime of runtimes) {
+    if (runtime.state !== 'launching' && runtime.state !== 'running') {
+      continue;
+    }
+    if (runtime.sessionId !== null) {
+      sessionIds.add(runtime.sessionId);
+      continue;
+    }
+    const scope = Object.freeze({
+      provider: runtime.provider,
+      workspaceId: runtime.workspaceId
+    });
+    unresolvedScopes.set(`${scope.provider}\u0000${scope.workspaceId}`, scope);
+  }
+
+  return Object.freeze({
+    sessionIds: Object.freeze([...sessionIds].sort()),
+    unresolvedScopes: Object.freeze(
+      [...unresolvedScopes.values()].sort(
+        (left, right) =>
+          left.provider.localeCompare(right.provider) ||
+          left.workspaceId.localeCompare(right.workspaceId)
+      )
+    )
+  });
+}
+
 interface CreateTerminalRuntimeOptions {
   databasePath: string;
   platform: SystemInfo['platform'];
@@ -79,6 +122,7 @@ export interface TerminalRuntime {
   revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[];
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
   listRuntimes(): RuntimeSummary[];
+  activeTransferSessions(): ActiveTransferSessions;
   synchronizeCatalogSessions(): RuntimeSummary[];
   attachRuntime(runtimeId: string): RuntimeAttachment;
   writeRuntime(input: RuntimeWriteRequest): void;
@@ -268,6 +312,9 @@ export async function createTerminalRuntime({
     },
     listRuntimes() {
       return host.list();
+    },
+    activeTransferSessions() {
+      return collectActiveTransferSessions(host.list());
     },
     synchronizeCatalogSessions() {
       return host.synchronizeCatalogSessions();

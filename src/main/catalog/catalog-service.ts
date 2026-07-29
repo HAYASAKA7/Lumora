@@ -10,6 +10,7 @@ import {
 } from '../../shared/contracts';
 import { providerDefinition } from '../../shared/provider-definitions';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
+import type { CatalogTransferSession } from '../storage/catalog-repository';
 import type {
   ReadyProviderInstallation,
   SessionCatalogRegistry
@@ -44,6 +45,8 @@ interface CatalogRepositoryPort {
     timestamp: string
   ): void;
   getSnapshot(options: SnapshotOptions): CatalogSnapshot;
+  getTransferSession(sessionId: string): CatalogTransferSession | null;
+  hasNativeSession(provider: ProviderId, nativeId: string): boolean;
 }
 
 interface CatalogServiceDependencies {
@@ -203,6 +206,14 @@ export class CatalogService {
         ({ provider }) => provider === null || enabled.has(provider)
       )
     });
+  }
+
+  getTransferSession(sessionId: string): CatalogTransferSession | null {
+    return this.dependencies.repository.getTransferSession(sessionId);
+  }
+
+  hasNativeSession(provider: ProviderId, nativeId: string): boolean {
+    return this.dependencies.repository.hasNativeSession(provider, nativeId);
   }
 
   private currentProviders(): ProviderId[] {

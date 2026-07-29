@@ -444,6 +444,55 @@ describe('CatalogRepository', () => {
     });
   });
 
+  it('exposes only current source-backed sessions for transfer', () => {
+    const repository = createRepository();
+    const first = candidate({
+      provider: 'opencode',
+      nativeId: 'ses_transfer',
+      workspace: workspace('f', '/work/transfer'),
+      source: { key: 'opencode:a', fingerprint: null }
+    });
+    const second = candidate({
+      ...first,
+      source: { key: 'opencode:b', fingerprint: null }
+    });
+
+    repository.applyProviderScan({
+      provider: 'opencode',
+      scanId: 'scan-1',
+      scannedAt: '2026-07-11T03:01:00.000Z',
+      candidates: [second, first]
+    });
+    const sessionId = snapshot(
+      repository,
+      emptyQuery,
+      [],
+      ['opencode']
+    ).sessions[0]?.id;
+
+    expect(sessionId).toBeDefined();
+    expect(repository.getTransferSession(sessionId as string)).toEqual({
+      id: sessionId,
+      provider: 'opencode',
+      nativeId: 'ses_transfer',
+      title: 'Catalog implementation',
+      workspaceId: 'f'.repeat(64),
+      workspacePath: '/work/transfer',
+      sourceKeys: ['opencode:a', 'opencode:b']
+    });
+    expect(repository.hasNativeSession('opencode', 'ses_transfer')).toBe(true);
+
+    repository.applyProviderScan({
+      provider: 'opencode',
+      scanId: 'scan-2',
+      scannedAt: '2026-07-11T03:02:00.000Z',
+      candidates: []
+    });
+
+    expect(repository.getTransferSession(sessionId as string)).toBeNull();
+    expect(repository.hasNativeSession('opencode', 'ses_transfer')).toBe(true);
+  });
+
   it('marks missing sources stale without deleting their sessions', () => {
     const repository = createRepository();
     repository.applyProviderScan({

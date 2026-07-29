@@ -13,6 +13,7 @@ import {
   providerDefinition
 } from '../../shared/provider-definitions';
 import type { CanonicalWorkspacePath } from '../platform/workspace-path';
+import type { CatalogTransferSession } from '../storage/catalog-repository';
 import {
   createSessionCatalogRegistry,
   type SessionCatalogAdapter
@@ -140,6 +141,10 @@ function createRepository() {
   return {
     applyProviderScan: vi.fn(),
     registerWorkspace: vi.fn(),
+    getTransferSession: vi.fn<
+      (sessionId: string) => CatalogTransferSession | null
+    >(() => null),
+    hasNativeSession: vi.fn(() => false),
     getSnapshot: vi.fn(
       ({
         query,
@@ -603,5 +608,33 @@ describe('CatalogService', () => {
     expect(() =>
       service.getCatalog({ text: 'x'.repeat(121), provider: null })
     ).toThrow();
+  });
+
+  it('exposes narrow transfer-safe catalog lookups', () => {
+    const transferSession = {
+      id: 'a'.repeat(64),
+      provider: 'opencode' as const,
+      nativeId: 'ses_transfer',
+      title: 'Transfer session',
+      workspaceId: 'b'.repeat(64),
+      workspacePath: '/work/transfer',
+      sourceKeys: ['opencode:ses_transfer']
+    };
+    const repository = createRepository();
+    repository.getTransferSession.mockReturnValue(transferSession);
+    repository.hasNativeSession.mockReturnValue(true);
+    const service = new CatalogService(dependencies({ repository }));
+
+    expect(service.getTransferSession(transferSession.id)).toEqual(
+      transferSession
+    );
+    expect(service.hasNativeSession('opencode', 'ses_transfer')).toBe(true);
+    expect(repository.getTransferSession).toHaveBeenCalledWith(
+      transferSession.id
+    );
+    expect(repository.hasNativeSession).toHaveBeenCalledWith(
+      'opencode',
+      'ses_transfer'
+    );
   });
 });

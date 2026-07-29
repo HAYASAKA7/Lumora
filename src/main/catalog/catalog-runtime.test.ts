@@ -66,7 +66,12 @@ describe('createCatalogRuntime', () => {
       runtime.transferRegistry
         .capabilities(testPlatform)
         .find(({ provider }) => provider === 'opencode')
-    ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });    expect(runtime.registry.providers()).toEqual([
+    ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });
+    expect(runtime.transferCatalog.getTransferSession('a'.repeat(64))).toBeNull();
+    expect(runtime.transferCatalog.hasNativeSession('opencode', 'missing')).toBe(
+      false
+    );
+    expect(runtime.registry.providers()).toEqual([
       'codex',
       'claude',
       'gemini',

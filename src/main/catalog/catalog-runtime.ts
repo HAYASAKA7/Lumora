@@ -54,10 +54,16 @@ interface CreateCatalogRuntimeOptions {
   createScanId?: (provider: ProviderId) => string;
 }
 
+export type CatalogTransferPort = Pick<
+  CatalogService,
+  'getTransferSession' | 'hasNativeSession'
+>;
+
 export interface CatalogRuntime {
   service: CatalogService;
   registry: SessionCatalogRegistry;
   transferRegistry: TransferAdapterRegistry;
+  transferCatalog: CatalogTransferPort;
   close(): void;
 }
 
@@ -166,7 +172,8 @@ export function createCatalogRuntime({
   ]);
   const transferRegistry = createTransferAdapterRegistry({
     adapters: [createOpenCodeTransferAdapter({ platform, env })]
-  });  const service = new CatalogService({
+  });
+  const service = new CatalogService({
     scanProviders,
     enabledProviders,
     registry,
@@ -176,12 +183,18 @@ export function createCatalogRuntime({
     clock,
     createScanId
   });
+  const transferCatalog: CatalogTransferPort = Object.freeze({
+    getTransferSession: (sessionId) => service.getTransferSession(sessionId),
+    hasNativeSession: (provider, nativeId) =>
+      service.hasNativeSession(provider, nativeId)
+  });
   let closed = false;
 
   return {
     service,
     registry,
     transferRegistry,
+    transferCatalog,
     close() {
       if (closed) {
         return;
