@@ -56,7 +56,7 @@ interface CreateCatalogRuntimeOptions {
 
 export type CatalogTransferPort = Pick<
   CatalogService,
-  'getTransferSession' | 'hasNativeSession'
+  'getTransferSession' | 'getTransferSessionProvider' | 'hasNativeSession'
 >;
 
 export interface CatalogRuntime {
@@ -185,6 +185,8 @@ export function createCatalogRuntime({
   });
   const transferCatalog: CatalogTransferPort = Object.freeze({
     getTransferSession: (sessionId) => service.getTransferSession(sessionId),
+    getTransferSessionProvider: (sessionId) =>
+      service.getTransferSessionProvider(sessionId),
     hasNativeSession: (provider, nativeId) =>
       service.hasNativeSession(provider, nativeId)
   });

@@ -68,6 +68,7 @@ describe('createCatalogRuntime', () => {
         .find(({ provider }) => provider === 'opencode')
     ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });
     expect(runtime.transferCatalog.getTransferSession('a'.repeat(64))).toBeNull();
+    expect(runtime.transferCatalog.getTransferSessionProvider('a'.repeat(64))).toBeNull();
     expect(runtime.transferCatalog.hasNativeSession('opencode', 'missing')).toBe(
       false
     );

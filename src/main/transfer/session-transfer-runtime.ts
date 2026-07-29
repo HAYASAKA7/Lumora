@@ -4,9 +4,18 @@ import { mkdir, readdir, realpath, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { migrateCatalogDatabase } from '../storage/migrations';
+import {
+  SessionTransferService,
+  type SessionTransferServiceDependencies
+} from './session-transfer-service';
 import { TransferRepository } from './transfer-repository';
 
 const OWNED_STAGING_PATTERN = /^transfer-[0-9a-f-]{36}$/i;
+
+type RuntimeServiceDependencies = Omit<
+  SessionTransferServiceDependencies,
+  'stagingRoot' | 'runOperation' | 'cancelOperation' | 'history'
+>;
 
 export interface SessionTransferOperationContext {
   operationId: string;
@@ -16,11 +25,13 @@ export interface SessionTransferOperationContext {
 
 export interface SessionTransferRuntime {
   readonly repository: TransferRepository;
+  readonly service: SessionTransferService | null;
   readonly stagingRoot: string;
   recoverStaging(): Promise<void>;
   runOperation<T>(
     work: (context: SessionTransferOperationContext) => Promise<T>
   ): Promise<T>;
+  cancelOperation(operationId: string): boolean;
   close(): Promise<void>;
 }
 
@@ -29,9 +40,10 @@ interface ActiveOperation {
   promise: Promise<unknown>;
 }
 
-interface CreateSessionTransferRuntimeOptions {
+export interface CreateSessionTransferRuntimeOptions {
   databasePath: string;
   appUserDataPath: string;
+  serviceDependencies?: RuntimeServiceDependencies;
 }
 
 function remainsInside(root: string, candidate: string): boolean {
@@ -41,7 +53,8 @@ function remainsInside(root: string, candidate: string): boolean {
 
 export async function createSessionTransferRuntime({
   databasePath,
-  appUserDataPath
+  appUserDataPath,
+  serviceDependencies
 }: CreateSessionTransferRuntimeOptions): Promise<SessionTransferRuntime> {
   const database = new DatabaseSync(databasePath);
   try {
@@ -88,40 +101,62 @@ export async function createSessionTransferRuntime({
     );
   };
 
+  const runOperation = <T>(
+    work: (context: SessionTransferOperationContext) => Promise<T>
+  ): Promise<T> => {
+    if (closed) {
+      return Promise.reject(new Error('Session transfer runtime is closed.'));
+    }
+    const operationId = randomUUID();
+    const stagingDirectory = join(stagingRoot, `transfer-${operationId}`);
+    const controller = new AbortController();
+    const promise = (async () => {
+      try {
+        await mkdir(stagingDirectory);
+        if (controller.signal.aborted) {
+          const error = new Error('The session transfer was cancelled.');
+          error.name = 'AbortError';
+          throw error;
+        }
+        return await work({
+          operationId,
+          stagingDirectory,
+          signal: controller.signal
+        });
+      } finally {
+        await rm(stagingDirectory, { recursive: true, force: true });
+        active.delete(operationId);
+      }
+    })();
+    active.set(operationId, { controller, promise });
+    return promise;
+  };
+
+  const cancelOperation = (operationId: string): boolean => {
+    const operation = active.get(operationId);
+    if (operation === undefined) return false;
+    operation.controller.abort();
+    return true;
+  };
+
+  const service =
+    serviceDependencies === undefined
+      ? null
+      : new SessionTransferService({
+          ...serviceDependencies,
+          stagingRoot,
+          runOperation,
+          cancelOperation,
+          history: repository
+        });
+
   const runtime: SessionTransferRuntime = {
     repository,
+    service,
     stagingRoot,
     recoverStaging,
-    runOperation<T>(
-      work: (context: SessionTransferOperationContext) => Promise<T>
-    ): Promise<T> {
-      if (closed) {
-        return Promise.reject(new Error('Session transfer runtime is closed.'));
-      }
-      const operationId = randomUUID();
-      const stagingDirectory = join(stagingRoot, `transfer-${operationId}`);
-      const controller = new AbortController();
-      const promise = (async () => {
-        try {
-          await mkdir(stagingDirectory);
-          if (controller.signal.aborted) {
-            const error = new Error('The session transfer was cancelled.');
-            error.name = 'AbortError';
-            throw error;
-          }
-          return await work({
-            operationId,
-            stagingDirectory,
-            signal: controller.signal
-          });
-        } finally {
-          await rm(stagingDirectory, { recursive: true, force: true });
-          active.delete(operationId);
-        }
-      })();
-      active.set(operationId, { controller, promise });
-      return promise;
-    },
+    runOperation,
+    cancelOperation,
     close(): Promise<void> {
       closePromise ??= (async () => {
         closed = true;
@@ -129,6 +164,7 @@ export async function createSessionTransferRuntime({
         await Promise.allSettled(
           [...active.values()].map((operation) => operation.promise)
         );
+        await service?.dispose();
         database.close();
       })();
       return closePromise;

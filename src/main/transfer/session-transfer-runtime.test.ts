@@ -62,6 +62,74 @@ describe('session transfer runtime', () => {
     await runtime.close();
   });
 
+  it('cancels one active operation by its public operation identity', async () => {
+    const runtime = await createSessionTransferRuntime({
+      databasePath: join(root, 'catalog.db'),
+      appUserDataPath: join(root, 'user-data')
+    });
+    let operationId = '';
+    let stagingDirectory = '';
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const operation = runtime.runOperation(async (context) => {
+      operationId = context.operationId;
+      stagingDirectory = context.stagingDirectory;
+      markStarted();
+      await new Promise<void>((resolve) => {
+        context.signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      expect(context.signal.aborted).toBe(true);
+    });
+
+    await started;
+    expect(runtime.cancelOperation(operationId)).toBe(true);
+    await operation;
+    expect(runtime.cancelOperation(operationId)).toBe(false);
+    await expect(stat(stagingDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    await runtime.close();
+  });
+
+  it('composes one service with runtime-owned persistence and cleanup', async () => {
+    const runtime = await createSessionTransferRuntime({
+      databasePath: join(root, 'catalog.db'),
+      appUserDataPath: join(root, 'user-data'),
+      serviceDependencies: {
+        platform: 'linux',
+        adapters: {
+          get: () => null,
+          providers: () => [],
+          capabilities: () => []
+        },
+        catalog: {
+          getTransferSession: () => null,
+          getTransferSessionProvider: () => null,
+          hasNativeSession: () => false
+        },
+        activeSessions: () => ({ sessionIds: [], unresolvedScopes: [] }),
+        scanProviders: async () => ({
+          scannedAt: '2026-07-29T08:00:00.000Z',
+          providers: []
+        }),
+        workspaceById: () => null,
+        workspaceCandidates: async () => [],
+        workspaceProbes: { isDirectory: async () => false },
+        refreshCatalog: async () => undefined,
+        freeDiskBytes: async () => 1024 * 1024 * 1024,
+        clock: () => new Date('2026-07-29T08:00:00.000Z'),
+        createToken: randomUUID,
+        onProgress: () => undefined
+      }
+    });
+
+    expect(runtime.service).not.toBeNull();
+    expect(runtime.service?.getHistory()).toEqual([]);
+    await runtime.close();
+    expect(() => runtime.service?.getHistory()).toThrowError(
+      'The transfer service is closed.'
+    );
+  });
   it('aborts active operations, waits for cleanup, and closes idempotently', async () => {
     const runtime = await createSessionTransferRuntime({
       databasePath: join(root, 'catalog.db'),

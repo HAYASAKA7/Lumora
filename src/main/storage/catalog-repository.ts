@@ -382,6 +382,18 @@ export class CatalogRepository {
     });
   }
 
+  getTransferSessionProvider(sessionId: string): ProviderId | null {
+    if (!/^[a-f0-9]{64}$/.test(sessionId)) {
+      throw new Error('Catalog session IDs must be stable identifiers.');
+    }
+    const row = this.prepare(
+      `SELECT provider
+       FROM session
+       WHERE id = ?`
+    ).get(sessionId) as { provider: ProviderId } | undefined;
+    return row === undefined ? null : ProviderIdSchema.parse(row.provider);
+  }
+
   hasNativeSession(provider: ProviderId, nativeId: string): boolean {
     ProviderIdSchema.parse(provider);
     const normalizedNativeId = nativeId.trim();

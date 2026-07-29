@@ -97,6 +97,7 @@ describe('catalog refresh', () => {
         applyProviderScan: () => undefined,
         registerWorkspace: () => undefined,
         getTransferSession: () => null,
+        getTransferSessionProvider: () => null,
         hasNativeSession: () => false,
         getSnapshot: snapshot
       },

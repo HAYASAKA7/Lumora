@@ -46,6 +46,7 @@ interface CatalogRepositoryPort {
   ): void;
   getSnapshot(options: SnapshotOptions): CatalogSnapshot;
   getTransferSession(sessionId: string): CatalogTransferSession | null;
+  getTransferSessionProvider(sessionId: string): ProviderId | null;
   hasNativeSession(provider: ProviderId, nativeId: string): boolean;
 }
 
@@ -210,6 +211,10 @@ export class CatalogService {
 
   getTransferSession(sessionId: string): CatalogTransferSession | null {
     return this.dependencies.repository.getTransferSession(sessionId);
+  }
+
+  getTransferSessionProvider(sessionId: string): ProviderId | null {
+    return this.dependencies.repository.getTransferSessionProvider(sessionId);
   }
 
   hasNativeSession(provider: ProviderId, nativeId: string): boolean {

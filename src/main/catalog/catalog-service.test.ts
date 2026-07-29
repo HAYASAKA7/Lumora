@@ -144,6 +144,9 @@ function createRepository() {
     getTransferSession: vi.fn<
       (sessionId: string) => CatalogTransferSession | null
     >(() => null),
+    getTransferSessionProvider: vi.fn<
+      (sessionId: string) => ProviderId | null
+    >(() => null),
     hasNativeSession: vi.fn(() => false),
     getSnapshot: vi.fn(
       ({
@@ -622,14 +625,19 @@ describe('CatalogService', () => {
     };
     const repository = createRepository();
     repository.getTransferSession.mockReturnValue(transferSession);
+    repository.getTransferSessionProvider.mockReturnValue('opencode');
     repository.hasNativeSession.mockReturnValue(true);
     const service = new CatalogService(dependencies({ repository }));
 
     expect(service.getTransferSession(transferSession.id)).toEqual(
       transferSession
     );
+    expect(service.getTransferSessionProvider(transferSession.id)).toBe('opencode');
     expect(service.hasNativeSession('opencode', 'ses_transfer')).toBe(true);
     expect(repository.getTransferSession).toHaveBeenCalledWith(
+      transferSession.id
+    );
+    expect(repository.getTransferSessionProvider).toHaveBeenCalledWith(
       transferSession.id
     );
     expect(repository.hasNativeSession).toHaveBeenCalledWith(

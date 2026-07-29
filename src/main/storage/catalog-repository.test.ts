@@ -490,6 +490,7 @@ describe('CatalogRepository', () => {
     });
 
     expect(repository.getTransferSession(sessionId as string)).toBeNull();
+    expect(repository.getTransferSessionProvider(sessionId as string)).toBe('opencode');
     expect(repository.hasNativeSession('opencode', 'ses_transfer')).toBe(true);
   });
 
