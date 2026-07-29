@@ -7,6 +7,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Paste clipboard text into a live terminal with right-click.
+- Close Codex terminals predictably after confirmed double-`Ctrl+C`, or when
+  an explicit `/exit` or `/quit` command leaves the terminal process attached.
+
 ## [0.1.1] - 2026-07-28
 
 ### Added
