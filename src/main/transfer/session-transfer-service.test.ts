@@ -172,6 +172,46 @@ function transferSession(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function writeSingleSessionArchive(outputPath: string): Promise<void> {
+  await writeSessionArchive({
+    outputPath,
+    protection: { encrypted: false },
+    manifest: {
+      formatVersion: 1,
+      createdAt: NOW,
+      sourcePlatform: 'linux',
+      sessions: [
+        {
+          sessionId: SESSION_ID,
+          provider: 'opencode',
+          nativeSessionId: 'ses_transfer',
+          title: 'Transfer session',
+          workspace: {
+            key: 'workspace:lumora',
+            path: PROFILE_WORKSPACE,
+            displayName: 'Lumora',
+            gitRemote: null,
+            markers: ['.git']
+          },
+          entryName: 'providers/opencode/session.json',
+          providerVersion: 'opencode 1.0.0',
+          adapterSchemaVersion: 1
+        }
+      ]
+    },
+    entries: [
+      {
+        name: 'providers/opencode/session.json',
+        body: JSON.stringify({
+          nativeSessionId: 'ses_transfer',
+          workspacePath: PROFILE_WORKSPACE,
+          title: 'Transfer session'
+        })
+      }
+    ]
+  });
+}
+
 describe('SessionTransferService', () => {
   let root: string;
   let clockMs: number;
@@ -453,6 +493,54 @@ describe('SessionTransferService', () => {
       skippedCount: 1
     });
     expect(adapter.rollbackImport).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back an imported session when cancellation arrives after provider mutation', async () => {
+    const archivePath = join(root, 'cancelled-after-import.lumora-sessions');
+    await writeSingleSessionArchive(archivePath);
+
+    let operationId = '';
+    dependencies.onProgress = vi.fn((event) => {
+      operationId = event.operationId;
+    });
+    vi.mocked(adapter.importSession).mockImplementation(async (input) => {
+      expect(operationId).not.toBe('');
+      expect(dependencies.cancelOperation(operationId)).toBe(true);
+      return {
+        status: 'imported',
+        nativeSessionId: input.inspection.nativeSessionId,
+        payloadPath: input.inspection.payloadPath
+      };
+    });
+
+    const service = new SessionTransferService(dependencies);
+    const selection = await service.chooseImportArchive(archivePath);
+    const inspection = await service.inspectImport({
+      selectionToken: selection.selectionToken
+    });
+    const plan = await service.planImport({
+      inspectionToken: inspection.inspectionToken,
+      providers: ['opencode'],
+      workspaceMappings: [
+        {
+          sourceWorkspaceKey: 'workspace:lumora',
+          action: 'map',
+          destinationWorkspaceId: WORKSPACE_ID
+        }
+      ]
+    });
+
+    await expect(
+      service.executeImport({ planToken: plan.planToken })
+    ).resolves.toMatchObject({
+      status: 'cancelled',
+      importedCount: 0,
+      failedCount: 0
+    });
+    expect(adapter.rollbackImport).toHaveBeenCalledWith(
+      expect.objectContaining({ nativeSessionId: 'ses_transfer' })
+    );
+    expect(adapter.verifyImportedSession).not.toHaveBeenCalled();
   });
 
   it('skips an existing native session without invoking the provider import', async () => {

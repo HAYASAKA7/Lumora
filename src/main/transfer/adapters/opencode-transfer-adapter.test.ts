@@ -259,6 +259,39 @@ describe('OpenCode transfer adapter', () => {
     expect(runCommand).not.toHaveBeenCalled();
   });
 
+  it('returns the imported identity when cancellation arrives after provider mutation', async () => {
+    const payloadPath = join(root, 'cancelled-after-import.json');
+    await writeFile(payloadPath, JSON.stringify(exportedSession));
+    const controller = new AbortController();
+    const adapter = createOpenCodeTransferAdapter({
+      platform: 'linux',
+      env: {},
+      runCommand: async () => {
+        controller.abort();
+        return {
+          stdout: 'Imported session: ses_archived',
+          stderr: '',
+          exitCode: 0
+        };
+      },
+      discoverSessions: async () => discovery()
+    });
+    const inspection = await adapter.inspectImport({ payloadPath });
+
+    await expect(
+      adapter.importSession({
+        installation,
+        inspection,
+        destinationWorkspacePath: '/new/workspace',
+        stagingDirectory: root,
+        signal: controller.signal
+      })
+    ).resolves.toMatchObject({
+      status: 'imported',
+      nativeSessionId: 'ses_archived'
+    });
+  });
+
   it('rolls back when OpenCode assigns a different native ID', async () => {
     const payloadPath = join(root, 'changed-id.json');
     await writeFile(payloadPath, JSON.stringify(exportedSession));

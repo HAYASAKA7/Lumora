@@ -403,7 +403,6 @@ export function createOpenCodeTransferAdapter({
           env
         })
       );
-      throwIfAborted(input.signal);
       const importedId = /(?:^|\r?\n)Imported session: ([A-Za-z0-9._:-]{1,256})(?:\r?\n|$)/
         .exec(output.stdout.trim())?.[1];
       if (importedId === undefined) {
