@@ -7,6 +7,7 @@ import type {
   SystemInfo
 } from '../../../shared/contracts';
 import { classifyTerminalClipboardKey } from './terminal-clipboard';
+import { createTerminalExitIntentTracker } from './terminal-exit-intent';
 import {
   decideTerminalInterrupt,
   TERMINAL_INTERRUPT_CONFIRMATION_MS
@@ -21,6 +22,7 @@ interface ManagedTerminalProps {
 }
 
 const TERMINAL_BLOCK_SIZE = '100%';
+export const TERMINAL_EXIT_GRACE_MS = 2_000;
 
 function isRuntimeLive(runtime: RuntimeSummary): boolean {
   return runtime.state === 'launching' || runtime.state === 'running';
@@ -103,6 +105,50 @@ export function ManagedTerminal({
           pasteClipboardText();
         };
         target.addEventListener('contextmenu', contextMenu);
+        const exitIntent = createTerminalExitIntentTracker(runtime.provider);
+        let exitFallbackTimer: number | null = null;
+        let terminationPending = false;
+        let observedRuntimeEnded = !isRuntimeLive(runtime);
+        const clearExitFallback = () => {
+          if (exitFallbackTimer === null) return;
+          window.clearTimeout(exitFallbackTimer);
+          exitFallbackTimer = null;
+        };
+        const requestTermination = () => {
+          if (
+            !alive ||
+            terminationPending ||
+            observedRuntimeEnded ||
+            !acceptingInputRef.current
+          ) {
+            return;
+          }
+          terminationPending = true;
+          acceptingInputRef.current = false;
+          clearExitFallback();
+          clearInterruptGuard();
+          setError(null);
+          void window.lumora.terminateRuntime(runtime.id).then(
+            (nextRuntime) => {
+              if (!alive) return;
+              observedRuntimeEnded = !isRuntimeLive(nextRuntime);
+              onRuntimeChange(nextRuntime);
+            },
+            () => {
+              if (!alive) return;
+              terminationPending = false;
+              acceptingInputRef.current = !observedRuntimeEnded;
+              setError('The terminal session could not be stopped.');
+            }
+          );
+        };
+        const scheduleExitFallback = () => {
+          clearExitFallback();
+          exitFallbackTimer = window.setTimeout(() => {
+            exitFallbackTimer = null;
+            requestTermination();
+          }, TERMINAL_EXIT_GRACE_MS);
+        };
         let composing = false;
         let outputFlushTimer: number | null = null;
         let deferredOutput: string[] = [];
@@ -163,8 +209,11 @@ export function ManagedTerminal({
             interruptDeadlineRef.current = decision.armedUntil;
 
             if (decision.action === 'forward') {
+              event.preventDefault();
+              event.stopPropagation();
               clearInterruptGuard();
-              return true;
+              requestTermination();
+              return false;
             }
 
             event.preventDefault();
@@ -203,9 +252,17 @@ export function ManagedTerminal({
 
         const input = terminal.onData((data) => {
           if (!acceptingInputRef.current) return;
-          void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).catch(() => {
-            if (alive) setError('Terminal input could not be delivered.');
-          });
+          const submittedExit = exitIntent.observe(data);
+          void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).then(
+            () => {
+              if (submittedExit && alive && acceptingInputRef.current) {
+                scheduleExitFallback();
+              }
+            },
+            () => {
+              if (alive) setError('Terminal input could not be delivered.');
+            }
+          );
         });
         const resize = terminal.onResize(({ cols, rows }) => {
           if (!acceptingInputRef.current) return;
@@ -228,7 +285,10 @@ export function ManagedTerminal({
             else pendingOutput.push(event);
           } else {
             if (!isRuntimeLive(event.runtime)) {
+              observedRuntimeEnded = true;
               acceptingInputRef.current = false;
+              clearExitFallback();
+              exitIntent.reset();
             }
             onRuntimeChange(event.runtime);
           }
@@ -243,6 +303,8 @@ export function ManagedTerminal({
             window.clearTimeout(outputFlushTimer);
             outputFlushTimer = null;
           }
+          clearExitFallback();
+          exitIntent.reset();
           deferredOutput = [];
           target.removeEventListener('contextmenu', contextMenu);
           terminal.textarea?.removeEventListener(
@@ -273,7 +335,10 @@ export function ManagedTerminal({
               .sort((left, right) => left.sequence - right.sequence)
               .forEach(writeOutput);
             if (!isRuntimeLive(attachment.runtime)) {
+              observedRuntimeEnded = true;
               acceptingInputRef.current = false;
+              clearExitFallback();
+              exitIntent.reset();
             }
             pendingOutput = [];
             onRuntimeChange(attachment.runtime);

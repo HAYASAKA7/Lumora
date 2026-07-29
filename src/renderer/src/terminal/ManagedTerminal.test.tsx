@@ -7,7 +7,7 @@ import type {
   RuntimeEvent,
   RuntimeSummary
 } from '../../../shared/contracts';
-import { ManagedTerminal } from './ManagedTerminal';
+import { ManagedTerminal, TERMINAL_EXIT_GRACE_MS } from './ManagedTerminal';
 import { TERMINAL_INTERRUPT_CONFIRMATION_MS } from './terminal-interrupt-guard';
 
 const xterm = vi.hoisted(() => ({
@@ -80,6 +80,7 @@ type RuntimeApi = Pick<
   | 'onRuntimeEvent'
   | 'readClipboardText'
   | 'resizeRuntime'
+  | 'terminateRuntime'
   | 'writeClipboardText'
   | 'writeRuntime'
 >;
@@ -114,6 +115,12 @@ function installLumora(overrides: Partial<RuntimeApi> = {}): RuntimeApi {
     onRuntimeEvent: vi.fn(() => () => undefined),
     readClipboardText: vi.fn().mockResolvedValue(''),
     resizeRuntime: vi.fn().mockResolvedValue(undefined),
+    terminateRuntime: vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    }),
     writeClipboardText: vi.fn().mockResolvedValue(undefined),
     writeRuntime: vi.fn().mockResolvedValue(undefined),
     ...overrides
@@ -408,13 +415,20 @@ describe('ManagedTerminal', () => {
     expect(writeClipboardText).toHaveBeenCalledWith('selected text');
   });
 
-  it('requires a second unselected Windows Ctrl+C before forwarding the interrupt', async () => {
+  it('stops the runtime after a second unselected Windows Ctrl+C', async () => {
     const writeClipboardText = vi.fn().mockResolvedValue(undefined);
-    installLumora({ writeClipboardText });
+    const terminateRuntime = vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    });
+    const onRuntimeChange = vi.fn();
+    installLumora({ terminateRuntime, writeClipboardText });
     render(
       <ManagedTerminal
         active
-        onRuntimeChange={vi.fn()}
+        onRuntimeChange={onRuntimeChange}
         platform="win32"
         runtime={runtime}
       />
@@ -435,14 +449,26 @@ describe('ManagedTerminal', () => {
     let secondHandled!: boolean;
     act(() => { secondHandled = xterm.customKeyEventHandler!(secondEvent); });
 
-    expect(secondHandled).toBe(true);
-    expect(secondEvent.defaultPrevented).toBe(false);
+    expect(secondHandled).toBe(false);
+    expect(secondEvent.defaultPrevented).toBe(true);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(writeClipboardText).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(terminateRuntime).toHaveBeenCalledWith(runtime.id);
+    });
+    expect(onRuntimeChange).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'completed' })
+    );
   });
 
   it('does not let a held Ctrl+C key repeat confirm the interrupt', async () => {
-    installLumora();
+    const terminateRuntime = vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    });
+    installLumora({ terminateRuntime });
     render(
       <ManagedTerminal
         active
@@ -463,13 +489,16 @@ describe('ManagedTerminal', () => {
     expect(repeatHandled).toBe(false);
     expect(repeatEvent.defaultPrevented).toBe(true);
     expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(terminateRuntime).not.toHaveBeenCalled();
 
     const secondPhysicalEvent = clipboardKey('KeyC', { ctrlKey: true });
     let secondHandled!: boolean;
     act(() => {
       secondHandled = xterm.customKeyEventHandler!(secondPhysicalEvent);
     });
-    expect(secondHandled).toBe(true);
+    expect(secondHandled).toBe(false);
+    expect(secondPhysicalEvent.defaultPrevented).toBe(true);
+    await waitFor(() => expect(terminateRuntime).toHaveBeenCalledOnce());
   });
 
   it('clears interrupt confirmation when another key is pressed', async () => {
@@ -588,6 +617,182 @@ describe('ManagedTerminal', () => {
       />
     );
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('stops a Codex runtime that remains live after an explicit exit command', async () => {
+    const terminateRuntime = vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    });
+    installLumora({ terminateRuntime });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.dataHandler?.('/exit\r');
+        await Promise.resolve();
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).toHaveBeenCalledOnce();
+      expect(terminateRuntime).toHaveBeenCalledWith(runtime.id);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels the explicit exit fallback when Codex exits naturally', async () => {
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    const onRuntimeEvent = vi.fn(
+      (listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      }
+    );
+    const terminateRuntime = vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    });
+    installLumora({ onRuntimeEvent, terminateRuntime });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.dataHandler?.('/quit\r');
+        await Promise.resolve();
+      });
+      act(() => {
+        emitRuntime({
+          type: 'state',
+          runtimeId: runtime.id,
+          runtime: {
+            ...runtime,
+            state: 'completed',
+            endedAt: '2026-07-29T01:00:00.000Z',
+            exitCode: 0
+          }
+        });
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels the explicit exit fallback when the terminal unmounts', async () => {
+    const terminateRuntime = vi.fn().mockResolvedValue({
+      ...runtime,
+      state: 'completed',
+      endedAt: '2026-07-29T01:00:00.000Z',
+      exitCode: 0
+    });
+    installLumora({ terminateRuntime });
+    const { unmount } = render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="linux"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.dataHandler?.('/exit\n');
+        await Promise.resolve();
+      });
+      unmount();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not arm the exit fallback for another provider', async () => {
+    const terminateRuntime = vi.fn();
+    installLumora({ terminateRuntime });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="darwin"
+        runtime={{ ...runtime, provider: 'claude' }}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.dataHandler?.('/exit\r');
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not arm the exit fallback for ordinary Codex input', async () => {
+    const terminateRuntime = vi.fn();
+    installLumora({ terminateRuntime });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.dataHandler?.('please explain /exit behavior\r');
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('pastes clipboard text on terminal right-click and restores focus', async () => {
