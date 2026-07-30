@@ -7,8 +7,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-30
+
 ### Fixed
 
+- Open confirmed HTTP(S) hyperlinks from managed terminals in the user's
+  default browser while keeping renderer-created windows and unsafe URL
+  protocols blocked.
 - Preserve POSIX nested workspace paths when importing Claude Code sessions on
   macOS and Linux, and keep transfer dialog path verification platform-native.
 
