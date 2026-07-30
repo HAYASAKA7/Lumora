@@ -39,6 +39,33 @@ afterEach(async () => {
 });
 
 describe('discoverCopilotSessions', () => {
+  it('discovers legacy checkpoint sessions from provider workspace metadata', async () => {
+    const home = await temporaryHome();
+    const root = join(home, '.copilot');
+    const sessionRoot = join(root, 'session-state', SESSION_ID);
+    await mkdir(join(sessionRoot, 'checkpoints'), { recursive: true });
+    await writeFile(join(sessionRoot, 'workspace.yaml'), [
+      `id: ${SESSION_ID}`,
+      'cwd: D:\\work\\legacy',
+      'summary: Legacy Copilot task',
+      'created_at: 2026-04-08T07:26:47.572Z',
+      'updated_at: 2026-04-08T07:30:47.600Z'
+    ].join('\n') + '\n');
+    await writeFile(join(sessionRoot, 'checkpoints', 'index.md'), '# Checkpoints\n');
+
+    const result = await discoverCopilotSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions).toEqual([
+      expect.objectContaining({
+        provider: 'copilot', nativeId: SESSION_ID,
+        workspacePath: 'D:\\work\\legacy', title: 'Legacy Copilot task',
+        createdAt: '2026-04-08T07:26:47.572Z',
+        updatedAt: '2026-04-08T07:30:47.600Z',
+        source: expect.objectContaining({ key: join(sessionRoot, 'workspace.yaml') })
+      })
+    ]);
+  });
+
   it('extracts session metadata and applies the newest explicit rename', async () => {
     const home = await temporaryHome();
     const sourcePath = await writeSession(join(home, '.copilot'), SESSION_ID, [

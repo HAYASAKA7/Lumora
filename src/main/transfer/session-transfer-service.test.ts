@@ -361,6 +361,41 @@ describe('SessionTransferService', () => {
     });
     await expect(stat(outputPath)).resolves.toMatchObject({ isFile: expect.any(Function) });
     expect(adapter.exportSession).toHaveBeenCalledOnce();
+    expect(adapter.exportSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceKeys: ['opencode:ses_transfer']
+      })
+    );
+  });
+
+  it('rejects export when provider source keys changed after preparation', async () => {
+    const service = new SessionTransferService(dependencies);
+    const plan = await service.prepareExport({ sessionIds: [SESSION_ID] });
+    dependencies.catalog.getTransferSession = () =>
+      transferSession({ sourceKeys: ['opencode:ses_changed'] });
+
+    await expect(
+      service.executeExport(
+        { planToken: plan.planToken, protection: { encrypted: false } },
+        join(root, 'changed-source.lumora-sessions')
+      )
+    ).rejects.toMatchObject({ code: 'SESSION_SOURCE_CHANGED' });
+    expect(adapter.exportSession).not.toHaveBeenCalled();
+  });
+
+  it('allows an experimental development route through preparation and export', async () => {
+    dependencies.adapters = registry(adapter, { opencode: 'experimental' });
+    const service = new SessionTransferService(dependencies);
+    const plan = await service.prepareExport({ sessionIds: [SESSION_ID] });
+    const outputPath = join(root, 'experimental.lumora-sessions');
+
+    expect(plan.sessions).toHaveLength(1);
+    await expect(
+      service.executeExport(
+        { planToken: plan.planToken, protection: { encrypted: false } },
+        outputPath
+      )
+    ).resolves.toMatchObject({ exportedCount: 1, failedCount: 0 });
   });
 
   it('rejects expired plans and insufficient destination disk space', async () => {
@@ -538,7 +573,10 @@ describe('SessionTransferService', () => {
       failedCount: 0
     });
     expect(adapter.rollbackImport).toHaveBeenCalledWith(
-      expect.objectContaining({ nativeSessionId: 'ses_transfer' })
+      expect.objectContaining({
+        nativeSessionId: 'ses_transfer',
+        workspacePath: PROFILE_WORKSPACE
+      })
     );
     expect(adapter.verifyImportedSession).not.toHaveBeenCalled();
   });
@@ -605,5 +643,5 @@ describe('SessionTransferService', () => {
       expect.objectContaining({ reason: 'duplicate' })
     ]);
     expect(adapter.importSession).not.toHaveBeenCalled();
+    });
   });
-});

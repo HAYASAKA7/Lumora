@@ -17,6 +17,7 @@ type ReadyProviderInstallation = Extract<
 export interface StructuredCommandInvocation {
   file: string;
   args: readonly string[];
+  cwd?: string;
   env: Environment;
   shell: false;
   windowsHide: true;
@@ -51,6 +52,9 @@ interface OpenCodeInvocationOptions {
   env: Environment;
 }
 
+export const OPENCODE_SESSION_METADATA_QUERY =
+  'SELECT id, directory, title, time_created AS created, time_updated AS updated FROM session ORDER BY time_updated DESC';
+
 function currentPlatform(): SystemInfo['platform'] {
   return process.platform === 'darwin' || process.platform === 'win32'
     ? process.platform
@@ -75,6 +79,7 @@ export const executeStructuredCommand: StructuredCommandRunner = (
       [...invocation.args],
       {
         encoding: 'utf8',
+        ...(invocation.cwd === undefined ? {} : { cwd: invocation.cwd }),
         env: { ...invocation.env },
         shell: invocation.shell,
         windowsHide: invocation.windowsHide,
@@ -142,6 +147,91 @@ export function buildOpenCodeSessionInvocation(
   };
 }
 
+function buildOpenCodeDatabaseInvocation(
+  executablePath: string,
+  { platform, env }: OpenCodeInvocationOptions
+): Pick<
+  StructuredCommandInvocation,
+  'file' | 'args' | 'windowsVerbatimArguments'
+> {
+  if (platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(executablePath)) {
+    return {
+      file: executablePath,
+      args: ['db', OPENCODE_SESSION_METADATA_QUERY, '--format', 'json']
+    };
+  }
+  if (/[\"%\r\n]/.test(executablePath)) {
+    throw new OpenCodeSessionSourceError(
+      'OpenCode command shim path cannot be invoked safely.'
+    );
+  }
+  const commandProcessor = environmentValue(env, 'ComSpec')?.trim() || 'cmd.exe';
+  return {
+    file: commandProcessor,
+    args: [
+      '/d',
+      '/s',
+      '/c',
+      `""${executablePath}" db "${OPENCODE_SESSION_METADATA_QUERY}" --format json"`
+    ],
+    windowsVerbatimArguments: true
+  };
+}
+
+function assertBoundedOutput(
+  output: StructuredCommandOutput,
+  maxOutputBytes: number
+): void {
+  if (output.timedOut) {
+    throw new OpenCodeSessionSourceError(
+      'OpenCode session discovery timed out.'
+    );
+  }
+  if (
+    output.outputTruncated ||
+    Buffer.byteLength(output.stdout, 'utf8') > maxOutputBytes
+  ) {
+    throw new OpenCodeSessionSourceError(
+      'OpenCode session discovery exceeded its output limit.'
+    );
+  }
+}
+
+function parseSessionRows(
+  output: StructuredCommandOutput,
+  allowUnavailable: boolean
+): unknown[] | null {
+  if (output.exitCode !== 0) {
+    if (allowUnavailable) {
+      return null;
+    }
+    throw new OpenCodeSessionSourceError(
+      'OpenCode session discovery command failed.'
+    );
+  }
+
+  let rows: unknown;
+  try {
+    rows = JSON.parse(output.stdout);
+  } catch {
+    if (allowUnavailable) {
+      return null;
+    }
+    throw new OpenCodeSessionSourceError(
+      'OpenCode session discovery returned invalid JSON.'
+    );
+  }
+  if (!Array.isArray(rows)) {
+    if (allowUnavailable) {
+      return null;
+    }
+    throw new OpenCodeSessionSourceError(
+      'OpenCode session discovery did not return a JSON array.'
+    );
+  }
+  return rows;
+}
+
 function normalizeSession(value: unknown): ProviderSessionRecord | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null;
@@ -202,49 +292,50 @@ export async function discoverOpenCodeSessions({
       'OpenCode discovery requires an OpenCode installation.'
     );
   }
-  const command = buildOpenCodeSessionInvocation(installation.executablePath, {
-    platform,
-    env
-  });
-  const output = await runCommand({
-    ...command,
+  const invocationDefaults = {
     env: { ...env, NO_COLOR: '1' },
-    shell: false,
-    windowsHide: true,
+    shell: false as const,
+    windowsHide: true as const,
     timeoutMs,
     maxOutputBytes
+  };
+  const databaseCommand = buildOpenCodeDatabaseInvocation(
+    installation.executablePath,
+    {
+      platform,
+      env
+    }
+  );
+  const databaseOutput = await runCommand({
+    ...databaseCommand,
+    ...invocationDefaults
   });
-  if (output.timedOut) {
-    throw new OpenCodeSessionSourceError(
-      'OpenCode session discovery timed out.'
-    );
-  }
-  if (
-    output.outputTruncated ||
-    Buffer.byteLength(output.stdout, 'utf8') > maxOutputBytes
-  ) {
-    throw new OpenCodeSessionSourceError(
-      'OpenCode session discovery exceeded its output limit.'
-    );
-  }
-  if (output.exitCode !== 0) {
-    throw new OpenCodeSessionSourceError(
-      'OpenCode session discovery command failed.'
-    );
-  }
+  assertBoundedOutput(databaseOutput, maxOutputBytes);
+  const databaseRows = parseSessionRows(databaseOutput, true);
+  let rows: unknown[];
 
-  let rows: unknown;
-  try {
-    rows = JSON.parse(output.stdout);
-  } catch {
-    throw new OpenCodeSessionSourceError(
-      'OpenCode session discovery returned invalid JSON.'
+  if (databaseRows === null) {
+    const listCommand = buildOpenCodeSessionInvocation(
+      installation.executablePath,
+      {
+        platform,
+        env
+      }
     );
-  }
-  if (!Array.isArray(rows)) {
-    throw new OpenCodeSessionSourceError(
-      'OpenCode session discovery did not return a JSON array.'
-    );
+    const listOutput = await runCommand({
+      ...listCommand,
+      ...invocationDefaults
+    });
+    assertBoundedOutput(listOutput, maxOutputBytes);
+    const listRows = parseSessionRows(listOutput, false);
+    if (listRows === null) {
+      throw new OpenCodeSessionSourceError(
+        'OpenCode session discovery command failed.'
+      );
+    }
+    rows = listRows;
+  } else {
+    rows = databaseRows;
   }
 
   const sessions = new Map<string, ProviderSessionRecord>();

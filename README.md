@@ -24,7 +24,7 @@
 </p>
 
 > [!WARNING]
-> Lumora 0.1 is an unsigned MVP. Review the
+> Lumora 0.2 is an unsigned preview release. Review the
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
@@ -65,7 +65,7 @@ Download the package for your system from
 
 ### Unsigned build notices
 
-The MVP packages are not code-signed or notarized.
+The current packages are not code-signed or notarized.
 
 - **Windows:** SmartScreen may warn about or block the installer. Confirm that
   the file came from this repository before allowing it.
@@ -77,7 +77,7 @@ The MVP packages are not code-signed or notarized.
   chmod +x Lumora-*.AppImage
   ```
 
-Signing, notarization, and automatic updates are planned after MVP testing.
+Signing, notarization, and automatic updates are planned after preview testing.
 
 ## Before your first session
 

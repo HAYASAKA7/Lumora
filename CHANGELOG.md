@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-30
+
 ### Added
 
 - Add guarded cross-device session archives with encrypted-by-default export,
@@ -15,9 +17,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add a dedicated export-selection workflow under **Settings > Transfer**.
   Running, stale, unavailable, and unverified provider sessions remain disabled,
   while daily session and workspace pages stay focused on normal navigation.
-- Add the first provider-native transfer adapter for OpenCode. Transfer routes
-  remain disabled until their exact provider version and operating-system pair
-  pass packaged verification.
+- Add provider-native transfer adapters for OpenCode, Codex, Claude Code,
+  Gemini CLI, GitHub Copilot CLI, and Qwen Code. Transfer routes are marked
+  experimental in development builds so they can be tested, while normal
+  packages remain disabled until their exact provider version and
+  operating-system pair pass packaged verification.
 
 ### Security
 
@@ -26,6 +30,19 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Validate archive structure, paths, hashes, sizes, provider payload identity,
   destination workspace directories, and post-import native discovery before a
   transfer is accepted.
+
+### Fixed
+
+- Discover OpenCode sessions globally through OpenCode's official metadata-only
+  database command, with a structured session-list fallback for older versions.
+- Discover GitHub Copilot CLI session directories that contain legacy native
+  workspace metadata but do not yet contain an events file.
+- Roll back a newly forked Codex thread if native post-import setup fails or is
+  cancelled, so a partial import is not left behind.
+- Export Claude Code sessions whose Windows workspace casing was normalized by
+  the catalog or whose transcript contains nested working directories, and map
+  those nested paths when importing into a different workspace.
+
 ## [0.1.3] - 2026-07-29
 
 ### Changed

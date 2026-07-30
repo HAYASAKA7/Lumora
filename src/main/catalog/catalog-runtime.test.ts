@@ -103,4 +103,48 @@ describe('createCatalogRuntime', () => {
     expect(runtime.close).not.toThrow();
     expect(runtime.close).not.toThrow();
   });
+
+  it('enables adapter-backed transfer routes for explicit development testing', () => {
+    const runtime = createCatalogRuntime({
+      databasePath: ':memory:',
+      homeDirectory: process.cwd(),
+      platform: testPlatform,
+      env: {},
+      scanProviders: async () => unavailableProviders,
+      allowExperimentalTransferRoutes: true
+    });
+
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'opencode')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'gemini')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'qwen')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'claude')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'codex')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'copilot')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+
+    runtime.close();
+  });
 });

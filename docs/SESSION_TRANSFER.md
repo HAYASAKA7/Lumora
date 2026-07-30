@@ -11,6 +11,12 @@ operating system, and destination operating system have passed packaged
 verification. **Settings > Transfer** shows the capabilities available on the
 current computer. A route marked **Not verified** cannot export or import.
 
+Development builds expose implemented adapter-backed routes as
+**Experimental** so contributors can exercise export and import before the
+packaged verification matrix is complete. Experimental access does not mark a
+route as verified and is never enabled automatically in a normal packaged
+release.
+
 ## What an archive contains
 
 A `.lumora-sessions` archive contains:
@@ -92,9 +98,12 @@ workspace only adds that existing directory to Lumora's catalog.
 
 ### Duplicate sessions are skipped
 
-Lumora checks the provider-native session identity before import and again
-immediately before the provider write. If the destination provider already has
-that session, Lumora skips it instead of overwriting or renaming native data.
+Lumora checks the provider-native source identity or provenance before import
+and again immediately before the provider write. Providers that preserve the
+original identity are matched directly. Providers that create a new identity
+during native import are matched using their native import/fork marker. If the
+destination already has that session, Lumora skips it instead of overwriting or
+renaming native data.
 
 Imports are processed provider by provider. A failed provider item is rolled
 back when the provider supports rollback, and a fatal provider failure prevents
@@ -128,11 +137,23 @@ disabled in Lumora.
 | GitHub Copilot CLI | Verification pending | Verification pending | Verification pending |
 | Qwen Code | Verification pending | Verification pending | Verification pending |
 
-OpenCode has the first transfer adapter because it exposes structured native
-export and import commands. Its routes remain unavailable until each exact
-provider-version and operating-system pair passes the packaged transfer matrix.
-The other full-session providers require their own safe native adapter and
-verification before they can be enabled.
+All six full-session providers have provider-specific transfer adapters:
+
+- OpenCode uses its structured native export and import commands.
+- Codex packages the native rollout, then uses prompt-free app-server fork,
+  workspace mapping, and native title restoration to create a discoverable new
+  thread with provider-owned provenance.
+- Claude Code packages its native transcript and session companion directory
+  while preserving the native session identity.
+- Gemini CLI packages its native session file and uses Gemini's native import,
+  which creates a new identity and records its imported source.
+- GitHub Copilot CLI packages only the provider-owned session-state directory,
+  preserves its UUID, and excludes global configuration and databases.
+- Qwen Code packages its native project chat JSONL and preserves its identity.
+
+These implementations are available as **Experimental** routes in development
+builds. Packaged routes remain unavailable until each exact provider version
+and operating-system pair passes the transfer matrix.
 
 See [Provider support and verification](PROVIDER_SUPPORT.md) for the release
 matrix and [Troubleshooting Lumora](TROUBLESHOOTING.md#cross-device-session-transfer)

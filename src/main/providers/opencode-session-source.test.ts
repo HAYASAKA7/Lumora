@@ -23,7 +23,7 @@ function runnerWith(stdout: string): StructuredCommandRunner {
 }
 
 describe('discoverOpenCodeSessions', () => {
-  it('invokes the structured list command and reads metadata only', async () => {
+  it('queries the global metadata database and reads metadata only', async () => {
     const runCommand = runnerWith(
       JSON.stringify([
         openCodeSessionRow({ privatePrompt: 'must not enter the catalog' })
@@ -38,7 +38,12 @@ describe('discoverOpenCodeSessions', () => {
 
     expect(runCommand).toHaveBeenCalledWith({
       file: '/tools/opencode',
-      args: ['session', 'list', '--format', 'json'],
+      args: [
+        'db',
+        'SELECT id, directory, title, time_created AS created, time_updated AS updated FROM session ORDER BY time_updated DESC',
+        '--format',
+        'json'
+      ],
       env: { PATH: '/tools', NO_COLOR: '1' },
       shell: false,
       windowsHide: true,
@@ -63,6 +68,34 @@ describe('discoverOpenCodeSessions', () => {
       invalidCount: 0
     });
     expect(JSON.stringify(result)).not.toContain('must not enter');
+  });
+
+  it('falls back to the session list command when the database CLI is unavailable', async () => {
+    const runCommand = vi
+      .fn<StructuredCommandRunner>()
+      .mockResolvedValueOnce({
+        stdout: '',
+        stderr: 'unknown command',
+        exitCode: 1
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([openCodeSessionRow()]),
+        stderr: '',
+        exitCode: 0
+      });
+
+    const result = await discoverOpenCodeSessions({
+      installation,
+      env: {},
+      runCommand
+    });
+
+    expect(runCommand).toHaveBeenCalledTimes(2);
+    expect(runCommand.mock.calls[1]![0]).toMatchObject({
+      file: '/tools/opencode',
+      args: ['session', 'list', '--format', 'json']
+    });
+    expect(result.discoveredCount).toBe(1);
   });
 
   it('accepts Windows paths and isolates malformed rows', async () => {
@@ -116,7 +149,6 @@ describe('discoverOpenCodeSessions', () => {
   });
 
   it.each([
-    [{ exitCode: 1, stdout: '[]', stderr: 'private detail' }, 'command failed'],
     [{ exitCode: 0, stdout: '[]', stderr: '', timedOut: true }, 'timed out'],
     [
       { exitCode: 0, stdout: '[]', stderr: '', outputTruncated: true },
@@ -157,6 +189,39 @@ describe('discoverOpenCodeSessions', () => {
         '""C:\\Tools\\opencode.cmd" session list --format json"'
       ],
       windowsVerbatimArguments: true
+    });
+  });
+
+  it('routes the Windows database query through ComSpec without a shell', async () => {
+    const runCommand = runnerWith('[]');
+
+    await discoverOpenCodeSessions({
+      installation: {
+        ...installation,
+        executablePath: 'C:\\Tools\\opencode.cmd'
+      },
+      platform: 'win32',
+      env: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+      runCommand
+    });
+
+    expect(runCommand).toHaveBeenCalledWith({
+      file: 'C:\\Windows\\System32\\cmd.exe',
+      args: [
+        '/d',
+        '/s',
+        '/c',
+        '""C:\\Tools\\opencode.cmd" db "SELECT id, directory, title, time_created AS created, time_updated AS updated FROM session ORDER BY time_updated DESC" --format json"'
+      ],
+      windowsVerbatimArguments: true,
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        NO_COLOR: '1'
+      },
+      shell: false,
+      windowsHide: true,
+      timeoutMs: 15_000,
+      maxOutputBytes: 4 * 1024 * 1024
     });
   });
 });

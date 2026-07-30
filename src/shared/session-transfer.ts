@@ -62,6 +62,7 @@ export const SessionExportPrepareRequestSchema = z
 
 export const TransferSupportSchema = z.enum([
   'supported',
+  'experimental',
   'provider_not_installed',
   'provider_disabled',
   'route_unverified',
@@ -288,6 +289,9 @@ export const TransferOperationCancelResultSchema = z.strictObject({
 export type TransferOperationToken = z.infer<typeof TransferOperationTokenSchema>;
 export type TransferProtection = z.infer<typeof TransferProtectionSchema>;
 export type TransferSupport = z.infer<typeof TransferSupportSchema>;
+export function isUsableTransferSupport(support: TransferSupport): boolean {
+  return support === 'supported' || support === 'experimental';
+}
 export type TransferSkipReason = z.infer<typeof TransferSkipReasonSchema>;
 export type SessionTransferCapability = z.infer<
   typeof SessionTransferCapabilitySchema

@@ -6,6 +6,7 @@ import type {
   SessionSummary,
   SessionTransferCapability
 } from '../../../shared/contracts';
+import { isUsableTransferSupport } from '../../../shared/session-transfer';
 
 interface UseSessionExportSelectionInput {
   capabilities: readonly SessionTransferCapability[];
@@ -41,7 +42,10 @@ export function useSessionExportSelection({
       const capability = capabilities.find(
         (candidate) => candidate.provider === session.provider
       );
-      if (capability?.exportSupport !== 'supported') {
+      if (
+        capability === undefined ||
+        !isUsableTransferSupport(capability.exportSupport)
+      ) {
         return 'This provider export route is not verified.';
       }
       return null;

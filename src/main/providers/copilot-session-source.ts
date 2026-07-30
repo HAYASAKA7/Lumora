@@ -1,5 +1,5 @@
 import { open, readdir, readFile, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import type { ProviderId } from '../../shared/contracts';
 import type { CatalogSourceFingerprint } from '../catalog/catalog-candidate';
@@ -95,7 +95,7 @@ function sameFingerprint(
   );
 }
 
-async function enumerateEventLogs(
+async function enumerateSessionSources(
   sessionStateRoot: string,
   maxFiles: number
 ): Promise<{ paths: string[]; skipped: number }> {
@@ -117,22 +117,77 @@ async function enumerateEventLogs(
         candidate.isDirectory() && SESSION_ID_PATTERN.test(candidate.name)
     )
     .sort((left, right) => left.name.localeCompare(right.name))) {
-    const eventPath = resolve(sessionStateRoot, entry.name, 'events.jsonl');
-    try {
-      const eventStat = await stat(eventPath);
-      if (!eventStat.isFile()) continue;
-    } catch (error) {
-      if (isMissing(error)) continue;
-      skipped += 1;
-      continue;
+    const sessionRoot = resolve(sessionStateRoot, entry.name);
+    let sourcePath: string | null = null;
+    for (const fileName of ['events.jsonl', 'workspace.yaml']) {
+      const candidate = join(sessionRoot, fileName);
+      try {
+        const candidateStat = await stat(candidate);
+        if (candidateStat.isFile()) {
+          sourcePath = candidate;
+          break;
+        }
+      } catch (error) {
+        if (!isMissing(error)) skipped += 1;
+      }
     }
+    if (sourcePath === null) continue;
     if (paths.length >= maxFiles) {
       skipped += 1;
       continue;
     }
-    paths.push(eventPath);
+    paths.push(sourcePath);
   }
   return { paths, skipped };
+}
+
+function yamlScalar(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      return '';
+    }
+  }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replaceAll("''", "'");
+  }
+  return trimmed;
+}
+
+function parseWorkspaceMetadata(
+  sessionId: string,
+  raw: string,
+  sourceKey: string,
+  fingerprint: CatalogSourceFingerprint
+): ProviderSessionRecord | null {
+  const fields = new Map<string, string>();
+  for (const line of raw.split(/\r?\n/)) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/.exec(line);
+    if (match !== null) fields.set(match[1]!, yamlScalar(match[2]!));
+  }
+  const id = fields.get('id');
+  const workspacePath = fields.get('cwd');
+  const createdAt = fields.get('created_at');
+  const updatedAt = fields.get('updated_at');
+  const title = fields.get('summary')?.trim() || 'Untitled session';
+  if (id !== sessionId || workspacePath === undefined ||
+      !isPortableAbsolutePath(workspacePath) || createdAt === undefined ||
+      updatedAt === undefined || !Number.isFinite(Date.parse(createdAt)) ||
+      !Number.isFinite(Date.parse(updatedAt))) return null;
+  const parsed = ProviderSessionRecordSchema.safeParse({
+    provider: 'copilot',
+    nativeId: sessionId,
+    workspacePath,
+    title: title.slice(0, 256),
+    createdAt: new Date(createdAt).toISOString(),
+    updatedAt: new Date(updatedAt).toISOString(),
+    lifetimeTokens: null,
+    source: { key: sourceKey, fingerprint }
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 function completePrefix(text: string, reachesEnd: boolean): string {
@@ -340,7 +395,7 @@ export async function discoverCopilotSessions({
     configuredHome === undefined || configuredHome.length === 0
       ? join(homeDirectory, '.copilot')
       : resolve(configuredHome);
-  const enumeration = await enumerateEventLogs(
+  const enumeration = await enumerateSessionSources(
     join(configRoot, 'session-state'),
     Math.max(0, Math.trunc(maxFiles))
   );
@@ -366,31 +421,39 @@ export async function discoverCopilotSessions({
         normalized = reuseStoredSource(stored, sourcePath, before);
         if (normalized !== null) unchangedCount += 1;
       } else {
-        const segments = await readMetadataSegments(
-          sourcePath,
-          before,
-          statFile,
-          Math.max(1, Math.trunc(prefixBytes)),
-          Math.max(1, Math.trunc(tailBytes))
-        );
-        if (!sameFingerprint(before, segments.after)) {
-          invalidCount += 1;
-          continue;
+        const sessionId = basename(dirname(sourcePath));
+        if (basename(sourcePath) === 'workspace.yaml') {
+          const raw = await readFile(sourcePath, 'utf8');
+          const after = fingerprintOf(await statFile(sourcePath));
+          normalized = sameFingerprint(before, after)
+            ? parseWorkspaceMetadata(sessionId, raw, sourcePath, before)
+            : null;
+        } else {
+          const segments = await readMetadataSegments(
+            sourcePath,
+            before,
+            statFile,
+            Math.max(1, Math.trunc(prefixBytes)),
+            Math.max(1, Math.trunc(tailBytes))
+          );
+          if (!sameFingerprint(before, segments.after)) {
+            invalidCount += 1;
+            continue;
+          }
+          const records = parseJsonLines(await readFile(sourcePath, 'utf8'));
+          const afterUsage = fingerprintOf(await statFile(sourcePath));
+          if (!sameFingerprint(before, afterUsage)) {
+            invalidCount += 1;
+            continue;
+          }
+          normalized = parseMetadata(
+            sessionId,
+            segments.lines,
+            sourcePath,
+            before,
+            copilotLifetimeTokens(records)
+          );
         }
-        const sessionId = sourcePath.split(/[\\/]/).at(-2) ?? '';
-        const records = parseJsonLines(await readFile(sourcePath, 'utf8'));
-        const afterUsage = fingerprintOf(await statFile(sourcePath));
-        if (!sameFingerprint(before, afterUsage)) {
-          invalidCount += 1;
-          continue;
-        }
-        normalized = parseMetadata(
-          sessionId,
-          segments.lines,
-          sourcePath,
-          before,
-          copilotLifetimeTokens(records)
-        );
       }
       if (normalized === null) {
         invalidCount += 1;

@@ -41,7 +41,7 @@ export interface CodexAppServerInvocation {
   windowsVerbatimArguments?: boolean;
 }
 
-interface InvocationOptions {
+export interface CodexAppServerInvocationOptions {
   platform: SupportedPlatform;
   env: Environment;
 }
@@ -111,7 +111,7 @@ function readWindowsEnvironmentValue(
 
 export function buildCodexAppServerInvocation(
   executablePath: string,
-  { platform, env }: InvocationOptions
+  { platform, env }: CodexAppServerInvocationOptions
 ): CodexAppServerInvocation {
   const pathApi = platform === 'win32' ? win32 : posix;
   if (!pathApi.isAbsolute(executablePath)) {
@@ -338,9 +338,9 @@ class JsonLineCodexTransport implements CodexAppServerTransport {
   }
 }
 
-async function createProcessTransport(
+export async function createCodexAppServerTransport(
   executablePath: string,
-  options: InvocationOptions
+  options: CodexAppServerInvocationOptions
 ): Promise<CodexAppServerTransport> {
   const invocation = buildCodexAppServerInvocation(executablePath, options);
   const child = spawn(invocation.file, [...invocation.args], {
@@ -511,7 +511,7 @@ export async function discoverCodexSessions({
   inspectUsage = inspectCodexLifetimeUsage
 }: DiscoverCodexOptions): Promise<ProviderSessionDiscoveryResult> {
   const transport = await (createTransport ??
-    ((path) => createProcessTransport(path, { platform, env })))(executablePath);
+    ((path) => createCodexAppServerTransport(path, { platform, env })))(executablePath);
   const sessions = new Map<string, NormalizedCodexThread>();
   let invalidCount = 0;
 

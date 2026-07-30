@@ -25,6 +25,7 @@ import {
   SessionTransferResultSchema,
   TransferHistoryEntrySchema,
   TransferOperationCancelRequestSchema,
+  isUsableTransferSupport,
   type SessionExportExecuteRequest,
   type SessionExportPlan,
   type SessionExportPrepareRequest,
@@ -225,6 +226,9 @@ function installationsByProvider(scan: ProviderScanResult): Map<ProviderId, Read
 function uniqueProviders(values: readonly ProviderId[]): ProviderId[] {
   return [...new Set(values)].sort();
 }
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
@@ -351,8 +355,8 @@ export class SessionTransferService {
       }
       const support = currentSupport(this.dependencies.adapters, session.provider,
         this.dependencies.platform, 'export');
-      if (support !== 'supported' || this.dependencies.adapters.get(session.provider) === null) {
-        const reason = support === 'supported' ? 'route_unverified' : supportSkipReason(support);
+      if (!isUsableTransferSupport(support) || this.dependencies.adapters.get(session.provider) === null) {
+        const reason = isUsableTransferSupport(support) ? 'route_unverified' : supportSkipReason(support);
         skipped.push({ sessionId, provider: session.provider, reason,
           message: skipMessage(session.provider, reason) });
         continue;
@@ -396,11 +400,11 @@ export class SessionTransferService {
         throw new SessionTransferError('SESSION_BECAME_ACTIVE', 'Stop all selected sessions before exporting them.');
       }
       if (current.nativeId !== prepared.nativeId || current.workspacePath !== prepared.workspacePath ||
-        current.title !== prepared.title) {
+        current.title !== prepared.title || !sameStrings(current.sourceKeys, prepared.sourceKeys)) {
         throw new SessionTransferError('SESSION_SOURCE_CHANGED', 'A selected session changed after preparation.');
       }
-      if (currentSupport(this.dependencies.adapters, current.provider,
-        this.dependencies.platform, 'export') !== 'supported') {
+      if (!isUsableTransferSupport(currentSupport(this.dependencies.adapters, current.provider,
+        this.dependencies.platform, 'export'))) {
         throw new SessionTransferError('TRANSFER_CAPABILITY_CHANGED', 'Provider transfer support changed after preparation.');
       }
     }
@@ -422,6 +426,7 @@ export class SessionTransferService {
         const providerStaging = join(context.stagingDirectory, session.id);
         await mkdir(providerStaging);
         const payload = await adapter.exportSession({ installation, nativeSessionId: session.nativeId,
+          sourceKeys: session.sourceKeys,
           expectedWorkspacePath: session.workspacePath, expectedTitle: session.title,
           stagingDirectory: providerStaging, signal: context.signal });
         if (payload.provider !== session.provider || payload.nativeSessionId !== session.nativeId ||
@@ -533,7 +538,7 @@ export class SessionTransferService {
         const support = capabilities.get(manifestSession.provider)?.import ?? 'route_unverified';
         const adapter = this.dependencies.adapters.get(manifestSession.provider);
         let inspection: ProviderImportInspection | null = null;
-        if (support === 'supported' && adapter !== null) {
+        if (isUsableTransferSupport(support) && adapter !== null) {
           inspection = await adapter.inspectImport({ payloadPath: entry.stagedPath });
           if (inspection.provider !== manifestSession.provider ||
             inspection.nativeSessionId !== manifestSession.nativeSessionId ||
@@ -633,7 +638,7 @@ export class SessionTransferService {
     const skipped: SessionImportPlan['skipped'] = [];
     for (const session of inspection.sessions) {
       if (!selectedProviders.has(session.manifest.provider)) continue;
-      if (session.support !== 'supported') {
+      if (!isUsableTransferSupport(session.support)) {
         const reason = supportSkipReason(session.support);
         skipped.push({ sessionId: session.manifest.sessionId, provider: session.manifest.provider,
           reason, message: skipMessage(session.manifest.provider, reason) });
@@ -742,7 +747,7 @@ export class SessionTransferService {
         const installation = installations.get(provider);
         const support = currentSupport(this.dependencies.adapters, provider,
           this.dependencies.platform, 'import', plan.sourcePlatform);
-        if (adapter === null || installation === undefined || support !== 'supported') {
+        if (adapter === null || installation === undefined || !isUsableTransferSupport(support)) {
           const reason: TransferSkipReason = installation === undefined
             ? 'provider_not_installed' : supportSkipReason(support);
           skippedCount += 1;
@@ -792,7 +797,11 @@ export class SessionTransferService {
           }
         } catch (error) {
           if (importedNativeId !== null) {
-            await adapter.rollbackImport({ installation, nativeSessionId: importedNativeId }).catch(() => undefined);
+            await adapter.rollbackImport({
+              installation,
+              nativeSessionId: importedNativeId,
+              workspacePath: prepared.destinationWorkspacePath
+            }).catch(() => undefined);
           }
           if (isAbortError(error)) { cancelled = true; break; }
           failedCount += 1;

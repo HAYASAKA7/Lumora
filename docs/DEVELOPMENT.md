@@ -132,6 +132,18 @@ retaining the payload in memory. The benchmark enforces a broad memory-growth
 bound and reports elapsed time for local comparison; it is not a provider or
 packaged route verification.
 
+### Exercise an unverified transfer adapter
+
+`npm run dev` exposes implemented adapter-backed transfer routes as
+**Experimental**. This is the bootstrap path for testing export and import
+before packaged evidence exists. Providers without an implemented transfer
+adapter remain **Not verified**.
+
+Development testing is diagnostic only. It does not add a record to the
+verified route table and cannot make the route available in a normal packaged
+release. Complete the native packaged matrix in
+[Releasing Lumora](RELEASING.md#enable-a-verified-transfer-route) before release.
+
 ## Provider changes
 
 `src/shared/provider-definitions.ts` is the canonical provider registry. A

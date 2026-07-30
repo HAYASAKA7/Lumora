@@ -184,6 +184,36 @@ describe('SessionTransferDialog', () => {
     expect(onImported).toHaveBeenCalledOnce();
   });
 
+  it('allows an experimental provider route in a development transfer flow', async () => {
+    installApi({
+      inspectSessionImport: vi.fn().mockResolvedValue({
+        ...inspection,
+        providers: [
+          {
+            provider: 'codex',
+            displayName: 'Codex',
+            sessionCount: 2,
+            support: 'experimental',
+            installGuidance: null
+          }
+        ]
+      })
+    });
+    render(
+      <SessionTransferDialog
+        onClose={vi.fn()}
+        onImported={vi.fn()}
+        selection={selection}
+        workspaces={[workspace]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review archive' }));
+
+    expect(await screen.findByText('Codex · 2 ready')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Codex/ })).toBeEnabled();
+  });
+
   it('clears an archive password immediately when inspection fails', async () => {
     installApi({
       inspectSessionImport: vi.fn().mockRejectedValue(new Error('No access'))

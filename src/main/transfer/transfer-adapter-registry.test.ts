@@ -37,6 +37,21 @@ describe('transfer adapter registry', () => {
     ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });
   });
 
+  it('exposes adapter-backed routes as experimental only when explicitly enabled', () => {
+    const registry = createTransferAdapterRegistry({
+      adapters: [fakeAdapter('opencode')],
+      verifiedRoutes: [],
+      allowExperimentalRoutes: true
+    });
+
+    expect(
+      registry.capabilities('linux', 'win32').find(({ provider }) => provider === 'opencode')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      registry.capabilities('linux', 'win32').find(({ provider }) => provider === 'claude')
+    ).toMatchObject({ export: 'route_unverified', import: 'route_unverified' });
+  });
+
   it('rejects duplicate adapter registration', () => {
     expect(() =>
       createTransferAdapterRegistry({

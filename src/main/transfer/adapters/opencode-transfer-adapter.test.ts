@@ -132,6 +132,7 @@ describe('OpenCode transfer adapter', () => {
     const payload = await adapter.exportSession({
       installation,
       nativeSessionId: 'ses_archived',
+      sourceKeys: ['opencode:ses_archived'],
       expectedWorkspacePath: '/old/workspace',
       expectedTitle: 'Transfer me',
       stagingDirectory
@@ -162,6 +163,7 @@ describe('OpenCode transfer adapter', () => {
       adapter.exportSession({
         installation,
         nativeSessionId: 'ses_archived',
+        sourceKeys: ['opencode:ses_archived'],
         expectedWorkspacePath: '/old/workspace',
         expectedTitle: 'Transfer me',
         stagingDirectory

@@ -17,6 +17,11 @@ forks. Lumora passes the source session identity and, when supplied, an optional
 initial task to the provider; the provider creates and owns the new session.
 Without a task, the fork opens ready for input in Lumora's terminal.
 
+OpenCode discovery uses OpenCode's own read-only database command to query only
+session metadata (`id`, workspace, title, and timestamps). Lumora does not open
+the SQLite file directly or query messages. Older OpenCode versions without the
+database command fall back to the structured `session list` command.
+
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
 columns below record hands-on testing with the real provider executable. Leave a
@@ -49,34 +54,37 @@ Cross-device transfer has a separate, stricter gate from saved-session support.
 A provider route is available only when the exact provider version, source
 operating system, and destination operating system have passed the packaged
 export/import matrix. Unit tests, a working session parser, or a successful
-same-device development run do not enable a route.
+same-device development run do not verify a release route. Development builds
+may expose an implemented adapter as **Experimental** so that matrix testing
+can begin; normal packaged releases remain evidence-gated.
 
 | Provider | Transfer adapter | Export | Same-OS import | Cross-platform import |
 | --- | --- | --- | --- | --- |
 | OpenCode | Implemented; native structured export/import | Verification pending | Verification pending | Verification pending |
-| Codex | Planned | Verification pending | Verification pending | Verification pending |
-| Claude Code | Planned | Verification pending | Verification pending | Verification pending |
-| Gemini CLI | Planned | Verification pending | Verification pending | Verification pending |
-| GitHub Copilot CLI | Planned | Verification pending | Verification pending | Verification pending |
-| Qwen Code | Planned | Verification pending | Verification pending | Verification pending |
+| Codex | Implemented; native rollout plus prompt-free app-server fork | Verification pending | Verification pending | Verification pending |
+| Claude Code | Implemented; native transcript and companion session data | Verification pending | Verification pending | Verification pending |
+| Gemini CLI | Implemented; native session-file import | Verification pending | Verification pending | Verification pending |
+| GitHub Copilot CLI | Implemented; native session-state directory | Verification pending | Verification pending | Verification pending |
+| Qwen Code | Implemented; native project chat JSONL | Verification pending | Verification pending | Verification pending |
 
 A pending route is reported as **Not verified** under **Settings > Transfer**
-and cannot change provider-owned session files. OpenCode is the first adapter,
-but its initial matrix is intentionally empty until native packaged tests record
-evidence. See the [cross-device transfer guide](SESSION_TRANSFER.md) for user
-steps and archive boundaries.
+in release builds and cannot change provider-owned session files. The matrix is
+intentionally empty until native packaged tests record evidence. In `npm run
+dev`, all six implemented adapters are reported as **Experimental** and may be
+exercised without altering the release matrix. See the [cross-device transfer
+guide](SESSION_TRANSFER.md) for user steps and archive boundaries.
 
-For every OpenCode route proposed for release:
+For every provider route proposed for release:
 
 1. build and verify packaged Lumora on the native source and destination
    operating systems;
-2. create and stop a uniquely identifiable OpenCode session;
+2. create and stop a uniquely identifiable provider session;
 3. export it from packaged Lumora, transfer the archive, and import it;
-4. verify OpenCode discovers exactly one session with the original native
-   identity, mapped workspace, and title;
-5. resume it using OpenCode and confirm its context;
+4. verify the provider discovers exactly one session with the expected native
+   identity or provider-generated import identity, mapped workspace, and title;
+5. resume it using that provider and confirm its context;
 6. repeat with a duplicate and confirm no provider data is overwritten;
-7. repeat with OpenCode missing or disabled and confirm no native write occurs;
+7. repeat with the provider missing or disabled and confirm no native write occurs;
    and
 8. record the provider version, source and destination platforms, Lumora commit,
    timestamp, and result.
@@ -87,7 +95,7 @@ for one provider version or operating-system pair never enables another.
 After all checks pass, use the release recorder rather than editing the table:
 
 ```powershell
-node scripts/release/record-transfer-verification.cjs --provider opencode --source win32 --destination linux --version (opencode --version) --commit (git rev-parse HEAD)
+node scripts/release/record-transfer-verification.cjs --provider <provider> --source win32 --destination linux --version <provider-version> --commit (git rev-parse HEAD)
 ```
 
 Replace the platform values with the exact tested route. See

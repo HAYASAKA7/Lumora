@@ -36,6 +36,7 @@ interface CreateTransferAdapterRegistryOptions {
   adapters?: readonly ProviderTransferAdapter[];
   verifiedRoutes?: readonly VerifiedTransferRoute[];
   providerState?: (provider: ProviderId) => ProviderTransferState;
+  allowExperimentalRoutes?: boolean;
 }
 
 function stateSupport(state: ProviderTransferState): TransferSupport | null {
@@ -47,7 +48,8 @@ function stateSupport(state: ProviderTransferState): TransferSupport | null {
 export function createTransferAdapterRegistry({
   adapters = [],
   verifiedRoutes = VERIFIED_TRANSFER_ROUTES,
-  providerState = () => ({ installed: true, enabled: true, version: null })
+  providerState = () => ({ installed: true, enabled: true, version: null }),
+  allowExperimentalRoutes = false
 }: CreateTransferAdapterRegistryOptions = {}): TransferAdapterRegistry {
   const byProvider = new Map<ProviderId, ProviderTransferAdapter>();
   for (const adapter of adapters) {
@@ -78,6 +80,22 @@ export function createTransferAdapterRegistry({
           };
         }
         const adapter = byProvider.get(provider);
+        if (adapter === undefined) {
+          return {
+            provider,
+            displayName: definition.displayName,
+            export: 'route_unverified' as const,
+            import: 'route_unverified' as const
+          };
+        }
+        if (allowExperimentalRoutes) {
+          return {
+            provider,
+            displayName: definition.displayName,
+            export: 'experimental' as const,
+            import: 'experimental' as const
+          };
+        }
         const route = verifiedRoutes.find(
           (candidate) =>
             candidate.provider === provider &&
@@ -85,7 +103,7 @@ export function createTransferAdapterRegistry({
             candidate.destinationPlatform === destinationPlatform &&
             candidate.providerVersion === state.version
         );
-        if (adapter === undefined || route === undefined || state.version === null) {
+        if (route === undefined || state.version === null) {
           return {
             provider,
             displayName: definition.displayName,

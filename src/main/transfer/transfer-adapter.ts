@@ -27,6 +27,7 @@ export interface TransferAdapterCapabilities {
 export interface ProviderExportInput {
   installation: ReadyProviderInstallation;
   nativeSessionId: string;
+  sourceKeys: readonly string[];
   expectedWorkspacePath: string;
   expectedTitle: string;
   stagingDirectory: string;
@@ -76,6 +77,7 @@ export interface ProviderImportVerificationInput {
 export interface ProviderImportRollbackInput {
   installation: ReadyProviderInstallation;
   nativeSessionId: string;
+  workspacePath: string;
 }
 
 export interface ProviderTransferAdapter {

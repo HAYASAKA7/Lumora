@@ -8,6 +8,7 @@ import type {
   TransferHistoryEntry,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { isUsableTransferSupport } from '../../../shared/session-transfer';
 import { SessionExportDialog } from './SessionExportDialog';
 import { SessionTransferDialog } from './SessionTransferDialog';
 import { SessionTransferExportSelection } from './SessionTransferExportSelection';
@@ -30,6 +31,8 @@ function supportLabel(
   switch (support) {
     case 'supported':
       return 'Supported';
+    case 'experimental':
+      return 'Experimental';
     case 'provider_not_installed':
       return 'Not installed';
     case 'provider_disabled':
@@ -39,6 +42,18 @@ function supportLabel(
     case 'route_unverified':
       return 'Not verified';
   }
+}
+
+function routeSupportLabel(
+  routes: readonly SessionTransferCapability['routes'][number][]
+): string {
+  if (routes.some((route) => route.support === 'supported')) {
+    return 'Supported';
+  }
+  if (routes.some((route) => route.support === 'experimental')) {
+    return 'Experimental';
+  }
+  return 'Not verified';
 }
 
 function historySummary(entry: TransferHistoryEntry): string {
@@ -122,6 +137,12 @@ export function SessionTransferPanel({
     await refreshHistory();
   };
 
+  const hasExperimentalRoutes = capabilities.some(
+    (capability) =>
+      capability.exportSupport === 'experimental' ||
+      capability.routes.some((route) => route.support === 'experimental')
+  );
+
   return (
     <>
       <div className="catalog-panel session-transfer-panel">
@@ -186,8 +207,9 @@ export function SessionTransferPanel({
                     <div>
                       <h3 id="transfer-capabilities-title">Provider support</h3>
                       <p>
-                        Routes stay disabled until Lumora has verified that
-                        provider and platform combination.
+                        {hasExperimentalRoutes
+                          ? 'This development build enables adapter-backed routes for experimental testing. Release builds still require verification.'
+                          : 'Untested provider and operating-system combinations stay unavailable to protect your sessions.'}
                       </p>
                     </div>
                   </div>
@@ -199,15 +221,19 @@ export function SessionTransferPanel({
                       <span>Cross-platform</span>
                     </div>
                     {capabilities.map((capability) => {
-                      const sameOs = capability.routes.some(
-                        (route) =>
-                          route.sourcePlatform === route.destinationPlatform &&
-                          route.support === 'supported'
+                      const sameOs = routeSupportLabel(
+                        capability.routes.filter(
+                          (route) =>
+                            route.sourcePlatform === route.destinationPlatform &&
+                            isUsableTransferSupport(route.support)
+                        )
                       );
-                      const crossPlatform = capability.routes.some(
-                        (route) =>
-                          route.sourcePlatform !== route.destinationPlatform &&
-                          route.support === 'supported'
+                      const crossPlatform = routeSupportLabel(
+                        capability.routes.filter(
+                          (route) =>
+                            route.sourcePlatform !== route.destinationPlatform &&
+                            isUsableTransferSupport(route.support)
+                        )
                       );
                       return (
                         <div
@@ -216,10 +242,8 @@ export function SessionTransferPanel({
                         >
                           <strong>{capability.displayName}</strong>
                           <span>{supportLabel(capability.exportSupport)}</span>
-                          <span>{sameOs ? 'Supported' : 'Not verified'}</span>
-                          <span>
-                            {crossPlatform ? 'Supported' : 'Not verified'}
-                          </span>
+                          <span>{sameOs}</span>
+                          <span>{crossPlatform}</span>
                         </div>
                       );
                     })}

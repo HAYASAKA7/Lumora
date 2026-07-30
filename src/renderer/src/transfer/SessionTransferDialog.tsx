@@ -14,6 +14,7 @@ import type {
   SessionWorkspaceMapping,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { isUsableTransferSupport } from '../../../shared/session-transfer';
 import {
   INITIAL_IMPORT_FLOW_STATE,
   reduceImportFlow
@@ -46,6 +47,8 @@ function providerStatusLabel(
       return 'Update provider first';
     case 'route_unverified':
       return 'Import route is not verified';
+    case 'experimental':
+      return 'Experimental';
     case 'supported':
       return 'Ready';
   }
@@ -95,7 +98,7 @@ export function SessionTransferDialog({
       setSelectedProviders(
         new Set(
           nextInspection.providers
-            .filter((provider) => provider.support === 'supported')
+            .filter((provider) => isUsableTransferSupport(provider.support))
             .map((provider) => provider.provider)
         )
       );
@@ -293,7 +296,7 @@ export function SessionTransferDialog({
               </p>
               <div className="transfer-option-list">
                 {inspection.providers.map((provider) => {
-                  const supported = provider.support === 'supported';
+                  const supported = isUsableTransferSupport(provider.support);
                   return (
                     <label
                       className="transfer-option-card"

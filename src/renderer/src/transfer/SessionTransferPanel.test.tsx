@@ -184,4 +184,42 @@ describe('SessionTransferPanel', () => {
 
     expect(screen.getByText(`Exporting ${session.id}`)).toBeInTheDocument();
   });
+
+  it('labels development-only routes as experimental and allows their sessions', async () => {
+    vi.mocked(window.lumora.getTransferCapabilities).mockResolvedValue([
+      {
+        provider: 'codex',
+        displayName: 'Codex',
+        exportSupport: 'experimental',
+        routes: [
+          {
+            sourcePlatform: 'win32',
+            destinationPlatform: 'win32',
+            support: 'experimental'
+          }
+        ],
+        installGuidance: null
+      }
+    ]);
+    render(
+      <SessionTransferPanel
+        active
+        onImportCompleted={vi.fn()}
+        providerScan={providerScan}
+        runningSessionIds={new Set<string>()}
+        sessions={[session]}
+        workspaces={[]}
+      />
+    );
+
+    expect(await screen.findAllByText('Experimental')).not.toHaveLength(0);
+    expect(
+      screen.getByText(/development build enables adapter-backed routes/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export sessions' }));
+    expect(
+      screen.getByRole('checkbox', { name: 'Portable Codex session' })
+    ).toBeEnabled();
+  });
 });

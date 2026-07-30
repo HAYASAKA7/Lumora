@@ -36,6 +36,11 @@ import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
 import { createOpenCodeTransferAdapter } from '../transfer/adapters/opencode-transfer-adapter';
+import { createGeminiTransferAdapter } from '../transfer/adapters/gemini-transfer-adapter';
+import { createQwenTransferAdapter } from '../transfer/adapters/qwen-transfer-adapter';
+import { createClaudeTransferAdapter } from '../transfer/adapters/claude-transfer-adapter';
+import { createCodexTransferAdapter } from '../transfer/adapters/codex-transfer-adapter';
+import { createCopilotTransferAdapter } from '../transfer/adapters/copilot-transfer-adapter';
 import {
   createTransferAdapterRegistry,
   type TransferAdapterRegistry
@@ -50,6 +55,7 @@ interface CreateCatalogRuntimeOptions {
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
   enabledProviders?: () => readonly ProviderId[];
+  allowExperimentalTransferRoutes?: boolean;
   clock?: () => Date;
   createScanId?: (provider: ProviderId) => string;
 }
@@ -86,6 +92,7 @@ export function createCatalogRuntime({
   env,
   scanProviders,
   enabledProviders = () => SESSION_PROVIDER_IDS,
+  allowExperimentalTransferRoutes = false,
   clock = () => new Date(),
   createScanId = () => randomUUID()
 }: CreateCatalogRuntimeOptions): CatalogRuntime {
@@ -124,6 +131,22 @@ export function createCatalogRuntime({
       snapshotHandoff
     };
   };
+  const geminiStorageRoot = join(
+    environmentHome(env, 'GEMINI_CLI_HOME', homeDirectory),
+    '.gemini',
+    'tmp'
+  );
+  const codexHome = environmentHome(env, 'CODEX_HOME', join(homeDirectory, '.codex'));
+  const copilotConfigRoot = environmentHome(
+    env,
+    'COPILOT_HOME',
+    join(homeDirectory, '.copilot')
+  );
+  const configuredClaudeRoot = environmentHome(env, 'CLAUDE_CONFIG_DIR', '').trim();
+  const claudeConfigRoot = configuredClaudeRoot || join(homeDirectory, '.claude');
+  const configuredQwenRuntime = environmentHome(env, 'QWEN_RUNTIME_DIR', '').trim();
+  const configuredQwenHome = environmentHome(env, 'QWEN_HOME', '').trim();
+  const qwenRoot = configuredQwenRuntime || configuredQwenHome || join(homeDirectory, '.qwen');
   const registry = createSessionCatalogRegistry([
     adapter('codex', (installation) =>
       discoverCodexSessions({
@@ -133,17 +156,11 @@ export function createCatalogRuntime({
         lookupSource
       })
     ),
-    adapter('claude', () =>
-      discoverClaudeSessions({ homeDirectory, env, lookupSource })
-    ),
+    adapter('claude', () => discoverClaudeSessions({ homeDirectory, env, lookupSource })),
     adapter('gemini', () =>
       discoverJsonSessions({
         provider: 'gemini',
-        storageRoot: join(
-          environmentHome(env, 'GEMINI_CLI_HOME', homeDirectory),
-          '.gemini',
-          'tmp'
-        ),
+        storageRoot: geminiStorageRoot,
         lookupSource
       })
     ),
@@ -156,22 +173,30 @@ export function createCatalogRuntime({
     adapter('copilot', () =>
       discoverCopilotSessions({ homeDirectory, env, lookupSource })
     ),
-    adapter('qwen', () => {
-      const configuredRuntime = environmentHome(
-        env,
-        'QWEN_RUNTIME_DIR',
-        ''
-      ).trim();
-      const configuredHome = environmentHome(env, 'QWEN_HOME', '').trim();
-      return discoverQwenSessions({
-        qwenRoot:
-          configuredRuntime || configuredHome || join(homeDirectory, '.qwen'),
-        lookupSource
-      });
-    })
+    adapter('qwen', () => discoverQwenSessions({ qwenRoot, lookupSource }))
   ]);
   const transferRegistry = createTransferAdapterRegistry({
-    adapters: [createOpenCodeTransferAdapter({ platform, env })]
+    adapters: [
+      createOpenCodeTransferAdapter({ platform, env }),
+      createCodexTransferAdapter({ platform, env, codexHome }),
+      createCopilotTransferAdapter({
+        configRoot: copilotConfigRoot,
+        homeDirectory,
+        env
+      }),
+      createGeminiTransferAdapter({
+        platform,
+        env,
+        geminiStorageRoot
+      }),
+      createQwenTransferAdapter({ platform, qwenRoot }),
+      createClaudeTransferAdapter({
+        configRoot: claudeConfigRoot,
+        homeDirectory,
+        env
+      })
+    ],
+    allowExperimentalRoutes: allowExperimentalTransferRoutes
   });
   const service = new CatalogService({
     scanProviders,
