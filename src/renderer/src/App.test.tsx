@@ -403,11 +403,15 @@ describe('App', () => {
     expect(mark).toHaveAttribute('src', lumoraBrandMarkUrl);
   });
 
-  it('does not show a static discovery badge in the sidebar', () => {
+  it('does not show static discovery badges in the app chrome', () => {
     render(<App />);
 
     expect(screen.queryByText('Discovery mode')).not.toBeInTheDocument();
     expect(document.querySelector('.sidebar-note')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('group', { name: 'Session actions' })
+    ).not.toHaveTextContent('Provider discovery');
+    expect(document.querySelector('.release-badge')).not.toBeInTheDocument();
   });
 
   it('restores and persists the sidebar expansion state', async () => {

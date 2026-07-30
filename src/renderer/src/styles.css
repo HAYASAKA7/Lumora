@@ -390,26 +390,6 @@ button {
   font-size: 0.76rem;
 }
 
-.release-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 9px;
-  color: #42516a;
-  font-size: 0.72rem;
-  font-weight: 650;
-  background: #f7f9fc;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-
-.release-badge span {
-  width: 6px;
-  height: 6px;
-  background: var(--blue);
-  border-radius: 50%;
-}
-
 .main-content {
   min-width: 0;
   overflow: auto;

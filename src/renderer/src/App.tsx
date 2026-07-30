@@ -1296,10 +1296,6 @@ export default function App(): ReactNode {
             <p className="topbar-context">Private by default · Native provider sessions</p>
           </div>
           <div aria-label="Session actions" className="topbar-actions" role="group">
-            <span className="release-badge">
-              <span aria-hidden="true" />
-              Provider discovery
-            </span>
             {activeRuntimeId === null && liveRuntimes.length > 0 ? (
               <button className="secondary-button" onClick={openLiveTerminals} type="button">
                 Open terminals
