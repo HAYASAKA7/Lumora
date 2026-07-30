@@ -21,17 +21,21 @@ describe('GeneralSettingsPanel', () => {
       'Check provider updates automatically',
       'Auto-expand sidebar when navigating',
       'Show informational notices',
-      'Enable cross-agent session handoff'
+      'Enable cross-agent session handoff',
+      'Keep Lumora running after closing the window'
     ];
     const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
     expect(panel).toHaveClass('catalog-panel', 'general-settings-panel');
     expect(header).toHaveClass('provider-panel-header');
-    for (const name of switches.slice(0, -1)) {
+    for (const name of switches.slice(0, 4)) {
       expect(screen.getByRole('switch', { name })).toBeChecked();
     }
     expect(screen.getByRole('switch', {
       name: 'Enable cross-agent session handoff'
+    })).not.toBeChecked();
+    expect(screen.getByRole('switch', {
+      name: 'Keep Lumora running after closing the window'
     })).not.toBeChecked();
     expect(screen.getByRole('combobox', {
       name: 'Temporary handoff retention'
@@ -58,6 +62,14 @@ describe('GeneralSettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       crossAgentWorkflowEnabled: true
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Keep Lumora running after closing the window'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      windowCloseBehavior: 'hide_to_tray'
     });
   });
 

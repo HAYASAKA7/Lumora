@@ -9,13 +9,20 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   net,
   protocol,
   screen,
-  shell
+  shell,
+  Tray
 } from 'electron';
+import type { MenuItemConstructorOptions } from 'electron';
 
-import { IPC_CHANNELS, PlatformSchema } from '../shared/contracts';
+import {
+  IPC_CHANNELS,
+  PlatformSchema,
+  TrayResumeSessionRequestSchema
+} from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
 import {
   createCatalogRuntime,
@@ -42,6 +49,10 @@ import { createProviderPolicy } from './providers/provider-policy';
 import { ProviderScanCoordinator } from './providers/provider-scan-coordinator';
 import { createProviderUpdateService } from './providers/provider-update-service';
 import { getRuntimePaths } from './runtime-paths';
+import {
+  createTrayController,
+  type TrayController
+} from './tray-controller';
 import {
   createTerminalRuntime,
   type TerminalRuntime
@@ -71,11 +82,12 @@ import {
   loadWindowRestore,
   type WindowStateManager
 } from './window-state';
+import { resolveWindowCloseAction } from './window-close-policy';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
 const platform = PlatformSchema.parse(process.platform);
-const { preloadPath, rendererRoot, windowIconPath } = getRuntimePaths(
+const { preloadPath, rendererRoot, windowIconPath, trayIconPath } = getRuntimePaths(
   currentDirectory,
   {
     platform,
@@ -143,6 +155,7 @@ let activeStartupBackgroundActivity:
   | null = null;
 let pendingWindowStateFlush: Promise<void> = Promise.resolve();
 let activeStartupBackgroundActivityId: number | null = null;
+let trayController: TrayController | null = null;
 let shutdownStarted = false;
 
 configureDevelopmentDataPaths(app);
@@ -231,6 +244,23 @@ async function createMainWindow({
     window.show();
     startupPresentation.markWindowShown();
   });
+  window.on('show', () => trayController?.refresh());
+  window.on('hide', () => trayController?.refresh());
+  window.on('close', (event) => {
+    const closeAction = resolveWindowCloseAction({
+      shutdownStarted,
+      behavior:
+        terminalRuntime?.getGeneralSettings().windowCloseBehavior ?? 'quit'
+    });
+    if (closeAction === 'allow') return;
+
+    event.preventDefault();
+    if (closeAction === 'hide') {
+      window.hide();
+      return;
+    }
+    app.quit();
+  });
   window.on('closed', () => {
     startupBackgroundActivity.dispose();
     if (activeStartupBackgroundActivity === startupBackgroundActivity) {
@@ -274,7 +304,60 @@ const mainWindowCreation = createSingleWindowCreationGate({
   create: createMainWindow
 });
 
-void app.whenReady().then(async () => {
+function createApplicationTray(): void {
+  if (trayController !== null || trayIconPath === undefined) return;
+  const trayImage = nativeImage.createFromPath(trayIconPath);
+  if (trayImage.isEmpty()) {
+    console.error('Lumora could not load its tray icon.', trayIconPath);
+    return;
+  }
+  trayImage.setTemplateImage(platform === 'darwin');
+  const tray = new Tray(trayImage);
+  trayController = createTrayController({
+    tray,
+    buildMenu: (template) => Menu.buildFromTemplate(
+      template as MenuItemConstructorOptions[]
+    ),
+    getState: () => ({
+      windowVisible: mainWindow?.isVisible() ?? false,
+      runtimes: terminalRuntime?.listRuntimes() ?? [],
+      sessions: catalogRuntime?.service.getCatalog().sessions ?? []
+    }),
+    onShowWindow: () => {
+      void showOrCreateMainWindow();
+    },
+    onToggleWindow: () => {
+      if (mainWindow !== null && mainWindow.isVisible()) {
+        mainWindow.hide();
+        return;
+      }
+      void showOrCreateMainWindow();
+    },
+    onResumeSession: (sessionId) => {
+      const request = TrayResumeSessionRequestSchema.parse({ sessionId });
+      void showOrCreateMainWindow().then(() => {
+        if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send(
+            IPC_CHANNELS.trayResumeSession,
+            request
+          );
+        }
+      });
+    },
+    onExit: () => app.quit()
+  });
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    void showOrCreateMainWindow();
+  });
+}
+
+if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   applicationEnvironment = await resolveApplicationEnvironment({
     platform,
     env: process.env
@@ -346,6 +429,7 @@ void app.whenReady().then(async () => {
       refreshCatalog: async () => {
         await catalogRuntime!.service.refreshCatalog();
         terminalRuntime!.synchronizeCatalogSessions();
+        trayController?.refresh();
       },
       freeDiskBytes: async (path) => {
         const filesystem = await statfs(path);
@@ -404,7 +488,10 @@ void app.whenReady().then(async () => {
     ipc: ipcMain,
     service: catalogRuntime.service,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
-    onCatalogRefreshed: () => terminalRuntime!.synchronizeCatalogSessions(),
+    onCatalogRefreshed: () => {
+      terminalRuntime!.synchronizeCatalogSessions();
+      trayController?.refresh();
+    },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerTransferIpc({
@@ -441,6 +528,7 @@ void app.whenReady().then(async () => {
     runtime: terminalRuntime,
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
+      trayController?.refresh();
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.runtimeEvent, event);
       }
@@ -449,13 +537,24 @@ void app.whenReady().then(async () => {
   });
 
   await mainWindowCreation.ensureCreated();
+  createApplicationTray();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void mainWindowCreation.ensureCreated();
-    }
+    void showOrCreateMainWindow();
   });
 });
+
+async function showOrCreateMainWindow(): Promise<void> {
+  await app.whenReady();
+  if (shutdownStarted) return;
+  await mainWindowCreation.ensureCreated();
+  const window = mainWindow;
+  if (window === null || window.isDestroyed()) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  trayController?.refresh();
+}
 
 app.on('before-quit', (event) => {
   if (shutdownStarted) {
@@ -504,6 +603,8 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  trayController?.dispose();
+  trayController = null;
   unsubscribeTerminalEvents?.();
   unsubscribeTerminalEvents = null;
   const transfer = transferRuntime;

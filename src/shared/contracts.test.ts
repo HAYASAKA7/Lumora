@@ -589,6 +589,9 @@ describe('catalog contracts', () => {
     expect(IPC_CHANNELS.catalogGet).toBe('lumora:catalog:get');
     expect(IPC_CHANNELS.catalogRefresh).toBe('lumora:catalog:refresh');
     expect(IPC_CHANNELS.workspaceChoose).toBe('lumora:workspace:choose');
+    expect(IPC_CHANNELS.trayResumeSession).toBe(
+      'lumora:tray:resume-session'
+    );
   });
 });
 
@@ -1160,11 +1163,12 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 3,
+      version: 4,
       showInformationalNotices: true,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
       autoExpandSidebar: true,
+      windowCloseBehavior: 'quit',
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
       enabledProviders: [...PROVIDER_IDS]
@@ -1194,7 +1198,7 @@ describe('managed terminal contracts', () => {
       crossAgentHandoffRetentionDays: 366
     }).success).toBe(false);
     expect(GeneralSettingsSchema.safeParse({
-      version: 3
+      version: 4
     }).success).toBe(false);
     expect(parseStoredGeneralSettings({
       version: 1,
@@ -1218,7 +1222,26 @@ describe('managed terminal contracts', () => {
       autoExpandSidebar: false,
       enabledProviders: ['codex', 'claude']
     });
-    expect(parseStoredGeneralSettings({ version: 4 })).toEqual(
+    expect(parseStoredGeneralSettings({
+      version: 3,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['claude', 'codex']
+    })).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['codex', 'claude']
+    });
+    expect(parseStoredGeneralSettings({ version: 5 })).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
   });

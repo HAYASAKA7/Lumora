@@ -244,6 +244,12 @@ Window size and maximized state are stored separately in `window-state.json`.
 Development builds append `-dev` to the default application-data path so they
 do not share data with an installed package.
 
+Window-close behavior is stored with General settings. In hide-to-tray mode the
+main window remains alive, preserving the renderer and managed PTYs. Explicit
+Exit still follows the normal shutdown path and terminates managed runtimes
+before closing storage. A single-instance lock restores the existing hidden
+window when Lumora is launched again.
+
 Cross-agent copies live outside SQLite under a dedicated `handoffs` directory
 inside `userData`. Each directory contains the immutable source copy,
 normalized context chunks, and a manifest. Startup and settings changes run
@@ -287,6 +293,12 @@ Lumora uses platform-specific application icons and native packaging targets.
 Windows and Linux remove the default application menu. macOS retains the native
 menu in the system menu bar. Window bounds are restored only when they still fit
 an available display, and maximized state is persisted independently.
+
+A persistent native tray/status item is created after application startup. Its
+menu is rebuilt when window visibility, terminal runtime state, or catalog data
+changes, so the running-agent count and recent sessions stay current. Selecting
+a recent session restores the existing renderer and opens the same guarded
+resume-confirmation workflow used inside the app.
 
 ## Intentional future scope
 

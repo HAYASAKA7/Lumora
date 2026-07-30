@@ -29,6 +29,10 @@ describe('getRuntimePaths', () => {
       windowIconPath: resolve(
         repositoryRoot,
         'resources/icons/lumora/windows/LumoraTransparent.ico'
+      ),
+      trayIconPath: resolve(
+        repositoryRoot,
+        'resources/icons/lumora/windows/LumoraTransparent.ico'
       )
     });
   });
@@ -43,9 +47,16 @@ describe('getRuntimePaths', () => {
         resourcesPath
       }).windowIconPath
     ).toBe(resolve(resourcesPath, 'icons/LumoraTransparent.ico'));
+    expect(
+      getRuntimePaths(resolve('app/out/main'), {
+        platform: 'win32',
+        packaged: true,
+        resourcesPath
+      }).trayIconPath
+    ).toBe(resolve(resourcesPath, 'icons/LumoraTransparent.ico'));
   });
 
-  it('does not set a window icon on macOS or Linux', () => {
+  it('uses platform-native tray artwork on macOS and Linux', () => {
     const mainOutputDirectory = resolve('out/main');
     const resourcesPath = resolve('packaged-resources');
 
@@ -58,10 +69,26 @@ describe('getRuntimePaths', () => {
     ).toBeUndefined();
     expect(
       getRuntimePaths(mainOutputDirectory, {
+        platform: 'darwin',
+        packaged: false,
+        resourcesPath
+      }).trayIconPath
+    ).toBe(resolve(
+      'resources/icons/lumora/macos/menu-bar/LumoraTemplate.png'
+    ));
+    expect(
+      getRuntimePaths(mainOutputDirectory, {
         platform: 'linux',
         packaged: false,
         resourcesPath
       }).windowIconPath
     ).toBeUndefined();
+    expect(
+      getRuntimePaths(mainOutputDirectory, {
+        platform: 'linux',
+        packaged: true,
+        resourcesPath
+      }).trayIconPath
+    ).toBe(resolve(resourcesPath, 'icons/lumora-tray.png'));
   });
 });

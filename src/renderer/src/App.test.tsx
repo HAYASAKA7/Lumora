@@ -262,6 +262,9 @@ interface CatalogApiOverrides {
   onRuntimeEvent?: (
     listener: (event: RuntimeEvent) => void
   ) => () => void;
+  onTrayResumeSessionRequested?: (
+    listener: (sessionId: string) => void
+  ) => () => void;
   getTransferCapabilities?: ReturnType<typeof vi.fn>;
   prepareSessionExport?: ReturnType<typeof vi.fn>;
   executeSessionExport?: ReturnType<typeof vi.fn>;
@@ -346,6 +349,9 @@ function setSystemInfoResult(
       terminateRuntime: vi.fn(),
       onRuntimeEvent:
         catalogApi.onRuntimeEvent ?? vi.fn(() => () => undefined),
+      onTrayResumeSessionRequested:
+        catalogApi.onTrayResumeSessionRequested ??
+        vi.fn(() => () => undefined),
       getTransferCapabilities:
         catalogApi.getTransferCapabilities ?? vi.fn().mockResolvedValue([]),
       prepareSessionExport: catalogApi.prepareSessionExport ?? vi.fn(),
@@ -1836,6 +1842,36 @@ describe('App', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Codex')).toBeInTheDocument();
+    expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+  });
+
+  it('opens the normal resume confirmation when the tray requests a recent session', async () => {
+    let requestResume!: (sessionId: string) => void;
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined)),
+      onTrayResumeSessionRequested: vi.fn((listener) => {
+        requestResume = listener;
+        return () => undefined;
+      })
+    });
+    render(<App />);
+    await screen.findByRole('button', { name: 'Resume' });
+
+    act(() => requestResume(readyCatalog.sessions[0]!.id));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
+    expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
   });
 

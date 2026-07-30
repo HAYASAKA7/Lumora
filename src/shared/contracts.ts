@@ -633,6 +633,32 @@ const EnabledProviderIdsSchema = z
   );
 
 export const GeneralSettingsSchema = z.strictObject({
+  version: z.literal(4),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema
+});
+
+export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
+
+export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
+  version: 4,
+  showInformationalNotices: true,
+  startMaximized: true,
+  checkProviderUpdatesAutomatically: true,
+  autoExpandSidebar: true,
+  windowCloseBehavior: 'quit',
+  crossAgentWorkflowEnabled: false,
+  crossAgentHandoffRetentionDays: 30,
+  enabledProviders: [...PROVIDER_IDS]
+};
+
+const VersionThreeGeneralSettingsSchema = z.strictObject({
   version: z.literal(3),
   showInformationalNotices: z.boolean(),
   startMaximized: z.boolean(),
@@ -642,19 +668,6 @@ export const GeneralSettingsSchema = z.strictObject({
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema
 });
-
-export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
-
-export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 3,
-  showInformationalNotices: true,
-  startMaximized: true,
-  checkProviderUpdatesAutomatically: true,
-  autoExpandSidebar: true,
-  crossAgentWorkflowEnabled: false,
-  crossAgentHandoffRetentionDays: 30,
-  enabledProviders: [...PROVIDER_IDS]
-};
 
 const VersionTwoGeneralSettingsSchema = z.strictObject({
   version: z.literal(2),
@@ -674,12 +687,21 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionThree = VersionThreeGeneralSettingsSchema.safeParse(value);
+  if (versionThree.success) {
+    return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      ...versionThree.data,
+      version: 4
+    });
+  }
+
   const versionTwo = VersionTwoGeneralSettingsSchema.safeParse(value);
   if (versionTwo.success) {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 3
+      version: 4
     });
   }
 
@@ -961,6 +983,14 @@ export const StartupPresentationCompletionSchema = z.strictObject({
   acknowledged: z.literal(true)
 });
 
+export const TrayResumeSessionRequestSchema = z.strictObject({
+  sessionId: StableIdSchema
+});
+
+export type TrayResumeSessionRequest = z.infer<
+  typeof TrayResumeSessionRequestSchema
+>;
+
 export const ClipboardWriteResultSchema = z.strictObject({
   accepted: z.literal(true)
 });
@@ -981,6 +1011,7 @@ export const IPC_CHANNELS = {
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
   workspaceChoose: 'lumora:workspace:choose',
+  trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
@@ -1033,6 +1064,9 @@ export interface LumoraApi {
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   chooseWorkspace(): Promise<CatalogSnapshot | null>;
+  onTrayResumeSessionRequested(
+    listener: (sessionId: string) => void
+  ): () => void;
   readClipboardText(): Promise<string>;
   writeClipboardText(text: string): Promise<void>;
   getTerminalProfiles(): Promise<TerminalProfile[]>;

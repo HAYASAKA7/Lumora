@@ -9,11 +9,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.1] - 2026-07-30
 
+### Added
+
+- Add a native Lumora tray/menu-bar icon with platform-appropriate visible
+  artwork, live running-agent count, recent session shortcuts, window show/hide
+  control, and an explicit orderly exit.
+- Add a General settings switch that chooses whether closing the window exits
+  Lumora or hides it while keeping managed agents running.
+
 ### Changed
 
 - Remove the static topbar provider-discovery badge, which did not report live
   scan state or provide an action. Dynamic discovery health remains available
   on the Home page and in provider settings.
+- Reopening Lumora while another instance is hidden now restores and focuses
+  the existing window instead of starting a second application process.
 
 ### Fixed
 

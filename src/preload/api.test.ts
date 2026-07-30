@@ -444,6 +444,29 @@ describe('createLumoraApi', () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it('validates tray resume-session events before exposing them', () => {
+    const sessionId = 'a'.repeat(64);
+    let receiver: ((value: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(
+      vi.fn(),
+      (channel, listener) => {
+        expect(channel).toBe(IPC_CHANNELS.trayResumeSession);
+        receiver = listener;
+        return unsubscribe;
+      }
+    );
+    const listener = vi.fn();
+
+    const remove = api.onTrayResumeSessionRequested(listener);
+    receiver!({ sessionId });
+
+    expect(listener).toHaveBeenCalledWith(sessionId);
+    expect(() => receiver!({ sessionId: 'unsafe' })).toThrow();
+    remove();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
   it('uses narrow channels for provider launch configuration', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {

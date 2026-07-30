@@ -101,6 +101,34 @@ export function GeneralSettingsPanel({
 
       <label className="general-setting-card">
         <span className="general-setting-copy">
+          <strong>Keep Lumora running after closing the window</strong>
+          <span id="general-window-close-description">
+            Hide Lumora in the tray instead of exiting and stopping managed agents.
+          </span>
+        </span>
+        <span className="settings-switch">
+          <input
+            aria-describedby="general-window-close-description"
+            aria-label="Keep Lumora running after closing the window"
+            checked={settings.windowCloseBehavior === 'hide_to_tray'}
+            disabled={saving}
+            onChange={(event) => onChange({
+              ...settings,
+              windowCloseBehavior: event.currentTarget.checked
+                ? 'hide_to_tray'
+                : 'quit'
+            })}
+            role="switch"
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="settings-switch-track">
+            <span className="settings-switch-thumb" />
+          </span>
+        </span>
+      </label>
+
+      <label className="general-setting-card">
+        <span className="general-setting-copy">
           <strong>Temporary handoff retention</strong>
           <span id="general-handoff-retention-description">
             Automatically delete Lumora's managed session copies after this time.

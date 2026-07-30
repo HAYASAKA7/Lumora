@@ -18,6 +18,12 @@ forceCodeSigning: false
 extraResources:
   - from: resources/icons/lumora/windows/LumoraTransparent.ico
     to: icons/LumoraTransparent.ico
+  - from: resources/icons/lumora/macos/menu-bar/LumoraTemplate.png
+    to: icons/LumoraTemplate.png
+  - from: resources/icons/lumora/macos/menu-bar/LumoraTemplate@2x.png
+    to: icons/LumoraTemplate@2x.png
+  - from: resources/icons/lumora/linux/usr/share/icons/hicolor/22x22/apps/lumora.png
+    to: icons/lumora-tray.png
 
 extraMetadata:
   desktopName: app.lumora.desktop

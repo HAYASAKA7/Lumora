@@ -49,6 +49,7 @@ import {
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
   TerminalLinkOpenRequestSchema,
+  TrayResumeSessionRequestSchema,
   WorkspaceSummarySchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
@@ -135,6 +136,11 @@ export function createLumoraApi(
     async chooseWorkspace() {
       const value = await invoke(IPC_CHANNELS.workspaceChoose);
       return value === null ? null : CatalogSnapshotSchema.parse(value);
+    },
+    onTrayResumeSessionRequested(listener) {
+      return subscribe(IPC_CHANNELS.trayResumeSession, (value) => {
+        listener(TrayResumeSessionRequestSchema.parse(value).sessionId);
+      });
     },
     async readClipboardText() {
       const value = await invoke(IPC_CHANNELS.clipboardTextRead);

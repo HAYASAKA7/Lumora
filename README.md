@@ -242,6 +242,11 @@ Choose startup and navigation behavior, informational notices, and enabled
 providers. Cross-agent session handoff is off by default. When enabled, its
 retention setting controls when Lumora removes temporary managed copies.
 
+Lumora also has a native tray or menu-bar icon. You can choose whether closing
+the window exits Lumora and its managed agents, or hides the window while they
+continue running. The tray menu can restore Lumora, show the number of running
+agents, open a recent session's normal resume confirmation, or exit Lumora.
+
 ### Providers and environment
 
 Review installation status and versions, install or update supported npm-based

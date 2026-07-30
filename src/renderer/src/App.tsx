@@ -945,6 +945,48 @@ export default function App(): ReactNode {
     [workspaceDetailStatus]
   );
 
+  useEffect(() => {
+    let current = true;
+    const unsubscribe = window.lumora.onTrayResumeSessionRequested(
+      (sessionId) => {
+        void window.lumora.getCatalog(EMPTY_CATALOG_QUERY).then(
+          (snapshot) => {
+            if (!current) return;
+            const session = snapshot.sessions.find(
+              (candidate) => candidate.id === sessionId
+            );
+            const workspace = session === undefined
+              ? undefined
+              : snapshot.workspaces.find(
+                  (candidate) => candidate.id === session.workspaceId
+                );
+            if (session === undefined || workspace === undefined) {
+              setCatalogOperationError(
+                'The selected recent session is no longer available.'
+              );
+              return;
+            }
+            setCatalogOperationError(null);
+            setNewSessionIntent(null);
+            setRecoveryRuntime(null);
+            setResumeIntent({ session, workspace });
+          },
+          () => {
+            if (current) {
+              setCatalogOperationError(
+                'The selected recent session could not be loaded.'
+              );
+            }
+          }
+        );
+      }
+    );
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, []);
+
   const openRuntimes = openRuntimeIds
     .map((id) => runtimes.find((runtime) => runtime.id === id))
     .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
