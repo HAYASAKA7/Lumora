@@ -7,6 +7,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve POSIX nested workspace paths when importing Claude Code sessions on
+  macOS and Linux, and keep transfer dialog path verification platform-native.
+
 ## [0.2.0] - 2026-07-30
 
 ### Added

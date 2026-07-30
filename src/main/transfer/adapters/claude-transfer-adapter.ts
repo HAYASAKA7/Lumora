@@ -145,7 +145,7 @@ function nativeMetadata(raw: string): ClaudeNativeMetadata {
 }
 
 function portablePathApi(value: string): typeof win32 | typeof posix {
-  return win32.isAbsolute(value) ? win32 : posix;
+  return posix.isAbsolute(value) ? posix : win32;
 }
 
 function relativeToWorkspace(workspacePath: string, candidatePath: string): string | null {

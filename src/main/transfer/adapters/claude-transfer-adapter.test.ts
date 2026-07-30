@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -198,6 +198,72 @@ describe('Claude transfer adapter', () => {
       .map((line) => JSON.parse(line));
     expect(records.map((record) => record.cwd)).toContain(
       join(destinationWorkspace, 'packages', 'desktop')
+    );
+  });
+
+  it('preserves POSIX path semantics while mapping nested working directories', async () => {
+    const portableSourceWorkspace = '/Users/dev/Source Workspace';
+    const portableDestinationWorkspace = '/Users/dev/Destination Workspace';
+    const portableSourcePath = join(
+      configRoot,
+      'projects',
+      claudeProjectDirectoryName(portableSourceWorkspace),
+      `${nativeSessionId}.jsonl`
+    );
+    const portablePayload = [
+      JSON.stringify({
+        sessionId: nativeSessionId,
+        cwd: portableSourceWorkspace,
+        type: 'system',
+        customTitle: 'Transfer me'
+      }),
+      JSON.stringify({
+        sessionId: nativeSessionId,
+        cwd: posix.join(portableSourceWorkspace, 'packages', 'desktop'),
+        type: 'assistant'
+      })
+    ].join('\n') + '\n';
+    await mkdir(dirname(portableSourcePath), { recursive: true });
+    await writeFile(portableSourcePath, portablePayload);
+    const exportDirectory = join(root, 'posix-export');
+    const importDirectory = join(root, 'posix-import');
+    await mkdir(exportDirectory);
+    await mkdir(importDirectory);
+    const adapter = createClaudeTransferAdapter({
+      configRoot,
+      discoverSessions: async () => discovery()
+    });
+
+    const payload = await adapter.exportSession({
+      installation,
+      nativeSessionId,
+      sourceKeys: [portableSourcePath],
+      expectedWorkspacePath: portableSourceWorkspace,
+      expectedTitle: 'Transfer me',
+      stagingDirectory: exportDirectory
+    });
+    const inspection = await adapter.inspectImport({
+      payloadPath: payload.payloadPath
+    });
+    await adapter.importSession({
+      installation,
+      inspection,
+      destinationWorkspacePath: portableDestinationWorkspace,
+      stagingDirectory: importDirectory
+    });
+
+    const destinationPath = join(
+      configRoot,
+      'projects',
+      claudeProjectDirectoryName(portableDestinationWorkspace),
+      `${nativeSessionId}.jsonl`
+    );
+    const records = (await readFile(destinationPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(records.map((record) => record.cwd)).toContain(
+      posix.join(portableDestinationWorkspace, 'packages', 'desktop')
     );
   });
 

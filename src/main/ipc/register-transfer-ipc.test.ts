@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { IPC_CHANNELS } from '../../shared/contracts';
@@ -240,8 +242,10 @@ describe('registerTransferIpc', () => {
     ).resolves.toBeNull();
 
     expect(harness.showSaveDialog).toHaveBeenCalledWith({
-      defaultPath:
-        'D:\\Exports\\Lumora-Sessions-2026-07-29.lumora-sessions',
+      defaultPath: join(
+        'D:\\Exports',
+        'Lumora-Sessions-2026-07-29.lumora-sessions'
+      ),
       filters: [
         { name: 'Lumora Sessions', extensions: ['lumora-sessions'] }
       ],
