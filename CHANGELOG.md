@@ -9,6 +9,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.1] - 2026-07-30
 
+### Changed
+
+- Remove the static topbar provider-discovery badge, which did not report live
+  scan state or provide an action. Dynamic discovery health remains available
+  on the Home page and in provider settings.
+
 ### Fixed
 
 - Open confirmed HTTP(S) hyperlinks from managed terminals in the user's
