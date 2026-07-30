@@ -55,6 +55,42 @@ export const ExternalOpenResultSchema = z.strictObject({
   opened: z.literal(true)
 });
 
+const ExternalHttpUrlSchema = z
+  .string()
+  .min(1)
+  .max(2_048)
+  .transform((value, context) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      context.addIssue({
+        code: 'custom',
+        message: 'The external link must be an absolute URL.'
+      });
+      return z.NEVER;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      context.addIssue({
+        code: 'custom',
+        message: 'Only HTTP(S) external links are allowed.'
+      });
+      return z.NEVER;
+    }
+    if (parsed.username.length > 0 || parsed.password.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        message: 'External links cannot contain credentials.'
+      });
+      return z.NEVER;
+    }
+    return parsed.href;
+  });
+
+export const TerminalLinkOpenRequestSchema = z.strictObject({
+  url: ExternalHttpUrlSchema
+});
+
 export type DeveloperToolStatus = z.infer<typeof DeveloperToolStatusSchema>;
 export type DeveloperEnvironmentScanResult = z.infer<
   typeof DeveloperEnvironmentScanResultSchema
@@ -968,6 +1004,7 @@ export const IPC_CHANNELS = {
   runtimeWrite: 'lumora:terminal:runtime:write',
   runtimeResize: 'lumora:terminal:runtime:resize',
   runtimeTerminate: 'lumora:terminal:runtime:terminate',
+  terminalLinkOpen: 'lumora:terminal:link:open',
   runtimeEvent: 'lumora:terminal:runtime:event',
   transferCapabilitiesGet: 'lumora:transfer:capabilities:get',
   transferExportPrepare: 'lumora:transfer:export:prepare',
@@ -1027,6 +1064,7 @@ export interface LumoraApi {
   writeRuntime(input: RuntimeWriteRequest): Promise<void>;
   resizeRuntime(input: RuntimeResizeRequest): Promise<void>;
   terminateRuntime(runtimeId: string): Promise<RuntimeSummary>;
+  openTerminalLink(url: string): Promise<void>;
   onRuntimeEvent(listener: (event: RuntimeEvent) => void): () => void;
   getTransferCapabilities(): Promise<SessionTransferCapability[]>;
   prepareSessionExport(

@@ -76,6 +76,18 @@ export function ManagedTerminal({
             foreground: '#d8e2ef',
             cursor: '#7aa2ff',
             selectionBackground: '#294b78'
+          },
+          linkHandler: {
+            activate: (_event, uri) => {
+              const confirmed = window.confirm(
+                `Open this link in your default browser?\n\n${uri}`
+              );
+              if (!confirmed || !alive) return;
+              setError(null);
+              void window.lumora.openTerminalLink(uri).catch(() => {
+                if (alive) setError('The terminal link could not be opened.');
+              });
+            }
           }
         });
         const fitAddon = new FitAddon();

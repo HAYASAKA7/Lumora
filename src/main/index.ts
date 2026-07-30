@@ -439,6 +439,7 @@ void app.whenReady().then(async () => {
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
     runtime: terminalRuntime,
+    openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.runtimeEvent, event);

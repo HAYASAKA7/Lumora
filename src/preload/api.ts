@@ -48,6 +48,7 @@ import {
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
+  TerminalLinkOpenRequestSchema,
   WorkspaceSummarySchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
@@ -247,6 +248,11 @@ export function createLumoraApi(
       const request = RuntimeIdRequestSchema.parse({ runtimeId });
       const value = await invoke(IPC_CHANNELS.runtimeTerminate, request);
       return RuntimeSummarySchema.parse(value);
+    },
+    async openTerminalLink(url) {
+      const request = TerminalLinkOpenRequestSchema.parse({ url });
+      const value = await invoke(IPC_CHANNELS.terminalLinkOpen, request);
+      ExternalOpenResultSchema.parse(value);
     },
     onRuntimeEvent(listener) {
       return subscribe(IPC_CHANNELS.runtimeEvent, (value) => {

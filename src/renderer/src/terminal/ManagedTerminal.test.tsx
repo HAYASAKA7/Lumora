@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   LumoraApi,
@@ -21,6 +21,11 @@ const xterm = vi.hoisted(() => ({
   hasSelection: vi.fn(),
   pasteTerminal: vi.fn(),
   textarea: null as HTMLTextAreaElement | null,
+  terminalOptions: null as {
+    linkHandler?: {
+      activate(event: MouseEvent, uri: string): void;
+    };
+  } | null,
   terminalConstructed: vi.fn(),
   terminalWrite: vi.fn()
 }));
@@ -34,8 +39,13 @@ vi.mock('@xterm/addon-fit', () => ({
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     textarea: HTMLTextAreaElement | undefined;
-    constructor() {
+    constructor(options?: {
+      linkHandler?: {
+        activate(event: MouseEvent, uri: string): void;
+      };
+    }) {
       xterm.terminalConstructed();
+      xterm.terminalOptions = options ?? null;
       this.textarea = xterm.textarea ?? undefined;
     }
     parser = { registerOscHandler: vi.fn() };
@@ -78,6 +88,7 @@ type RuntimeApi = Pick<
   LumoraApi,
   | 'attachRuntime'
   | 'onRuntimeEvent'
+  | 'openTerminalLink'
   | 'readClipboardText'
   | 'resizeRuntime'
   | 'terminateRuntime'
@@ -113,6 +124,7 @@ function installLumora(overrides: Partial<RuntimeApi> = {}): RuntimeApi {
       outputSequence: 0
     }),
     onRuntimeEvent: vi.fn(() => () => undefined),
+    openTerminalLink: vi.fn().mockResolvedValue(undefined),
     readClipboardText: vi.fn().mockResolvedValue(''),
     resizeRuntime: vi.fn().mockResolvedValue(undefined),
     terminateRuntime: vi.fn().mockResolvedValue({
@@ -145,14 +157,105 @@ function clipboardKey(
 }
 
 describe('ManagedTerminal', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     xterm.customKeyEventHandler = null;
     xterm.dataHandler = null;
     xterm.resizeHandler = null;
+    xterm.terminalOptions = null;
     xterm.textarea = document.createElement('textarea');
     xterm.hasSelection.mockReturnValue(false);
     xterm.getSelection.mockReturnValue('');
+  });
+
+  it('opens confirmed terminal hyperlinks through the Lumora bridge', async () => {
+    const openTerminalLink = vi.fn().mockResolvedValue(undefined);
+    installLumora({ openTerminalLink });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() =>
+      expect(xterm.terminalOptions?.linkHandler).toBeDefined()
+    );
+
+    act(() => {
+      xterm.terminalOptions!.linkHandler!.activate(
+        new MouseEvent('click'),
+        'https://example.com/docs'
+      );
+    });
+
+    await waitFor(() =>
+      expect(openTerminalLink).toHaveBeenCalledWith(
+        'https://example.com/docs'
+      )
+    );
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it('does not open a terminal hyperlink when confirmation is declined', async () => {
+    const openTerminalLink = vi.fn().mockResolvedValue(undefined);
+    installLumora({ openTerminalLink });
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() =>
+      expect(xterm.terminalOptions?.linkHandler).toBeDefined()
+    );
+
+    act(() => {
+      xterm.terminalOptions!.linkHandler!.activate(
+        new MouseEvent('click'),
+        'https://example.com/docs'
+      );
+    });
+
+    expect(openTerminalLink).not.toHaveBeenCalled();
+  });
+
+  it('reports terminal hyperlink open failures inline', async () => {
+    installLumora({
+      openTerminalLink: vi.fn().mockRejectedValue(new Error('open failed'))
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="linux"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() =>
+      expect(xterm.terminalOptions?.linkHandler).toBeDefined()
+    );
+
+    act(() => {
+      xterm.terminalOptions!.linkHandler!.activate(
+        new MouseEvent('click'),
+        'https://example.com/docs'
+      );
+    });
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The terminal link could not be opened.'
+    );
   });
 
   it('fills the available fixed terminal viewport', () => {

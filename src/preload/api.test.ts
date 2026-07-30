@@ -392,6 +392,7 @@ describe('createLumoraApi', () => {
         invocations.push({ channel, args });
         if (channel === IPC_CHANNELS.terminalProfilesGet) return [profile];
         if (channel === IPC_CHANNELS.runtimeWrite) return { accepted: true };
+        if (channel === IPC_CHANNELS.terminalLinkOpen) return { opened: true };
         throw new Error(`Unexpected channel ${channel}`);
       },
       (channel, receiver) => {
@@ -403,11 +404,18 @@ describe('createLumoraApi', () => {
 
     await expect(api.getTerminalProfiles()).resolves.toEqual([profile]);
     await expect(api.writeRuntime({ runtimeId, data: 'hello' })).resolves.toBeUndefined();
+    await expect(
+      api.openTerminalLink('https://example.com/docs')
+    ).resolves.toBeUndefined();
     expect(invocations).toEqual([
       { channel: IPC_CHANNELS.terminalProfilesGet, args: [] },
       {
         channel: IPC_CHANNELS.runtimeWrite,
         args: [{ runtimeId, data: 'hello' }]
+      },
+      {
+        channel: IPC_CHANNELS.terminalLinkOpen,
+        args: [{ url: 'https://example.com/docs' }]
       }
     ]);
 
@@ -419,6 +427,21 @@ describe('createLumoraApi', () => {
     });
     remove();
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('rejects unsafe terminal links before invoking IPC', async () => {
+    const invoke = vi.fn();
+    const api = createLumoraApi(invoke);
+
+    for (const url of [
+      'file:///tmp/session',
+      'javascript:alert(1)',
+      'https://user:secret@example.com/private',
+      'not a url'
+    ]) {
+      await expect(api.openTerminalLink(url)).rejects.toBeDefined();
+    }
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('uses narrow channels for provider launch configuration', async () => {

@@ -18,6 +18,8 @@ import {
   RuntimeStartRequestSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
+  ExternalOpenResultSchema,
+  TerminalLinkOpenRequestSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
   WorkspaceTrustDecisionListSchema,
@@ -73,6 +75,7 @@ interface RegisterTerminalIpcDependencies {
   ipc: IpcRegistrar;
   runtime: TerminalIpcRuntime;
   sendRuntimeEvent(event: RuntimeEvent): void;
+  openExternal(url: string): Promise<unknown>;
   developmentOrigin?: string;
 }
 
@@ -118,6 +121,7 @@ export function registerTerminalIpc({
   ipc,
   runtime,
   sendRuntimeEvent,
+  openExternal,
   developmentOrigin
 }: RegisterTerminalIpcDependencies): () => void {
   ipc.handle(IPC_CHANNELS.terminalProfilesGet, async (event) => {
@@ -269,6 +273,14 @@ export function registerTerminalIpc({
     return privileged(async () =>
       RuntimeSummarySchema.parse(await runtime.terminateRuntime(request.runtimeId))
     );
+  });
+  ipc.handle(IPC_CHANNELS.terminalLinkOpen, async (event, input) => {
+    assertTrusted(event, developmentOrigin);
+    const request = TerminalLinkOpenRequestSchema.parse(input);
+    return privileged(async () => {
+      await openExternal(request.url);
+      return ExternalOpenResultSchema.parse({ opened: true });
+    });
   });
 
   return runtime.subscribe((value) => {

@@ -48,6 +48,7 @@ const trustDecision = {
 function createHarness() {
   const handlers = new Map<string, Handler>();
   let eventListener: ((event: RuntimeEvent) => void) | null = null;
+  const openExternal = vi.fn().mockResolvedValue(undefined);
   const runtimeService = {
     getProfiles: vi.fn(() => []),
     saveProfile: vi.fn(async () => []),
@@ -89,10 +90,12 @@ function createHarness() {
   registerTerminalIpc({
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     runtime: runtimeService,
-    sendRuntimeEvent
+    sendRuntimeEvent,
+    openExternal
   });
   return {
     handlers,
+    openExternal,
     runtimeService,
     sendRuntimeEvent,
     emit(event: RuntimeEvent) { eventListener?.(event); }
@@ -102,7 +105,7 @@ function createHarness() {
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerTerminalIpc', () => {
-  it('registers the twenty-one explicit terminal operations', () => {
+  it('registers the explicit terminal operations', () => {
     const { handlers } = createHarness();
     const channels = IPC_CHANNELS as typeof IPC_CHANNELS & {
       providerLaunchConfigsGet: string;
@@ -129,8 +132,45 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.runtimeAttach,
       IPC_CHANNELS.runtimeWrite,
       IPC_CHANNELS.runtimeResize,
-      IPC_CHANNELS.runtimeTerminate
+      IPC_CHANNELS.runtimeTerminate,
+      IPC_CHANNELS.terminalLinkOpen
     ]);
+  });
+
+  it('opens only validated HTTP(S) terminal links for trusted renderers', async () => {
+    const { handlers, openExternal } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.terminalLinkOpen)!;
+
+    await expect(
+      handler(trustedEvent, { url: 'https://example.com/docs?q=lumora#start' })
+    ).resolves.toEqual({ opened: true });
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://example.com/docs?q=lumora#start'
+    );
+
+    for (const url of [
+      'file:///C:/Windows/System32/calc.exe',
+      'javascript:alert(1)',
+      'https://user:secret@example.com/private',
+      'not a url'
+    ]) {
+      await expect(
+        Promise.resolve().then(() => handler(trustedEvent, { url }))
+      ).rejects.toBeDefined();
+    }
+    expect(openExternal).toHaveBeenCalledOnce();
+  });
+
+  it('does not open terminal links for untrusted renderers', async () => {
+    const { handlers, openExternal } = createHarness();
+
+    await expect(
+      handlers.get(IPC_CHANNELS.terminalLinkOpen)!(
+        { senderFrame: { url: 'https://example.com' } },
+        { url: 'https://openai.com' }
+      )
+    ).rejects.toMatchObject({ code: 'IPC_UNTRUSTED_SENDER' });
+    expect(openExternal).not.toHaveBeenCalled();
   });
 
   it('validates and forwards workspace trust operations', async () => {
