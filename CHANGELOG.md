@@ -12,8 +12,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add guarded cross-device session archives with encrypted-by-default export,
   mixed-provider import, cross-platform workspace mapping, duplicate protection,
   progress, cancellation, and non-sensitive transfer history.
-- Add bulk export selection to All sessions and workspace session lists. Running,
-  stale, unavailable, and unverified provider sessions remain disabled.
+- Add a dedicated export-selection workflow under **Settings > Transfer**.
+  Running, stale, unavailable, and unverified provider sessions remain disabled,
+  while daily session and workspace pages stay focused on normal navigation.
 - Add the first provider-native transfer adapter for OpenCode. Transfer routes
   remain disabled until their exact provider version and operating-system pair
   pass packaged verification.

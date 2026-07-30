@@ -8,52 +8,24 @@ import type {
 } from '../../../shared/contracts';
 
 interface UseSessionExportSelectionInput {
+  capabilities: readonly SessionTransferCapability[];
   sessions: readonly SessionSummary[];
   providerScan: ProviderScanResult | null;
   runningSessionIds: ReadonlySet<string>;
-  loadCapabilities(): Promise<SessionTransferCapability[]>;
 }
 
 export function useSessionExportSelection({
-  loadCapabilities,
+  capabilities,
   providerScan,
   runningSessionIds,
   sessions
 }: UseSessionExportSelectionInput) {
-  const [active, setActive] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [capabilities, setCapabilities] =
-    useState<SessionTransferCapability[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [error, setError] = useState<string | null>(null);
 
-  const begin = useCallback(async () => {
-    setActive(true);
-    setLoading(true);
-    setError(null);
-    try {
-      setCapabilities(await loadCapabilities());
-    } catch {
-      setCapabilities([]);
-      setError('Export support could not be checked.');
-    } finally {
-      setLoading(false);
-    }
-  }, [loadCapabilities]);
-
-  const close = useCallback(() => {
-    setActive(false);
-    setLoading(false);
-    setCapabilities(null);
-    setSelected(new Set());
-    setError(null);
-  }, []);
+  const clear = useCallback(() => setSelected(new Set()), []);
 
   const disabledReason = useCallback(
     (session: SessionSummary): string | null => {
-      if (loading || capabilities === null) {
-        return 'Checking provider export support.';
-      }
       if (runningSessionIds.has(session.id)) {
         return 'Running sessions cannot be exported.';
       }
@@ -74,7 +46,7 @@ export function useSessionExportSelection({
       }
       return null;
     },
-    [capabilities, loading, providerScan, runningSessionIds]
+    [capabilities, providerScan, runningSessionIds]
   );
 
   const toggleSession = useCallback(
@@ -119,13 +91,9 @@ export function useSessionExportSelection({
   );
 
   return {
-    active,
-    begin,
-    close,
+    clear,
     disabledReason,
     eligibleByProvider,
-    error,
-    loading,
     selected,
     toggleProvider,
     toggleSession

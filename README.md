@@ -166,11 +166,11 @@ session remains unchanged.
 ## Move sessions between devices
 
 Lumora includes a guarded export-and-import workflow for provider-native session
-files. From **All sessions** or a workspace detail page, selection mode can
-collect eligible stopped sessions into an encrypted-by-default
-`.lumora-sessions` archive. On the destination device, **Settings > Transfer**
-lets you select installed providers, map source workspaces to existing local
-directories, and review duplicates and other exclusions before import.
+files. Open **Settings > Transfer** to select eligible stopped sessions and
+collect them into an encrypted-by-default `.lumora-sessions` archive. On the
+destination device, the same Transfer page lets you select installed providers,
+map source workspaces to existing local directories, and review duplicates and
+other exclusions before import.
 
 Transfer support is version- and route-specific. Lumora keeps a provider and
 operating-system route disabled until it passes packaged verification; an

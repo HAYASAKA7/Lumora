@@ -52,7 +52,6 @@ import {
   writeSidebarExpanded
 } from './sidebar/sidebar-preference';
 import { StartupOverlay } from './startup/StartupOverlay';
-import { SessionExportDialog } from './transfer/SessionExportDialog';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -373,9 +372,6 @@ export default function App(): ReactNode {
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
     useState<RuntimeSummary | null>(null);
-  const [exportSessionIds, setExportSessionIds] = useState<string[] | null>(
-    null
-  );
   const providerRequestId = useRef(0);
   const environmentRequestId = useRef(0);
   const catalogRequestId = useRef(0);
@@ -1392,19 +1388,13 @@ export default function App(): ReactNode {
                   onBack={closeWorkspaceDetail}
                   onRefresh={refreshWorkspaceDetail}
                   onResume={resumeWorkspaceSession}
-                  onExport={(sessionIds) =>
-                    setExportSessionIds([...sessionIds])
-                  }
-                  onLoadExportCapabilities={() =>
-                    window.lumora.getTransferCapabilities()
-                  }
+
                   onRetry={() => openWorkspaceDetail(selectedWorkspaceId)}
                   operationError={workspaceDetailOperationError}
                   profiles={terminalProfiles}
                   providerScan={
                     providerStatus.state === 'ready' ? providerStatus.scan : null
                   }
-                  runningSessionIds={runningSessionIds}
                   status={workspaceDetailStatus}
                   workspaceId={selectedWorkspaceId}
                 />
@@ -1417,12 +1407,7 @@ export default function App(): ReactNode {
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
                 onResume={resumeCatalogSession}
-                onExport={(sessionIds) =>
-                  setExportSessionIds([...sessionIds])
-                }
-                onLoadExportCapabilities={() =>
-                  window.lumora.getTransferCapabilities()
-                }
+
                 onSearchChange={setSessionSearch}
                 provider={sessionProvider}
                 providerScan={
@@ -1430,7 +1415,6 @@ export default function App(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 queryText={sessionSearch}
-                runningSessionIds={runningSessionIds}
                 showInformationalNotices={
                   generalSettings?.showInformationalNotices ?? false
                 }
@@ -1461,6 +1445,7 @@ export default function App(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 providerStatus={providerStatus}
+                runningSessionIds={runningSessionIds}
                 sessions={
                   visibleCatalogStatus.state === 'ready'
                     ? visibleCatalogStatus.snapshot.sessions
@@ -1546,12 +1531,7 @@ export default function App(): ReactNode {
           workspace={resumeIntent.workspace}
         />
       ) : null}
-      {exportSessionIds !== null ? (
-        <SessionExportDialog
-          onClose={() => setExportSessionIds(null)}
-          sessionIds={exportSessionIds}
-        />
-      ) : null}
+
       {recoveryRuntime !== null && visibleCatalogStatus.state === 'ready' ? (
         <RuntimeRecoveryDialog
           onClose={() => setRecoveryRuntime(null)}

@@ -34,20 +34,18 @@ session.
 
 1. Let each session finish and close its managed terminal. Running sessions are
    disabled because their provider may still be writing data.
-2. Open **All sessions**, or open a workspace and view its session list.
-3. Select **Select sessions to export**.
-4. Select individual sessions, or select all eligible sessions for a provider
-   in that page scope.
-5. Select **Export _n_ sessions**.
-6. Review the provider counts, excluded sessions, and estimated size.
-7. Keep **Encrypt archive** enabled, enter and confirm a password, then choose
+2. Open **Settings > Transfer** and select **Export sessions**.
+3. Filter by provider if needed, then select individual sessions or all eligible
+   sessions for a provider.
+4. Select **Continue with _n_ sessions**.
+5. Review the provider counts, excluded sessions, and estimated size.
+6. Keep **Encrypt archive** enabled, enter and confirm a password, then choose
    where to save the archive.
 
-Search and provider filters do not clear a selection. Leaving the page,
-selecting **Cancel selection**, or opening the export workflow clears selection
-mode. Lumora checks every selected session again before writing the archive, so
-a session that started running, became stale, or changed source is excluded
-safely.
+Provider filtering does not clear the current selection. Selecting **Back** or
+leaving the Transfer workflow clears selection. Lumora checks every selected
+session again before writing the archive, so a session that started running,
+became stale, or changed source is excluded safely.
 
 Encryption is enabled by default and uses authenticated encryption. Lumora
 cannot recover a forgotten archive password. If you turn encryption off,

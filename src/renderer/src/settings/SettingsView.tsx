@@ -51,6 +51,7 @@ interface SettingsViewProps {
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
   providerStatus: ProviderScanStatus;
+  runningSessionIds: ReadonlySet<string>;
   sessions: readonly SessionSummary[];
   workspaces: readonly WorkspaceSummary[];
 }
@@ -83,6 +84,7 @@ export function SettingsView({
   platform,
   profiles,
   providerStatus,
+  runningSessionIds,
   sessions,
   workspaces
 }: SettingsViewProps) {
@@ -253,6 +255,11 @@ export function SettingsView({
         <SessionTransferPanel
           active={activeCategory === 'transfer'}
           onImportCompleted={onSessionImportCompleted}
+          providerScan={
+            providerStatus.state === 'ready' ? providerStatus.scan : null
+          }
+          runningSessionIds={runningSessionIds}
+          sessions={sessions}
           workspaces={workspaces}
         />
       </section>

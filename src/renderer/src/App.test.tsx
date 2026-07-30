@@ -646,13 +646,22 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    await screen.findByText('Catalog implementation');
+    expect(
+      screen.queryByRole('button', { name: 'Select sessions to export' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Transfer' }));
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Select sessions to export' })
+      await screen.findByRole('button', { name: 'Export sessions' })
     );
     fireEvent.click(
       await screen.findByRole('checkbox', { name: 'Catalog implementation' })
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Export 1 session' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue with 1 session' })
+    );
 
     expect(await screen.findByText('1 ready to export')).toBeInTheDocument();
     expect(prepareSessionExport).toHaveBeenCalledWith({

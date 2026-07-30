@@ -134,6 +134,7 @@ function Harness({
       platform="win32"
       profiles={[]}
       providerStatus={{ state: 'loading' }}
+      runningSessionIds={new Set<string>()}
       sessions={[]}
       workspaces={[]}
     />

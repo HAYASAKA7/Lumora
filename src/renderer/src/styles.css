@@ -3642,39 +3642,6 @@ button {
     height: calc(100vh - 20px);
   }
 }
-.session-export-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
-}
-
-.session-export-selection {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
-  margin-top: 16px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.session-export-selection > div:first-child {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.session-export-selection span,
-.session-export-error {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
-.session-export-error {
-  color: #a34040;
-}
 
 .session-export-provider-options {
   display: flex;
@@ -3696,20 +3663,114 @@ button {
   border-radius: 8px;
 }
 
-.session-export-checkbox,
-.workspace-session-export-checkbox {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
+
+.transfer-panel-actions,
+.transfer-export-selection-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.transfer-export-selection {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.transfer-export-selection-header,
+.transfer-export-selection-toolbar,
+.transfer-export-selection-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.transfer-export-selection-header h2 {
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
+.transfer-export-selection-header .card-description {
+  margin: 6px 0 0;
+}
+
+.transfer-export-selection-toolbar {
+  align-items: flex-end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.transfer-export-selection-toolbar > label {
+  display: grid;
+  gap: 6px;
+  min-width: min(240px, 100%);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.transfer-export-selection-toolbar select {
+  width: 100%;
+}
+
+.transfer-export-selection-summary {
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.transfer-export-session-list {
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-export-session-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(120px, auto);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
   cursor: pointer;
 }
 
-.session-export-checkbox {
-  margin-right: 10px;
+.transfer-export-session-row:hover {
+  border-color: var(--line-strong);
 }
 
-.workspace-session-export-checkbox {
-  align-self: center;
+.transfer-export-session-row-disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.transfer-export-session-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transfer-export-session-copy strong,
+.transfer-export-session-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-export-session-copy span,
+.transfer-export-session-state {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.transfer-export-session-state {
+  text-align: right;
 }
 
 .session-export-dialog {
@@ -3808,15 +3869,32 @@ button {
 }
 
 @media (max-width: 700px) {
-  .session-export-selection,
+  .transfer-panel-actions,
+  .transfer-export-selection-actions {
+    justify-content: flex-start;
+  }
+
+  .transfer-export-selection-header,
+  .transfer-export-selection-toolbar,
+  .transfer-export-selection-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .transfer-export-session-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .transfer-export-session-state {
+    grid-column: 2;
+    text-align: left;
+  }
+
   .transfer-password-grid {
     align-items: stretch;
     grid-template-columns: 1fr;
   }
 
-  .session-export-selection {
-    flex-direction: column;
-  }
 
   .session-export-provider-options {
     justify-content: flex-start;

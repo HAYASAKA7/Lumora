@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SessionTransferArchiveSelection } from '../../../shared/contracts';
+import type {
+  ProviderScanResult,
+  SessionSummary,
+  SessionTransferArchiveSelection
+} from '../../../shared/contracts';
 import { SessionTransferPanel } from './SessionTransferPanel';
 
 vi.mock('./SessionTransferDialog', () => ({
@@ -20,6 +24,39 @@ vi.mock('./SessionTransferDialog', () => ({
     </div>
   )
 }));
+
+vi.mock('./SessionExportDialog', () => ({
+  SessionExportDialog: ({ sessionIds }: { sessionIds: readonly string[] }) => (
+    <div>Exporting {sessionIds.join(',')}</div>
+  )
+}));
+
+const session = {
+  id: 'a'.repeat(64),
+  nativeId: 'codex-native',
+  provider: 'codex',
+  workspaceId: 'b'.repeat(64),
+  title: 'Portable Codex session',
+  createdAt: '2026-07-29T10:00:00.000Z',
+  updatedAt: '2026-07-29T12:00:00.000Z',
+  lifetimeTokens: 12_450,
+  lifecycle: 'saved',
+  sourceFreshness: 'current'
+} satisfies SessionSummary;
+
+const providerScan = {
+  scannedAt: '2026-07-29T12:00:00.000Z',
+  providers: [
+    {
+      provider: 'codex',
+      displayName: 'Codex',
+      state: 'ready',
+      executablePath: 'C:\\tools\\codex.exe',
+      version: 'codex 1.0.0',
+      issue: null
+    }
+  ]
+} satisfies ProviderScanResult;
 
 function installApi(): void {
   Object.defineProperty(window, 'lumora', {
@@ -73,6 +110,9 @@ describe('SessionTransferPanel', () => {
       <SessionTransferPanel
         active={false}
         onImportCompleted={vi.fn()}
+        providerScan={providerScan}
+        runningSessionIds={new Set<string>()}
+        sessions={[]}
         workspaces={[]}
       />
     );
@@ -82,6 +122,9 @@ describe('SessionTransferPanel', () => {
       <SessionTransferPanel
         active
         onImportCompleted={vi.fn()}
+        providerScan={providerScan}
+        runningSessionIds={new Set<string>()}
+        sessions={[]}
         workspaces={[]}
       />
     );
@@ -96,6 +139,9 @@ describe('SessionTransferPanel', () => {
       <SessionTransferPanel
         active
         onImportCompleted={onImportCompleted}
+        providerScan={providerScan}
+        runningSessionIds={new Set<string>()}
+        sessions={[]}
         workspaces={[]}
       />
     );
@@ -106,5 +152,36 @@ describe('SessionTransferPanel', () => {
 
     await waitFor(() => expect(onImportCompleted).toHaveBeenCalledOnce());
     expect(window.lumora.getTransferHistory).toHaveBeenCalledTimes(2);
+  });
+  it('owns the complete export entrance and selection workflow', async () => {
+    render(
+      <SessionTransferPanel
+        active
+        onImportCompleted={vi.fn()}
+        providerScan={providerScan}
+        runningSessionIds={new Set<string>()}
+        sessions={[session]}
+        workspaces={[]}
+      />
+    );
+
+    await screen.findByText('Codex');
+    fireEvent.click(screen.getByRole('button', { name: 'Export sessions' }));
+
+    expect(
+      screen.getByRole('heading', { name: 'Choose sessions to export' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Continue with 0 sessions' })
+    ).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Portable Codex session' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue with 1 session' })
+    );
+
+    expect(screen.getByText(`Exporting ${session.id}`)).toBeInTheDocument();
   });
 });

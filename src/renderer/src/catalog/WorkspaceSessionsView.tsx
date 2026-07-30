@@ -3,7 +3,6 @@ import { memo, type ReactNode } from 'react';
 import type {
   ProviderScanResult,
   SessionSummary,
-  SessionTransferCapability,
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
@@ -18,13 +17,8 @@ import {
   providerDefinition
 } from '../../../shared/provider-definitions';
 import { formatLifetimeTokens } from './session-usage';
-import { useSessionExportSelection } from '../transfer/useSessionExportSelection';
 
 const SESSION_BATCH_SIZE = 40;
-const EMPTY_RUNNING_SESSION_IDS: ReadonlySet<string> = new Set();
-const NO_EXPORT_CAPABILITIES = async (): Promise<
-  SessionTransferCapability[]
-> => [];
 
 interface WorkspaceSessionsViewProps {
   workspaceId: string;
@@ -36,9 +30,6 @@ interface WorkspaceSessionsViewProps {
   onRefresh(): void;
   onRetry(): void;
   onResume(session: SessionSummary): void;
-  onExport?(sessionIds: readonly string[]): void;
-  onLoadExportCapabilities?(): Promise<SessionTransferCapability[]>;
-  runningSessionIds?: ReadonlySet<string>;
   operationError: string | null;
 }
 
@@ -47,19 +38,13 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   workspace,
   providerScan,
   profiles,
-  onResume,
-  exportSelection
+  onResume
 }: {
   session: SessionSummary;
   workspace: WorkspaceSummary;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume(session: SessionSummary): void;
-  exportSelection: null | {
-    selected: boolean;
-    disabledReason: string | null;
-    onToggle(): void;
-  };
 }): ReactNode {
   const disabledReason = resolveSessionResumeDisabledReason({
     session,
@@ -100,26 +85,14 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
           )}
         </div>
       </div>
-      {exportSelection === null ? (
-        <button
-          aria-label={`Resume ${session.title}`}
-          className="workspace-session-action"
-          disabled={disabledReason !== null}
-          onClick={() => onResume(session)}
-          title={disabledReason ?? 'Resume this session'}
-          type="button"
-        />
-      ) : (
-        <input
-          aria-label={session.title}
-          checked={exportSelection.selected}
-          className="workspace-session-export-checkbox"
-          disabled={exportSelection.disabledReason !== null}
-          onChange={exportSelection.onToggle}
-          title={exportSelection.disabledReason ?? 'Select session'}
-          type="checkbox"
-        />
-      )}
+      <button
+        aria-label={`Resume ${session.title}`}
+        className="workspace-session-action"
+        disabled={disabledReason !== null}
+        onClick={() => onResume(session)}
+        title={disabledReason ?? 'Resume this session'}
+        type="button"
+      />
     </article>
   );
 });
@@ -134,9 +107,6 @@ export function WorkspaceSessionsView({
   onRefresh,
   onRetry,
   onResume,
-  onExport,
-  onLoadExportCapabilities = NO_EXPORT_CAPABILITIES,
-  runningSessionIds = EMPTY_RUNNING_SESSION_IDS,
   operationError
 }: WorkspaceSessionsViewProps): ReactNode {
   const sessions =
@@ -151,12 +121,6 @@ export function WorkspaceSessionsView({
     resetKey: workspaceId,
     initialCount: SESSION_BATCH_SIZE,
     batchSize: SESSION_BATCH_SIZE
-  });
-  const exportSelection = useSessionExportSelection({
-    sessions,
-    providerScan,
-    runningSessionIds,
-    loadCapabilities: onLoadExportCapabilities
   });
 
   if (status.state === 'loading') {
@@ -230,37 +194,7 @@ export function WorkspaceSessionsView({
           >
             {isRefreshing ? 'Refreshing sessions' : 'Refresh sessions'}
           </button>
-          {onExport === undefined ? null : exportSelection.active ? (
-            <div className="session-export-actions">
-              <button
-                className="secondary-button"
-                onClick={exportSelection.close}
-                type="button"
-              >
-                Cancel selection
-              </button>
-              <button
-                className="refresh-button"
-                disabled={exportSelection.selected.size === 0}
-                onClick={() => {
-                onExport([...exportSelection.selected]);
-                exportSelection.close();
-              }}
-                type="button"
-              >
-                Export {exportSelection.selected.size}{' '}
-                {exportSelection.selected.size === 1 ? 'session' : 'sessions'}
-              </button>
-            </div>
-          ) : (
-            <button
-              className="secondary-button"
-              onClick={() => void exportSelection.begin()}
-              type="button"
-            >
-              Select sessions to export
-            </button>
-          )}
+
         </div>
       </div>
 
@@ -295,48 +229,6 @@ export function WorkspaceSessionsView({
         ))}
       </div>
 
-      {exportSelection.active ? (
-        <div className="session-export-selection" aria-label="Export selection">
-          <div>
-            <strong>{exportSelection.selected.size} selected</strong>
-            <span>
-              {exportSelection.loading
-                ? 'Checking provider support'
-                : 'Only sessions in this workspace are included.'}
-            </span>
-          </div>
-          <div className="session-export-provider-options">
-            {[...new Set(sessions.map((session) => session.provider))].map(
-              (providerId) => {
-                const eligible =
-                  exportSelection.eligibleByProvider.get(providerId) ?? [];
-                return (
-                  <label key={providerId}>
-                    <input
-                      aria-label={`Select all ${providerDefinition(providerId).displayName} sessions`}
-                      checked={
-                        eligible.length > 0 &&
-                        eligible.every((session) =>
-                          exportSelection.selected.has(session.id)
-                        )
-                      }
-                      disabled={eligible.length === 0}
-                      onChange={() => exportSelection.toggleProvider(providerId)}
-                      type="checkbox"
-                    />
-                    <span>{providerDefinition(providerId).displayName}</span>
-                  </label>
-                );
-              }
-            )}
-          </div>
-          {exportSelection.error === null ? null : (
-            <span className="session-export-error" role="alert">
-              {exportSelection.error}
-            </span>
-          )}
-        </div>
-      ) : null}
 
       {sessions.length === 0 ? (
         <div className="catalog-empty">
@@ -350,15 +242,7 @@ export function WorkspaceSessionsView({
               <WorkspaceSessionCard
                 key={session.id}
                 onResume={onResume}
-                exportSelection={
-                  exportSelection.active
-                    ? {
-                        selected: exportSelection.selected.has(session.id),
-                        disabledReason: exportSelection.disabledReason(session),
-                        onToggle: () => exportSelection.toggleSession(session)
-                      }
-                    : null
-                }
+
                 profiles={profiles}
                 providerScan={providerScan}
                 session={session}
