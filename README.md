@@ -204,9 +204,12 @@ Terminal clipboard behavior:
   after the command, Lumora closes the runtime after a short grace period.
 
 While terminal input is focused, providers receive their native shortcuts,
-including modified Enter sequences such as `Shift+Enter`. Lumora reserves its
-configured terminal-switcher and sidebar-toggle shortcuts (`Ctrl+Tab` and
-`Ctrl+Shift+L` by default).
+except for Lumora's configured terminal-switcher and sidebar-toggle shortcuts
+(`Ctrl+Tab` and `Ctrl+Shift+L` by default). In Codex, `Shift+Enter` uses
+a bracketed-paste compatibility sequence. This does not reliably insert a
+newline in current Codex releases when hosted by Lumora, so Codex multiline
+`Shift+Enter` remains an unresolved known issue. Other modified Enter
+combinations keep their best-effort CSI-u compatibility encoding.
 
 <details>
   <summary><strong>Terminal details and profiles</strong></summary>
@@ -400,9 +403,11 @@ provider may contact its own services according to its terms and configuration.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
 - WSL-specific orchestration, cloud sync, transcript full-text indexing, custom
-  provider definitions, and complete enhanced-keyboard protocol negotiation are
-  outside the current MVP. Lumora forwards provider shortcuts that xterm
-  preserves and explicitly supports modified Enter sequences.
+  provider definitions, and complete enhanced-keyboard protocol negotiation
+  are outside the current MVP. Lumora forwards provider shortcuts that xterm
+  preserves. Modified Enter support is best-effort; Codex `Shift+Enter`
+  multiline input remains unresolved in the embedded terminal even with
+  Lumora's current compatibility sequence.
 - Read-only session-content previews are deferred. The intended design is an
   on-demand Session Details view with a small normalized excerpt that neither
   resumes the provider nor imports its transcript into Lumora's catalog.

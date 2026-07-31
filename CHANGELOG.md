@@ -16,8 +16,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   migrated automatically; user-customized shortcuts are preserved.
 - Give a focused provider terminal priority over non-reserved Lumora shortcuts
   so native TUI controls are not intercepted. `Ctrl+Tab` and `Ctrl+Shift+L`
-  remain Lumora controls, and modified Enter combinations such as
-  `Shift+Enter` are forwarded with standard CSI-u encoding.
+  remain Lumora controls.
+- Add an isolated bracketed-paste compatibility attempt for Codex
+  `Shift+Enter`, while preserving existing modified-Enter compatibility
+  sequences for other provider and modifier combinations.
+
+### Known issues
+
+- Codex `Shift+Enter` does not reliably insert a multiline newline inside
+  Lumora's embedded terminal. The compatibility sequence is retained for
+  continued investigation, but the issue is not considered fixed.
 
 ## [0.2.1] - 2026-07-30
 

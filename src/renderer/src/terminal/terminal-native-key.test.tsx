@@ -14,48 +14,75 @@ function key(
 }
 
 describe('encodeTerminalNativeKey', () => {
-  it('encodes Shift+Enter with standard CSI-u modifiers', () => {
-    expect(encodeTerminalNativeKey(key('keydown', {
-      shiftKey: true
-    }))).toBe('\u001b[13;2u');
+  it('encodes the Codex Shift+Enter compatibility attempt as bracketed paste', () => {
+    expect(
+      encodeTerminalNativeKey(
+        key('keydown', {
+          shiftKey: true
+        }),
+        'codex'
+      )
+    ).toBe('\u001b[200~\n\u001b[201~');
   });
 
-  it('combines Control, Shift, and Meta modifiers', () => {
-    expect(encodeTerminalNativeKey(key('keydown', {
-      ctrlKey: true,
-      metaKey: true,
-      shiftKey: true
-    }))).toBe('\u001b[13;14u');
+  it('preserves CSI-u encoding for other Codex modifier combinations', () => {
+    expect(
+      encodeTerminalNativeKey(
+        key('keydown', {
+          ctrlKey: true,
+          metaKey: true,
+          shiftKey: true
+        }),
+        'codex'
+      )
+    ).toBe('\u001b[13;14u');
   });
 
-  it('encodes Alt+Enter without provider-specific remapping', () => {
-    expect(encodeTerminalNativeKey(key('keydown', {
-      altKey: true
-    }))).toBe('\u001b[13;3u');
+  it('preserves CSI-u Shift+Enter for other providers', () => {
+    expect(
+      encodeTerminalNativeKey(
+        key('keydown', {
+          shiftKey: true
+        }),
+        'claude'
+      )
+    ).toBe('\u001b[13;2u');
   });
 
   it('leaves plain Enter on the xterm path', () => {
-    expect(encodeTerminalNativeKey(key('keydown', {}))).toBeNull();
+    expect(
+      encodeTerminalNativeKey(key('keydown', {}), 'codex')
+    ).toBeNull();
   });
 
   it('leaves non-Enter keys on the xterm path', () => {
-    expect(encodeTerminalNativeKey(new KeyboardEvent('keydown', {
-      code: 'KeyT',
-      ctrlKey: true,
-      key: 't'
-    }))).toBeNull();
+    expect(
+      encodeTerminalNativeKey(
+        new KeyboardEvent('keydown', {
+          code: 'KeyT',
+          ctrlKey: true,
+          key: 't'
+        }),
+        'codex'
+      )
+    ).toBeNull();
   });
 
   it('does not send keyup events', () => {
-    expect(encodeTerminalNativeKey(key('keyup', {
-      shiftKey: true
-    }))).toBeNull();
+    expect(
+      encodeTerminalNativeKey(key('keyup', { shiftKey: true }), 'codex')
+    ).toBeNull();
   });
 
   it('does not intercept an IME composition confirmation', () => {
-    expect(encodeTerminalNativeKey(key('keydown', {
-      isComposing: true,
-      shiftKey: true
-    }))).toBeNull();
+    expect(
+      encodeTerminalNativeKey(
+        key('keydown', {
+          isComposing: true,
+          shiftKey: true
+        }),
+        'codex'
+      )
+    ).toBeNull();
   });
 });

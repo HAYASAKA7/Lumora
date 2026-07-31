@@ -560,7 +560,7 @@ describe('ManagedTerminal', () => {
     expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards modified Enter once with its native CSI-u sequence', async () => {
+  it('writes one Codex Shift+Enter compatibility sequence', async () => {
     const api = installLumora();
     render(
       <ManagedTerminal
@@ -588,8 +588,45 @@ describe('ManagedTerminal', () => {
     });
     expect(api.writeRuntime).toHaveBeenCalledWith({
       runtimeId: runtime.id,
-      data: '\u001b[13;2u'
+      data: '\u001b[200~\n\u001b[201~'
     });
+  });
+
+  it('does not treat a Codex multiline newline as an exit submission', async () => {
+    const terminateRuntime = vi.fn();
+    installLumora({ terminateRuntime });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => {
+      expect(xterm.dataHandler).not.toBeNull();
+      expect(xterm.customKeyEventHandler).not.toBeNull();
+    });
+
+    act(() => {
+      xterm.dataHandler?.('/exit');
+    });
+    const event = clipboardKey('Enter', {
+      key: 'Enter',
+      shiftKey: true
+    });
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        xterm.customKeyEventHandler!(event);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(TERMINAL_EXIT_GRACE_MS);
+      });
+      expect(terminateRuntime).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('leaves modified Enter with xterm while IME composition is active', async () => {

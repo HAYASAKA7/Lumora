@@ -294,6 +294,19 @@ terminal. Do not terminate a running provider solely to refresh the view. If the
 problem is reproducible, include the window size and sidebar state in the issue
 report.
 
+### Codex Shift+Enter does not create a new line
+
+**Symptom:** Pressing `Shift+Enter` in a Codex terminal does not insert a
+multiline newline, even though it works in some native terminals.
+
+**Likely cause:** Current Codex releases do not reliably decode multiline key
+input when hosted by Lumora's embedded Windows terminal. Lumora's
+bracketed-paste compatibility sequence does not resolve every case.
+
+**Resolution:** Treat this as an unresolved known issue. For now, compose
+multiline text in an editor and paste it into Codex. Do not assume the
+`Shift+Enter` compatibility path is working merely because the key is accepted.
+
 ## Development builds
 
 ### Development and packaged Lumora show different data

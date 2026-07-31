@@ -191,9 +191,15 @@ export function ManagedTerminal({
             requestTermination();
           }, TERMINAL_EXIT_GRACE_MS);
         };
-        const writeRuntimeInput = (data: string) => {
+        const writeRuntimeInput = (
+          data: string,
+          options: { observeExitIntent?: boolean } = {}
+        ) => {
           if (!acceptingInputRef.current) return;
-          const submittedExit = exitIntent.observe(data);
+          const submittedExit =
+            options.observeExitIntent === false
+              ? false
+              : exitIntent.observe(data);
           void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).then(
             () => {
               if (submittedExit && alive && acceptingInputRef.current) {
@@ -248,12 +254,12 @@ export function ManagedTerminal({
         terminal.attachCustomKeyEventHandler((event) => {
           const nativeInput = composing
             ? null
-            : encodeTerminalNativeKey(event);
+            : encodeTerminalNativeKey(event, runtime.provider);
           if (nativeInput !== null) {
             clearInterruptGuard();
             event.preventDefault();
             event.stopPropagation();
-            writeRuntimeInput(nativeInput);
+            writeRuntimeInput(nativeInput, { observeExitIntent: false });
             return false;
           }
           const action = classifyTerminalClipboardKey(
@@ -316,7 +322,9 @@ export function ManagedTerminal({
         });
         fitAddon.fit();
 
-        const input = terminal.onData(writeRuntimeInput);
+        const input = terminal.onData((data) => {
+          writeRuntimeInput(data);
+        });
         const resize = terminal.onResize(({ cols, rows }) => {
           if (!acceptingInputRef.current) return;
           void window.lumora.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);
