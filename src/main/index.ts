@@ -556,7 +556,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     runtime: terminalRuntime,
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
-      trayController?.refresh();
+      if (event.type === 'state') {
+        trayController?.refresh();
+      }
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.runtimeEvent, event);
       }

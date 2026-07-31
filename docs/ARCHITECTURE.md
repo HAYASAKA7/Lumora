@@ -222,10 +222,18 @@ The destination receives a new native session identity. The source session and
 its provider-owned files remain available and unchanged.
 
 The runtime host owns terminal input, output, resize, state changes, and
-termination. The renderer attaches to it through IPC and receives sequenced
-runtime events. Lumora records managed runtime history, but generic PTYs cannot
-be reattached after the application process exits; those runtimes are marked
-honestly as lost and can be resumed or restarted.
+termination. Adjacent PTY fragments are coalesced into bounded sequenced IPC
+events, and a chunked one-mebibyte tail is retained for renderer attachment.
+Runtime output is forwarded to the renderer without rebuilding the native tray;
+the tray refreshes only for state or catalog changes.
+
+Stopping a managed runtime uses two bounded interrupt windows before escalating
+to the native PTY close. Lumora waits for the PTY's observed exit event and
+coalesces concurrent stop requests. If no exit event arrives after escalation,
+the runtime is recorded as lost instead of being reported as an ordinary
+completed or failed exit. Lumora records managed runtime history, but generic
+PTYs cannot be reattached after the application process exits; those runtimes
+are marked honestly as lost and can be resumed or restarted.
 
 ## Local storage
 

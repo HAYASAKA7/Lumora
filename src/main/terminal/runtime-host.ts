@@ -19,6 +19,7 @@ import type {
 } from '../storage/terminal-repository';
 import type { LaunchSpec } from './launch-service';
 import type { ReconciliationRequest } from './new-session-reconciler';
+import { TerminalOutputBuffer } from './output-buffer';
 
 const MAX_EVENT_CHARS = 65_536;
 const MAX_SNAPSHOT_CHARS = 1_048_576;
@@ -70,13 +71,15 @@ interface RuntimeHostDependencies {
   clock?: () => Date;
   createRuntimeId?: () => string;
   wait?: (milliseconds: number) => Promise<void>;
+  scheduleOutputFlush?: (callback: () => void) => void;
 }
 
 interface LiveRuntime {
   runtime: RuntimeSummary;
   process: PtyProcess;
-  snapshot: string;
+  output: TerminalOutputBuffer;
   outputSequence: number;
+  outputFlushScheduled: boolean;
   subscriptions: Disposable[];
   exit: Promise<RuntimeSummary>;
   resolveExit(runtime: RuntimeSummary): void;
@@ -123,11 +126,14 @@ export class RuntimeHost {
   private readonly clock: () => Date;
   private readonly createRuntimeId: () => string;
   private readonly wait: (milliseconds: number) => Promise<void>;
+  private readonly scheduleOutputFlush: (callback: () => void) => void;
 
   constructor(private readonly dependencies: RuntimeHostDependencies) {
     this.clock = dependencies.clock ?? (() => new Date());
     this.createRuntimeId = dependencies.createRuntimeId ?? randomUUID;
     this.wait = dependencies.wait ?? defaultWait;
+    this.scheduleOutputFlush =
+      dependencies.scheduleOutputFlush ?? queueMicrotask;
   }
 
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
@@ -216,8 +222,12 @@ export class RuntimeHost {
     const live: LiveRuntime = {
       runtime: running,
       process,
-      snapshot: '',
+      output: new TerminalOutputBuffer(
+        MAX_SNAPSHOT_CHARS,
+        MAX_EVENT_CHARS
+      ),
       outputSequence: 0,
+      outputFlushScheduled: false,
       subscriptions: [],
       exit,
       resolveExit,
@@ -281,9 +291,10 @@ export class RuntimeHost {
   attach(runtimeId: string): RuntimeAttachment {
     const live = this.live.get(runtimeId);
     if (live !== undefined) {
+      this.flushOutput(runtimeId, live);
       return RuntimeAttachmentSchema.parse({
         runtime: live.runtime,
-        snapshot: live.snapshot,
+        snapshot: live.output.snapshot(),
         outputSequence: live.outputSequence
       });
     }
@@ -423,19 +434,32 @@ export class RuntimeHost {
     if (live === undefined || data.length === 0) {
       return;
     }
-    live.snapshot = (live.snapshot + data).slice(-MAX_SNAPSHOT_CHARS);
-    for (let offset = 0; offset < data.length; offset += MAX_EVENT_CHARS) {
+    live.output.append(data);
+    if (live.outputFlushScheduled) return;
+    live.outputFlushScheduled = true;
+    this.scheduleOutputFlush(() => {
+      if (this.live.get(runtimeId) === live) {
+        this.flushOutput(runtimeId, live);
+      }
+    });
+  }
+
+  private flushOutput(runtimeId: string, live: LiveRuntime): void {
+    live.outputFlushScheduled = false;
+    for (const data of live.output.drainEvents()) {
       live.outputSequence += 1;
       this.emit({
         type: 'output',
         runtimeId,
         sequence: live.outputSequence,
-        data: data.slice(offset, offset + MAX_EVENT_CHARS)
+        data
       });
     }
   }
 
   private handleExit(runtimeId: string, event: unknown): void {
+    const live = this.live.get(runtimeId);
+    if (live !== undefined) this.flushOutput(runtimeId, live);
     const reportedExitCode =
       typeof event === 'object' &&
       event !== null &&

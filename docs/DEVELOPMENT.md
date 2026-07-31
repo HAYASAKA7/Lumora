@@ -49,6 +49,7 @@ or window state.
 | `npm run verify` | Run tests, typechecking, and a production build |
 | `npm run benchmark:catalog` | Benchmark catalog refresh planning |
 | `npm run benchmark:transfer` | Benchmark transfer planning and streamed archive memory |
+| `npm run benchmark:terminal` | Compare batched and per-fragment terminal output processing |
 | `npm run build` | Build main, preload, and renderer bundles into `out/` |
 | `npm run package:dir` | Create an unpacked native application in `dist/` |
 | `npm run package` | Build the native package configured for the host OS |
@@ -118,6 +119,17 @@ npm run benchmark:catalog
 The benchmark models 150 sessions across 30 workspaces. Its elapsed timings are
 local comparison signals, not CI thresholds. Normal regression tests enforce
 stable operation counts so differences in CI hardware do not cause flaky tests.
+
+Run the terminal benchmark when changing PTY output buffering, runtime events,
+or attachment snapshots:
+
+```powershell
+npm run benchmark:terminal
+```
+
+It compares equivalent schema-validated processing for a fragmented one-mebibyte
+resume burst. Treat the result as a local comparison signal; provider-owned
+transcript loading is outside this benchmark.
 
 Run the transfer benchmark when changing archive, workspace mapping, provider
 adapter, or transfer service code:

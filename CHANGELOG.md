@@ -7,6 +7,22 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop managed sessions with a bounded graceful shutdown sequence before native
+  PTY escalation, wait for the process's real exit event, and report an
+  unobservable forced exit honestly as `runtime_lost`.
+- Coalesce concurrent Stop and application-quit requests so Lumora performs one
+  native shutdown sequence per managed terminal.
+
+### Performance
+
+- Batch adjacent PTY output into bounded IPC events and retain the attachment
+  snapshot in bounded chunks, reducing main-process work during output-heavy
+  native session resume.
+- Rebuild the native tray menu only for runtime state changes, not for every
+  terminal output fragment.
+
 ## [0.2.2] - 2026-07-31
 
 ### Changed

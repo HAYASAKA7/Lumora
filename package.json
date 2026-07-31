@@ -20,6 +20,7 @@
     "test": "vitest run",
     "benchmark:catalog": "vitest bench src/main/catalog/catalog-service.bench.ts --run --project node",
     "benchmark:transfer": "vitest bench src/main/transfer/session-transfer-service.bench.ts --run --project node",
+    "benchmark:terminal": "vitest bench src/main/terminal/output-buffer.bench.ts --run --project node",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

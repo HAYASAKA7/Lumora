@@ -36,4 +36,16 @@ describe('tray main-process integration', () => {
     expect(source).toContain('trayController?.refresh()');
     expect(source).toContain('trayController?.dispose()');
   });
+
+  it('does not rebuild the native tray menu for terminal output fragments', () => {
+    const eventForwarder = source.slice(
+      source.indexOf('sendRuntimeEvent: (event) => {'),
+      source.indexOf('...(developmentOrigin === undefined', source.indexOf('sendRuntimeEvent: (event) => {'))
+    );
+
+    expect(eventForwarder).toContain("if (event.type === 'state')");
+    expect(eventForwarder.indexOf("if (event.type === 'state')")).toBeLessThan(
+      eventForwarder.indexOf('trayController?.refresh()')
+    );
+  });
 });

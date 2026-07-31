@@ -368,6 +368,26 @@ describe('RuntimeHost', () => {
     });
   });
 
+  it('coalesces adjacent PTY output fragments before emitting them', async () => {
+    const { host, pty } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    pty.emitData('resume ');
+    pty.emitData('history ');
+    pty.emitData('ready');
+    await Promise.resolve();
+
+    expect(events.filter((event) => event.type === 'output')).toEqual([
+      expect.objectContaining({
+        type: 'output',
+        sequence: 1,
+        data: 'resume history ready'
+      })
+    ]);
+  });
+
   it('bounds output events and the attach snapshot', async () => {
     const { host, pty } = harness();
     const events: RuntimeEvent[] = [];
@@ -375,6 +395,7 @@ describe('RuntimeHost', () => {
     const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
 
     pty.emitData('x'.repeat(1_100_000));
+    await Promise.resolve();
 
     const outputEvents = events.filter((event) => event.type === 'output');
     expect(outputEvents.length).toBeGreaterThan(1);
