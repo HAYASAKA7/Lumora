@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-31
+
 ### Changed
 
 - Change the default open/focus-terminal shortcut from `Ctrl+T` to
