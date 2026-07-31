@@ -7,6 +7,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Change the default open/focus-terminal shortcut from `Ctrl+T` to
+  `Ctrl+Shift+T`. Existing installations that still use the former default are
+  migrated automatically; user-customized shortcuts are preserved.
+- Give a focused provider terminal priority over non-reserved Lumora shortcuts
+  so native TUI controls are not intercepted. `Ctrl+Tab` and `Ctrl+Shift+L`
+  remain Lumora controls, and modified Enter combinations such as
+  `Shift+Enter` are forwarded with standard CSI-u encoding.
+
 ## [0.2.1] - 2026-07-30
 
 ### Added

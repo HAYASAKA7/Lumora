@@ -203,6 +203,11 @@ Terminal clipboard behavior:
 - Codex receives `/exit` and `/quit` normally. If its process remains attached
   after the command, Lumora closes the runtime after a short grace period.
 
+While terminal input is focused, providers receive their native shortcuts,
+including modified Enter sequences such as `Shift+Enter`. Lumora reserves its
+configured terminal-switcher and sidebar-toggle shortcuts (`Ctrl+Tab` and
+`Ctrl+Shift+L` by default).
+
 <details>
   <summary><strong>Terminal details and profiles</strong></summary>
   <br>
@@ -289,7 +294,7 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | --- | --- |
 | `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order |
 | `Alt+Shift+Left` / `Alt+Shift+Right` | Move the focused terminal tab |
-| `Ctrl+T` | Return to running terminals and focus terminal input |
+| `Ctrl+Shift+T` | Return to running terminals and focus terminal input |
 | `Ctrl+Shift+L` | Collapse or expand the sidebar |
 | `Ctrl+1` | Open Home |
 | `Ctrl+2` | Open Workspaces |
@@ -395,8 +400,9 @@ provider may contact its own services according to its terms and configuration.
 - Provider-native authentication and approval flows must be completed inside
   the embedded terminal.
 - WSL-specific orchestration, cloud sync, transcript full-text indexing, custom
-  provider definitions, and multiline terminal input shortcuts are outside the
-  current MVP.
+  provider definitions, and complete enhanced-keyboard protocol negotiation are
+  outside the current MVP. Lumora forwards provider shortcuts that xterm
+  preserves and explicitly supports modified Enter sequences.
 - Read-only session-content previews are deferred. The intended design is an
   on-demand Session Details view with a small normalized excerpt that neither
   resumes the provider nor imports its transcript into Lumora's catalog.

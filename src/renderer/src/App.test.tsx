@@ -84,20 +84,21 @@ vi.mock('./terminal/ManagedTerminal', () => ({
     }, [active, focusRequestKey]);
     return (
       <div className="managed-terminal-shell" data-platform={platform}>
-        <button
-          aria-label={`${runtime.displayName} terminal input`}
-          onKeyDown={(event) => {
-            if (event.ctrlKey && event.code === 'KeyV') {
-              void window.lumora.readClipboardText();
-            }
-          }}
-          ref={inputRef}
-          type="button"
-        />
         <div
           aria-label={`${runtime.provider} terminal`}
           className="managed-terminal"
-        />
+        >
+          <button
+            aria-label={`${runtime.displayName} terminal input`}
+            onKeyDown={(event) => {
+              if (event.ctrlKey && event.code === 'KeyV') {
+                void window.lumora.readClipboardText();
+              }
+            }}
+            ref={inputRef}
+            type="button"
+          />
+        </div>
       </div>
     );
   }
@@ -1268,7 +1269,12 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     await screen.findByRole('button', {
       name: 'New Codex session terminal input'
     });
@@ -1573,7 +1579,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
   });
 
-  it('opens and refocuses a live terminal with Ctrl+T', async () => {
+  it('opens and refocuses a live terminal with Ctrl+Shift+T', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad8'
     );
@@ -1588,7 +1594,12 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     const terminalInput = await screen.findByRole('button', {
       name: 'Codex working session terminal input'
     });
@@ -1598,8 +1609,60 @@ describe('App', () => {
 
     screen.getByRole('button', { name: 'Collapse sidebar' }).focus();
     expect(terminalInput).not.toHaveFocus();
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     expect(terminalInput).toHaveFocus();
+  });
+
+  it('passes non-reserved Lumora shortcuts to focused terminal input', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789adf'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    const terminalInput = await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+    expect(terminalInput).toHaveFocus();
+
+    const openTerminalEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
+    terminalInput.dispatchEvent(openTerminalEvent);
+    expect(openTerminalEvent.defaultPrevented).toBe(false);
+    expect(terminalInput).toHaveFocus();
+
+    const homeEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      code: 'Digit1',
+      key: '1',
+      ctrlKey: true
+    });
+    terminalInput.dispatchEvent(homeEvent);
+    expect(homeEvent.defaultPrevented).toBe(false);
+    expect(screen.getByRole('tab', { name: /Codex working session/ }))
+      .toHaveAttribute('aria-selected', 'true');
   });
 
   it('clears the current primary navigation state while a terminal is active', async () => {
@@ -1641,7 +1704,7 @@ describe('App', () => {
     }
   });
 
-  it('keeps the selected terminal when Ctrl+T is pressed on the terminal page', async () => {
+  it('keeps the selected terminal when Ctrl+Shift+T is pressed away from terminal input', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ada'
     );
@@ -1660,7 +1723,12 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     fireEvent.click(
       await screen.findByRole('tab', { name: /Claude working session/ })
     );
@@ -1669,14 +1737,19 @@ describe('App', () => {
     });
     screen.getByRole('button', { name: 'Collapse sidebar' }).focus();
 
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
 
     expect(screen.getByRole('tab', { name: /Claude working session/ }))
       .toHaveAttribute('aria-selected', 'true');
     expect(secondInput).toHaveFocus();
   });
 
-  it('restores the previously selected terminal with Ctrl+T after navigating away', async () => {
+  it('restores the previously selected terminal with Ctrl+Shift+T after navigating away', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789adc'
     );
@@ -1695,7 +1768,12 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     fireEvent.click(
       await screen.findByRole('tab', { name: /Claude working session/ })
     );
@@ -1703,7 +1781,12 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'All sessions' }))
       .toBeInTheDocument();
 
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
 
     expect(screen.getByRole('tab', { name: /Claude working session/ }))
       .toHaveAttribute('aria-selected', 'true');
@@ -1712,7 +1795,7 @@ describe('App', () => {
     })).toHaveFocus();
   });
 
-  it('uses current runtime state when a previously registered Ctrl+T listener fires', async () => {
+  it('uses current runtime state when a previously registered Ctrl+Shift+T listener fires', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad9'
     );
@@ -1739,8 +1822,9 @@ describe('App', () => {
       act(() => {
         const event = new KeyboardEvent('keydown', {
           code: 'KeyT',
-          key: 't',
-          ctrlKey: true
+          key: 'T',
+          ctrlKey: true,
+          shiftKey: true
         });
         if (typeof initialKeydownListener === 'function') {
           initialKeydownListener.call(window, event);
@@ -1798,7 +1882,12 @@ describe('App', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
-    fireEvent.keyDown(window, { code: 'KeyT', key: 't', ctrlKey: true });
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
     const terminalInput = await screen.findByRole('button', {
       name: 'Codex working session terminal input'
     });

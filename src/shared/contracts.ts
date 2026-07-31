@@ -826,7 +826,11 @@ const controlShortcut = (code: string): KeyboardShortcutChord => ({
 });
 
 const DEFAULT_TERMINAL_SWITCHER = controlShortcut('Tab');
-const DEFAULT_OPEN_TERMINALS = controlShortcut('KeyT');
+const FORMER_DEFAULT_OPEN_TERMINALS = controlShortcut('KeyT');
+const DEFAULT_OPEN_TERMINALS = {
+  ...FORMER_DEFAULT_OPEN_TERMINALS,
+  shift: true
+};
 const DEFAULT_TOGGLE_SIDEBAR = {
   ...controlShortcut('KeyL'),
   shift: true
@@ -838,8 +842,25 @@ const DEFAULT_OPEN_PROFILES = controlShortcut('Digit4');
 const DEFAULT_OPEN_SETTINGS = controlShortcut('Digit5');
 const DEFAULT_OPEN_SETTINGS_ALIAS = controlShortcut('Comma');
 
-export const KeyboardSettingsSchema = z.strictObject({
+const VersionOneKeyboardSettingsSchema = z.strictObject({
   version: z.literal(1),
+  terminalSwitcher: KeyboardShortcutChordSchema,
+  openTerminals: KeyboardShortcutChordSchema.default(
+    FORMER_DEFAULT_OPEN_TERMINALS
+  ),
+  toggleSidebar: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_SIDEBAR),
+  openHome: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_HOME),
+  openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
+  openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
+  openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
+  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS),
+  openSettingsAlias: KeyboardShortcutChordSchema.default(
+    DEFAULT_OPEN_SETTINGS_ALIAS
+  )
+});
+
+export const KeyboardSettingsSchema = z.strictObject({
+  version: z.literal(2),
   terminalSwitcher: KeyboardShortcutChordSchema,
   openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
   toggleSidebar: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_SIDEBAR),
@@ -856,7 +877,7 @@ export const KeyboardSettingsSchema = z.strictObject({
 export type KeyboardSettings = z.infer<typeof KeyboardSettingsSchema>;
 
 export const DEFAULT_KEYBOARD_SETTINGS = {
-  version: 1,
+  version: 2,
   terminalSwitcher: DEFAULT_TERMINAL_SWITCHER,
   openTerminals: DEFAULT_OPEN_TERMINALS,
   toggleSidebar: DEFAULT_TOGGLE_SIDEBAR,
@@ -867,6 +888,38 @@ export const DEFAULT_KEYBOARD_SETTINGS = {
   openSettings: DEFAULT_OPEN_SETTINGS,
   openSettingsAlias: DEFAULT_OPEN_SETTINGS_ALIAS
 } as const satisfies KeyboardSettings;
+
+function shortcutChordEquals(
+  left: KeyboardShortcutChord,
+  right: KeyboardShortcutChord
+): boolean {
+  return left.code === right.code &&
+    left.control === right.control &&
+    left.alt === right.alt &&
+    left.shift === right.shift &&
+    left.meta === right.meta;
+}
+
+export function parseKeyboardSettings(value: unknown): KeyboardSettings {
+  const current = KeyboardSettingsSchema.safeParse(value);
+  if (current.success) return current.data;
+
+  const versionOne = VersionOneKeyboardSettingsSchema.safeParse(value);
+  if (!versionOne.success) {
+    return KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
+  }
+
+  return KeyboardSettingsSchema.parse({
+    ...versionOne.data,
+    version: 2,
+    openTerminals: shortcutChordEquals(
+      versionOne.data.openTerminals,
+      FORMER_DEFAULT_OPEN_TERMINALS
+    )
+      ? DEFAULT_OPEN_TERMINALS
+      : versionOne.data.openTerminals
+  });
+}
 
 const TerminalDimensionsFields = {
   cols: z.number().int().min(20).max(500),

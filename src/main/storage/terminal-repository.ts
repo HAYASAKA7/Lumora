@@ -16,6 +16,7 @@ import {
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
   parseStoredGeneralSettings,
+  parseKeyboardSettings,
   type GeneralSettings,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
@@ -217,10 +218,7 @@ export class TerminalRepository {
     }
 
     try {
-      const parsed = KeyboardSettingsSchema.safeParse(JSON.parse(row.value_json));
-      return parsed.success
-        ? parsed.data
-        : KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
+      return parseKeyboardSettings(JSON.parse(row.value_json));
     } catch {
       return KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
     }

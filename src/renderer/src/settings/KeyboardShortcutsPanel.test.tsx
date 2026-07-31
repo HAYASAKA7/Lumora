@@ -62,7 +62,7 @@ describe('KeyboardShortcutsPanel', () => {
     })).toHaveTextContent('Ctrl + Tab');
     expect(screen.getByRole('button', {
       name: 'Record open terminals shortcut'
-    })).toHaveTextContent('Ctrl + T');
+    })).toHaveTextContent('Ctrl + Shift + T');
     expect(screen.getByRole('button', {
       name: 'Record toggle sidebar shortcut'
     })).toHaveTextContent('Ctrl + Shift + L');

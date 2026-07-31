@@ -334,13 +334,26 @@ describe('TerminalRepository', () => {
     database.prepare(
       `UPDATE app_preference SET value_json = ?
        WHERE key = 'keyboardShortcuts.v1'`
-    ).run(JSON.stringify({ version: 1, terminalSwitcher: custom.terminalSwitcher }));
-    expect(repository.getKeyboardSettings()).toEqual(custom);
+    ).run(JSON.stringify({
+      version: 1,
+      terminalSwitcher: custom.terminalSwitcher,
+      openTerminals: {
+        code: 'KeyT',
+        control: true,
+        alt: false,
+        shift: false,
+        meta: false
+      }
+    }));
+    expect(repository.getKeyboardSettings()).toEqual({
+      ...custom,
+      openTerminals: DEFAULT_KEYBOARD_SETTINGS.openTerminals
+    });
 
     database.prepare(
       `UPDATE app_preference SET value_json = ?
        WHERE key = 'keyboardShortcuts.v1'`
-    ).run('{"version":2}');
+    ).run('{"version":99}');
     expect(repository.getKeyboardSettings()).toEqual(DEFAULT_KEYBOARD_SETTINGS);
   });
 

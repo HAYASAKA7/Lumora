@@ -1129,6 +1129,9 @@ export default function App(): ReactNode {
         setRuntimeSwitcher(null);
         return;
       }
+      const terminalInputFocused =
+        event.target instanceof Element &&
+        event.target.closest('.managed-terminal') !== null;
       if (keyboardEventMatchesChord(event, switcherChord)) {
         if (openRuntimeIds.length === 0) return;
 
@@ -1166,20 +1169,22 @@ export default function App(): ReactNode {
 
       if (event.repeat) return;
       if (
+        keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSidebarExpanded((expanded) => !expanded);
+        return;
+      }
+      if (terminalInputFocused) return;
+
+      if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
         liveRuntimesRef.current.length > 0
       ) {
         event.preventDefault();
         event.stopPropagation();
         openLiveTerminals();
-        return;
-      }
-      if (
-        keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar)
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        setSidebarExpanded((expanded) => !expanded);
         return;
       }
 

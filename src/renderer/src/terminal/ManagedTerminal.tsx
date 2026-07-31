@@ -12,6 +12,7 @@ import {
   decideTerminalInterrupt,
   TERMINAL_INTERRUPT_CONFIRMATION_MS
 } from './terminal-interrupt-guard';
+import { encodeTerminalNativeKey } from './terminal-native-key';
 
 interface ManagedTerminalProps {
   active: boolean;
@@ -190,6 +191,20 @@ export function ManagedTerminal({
             requestTermination();
           }, TERMINAL_EXIT_GRACE_MS);
         };
+        const writeRuntimeInput = (data: string) => {
+          if (!acceptingInputRef.current) return;
+          const submittedExit = exitIntent.observe(data);
+          void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).then(
+            () => {
+              if (submittedExit && alive && acceptingInputRef.current) {
+                scheduleExitFallback();
+              }
+            },
+            () => {
+              if (alive) setError('Terminal input could not be delivered.');
+            }
+          );
+        };
         let composing = false;
         let outputFlushTimer: number | null = null;
         let deferredOutput: string[] = [];
@@ -231,6 +246,16 @@ export function ManagedTerminal({
         terminal.textarea?.addEventListener('compositionend', compositionEnd);
         terminal.textarea?.addEventListener('blur', compositionBlur);
         terminal.attachCustomKeyEventHandler((event) => {
+          const nativeInput = composing
+            ? null
+            : encodeTerminalNativeKey(event);
+          if (nativeInput !== null) {
+            clearInterruptGuard();
+            event.preventDefault();
+            event.stopPropagation();
+            writeRuntimeInput(nativeInput);
+            return false;
+          }
           const action = classifyTerminalClipboardKey(
             event,
             platformRef.current,
@@ -291,20 +316,7 @@ export function ManagedTerminal({
         });
         fitAddon.fit();
 
-        const input = terminal.onData((data) => {
-          if (!acceptingInputRef.current) return;
-          const submittedExit = exitIntent.observe(data);
-          void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).then(
-            () => {
-              if (submittedExit && alive && acceptingInputRef.current) {
-                scheduleExitFallback();
-              }
-            },
-            () => {
-              if (alive) setError('Terminal input could not be delivered.');
-            }
-          );
-        });
+        const input = terminal.onData(writeRuntimeInput);
         const resize = terminal.onResize(({ cols, rows }) => {
           if (!acceptingInputRef.current) return;
           void window.lumora.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);

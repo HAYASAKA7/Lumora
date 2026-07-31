@@ -74,6 +74,20 @@ describe('keyboard shortcut utilities', () => {
     expect(shortcutConflictMessage(chord, 'win32')).toBeNull();
   });
 
+  it('allows Ctrl+Shift+T as an application shortcut on every platform', () => {
+    const openTerminals = {
+      code: 'KeyT',
+      control: true,
+      alt: false,
+      shift: true,
+      meta: false
+    } satisfies KeyboardShortcutChord;
+
+    expect(shortcutConflictMessage(openTerminals, 'win32')).toBeNull();
+    expect(shortcutConflictMessage(openTerminals, 'darwin')).toBeNull();
+    expect(shortcutConflictMessage(openTerminals, 'linux')).toBeNull();
+  });
+
   it('identifies only modifier keys required by the configured chord', () => {
     expect(isRequiredModifierKey('ControlLeft', chord)).toBe(true);
     expect(isRequiredModifierKey('ControlRight', chord)).toBe(true);

@@ -560,6 +560,67 @@ describe('ManagedTerminal', () => {
     expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards modified Enter once with its native CSI-u sequence', async () => {
+    const api = installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+    const event = clipboardKey('Enter', {
+      key: 'Enter',
+      shiftKey: true
+    });
+
+    let handled!: boolean;
+    act(() => {
+      handled = xterm.customKeyEventHandler!(event);
+    });
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(api.writeRuntime).toHaveBeenCalledOnce();
+    });
+    expect(api.writeRuntime).toHaveBeenCalledWith({
+      runtimeId: runtime.id,
+      data: '\u001b[13;2u'
+    });
+  });
+
+  it('leaves modified Enter with xterm while IME composition is active', async () => {
+    const api = installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+    fireEvent.compositionStart(xterm.textarea!);
+    const event = clipboardKey('Enter', {
+      key: 'Enter',
+      shiftKey: true
+    });
+
+    let handled!: boolean;
+    act(() => {
+      handled = xterm.customKeyEventHandler!(event);
+    });
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(api.writeRuntime).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(xterm.textarea!);
+  });
+
   it('copies selected text for Windows Ctrl+C and consumes the key event', async () => {
     const writeClipboardText = vi.fn().mockResolvedValue(undefined);
     installLumora({ writeClipboardText });

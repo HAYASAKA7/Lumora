@@ -16,6 +16,7 @@ import {
   KeyboardShortcutChordSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerSchema,
+  parseKeyboardSettings,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
   parseStoredGeneralSettings,
@@ -1127,7 +1128,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned keyboard settings with a real modified key', () => {
     expect(KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS)).toEqual({
-      version: 1,
+      version: 2,
       terminalSwitcher: {
         code: 'Tab',
         control: true,
@@ -1135,7 +1136,11 @@ describe('managed terminal contracts', () => {
         shift: false,
         meta: false
       },
-      openTerminals: expect.objectContaining({ code: 'KeyT', control: true }),
+      openTerminals: expect.objectContaining({
+        code: 'KeyT',
+        control: true,
+        shift: true
+      }),
       toggleSidebar: expect.objectContaining({
         code: 'KeyL',
         control: true,
@@ -1149,7 +1154,7 @@ describe('managed terminal contracts', () => {
       openSettingsAlias: expect.objectContaining({ code: 'Comma', control: true })
     });
     expect(KeyboardSettingsSchema.parse({
-      version: 1,
+      version: 2,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -1182,6 +1187,48 @@ describe('managed terminal contracts', () => {
       shift: false,
       meta: false
     }).success).toBe(false);
+  });
+
+  it('migrates the former open-terminal default to Ctrl+Shift+T', () => {
+    expect(parseKeyboardSettings({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      version: 1,
+      openTerminals: {
+        code: 'KeyT',
+        control: true,
+        alt: false,
+        shift: false,
+        meta: false
+      }
+    })).toEqual({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      openTerminals: {
+        code: 'KeyT',
+        control: true,
+        alt: false,
+        shift: true,
+        meta: false
+      }
+    });
+  });
+
+  it('preserves a customized version-one open-terminal shortcut', () => {
+    const custom = {
+      code: 'KeyO',
+      control: true,
+      alt: true,
+      shift: false,
+      meta: false
+    };
+
+    expect(parseKeyboardSettings({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      version: 1,
+      openTerminals: custom
+    })).toEqual({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      openTerminals: custom
+    });
   });
 
   it('validates versioned general settings', () => {
