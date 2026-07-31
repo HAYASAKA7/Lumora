@@ -7,6 +7,20 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-31
+
+### Changed
+
+- Change the default open/focus-terminal shortcut from `Ctrl+T` to
+  `Ctrl+Shift+T`. Existing installations that still use the former default are
+  migrated automatically; user-customized shortcuts are preserved.
+- Give a focused provider terminal priority over non-reserved Lumora shortcuts
+  so native TUI controls are not intercepted. `Ctrl+Tab` and `Ctrl+Shift+L`
+  remain Lumora controls.
+- Add an isolated bracketed-paste compatibility attempt for Codex
+  `Shift+Enter`, while preserving existing modified-Enter compatibility
+  sequences for other provider and modifier combinations.
+
 ### Fixed
 
 - Stop managed sessions with a bounded graceful shutdown sequence before native
@@ -22,20 +36,6 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   native session resume.
 - Rebuild the native tray menu only for runtime state changes, not for every
   terminal output fragment.
-
-## [0.2.2] - 2026-07-31
-
-### Changed
-
-- Change the default open/focus-terminal shortcut from `Ctrl+T` to
-  `Ctrl+Shift+T`. Existing installations that still use the former default are
-  migrated automatically; user-customized shortcuts are preserved.
-- Give a focused provider terminal priority over non-reserved Lumora shortcuts
-  so native TUI controls are not intercepted. `Ctrl+Tab` and `Ctrl+Shift+L`
-  remain Lumora controls.
-- Add an isolated bracketed-paste compatibility attempt for Codex
-  `Shift+Enter`, while preserving existing modified-Enter compatibility
-  sequences for other provider and modifier combinations.
 
 ### Known issues
 
