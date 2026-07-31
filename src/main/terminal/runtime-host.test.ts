@@ -63,6 +63,7 @@ class FakePty implements PtyProcess {
   readonly writes: string[] = [];
   readonly resizes: Array<[number, number]> = [];
   killed = false;
+  killCount = 0;
   private killError: Error | null = null;
   private nativeExited = false;
   private operationError: Error | null = null;
@@ -88,6 +89,7 @@ class FakePty implements PtyProcess {
   kill(): void {
     if (this.killError !== null) throw this.killError;
     this.killed = true;
+    this.killCount += 1;
   }
 
   onData(listener: (data: string) => void) {
@@ -130,6 +132,8 @@ function harness(options: {
   launch?: LaunchSpec & { command?: string | null };
   platform?: 'win32' | 'darwin' | 'linux';
   exitDuringWait?: number;
+  exitOnWaitCall?: number;
+  exitOnWaitCode?: number;
 } = {}) {
   const pty = new FakePty();
   const stored: RuntimeSummary[] = [];
@@ -159,6 +163,7 @@ function harness(options: {
     })
   };
   const startReconciliation = vi.fn();
+  let waitCallCount = 0;
   const spawn = vi.fn((_options: PtySpawnOptions) => {
     if (options.spawnError !== undefined) throw options.spawnError;
     return pty;
@@ -172,8 +177,12 @@ function harness(options: {
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc',
     wait: vi.fn(async () => {
+      waitCallCount += 1;
       if (options.exitDuringWait !== undefined) {
         pty.emitExit(options.exitDuringWait);
+      }
+      if (options.exitOnWaitCall === waitCallCount) {
+        pty.emitExit(options.exitOnWaitCode ?? 0);
       }
     })
   });
@@ -572,13 +581,50 @@ describe('RuntimeHost', () => {
     expect(JSON.stringify(host.list())).not.toContain('/secret');
   });
 
-  it('sends Ctrl+C before force-killing a live PTY', async () => {
+  it('retries a graceful interrupt before force-killing a live PTY', async () => {
     const { host, pty } = harness();
     const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
 
-    await host.terminate(runtime.id);
+    const stopped = await host.terminate(runtime.id);
 
-    expect(pty.writes).toEqual(['\u0003']);
+    expect(pty.writes).toEqual(['\u0003', '\u0003']);
+    expect(pty.killCount).toBe(1);
     expect(pty.killed).toBe(true);
+    expect(stopped).toMatchObject({
+      state: 'runtime_lost',
+      errorCode: 'PTY_RUNTIME_LOST'
+    });
+  });
+
+  it('uses the native exit observed after force-kill as the final outcome', async () => {
+    const { host, pty } = harness({
+      exitOnWaitCall: 3,
+      exitOnWaitCode: 0
+    });
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    const stopped = await host.terminate(runtime.id);
+
+    expect(pty.writes).toEqual(['\u0003', '\u0003']);
+    expect(pty.killCount).toBe(1);
+    expect(stopped).toMatchObject({
+      state: 'completed',
+      exitCode: 0,
+      errorCode: null
+    });
+  });
+
+  it('coalesces concurrent termination requests into one shutdown sequence', async () => {
+    const { host, pty } = harness();
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    const [first, second] = await Promise.all([
+      host.terminate(runtime.id),
+      host.terminate(runtime.id)
+    ]);
+
+    expect(pty.writes).toEqual(['\u0003', '\u0003']);
+    expect(pty.killCount).toBe(1);
+    expect(first).toEqual(second);
   });
 });

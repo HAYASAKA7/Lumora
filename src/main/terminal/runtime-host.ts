@@ -22,6 +22,9 @@ import type { ReconciliationRequest } from './new-session-reconciler';
 
 const MAX_EVENT_CHARS = 65_536;
 const MAX_SNAPSHOT_CHARS = 1_048_576;
+const FIRST_INTERRUPT_GRACE_MS = 2_000;
+const SECOND_INTERRUPT_GRACE_MS = 7_000;
+const FORCE_KILL_EXIT_GRACE_MS = 6_000;
 
 export interface Disposable {
   dispose(): void;
@@ -75,10 +78,13 @@ interface LiveRuntime {
   snapshot: string;
   outputSequence: number;
   subscriptions: Disposable[];
+  exit: Promise<RuntimeSummary>;
+  resolveExit(runtime: RuntimeSummary): void;
+  termination: Promise<RuntimeSummary> | null;
 }
 
 interface RuntimeExitOutcome {
-  state: 'completed' | 'failed';
+  state: 'completed' | 'failed' | 'runtime_lost';
   exitCode: number | null;
 }
 
@@ -203,12 +209,19 @@ export class RuntimeHost {
       pid: process.pid,
       startedAt: this.clock().toISOString()
     });
+    let resolveExit: (runtime: RuntimeSummary) => void = () => undefined;
+    const exit = new Promise<RuntimeSummary>((resolve) => {
+      resolveExit = resolve;
+    });
     const live: LiveRuntime = {
       runtime: running,
       process,
       snapshot: '',
       outputSequence: 0,
-      subscriptions: []
+      subscriptions: [],
+      exit,
+      resolveExit,
+      termination: null
     };
     this.live.set(runtimeId, live);
     live.subscriptions.push(
@@ -309,21 +322,61 @@ export class RuntimeHost {
   async terminate(runtimeId: string): Promise<RuntimeSummary> {
     const live = this.commandTarget(runtimeId);
     if (live === null) return this.attach(runtimeId).runtime;
-    this.invokePtyCommand(() => {
-      live.process.write('\u0003');
+    if (live.termination !== null) return live.termination;
+
+    const termination = this.terminateLive(runtimeId, live);
+    live.termination = termination;
+    void termination.catch(() => {
+      if (this.live.get(runtimeId) === live) {
+        live.termination = null;
+      }
     });
-    await this.wait(1_500);
+    return termination;
+  }
+
+  private async terminateLive(
+    runtimeId: string,
+    live: LiveRuntime
+  ): Promise<RuntimeSummary> {
+    this.interrupt(live);
+    const firstExit = await this.waitForExit(live, FIRST_INTERRUPT_GRACE_MS);
+    if (firstExit !== null) return firstExit;
+
+    if (this.live.get(runtimeId) === live) {
+      this.interrupt(live);
+    }
+    const secondExit = await this.waitForExit(live, SECOND_INTERRUPT_GRACE_MS);
+    if (secondExit !== null) return secondExit;
+
     if (this.live.get(runtimeId) === live) {
       live.process.kill();
-      await this.wait(500);
     }
+    const killedExit = await this.waitForExit(live, FORCE_KILL_EXIT_GRACE_MS);
+    if (killedExit !== null) return killedExit;
+
     if (this.live.get(runtimeId) === live) {
       this.finalize(runtimeId, {
-        state: 'failed',
+        state: 'runtime_lost',
         exitCode: null
       });
     }
     return this.attach(runtimeId).runtime;
+  }
+
+  private interrupt(live: LiveRuntime): void {
+    this.invokePtyCommand(() => {
+      live.process.write('\u0003');
+    });
+  }
+
+  private async waitForExit(
+    live: LiveRuntime,
+    milliseconds: number
+  ): Promise<RuntimeSummary | null> {
+    return Promise.race([
+      live.exit,
+      this.wait(milliseconds).then(() => null)
+    ]);
   }
 
   async shutdown(): Promise<void> {
@@ -417,9 +470,15 @@ export class RuntimeHost {
       state: outcome.state,
       endedAt: this.clock().toISOString(),
       exitCode: outcome.exitCode,
-      errorCode: outcome.state === 'completed' ? null : 'PTY_RUNTIME_FAILED'
+      errorCode:
+        outcome.state === 'completed'
+          ? null
+          : outcome.state === 'runtime_lost'
+            ? 'PTY_RUNTIME_LOST'
+            : 'PTY_RUNTIME_FAILED'
     });
     this.persistAndEmit(runtime);
+    live.resolveExit(runtime);
   }
 
   private persistAndEmit(
