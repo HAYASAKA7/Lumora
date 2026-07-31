@@ -114,3 +114,24 @@ export function resolveRendererAssetPath(
     return null;
   }
 }
+
+export function resolveAppearanceBackgroundRequest(
+  managedBackgroundPath: string,
+  requestUrl: string
+): string | null {
+  try {
+    const url = new URL(requestUrl);
+    return (
+      url.protocol === 'app:' &&
+      url.hostname === 'appearance' &&
+      url.port === '' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.pathname === '/background'
+    )
+      ? managedBackgroundPath
+      : null;
+  } catch {
+    return null;
+  }
+}

@@ -586,6 +586,21 @@ describe('createLumoraApi', () => {
     ).rejects.toBeDefined();
   });
 
+  it('exposes opaque appearance background operations', async () => {
+    const state = { available: true, revision: '1720000000000-4096' };
+    const invoke = vi.fn().mockResolvedValue(state);
+    const api = createLumoraApi(invoke);
+
+    await expect(api.getAppearanceBackground()).resolves.toEqual(state);
+    await expect(api.chooseAppearanceBackground()).resolves.toEqual(state);
+    await expect(api.removeAppearanceBackground()).resolves.toEqual(state);
+    expect(invoke.mock.calls).toEqual([
+      [IPC_CHANNELS.appearanceBackgroundGet],
+      [IPC_CHANNELS.appearanceBackgroundChoose],
+      [IPC_CHANNELS.appearanceBackgroundRemove]
+    ]);
+  });
+
   it('uses validated narrow channels for workspace trust', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const launchToken = '0198f8b6-18f3-7ca0-9f0f-123456789abc';

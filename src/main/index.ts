@@ -24,6 +24,7 @@ import {
   TrayResumeSessionRequestSchema
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
+import { AppearanceBackgroundStore } from './appearance/appearance-background-store';
 import {
   createCatalogRuntime,
   type CatalogRuntime
@@ -31,6 +32,7 @@ import {
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
+import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
@@ -64,6 +66,7 @@ import {
 import {
   createSecureWindowOptions,
   installWindowGuards,
+  resolveAppearanceBackgroundRequest,
   resolveRendererAssetPath
 } from './security-policy';
 import { createSingleWindowCreationGate } from './single-window-creation';
@@ -156,6 +159,7 @@ let activeStartupBackgroundActivity:
 let pendingWindowStateFlush: Promise<void> = Promise.resolve();
 let activeStartupBackgroundActivityId: number | null = null;
 let trayController: TrayController | null = null;
+let appearanceBackgroundStore: AppearanceBackgroundStore | null = null;
 let shutdownStarted = false;
 
 configureDevelopmentDataPaths(app);
@@ -180,6 +184,20 @@ protocol.registerSchemesAsPrivileged([
 
 function registerApplicationProtocol(): void {
   protocol.handle('app', async (request) => {
+    const backgroundPath = appearanceBackgroundStore === null
+      ? null
+      : resolveAppearanceBackgroundRequest(
+          appearanceBackgroundStore.path,
+          request.url
+        );
+    if (backgroundPath !== null) {
+      try {
+        return await net.fetch(pathToFileURL(backgroundPath).toString());
+      } catch {
+        return new Response('Not found', { status: 404 });
+      }
+    }
+
     const assetPath = resolveRendererAssetPath(rendererRoot, request.url);
     if (assetPath === null) {
       return new Response('Not found', { status: 404 });
@@ -363,6 +381,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: process.env
   });
   configureApplicationMenu(Menu, { platform });
+  appearanceBackgroundStore = new AppearanceBackgroundStore({
+    directory: join(app.getPath('userData'), 'appearance'),
+    loadImage: (path) => nativeImage.createFromPath(path)
+  });
   registerApplicationProtocol();
   catalogRuntime = createCatalogRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
@@ -521,6 +543,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       readText: () => clipboard.readText(),
       writeText: (text) => clipboard.writeText(text)
     },
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerAppearanceIpc({
+    ipc: ipcMain,
+    service: appearanceBackgroundStore,
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   unsubscribeTerminalEvents = registerTerminalIpc({

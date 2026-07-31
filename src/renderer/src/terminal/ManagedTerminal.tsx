@@ -15,14 +15,40 @@ import {
 
 interface ManagedTerminalProps {
   active: boolean;
+  backgroundOpacity?: number;
   focusRequestKey?: number;
   platform: SystemInfo['platform'];
   runtime: RuntimeSummary;
+  theme?: 'light' | 'dark';
   onRuntimeChange(runtime: RuntimeSummary): void;
 }
 
 const TERMINAL_BLOCK_SIZE = '100%';
 export const TERMINAL_EXIT_GRACE_MS = 2_000;
+
+const TERMINAL_THEMES = {
+  dark: {
+    background: '#07111f',
+    foreground: '#d8e2ef',
+    cursor: '#7aa2ff',
+    selectionBackground: '#294b78'
+  },
+  light: {
+    background: '#f7f9fc',
+    foreground: '#172033',
+    cursor: '#296dff',
+    selectionBackground: '#c9dcff'
+  }
+} as const;
+
+function terminalPalette(theme: 'light' | 'dark', backgroundOpacity: number) {
+  const palette = TERMINAL_THEMES[theme];
+  if (backgroundOpacity >= 1) return palette;
+  return {
+    ...palette,
+    background: 'rgba(0, 0, 0, 0)'
+  };
+}
 
 function isRuntimeLive(runtime: RuntimeSummary): boolean {
   return runtime.state === 'launching' || runtime.state === 'running';
@@ -30,15 +56,18 @@ function isRuntimeLive(runtime: RuntimeSummary): boolean {
 
 export function ManagedTerminal({
   active,
+  backgroundOpacity = 1,
   focusRequestKey = 0,
   platform,
   runtime,
+  theme = 'dark',
   onRuntimeChange
 }: ManagedTerminalProps): ReactNode {
   const container = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
   const platformRef = useRef(platform);
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
+  const themeRef = useRef({ theme, backgroundOpacity });
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const interruptDeadlineRef = useRef<number | null>(null);
   const acceptingInputRef = useRef(isRuntimeLive(runtime));
@@ -47,6 +76,7 @@ export function ManagedTerminal({
   const [interruptArmed, setInterruptArmed] = useState(false);
   activeRef.current = active;
   platformRef.current = platform;
+  themeRef.current = { theme, backgroundOpacity };
 
   const clearInterruptGuard = useCallback(() => {
     interruptDeadlineRef.current = null;
@@ -67,16 +97,15 @@ export function ManagedTerminal({
       ([{ Terminal }, { FitAddon }]) => {
         if (!alive) return;
         const terminal = new Terminal({
+          allowTransparency: true,
           cursorBlink: true,
           fontFamily: 'Cascadia Mono, SFMono-Regular, Consolas, monospace',
           fontSize: 13,
           scrollback: 5_000,
-          theme: {
-            background: '#07111f',
-            foreground: '#d8e2ef',
-            cursor: '#7aa2ff',
-            selectionBackground: '#294b78'
-          },
+          theme: terminalPalette(
+            themeRef.current.theme,
+            themeRef.current.backgroundOpacity
+          ),
           linkHandler: {
             activate: (_event, uri) => {
               const confirmed = window.confirm(
@@ -376,6 +405,13 @@ export function ManagedTerminal({
   }, [runtime.id, onRuntimeChange, clearInterruptGuard]);
 
   useEffect(() => {
+    const terminal = terminalRef.current;
+    if (terminal !== null) {
+      terminal.options.theme = terminalPalette(theme, backgroundOpacity);
+    }
+  }, [backgroundOpacity, theme]);
+
+  useEffect(() => {
     if (!isRuntimeLive(runtime)) {
       acceptingInputRef.current = false;
     }
@@ -391,7 +427,7 @@ export function ManagedTerminal({
   }, [active, clearInterruptGuard, focusRequestKey]);
 
   return (
-    <div className="managed-terminal-shell">
+    <div className={`managed-terminal-shell managed-terminal-shell-${theme}`}>
       {error === null ? null : <div className="terminal-error" role="alert">{error}</div>}
       {interruptArmed ? (
         <div className="terminal-interrupt-notice" role="status">

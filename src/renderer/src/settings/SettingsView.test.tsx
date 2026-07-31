@@ -50,6 +50,10 @@ vi.mock('./GeneralSettingsPanel', () => ({
   )
 }));
 
+vi.mock('./AppearanceSettingsPanel', () => ({
+  AppearanceSettingsPanel: () => <div>Appearance content</div>
+}));
+
 vi.mock('./WorkspaceTrustPanel', () => ({
   WorkspaceTrustPanel: () => <div>Security content</div>
 }));
@@ -118,15 +122,20 @@ function Harness({
   return (
     <SettingsView
       activeCategory={activeCategory}
+      appearanceBackground={{ available: false, revision: null }}
+      appearanceBackgroundBusy={false}
+      appearanceBackgroundError={null}
       catalogReady={catalogReady}
       environmentStatus={environmentStatus}
       generalSettings={DEFAULT_GENERAL_SETTINGS}
       generalSettingsSaveError={null}
       generalSettingsSaving={false}
       onCategoryChange={setActiveCategory}
+      onChooseAppearanceBackground={vi.fn()}
       onGeneralSettingsChange={onGeneralSettingsChange}
       onKeyboardSettingsChange={onKeyboardSettingsChange}
       onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
+      onRemoveAppearanceBackground={vi.fn()}
       onRefreshEnvironment={onRefreshEnvironment}
       onRefreshProviders={onRefreshProviders}
       onSaveEnabledProviders={onSaveEnabledProviders}
@@ -148,6 +157,7 @@ describe('SettingsView', () => {
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'General',
+      'Appearance',
       'Providers',
       'Environment',
       'Launch',
@@ -172,6 +182,7 @@ describe('SettingsView', () => {
     }
 
     expect(screen.getByText('General content')).toBeVisible();
+    expect(screen.getByText('Appearance content')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('Environment loading')).toBeInTheDocument();
     expect(screen.getByText('Launch content')).toBeInTheDocument();
@@ -203,11 +214,11 @@ describe('SettingsView', () => {
 
     general.focus();
     expect(fireEvent.keyDown(general, { key: 'ArrowRight' })).toBe(false);
-    const providers = screen.getByRole('tab', { name: 'Providers' });
-    expect(providers).toHaveFocus();
-    expect(providers).toHaveAttribute('aria-selected', 'true');
+    const appearance = screen.getByRole('tab', { name: 'Appearance' });
+    expect(appearance).toHaveFocus();
+    expect(appearance).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(providers, { key: 'Home' });
+    fireEvent.keyDown(appearance, { key: 'Home' });
     expect(general).toHaveFocus();
     expect(general).toHaveAttribute('aria-selected', 'true');
 
@@ -229,6 +240,7 @@ describe('SettingsView', () => {
 
     expect(document.getElementById('settings-panel-providers')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-general')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-appearance')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-environment')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-launch')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
@@ -236,6 +248,7 @@ describe('SettingsView', () => {
     expect(document.getElementById('settings-panel-transfer')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('General content')).toBeInTheDocument();
+    expect(screen.getByText('Appearance content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
     expect(screen.queryByText('Launch content')).not.toBeInTheDocument();

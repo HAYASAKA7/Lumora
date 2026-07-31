@@ -253,6 +253,25 @@ Review installation status and versions, install or update supported npm-based
 agents after confirmation, open official setup guides, and check Node.js and
 npm independently from provider discovery.
 
+### Appearance
+
+Open **Settings > Appearance** to choose Lumora mixed, Light, or Dark. Lumora
+mixed—the original dark-sidebar and light-workspace design—is the default.
+Theme changes apply immediately. Terminals stay dark by default even in Light
+mode; enable the separate light-terminal switch
+if you prefer a fully light workspace.
+
+You can also choose a PNG, JPEG, or WebP image as a shared background across
+the sidebar, workspace, cards, terminals, and in-app dialogs. Lumora keeps the
+original file unchanged and creates a bounded private copy. Image opacity,
+brightness, blur, fit, position, surface opacity, terminal opacity, and the
+optional Surface mosaic can be adjusted without restarting the app. Surface
+and terminal opacity both support the full `0–100%` range. Component surfaces
+use related opacity levels so controls, cards, and page chrome remain distinct;
+dialogs stay more opaque for readability. Surface mosaic defaults to `0 px`,
+which leaves the image unblurred; raise it through `24 px` for a frosted-glass
+effect. Removing the managed copy does not remove the original.
+
 ### Security
 
 The first launch in an exact canonical workspace path requires confirmation.

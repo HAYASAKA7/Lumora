@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode
 } from 'react';
 
@@ -15,6 +17,7 @@ import {
   DEFAULT_KEYBOARD_SETTINGS
 } from '../../shared/contracts';
 import type {
+  AppearanceBackgroundState,
   CatalogQuery,
   GeneralSettings,
   ProviderId,
@@ -32,6 +35,11 @@ import {
   type CatalogViewStatus
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
+import {
+  buildAppearanceOpacityTiers,
+  formatAppearanceOpacity
+} from './appearance/opacity-tiers';
+import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
@@ -124,7 +132,8 @@ type StartupTask =
   | 'profiles'
   | 'runtimes'
   | 'keyboard'
-  | 'generalSettings';
+  | 'generalSettings'
+  | 'appearanceBackground';
 
 const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   system: false,
@@ -134,7 +143,8 @@ const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   profiles: false,
   runtimes: false,
   keyboard: false,
-  generalSettings: false
+  generalSettings: false,
+  appearanceBackground: false
 };
 
 const ROUTES = [
@@ -189,6 +199,21 @@ const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
   darwin: 'macOS',
   linux: 'Linux'
+};
+
+const BACKGROUND_POSITIONS: Record<
+  GeneralSettings['appearance']['backgroundPosition'],
+  string
+> = {
+  center: 'center',
+  top: 'center top',
+  bottom: 'center bottom',
+  left: 'left center',
+  right: 'right center',
+  'top-left': 'left top',
+  'top-right': 'right top',
+  'bottom-left': 'left bottom',
+  'bottom-right': 'right bottom'
 };
 
 function shortcutTitle(
@@ -358,6 +383,12 @@ export default function App(): ReactNode {
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSaveError, setGeneralSettingsSaveError] =
     useState<string | null>(null);
+  const [appearanceBackground, setAppearanceBackground] =
+    useState<AppearanceBackgroundState>({ available: false, revision: null });
+  const [appearanceBackgroundBusy, setAppearanceBackgroundBusy] =
+    useState(false);
+  const [appearanceBackgroundError, setAppearanceBackgroundError] =
+    useState<string | null>(null);
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('general');
   const [sidebarExpanded, setSidebarExpanded] = useState(() =>
@@ -385,6 +416,20 @@ export default function App(): ReactNode {
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
   }, [sidebarExpanded]);
+
+  const resolvedTheme = resolveAppearanceTheme(
+    generalSettings?.appearance.theme ?? DEFAULT_GENERAL_SETTINGS.appearance.theme
+  );
+  const resolvedTerminalTheme = terminalThemeFor(
+    resolvedTheme,
+    generalSettings?.appearance.lightTerminalInLightMode ?? false
+  );
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme =
+      resolvedTheme === 'dark' ? 'dark' : 'light';
+  }, [resolvedTheme]);
 
   const settleStartupTask = useCallback((task: StartupTask) => {
     setStartupTasks((current) =>
@@ -529,6 +574,24 @@ export default function App(): ReactNode {
           setGeneralSettings(DEFAULT_GENERAL_SETTINGS);
           settleStartupTask('generalSettings');
         }
+      }
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [settleStartupTask]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    void window.lumora.getAppearanceBackground().then(
+      (state) => {
+        if (isCurrent) {
+          setAppearanceBackground(state);
+          settleStartupTask('appearanceBackground');
+        }
+      },
+      () => {
+        if (isCurrent) settleStartupTask('appearanceBackground');
       }
     );
     return () => {
@@ -1213,6 +1276,48 @@ export default function App(): ReactNode {
     },
     [generalSettings]
   );
+  const chooseAppearanceBackground = useCallback(async () => {
+    setAppearanceBackgroundBusy(true);
+    setAppearanceBackgroundError(null);
+    try {
+      const state = await window.lumora.chooseAppearanceBackground();
+      setAppearanceBackground(state);
+      if (state.available) {
+        const current = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
+        if (!current.appearance.backgroundEnabled) {
+          await updateGeneralSettings({
+            ...current,
+            appearance: { ...current.appearance, backgroundEnabled: true }
+          });
+        }
+      }
+    } catch {
+      setAppearanceBackgroundError(
+        'Lumora could not use that image. Choose a valid PNG, JPEG, or WebP file under 25 MB.'
+      );
+    } finally {
+      setAppearanceBackgroundBusy(false);
+    }
+  }, [generalSettings, updateGeneralSettings]);
+  const removeAppearanceBackground = useCallback(async () => {
+    setAppearanceBackgroundBusy(true);
+    setAppearanceBackgroundError(null);
+    try {
+      const state = await window.lumora.removeAppearanceBackground();
+      setAppearanceBackground(state);
+      const current = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
+      if (current.appearance.backgroundEnabled) {
+        await updateGeneralSettings({
+          ...current,
+          appearance: { ...current.appearance, backgroundEnabled: false }
+        });
+      }
+    } catch {
+      setAppearanceBackgroundError('Lumora could not remove the managed image.');
+    } finally {
+      setAppearanceBackgroundBusy(false);
+    }
+  }, [generalSettings, updateGeneralSettings]);
   const saveEnabledProviders = useCallback(
     async (enabledProviders: readonly ProviderId[]): Promise<boolean> => {
       const previous = generalSettings ?? DEFAULT_GENERAL_SETTINGS;
@@ -1272,13 +1377,65 @@ export default function App(): ReactNode {
     startupShouldPlay === true && !startupTasks.catalog
       ? { state: 'loading' }
       : catalogStatus;
+  const appearance = generalSettings?.appearance ??
+    DEFAULT_GENERAL_SETTINGS.appearance;
+  const appearanceBackgroundActive =
+    appearance.backgroundEnabled && appearanceBackground.available;
+  const appearanceOpacityTiers = buildAppearanceOpacityTiers(
+    appearance.surfaceOpacity
+  );
+  const appearanceShellStyle = appearanceBackgroundActive
+    ? ({
+        '--appearance-terminal-opacity': `${Math.round(appearance.terminalOpacity * 100)}%`,
+        '--appearance-opacity-recessed': formatAppearanceOpacity(
+          appearanceOpacityTiers.recessed
+        ),
+        '--appearance-opacity-normal': formatAppearanceOpacity(
+          appearanceOpacityTiers.normal
+        ),
+        '--appearance-opacity-raised': formatAppearanceOpacity(
+          appearanceOpacityTiers.raised
+        ),
+        '--appearance-opacity-popup': formatAppearanceOpacity(
+          appearanceOpacityTiers.popup
+        ),
+        '--appearance-opacity-popup-raised': formatAppearanceOpacity(
+          appearanceOpacityTiers.popupRaised
+        ),
+        '--appearance-surface-mosaic': appearance.surfaceMosaic > 0
+          ? `${appearance.surfaceMosaic}px`
+          : undefined
+      } as CSSProperties)
+    : undefined;
+  const appearanceBackgroundStyle = appearanceBackgroundActive
+    ? ({
+        backgroundImage: `url("app://appearance/background?revision=${encodeURIComponent(appearanceBackground.revision ?? '')}")`,
+        backgroundPosition: BACKGROUND_POSITIONS[appearance.backgroundPosition],
+        backgroundSize:
+          appearance.backgroundFit === 'original'
+            ? 'auto'
+            : appearance.backgroundFit,
+        filter: `brightness(${appearance.backgroundBrightness}) blur(${appearance.backgroundBlur}px)`,
+        opacity: appearance.backgroundOpacity,
+        transform: appearance.backgroundBlur > 0 ? 'scale(1.04)' : undefined
+      } as CSSProperties)
+    : undefined;
 
   return (
     <>
     <div
       aria-hidden={startupPresentationActive ? true : undefined}
-      className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}`}
+      className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}${appearanceBackgroundActive ? ' has-appearance-background' : ''}${appearanceBackgroundActive && appearance.surfaceMosaic > 0 ? ' has-surface-mosaic' : ''}${terminalActive ? ' terminal-active' : ''}`}
+      data-theme={resolvedTheme}
+      style={appearanceShellStyle}
     >
+      {appearanceBackgroundStyle === undefined ? null : (
+        <div
+          aria-hidden="true"
+          className="appearance-background-layer"
+          style={appearanceBackgroundStyle}
+        />
+      )}
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -1461,6 +1618,9 @@ export default function App(): ReactNode {
             ) : activeRoute.id === 'settings' ? (
               <SettingsView
                 activeCategory={settingsCategory}
+                appearanceBackground={appearanceBackground}
+                appearanceBackgroundBusy={appearanceBackgroundBusy}
+                appearanceBackgroundError={appearanceBackgroundError}
                 catalogReady={visibleCatalogStatus.state === 'ready'}
                 environmentStatus={environmentStatus}
                 generalSettings={
@@ -1469,9 +1629,11 @@ export default function App(): ReactNode {
                 generalSettingsSaveError={generalSettingsSaveError}
                 generalSettingsSaving={generalSettingsSaving}
                 onCategoryChange={setSettingsCategory}
+                onChooseAppearanceBackground={chooseAppearanceBackground}
                 onGeneralSettingsChange={updateGeneralSettings}
                 onKeyboardSettingsChange={setKeyboardSettings}
                 onOpenNodeDownload={openNodeDownload}
+                onRemoveAppearanceBackground={removeAppearanceBackground}
                 onRefreshEnvironment={refreshEnvironment}
                 onRefreshProviders={refreshProviders}
                 onSaveEnabledProviders={saveEnabledProviders}
@@ -1517,6 +1679,10 @@ export default function App(): ReactNode {
                 }
                 previews={launchPreviews}
                 runtimes={openRuntimes}
+                backgroundOpacity={
+                  appearanceBackgroundActive ? appearance.terminalOpacity : 1
+                }
+                theme={resolvedTerminalTheme}
                 visible={terminalActive}
                 workspaces={
                   visibleCatalogStatus.state === 'ready'

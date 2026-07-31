@@ -5,6 +5,7 @@ import {
   createSecureWindowOptions,
   installWindowGuards,
   isTrustedRendererUrl,
+  resolveAppearanceBackgroundRequest,
   resolveRendererAssetPath
 } from './security-policy';
 
@@ -141,5 +142,23 @@ describe('resolveRendererAssetPath', () => {
         'app://lumora/assets%5csecrets.txt'
       )
     ).toBeNull();
+  });
+});
+
+describe('resolveAppearanceBackgroundRequest', () => {
+  it('maps only the fixed opaque appearance URL to the managed file', () => {
+    const path = resolve('user-data/appearance/background.png');
+    expect(resolveAppearanceBackgroundRequest(
+      path,
+      'app://appearance/background?revision=1720000000000-4096'
+    )).toBe(path);
+    expect(resolveAppearanceBackgroundRequest(
+      path,
+      'app://appearance/../secrets.txt'
+    )).toBeNull();
+    expect(resolveAppearanceBackgroundRequest(
+      path,
+      'app://lumora/background'
+    )).toBeNull();
   });
 });

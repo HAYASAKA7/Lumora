@@ -300,6 +300,43 @@ changes, so the running-agent count and recent sessions stay current. Selecting
 a recent session restores the existing renderer and opens the same guarded
 resume-confirmation workflow used inside the app.
 
+## Appearance and managed backgrounds
+
+General settings schema version 6 stores theme and background presentation
+preferences. The renderer applies the explicit `lumora`, `light`, or `dark`
+selection through semantic color tokens, with `lumora` as the default mixed
+dark-sidebar and light-workspace palette. Version 5 settings migrate without
+discarding appearance values, add a zero-strength Surface mosaic, and normalize
+temporary pre-release `system` selections to `lumora`. Xterm
+palettes update on existing terminal instances, so a
+theme change does not recreate a PTY, discard scrollback, or interrupt an
+agent. A separate preference keeps terminals dark in Light mode by default.
+
+Custom background selection remains privileged. The main process accepts only
+PNG, JPEG, and WebP selections from a native file dialog, rejects empty or
+oversized inputs, bounds the longest image edge, converts the result to PNG,
+and stores the managed copy under the application's user-data directory. The
+original source is never modified.
+
+The preload bridge exposes only availability, an opaque cache revision, and
+choose/remove operations. Renderer image loading uses the exact
+`app://appearance/background` protocol route; arbitrary paths and other hosts
+are rejected. Surface and terminal transparency are applied only while a valid
+managed background is enabled, preserving fully opaque defaults otherwise.
+Surface mosaic is scoped to the app shell and adds its backdrop-filter class
+only for positive values; the zero default creates no mosaic layer.
+Surface and terminal opacity accept the full zero-to-one range. Xterm runs with
+transparent rendering enabled over a DOM-owned terminal tint, so changing
+terminal opacity exposes the managed background without fading terminal text,
+recreating the terminal, or interrupting the PTY. In-app dialog backdrops,
+dialog shells, and the runtime switcher share the surface and mosaic controls.
+The renderer derives recessed, normal, raised, popup, and popup-raised opacity
+tiers from the selected surface opacity, then applies them through centralized
+semantic background tokens. Popup tiers retain a readability floor even when
+normal surfaces are set to zero. On terminal routes, the outer workspace frame
+is transparent so the workspace, terminal chrome, and DOM-owned terminal tint
+do not compound into an unintended opaque stack.
+
 ## Intentional future scope
 
 ### Selectable runtime icon appearance
@@ -350,6 +387,7 @@ must not prevent an otherwise valid session from being resumed.
 | Path | Responsibility |
 | --- | --- |
 | `src/main/catalog/` | Catalog composition, querying, and refresh runtime |
+| `src/main/appearance/` | Validated managed custom-background lifecycle |
 | `src/main/providers/` | Provider discovery and session-source adapters |
 | `src/main/handoff/` | Temporary cross-agent context lifecycle and cleanup |
 | `src/main/terminal/` | Launch resolution, PTY runtime, recovery, reconciliation |

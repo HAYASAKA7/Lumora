@@ -54,9 +54,11 @@ describe('sidebar style contract', () => {
 
     expect(compactMediaStart).toBeGreaterThanOrEqual(0);
     expect(compactMediaEnd).toBeGreaterThan(compactMediaStart);
-    expect(desktopSelectedRule).toContain('background: #182a42');
     expect(desktopSelectedRule).toContain(
-      'border-color: rgba(122, 164, 221, 0.16)'
+      'background: var(--sidebar-selected)'
+    );
+    expect(desktopSelectedRule).toContain(
+      'border-color: color-mix(in srgb, var(--blue) 22%, transparent)'
     );
     expect(desktopSelectedRule).not.toContain('box-shadow');
     expect(compactSelectedRule).toContain(

@@ -38,9 +38,9 @@ describe('startup presentation style contract', () => {
     expect(backdropRule).toContain(
       'height: calc(var(--startup-media-width) * 9 / 16)'
     );
-    expect(backdropRule).toContain('#040c15 0%');
-    expect(backdropRule).toContain('#01090e 50%');
-    expect(backdropRule).toContain('#01040b 100%');
+    expect(backdropRule).toContain('var(--startup-gradient-1) 0%');
+    expect(backdropRule).toContain('var(--startup-gradient-4) 50%');
+    expect(backdropRule).toContain('var(--startup-gradient-7) 100%');
     expect(stageRule).toContain('width: var(--startup-media-width)');
     expect(stageRule).toContain('aspect-ratio: 16 / 9');
     expect(stageRule).toContain('margin: 0');

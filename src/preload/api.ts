@@ -1,4 +1,5 @@
 import {
+  AppearanceBackgroundStateSchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -197,6 +198,18 @@ export function createLumoraApi(
       const request = GeneralSettingsSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.generalSettingsSave, request);
       return GeneralSettingsSchema.parse(value);
+    },
+    async getAppearanceBackground() {
+      const value = await invoke(IPC_CHANNELS.appearanceBackgroundGet);
+      return AppearanceBackgroundStateSchema.parse(value);
+    },
+    async chooseAppearanceBackground() {
+      const value = await invoke(IPC_CHANNELS.appearanceBackgroundChoose);
+      return AppearanceBackgroundStateSchema.parse(value);
+    },
+    async removeAppearanceBackground() {
+      const value = await invoke(IPC_CHANNELS.appearanceBackgroundRemove);
+      return AppearanceBackgroundStateSchema.parse(value);
     },
     async getKeyboardSettings() {
       const value = await invoke(IPC_CHANNELS.keyboardSettingsGet);

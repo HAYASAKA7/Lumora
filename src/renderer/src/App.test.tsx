@@ -251,6 +251,9 @@ interface CatalogApiOverrides {
   chooseWorkspace?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
   getGeneralSettings?: ReturnType<typeof vi.fn>;
+  getAppearanceBackground?: ReturnType<typeof vi.fn>;
+  chooseAppearanceBackground?: ReturnType<typeof vi.fn>;
+  removeAppearanceBackground?: ReturnType<typeof vi.fn>;
   saveGeneralSettings?: ReturnType<typeof vi.fn>;
   getKeyboardSettings?: ReturnType<typeof vi.fn>;
   readClipboardText?: ReturnType<typeof vi.fn>;
@@ -337,6 +340,15 @@ function setSystemInfoResult(
         vi.fn().mockResolvedValue(DEFAULT_GENERAL_SETTINGS),
       saveGeneralSettings:
         catalogApi.saveGeneralSettings ?? vi.fn(async (value) => value),
+      getAppearanceBackground:
+        catalogApi.getAppearanceBackground ??
+        vi.fn().mockResolvedValue({ available: false, revision: null }),
+      chooseAppearanceBackground:
+        catalogApi.chooseAppearanceBackground ??
+        vi.fn().mockResolvedValue({ available: false, revision: null }),
+      removeAppearanceBackground:
+        catalogApi.removeAppearanceBackground ??
+        vi.fn().mockResolvedValue({ available: false, revision: null }),
       getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
       trustWorkspaceForLaunch: vi.fn(),
       revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
@@ -844,6 +856,127 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: 'General' })
     ).toBeVisible();
+  });
+
+  it('renders only the opaque managed background URL when enabled', async () => {
+    setSystemInfoResult(undefined, undefined, {
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance,
+          backgroundEnabled: true
+        }
+      }),
+      getAppearanceBackground: vi.fn().mockResolvedValue({
+        available: true,
+        revision: '1720000000000-4096'
+      })
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      const layer = document.querySelector('.appearance-background-layer');
+      expect(layer).toBeInTheDocument();
+      expect(layer).toHaveStyle({
+        backgroundImage:
+          'url("app://appearance/background?revision=1720000000000-4096")'
+      });
+    });
+    expect(document.querySelector('.app-shell')).toHaveClass(
+      'has-appearance-background'
+    );
+    expect(document.querySelector('.app-shell')).not.toHaveClass(
+      'has-surface-mosaic'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).not.toContain(
+      '--appearance-surface-mosaic'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-terminal-opacity: 94%'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-opacity-recessed: 90.528%'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-opacity-normal: 92%'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-opacity-raised: 94.576%'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-opacity-popup: 97.2%'
+    );
+    expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
+      '--appearance-opacity-popup-raised: 98.153%'
+    );
+  });
+
+  it('adds the surface mosaic layer only for a positive saved strength', async () => {
+    setSystemInfoResult(undefined, undefined, {
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance,
+          backgroundEnabled: true,
+          surfaceMosaic: 12
+        }
+      }),
+      getAppearanceBackground: vi.fn().mockResolvedValue({
+        available: true,
+        revision: '1720000000000-4096'
+      })
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      const shell = document.querySelector('.app-shell');
+      expect(shell).toHaveClass('has-appearance-background');
+      expect(shell).toHaveClass('has-surface-mosaic');
+      expect(shell?.getAttribute('style')).toContain(
+        '--appearance-surface-mosaic: 12px'
+      );
+    });
+  });
+
+  it('marks an open terminal page as the active surface mosaic target', async () => {
+    const runtime = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ab1'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance,
+          backgroundEnabled: true,
+          surfaceMosaic: 12
+        }
+      }),
+      getAppearanceBackground: vi.fn().mockResolvedValue({
+        available: true,
+        revision: '1720000000000-4096'
+      }),
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('.app-shell')).toHaveClass(
+        'has-surface-mosaic',
+        'terminal-active'
+      );
+      expect(document.querySelector('.terminal-workspace')).toBeInTheDocument();
+    });
   });
 
   it('keeps a collapsed sidebar collapsed while navigating when auto-expand is disabled', async () => {

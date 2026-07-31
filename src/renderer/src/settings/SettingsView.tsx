@@ -1,6 +1,7 @@
 import { useRef, type KeyboardEvent } from 'react';
 
 import type {
+  AppearanceBackgroundState,
   GeneralSettings,
   KeyboardSettings,
   SessionSummary,
@@ -18,12 +19,14 @@ import {
 } from '../environment/DeveloperEnvironment';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { GeneralSettingsPanel } from './GeneralSettingsPanel';
+import { AppearanceSettingsPanel } from './AppearanceSettingsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 import { SessionTransferPanel } from '../transfer/SessionTransferPanel';
 
 export type SettingsCategory =
   | 'general'
+  | 'appearance'
   | 'providers'
   | 'environment'
   | 'launch'
@@ -32,6 +35,9 @@ export type SettingsCategory =
   | 'transfer';
 
 interface SettingsViewProps {
+  appearanceBackground: AppearanceBackgroundState;
+  appearanceBackgroundBusy: boolean;
+  appearanceBackgroundError: string | null;
   activeCategory: SettingsCategory;
   catalogReady: boolean;
   environmentStatus: DeveloperEnvironmentStatus;
@@ -39,9 +45,11 @@ interface SettingsViewProps {
   generalSettingsSaveError: string | null;
   generalSettingsSaving: boolean;
   onCategoryChange: (category: SettingsCategory) => void;
+  onChooseAppearanceBackground: () => void;
   onGeneralSettingsChange: (settings: GeneralSettings) => void;
   onKeyboardSettingsChange: (settings: KeyboardSettings) => void;
   onOpenNodeDownload: () => Promise<void>;
+  onRemoveAppearanceBackground: () => void;
   onRefreshEnvironment: () => void;
   onRefreshProviders: () => void;
   onSaveEnabledProviders: (
@@ -58,6 +66,7 @@ interface SettingsViewProps {
 
 const SETTINGS_CATEGORIES = [
   { id: 'general', label: 'General' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'providers', label: 'Providers' },
   { id: 'environment', label: 'Environment' },
   { id: 'launch', label: 'Launch' },
@@ -67,6 +76,9 @@ const SETTINGS_CATEGORIES = [
 ] as const;
 
 export function SettingsView({
+  appearanceBackground,
+  appearanceBackgroundBusy,
+  appearanceBackgroundError,
   activeCategory,
   catalogReady,
   environmentStatus,
@@ -74,9 +86,11 @@ export function SettingsView({
   generalSettingsSaveError,
   generalSettingsSaving,
   onCategoryChange,
+  onChooseAppearanceBackground,
   onGeneralSettingsChange,
   onKeyboardSettingsChange,
   onOpenNodeDownload,
+  onRemoveAppearanceBackground,
   onRefreshEnvironment,
   onRefreshProviders,
   onSaveEnabledProviders,
@@ -168,6 +182,26 @@ export function SettingsView({
       >
         <GeneralSettingsPanel
           onChange={onGeneralSettingsChange}
+          saveError={generalSettingsSaveError}
+          saving={generalSettingsSaving}
+          settings={generalSettings}
+        />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-appearance"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'appearance'}
+        id="settings-panel-appearance"
+        role="tabpanel"
+      >
+        <AppearanceSettingsPanel
+          background={appearanceBackground}
+          backgroundBusy={appearanceBackgroundBusy}
+          backgroundError={appearanceBackgroundError}
+          onChange={onGeneralSettingsChange}
+          onChooseBackground={onChooseAppearanceBackground}
+          onRemoveBackground={onRemoveAppearanceBackground}
           saveError={generalSettingsSaveError}
           saving={generalSettingsSaving}
           settings={generalSettings}

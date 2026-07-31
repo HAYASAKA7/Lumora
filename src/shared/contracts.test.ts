@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AppearanceBackgroundStateSchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -129,6 +130,28 @@ describe('SystemInfoSchema', () => {
         secret: 'must-not-cross-ipc'
       }).success
     ).toBe(false);
+  });
+});
+
+describe('appearance background contracts', () => {
+  it('validates opaque background state and stable channels', () => {
+    expect(AppearanceBackgroundStateSchema.parse({
+      available: true,
+      revision: '1720000000000-4096'
+    })).toEqual({ available: true, revision: '1720000000000-4096' });
+    expect(AppearanceBackgroundStateSchema.safeParse({
+      available: false,
+      revision: 'unexpected'
+    }).success).toBe(false);
+    expect(IPC_CHANNELS.appearanceBackgroundGet).toBe(
+      'lumora:appearance:background:get'
+    );
+    expect(IPC_CHANNELS.appearanceBackgroundChoose).toBe(
+      'lumora:appearance:background:choose'
+    );
+    expect(IPC_CHANNELS.appearanceBackgroundRemove).toBe(
+      'lumora:appearance:background:remove'
+    );
   });
 });
 
@@ -1163,7 +1186,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 4,
+      version: 6,
       showInformationalNotices: true,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
@@ -1171,7 +1194,20 @@ describe('managed terminal contracts', () => {
       windowCloseBehavior: 'quit',
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
-      enabledProviders: [...PROVIDER_IDS]
+      enabledProviders: [...PROVIDER_IDS],
+      appearance: {
+        theme: 'lumora',
+        lightTerminalInLightMode: false,
+        backgroundEnabled: false,
+        backgroundOpacity: 0.55,
+        backgroundBrightness: 1,
+        backgroundBlur: 2,
+        surfaceMosaic: 0,
+        surfaceOpacity: 0.92,
+        terminalOpacity: 0.94,
+        backgroundFit: 'cover',
+        backgroundPosition: 'center'
+      }
     });
     expect(GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
@@ -1198,7 +1234,91 @@ describe('managed terminal contracts', () => {
       crossAgentHandoffRetentionDays: 366
     }).success).toBe(false);
     expect(GeneralSettingsSchema.safeParse({
-      version: 4
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        theme: 'sepia'
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        theme: 'system'
+      }
+    }).success).toBe(false);
+    expect(parseStoredGeneralSettings({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        theme: 'system'
+      }
+    }).appearance.theme).toBe('lumora');
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceOpacity: 0
+      }
+    }).success).toBe(true);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        terminalOpacity: 0
+      }
+    }).success).toBe(true);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceOpacity: -0.01
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        terminalOpacity: -0.01
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        backgroundOpacity: 0
+      }
+    }).success).toBe(true);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        backgroundOpacity: -0.01
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        backgroundBlur: 25
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceMosaic: -0.01
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceMosaic: 24.01
+      }
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      version: 5
     }).success).toBe(false);
     expect(parseStoredGeneralSettings({
       version: 1,
@@ -1241,6 +1361,74 @@ describe('managed terminal contracts', () => {
       crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['codex', 'claude']
     });
+    expect(parseStoredGeneralSettings({
+      version: 4,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['claude', 'codex']
+    })).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['codex', 'claude']
+    });
+    const versionFiveAppearance = {
+      theme: 'dark',
+      lightTerminalInLightMode: false,
+      backgroundEnabled: true,
+      backgroundOpacity: 0.75,
+      backgroundBrightness: 1.1,
+      backgroundBlur: 3,
+      surfaceOpacity: 0.8,
+      terminalOpacity: 0.85,
+      backgroundFit: 'contain',
+      backgroundPosition: 'top-right'
+    } as const;
+    expect(parseStoredGeneralSettings({
+      version: 5,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['claude', 'codex'],
+      appearance: versionFiveAppearance
+    })).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
+      enabledProviders: ['codex', 'claude'],
+      appearance: { ...versionFiveAppearance, surfaceMosaic: 0 }
+    });
+    expect(parseStoredGeneralSettings({
+      version: 5,
+      showInformationalNotices: true,
+      startMaximized: true,
+      checkProviderUpdatesAutomatically: true,
+      autoExpandSidebar: true,
+      windowCloseBehavior: 'quit',
+      crossAgentWorkflowEnabled: false,
+      crossAgentHandoffRetentionDays: 30,
+      enabledProviders: [...PROVIDER_IDS],
+      appearance: { ...versionFiveAppearance, theme: 'system' }
+    }).appearance.theme).toBe('lumora');
     expect(parseStoredGeneralSettings({ version: 5 })).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );

@@ -17,10 +17,12 @@ import { ManagedTerminal } from './ManagedTerminal';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 
 interface TerminalWorkspaceProps {
+  backgroundOpacity?: number;
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
   focusRequestKey?: number;
   platform: SystemInfo['platform'];
+  theme?: 'light' | 'dark';
   visible: boolean;
   previews: ReadonlyMap<string, LaunchPreview>;
   workspaces: readonly WorkspaceSummary[];
@@ -41,10 +43,12 @@ interface TabDrag {
 const TAB_DRAG_THRESHOLD = 5;
 
 export function TerminalWorkspace({
+  backgroundOpacity = 1,
   runtimes,
   activeRuntimeId,
   focusRequestKey = 0,
   platform,
+  theme = 'dark',
   visible,
   previews,
   workspaces,
@@ -306,9 +310,11 @@ export function TerminalWorkspace({
           >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
+              backgroundOpacity={backgroundOpacity}
               focusRequestKey={focusRequestKey}
               platform={platform}
               runtime={item}
+              theme={theme}
               onRuntimeChange={onRuntimeChange}
             />
           </div>

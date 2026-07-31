@@ -22,6 +22,8 @@ const xterm = vi.hoisted(() => ({
   pasteTerminal: vi.fn(),
   textarea: null as HTMLTextAreaElement | null,
   terminalOptions: null as {
+    allowTransparency?: boolean;
+    theme?: { background?: string; foreground?: string };
     linkHandler?: {
       activate(event: MouseEvent, uri: string): void;
     };
@@ -38,14 +40,22 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
+    options: {
+      allowTransparency?: boolean;
+      theme?: { background?: string; foreground?: string };
+      linkHandler?: { activate(event: MouseEvent, uri: string): void };
+    };
     textarea: HTMLTextAreaElement | undefined;
     constructor(options?: {
+      allowTransparency?: boolean;
+      theme?: { background?: string; foreground?: string };
       linkHandler?: {
         activate(event: MouseEvent, uri: string): void;
       };
     }) {
       xterm.terminalConstructed();
       xterm.terminalOptions = options ?? null;
+      this.options = options ?? {};
       this.textarea = xterm.textarea ?? undefined;
     }
     parser = { registerOscHandler: vi.fn() };
@@ -170,6 +180,65 @@ describe('ManagedTerminal', () => {
     xterm.textarea = document.createElement('textarea');
     xterm.hasSelection.mockReturnValue(false);
     xterm.getSelection.mockReturnValue('');
+  });
+
+  it('updates its palette without rebuilding the terminal', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+        theme="dark"
+      />
+    );
+
+    await waitFor(() => expect(xterm.terminalConstructed).toHaveBeenCalledOnce());
+    expect(xterm.terminalOptions).toMatchObject({
+      allowTransparency: true,
+      theme: { background: '#07111f', foreground: '#d8e2ef' }
+    });
+    expect(screen.getByLabelText('codex terminal').parentElement).toHaveClass(
+      'managed-terminal-shell-dark'
+    );
+
+    rerender(
+      <ManagedTerminal
+        active
+        backgroundOpacity={0.75}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+        theme="light"
+      />
+    );
+
+    await waitFor(() => expect(xterm.terminalOptions?.theme).toMatchObject({
+      background: 'rgba(0, 0, 0, 0)',
+      foreground: '#172033'
+    }));
+    expect(screen.getByLabelText('codex terminal').parentElement).toHaveClass(
+      'managed-terminal-shell-light'
+    );
+
+    rerender(
+      <ManagedTerminal
+        active
+        backgroundOpacity={0}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+        theme="dark"
+      />
+    );
+
+    await waitFor(() => expect(xterm.terminalOptions?.theme).toMatchObject({
+      background: 'rgba(0, 0, 0, 0)',
+      foreground: '#d8e2ef'
+    }));
+    expect(xterm.terminalConstructed).toHaveBeenCalledOnce();
   });
 
   it('opens confirmed terminal hyperlinks through the Lumora bridge', async () => {

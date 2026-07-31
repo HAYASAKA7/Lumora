@@ -632,7 +632,100 @@ const EnabledProviderIdsSchema = z
     PROVIDER_IDS.filter((provider) => providers.includes(provider))
   );
 
+export const AppearanceThemeSchema = z.enum(['lumora', 'light', 'dark']);
+export const AppearanceBackgroundFitSchema = z.enum([
+  'cover',
+  'contain',
+  'original'
+]);
+export const AppearanceBackgroundPositionSchema = z.enum([
+  'center',
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right'
+]);
+
+export const AppearanceSettingsSchema = z.strictObject({
+  theme: AppearanceThemeSchema,
+  lightTerminalInLightMode: z.boolean(),
+  backgroundEnabled: z.boolean(),
+  backgroundOpacity: z.number().min(0).max(1),
+  backgroundBrightness: z.number().min(0.5).max(1.5),
+  backgroundBlur: z.number().min(0).max(24),
+  surfaceMosaic: z.number().min(0).max(24),
+  surfaceOpacity: z.number().min(0).max(1),
+  terminalOpacity: z.number().min(0).max(1),
+  backgroundFit: AppearanceBackgroundFitSchema,
+  backgroundPosition: AppearanceBackgroundPositionSchema
+});
+
+export type AppearanceSettings = z.infer<typeof AppearanceSettingsSchema>;
+
+export const DEFAULT_APPEARANCE_SETTINGS = {
+  theme: 'lumora',
+  lightTerminalInLightMode: false,
+  backgroundEnabled: false,
+  backgroundOpacity: 0.55,
+  backgroundBrightness: 1,
+  backgroundBlur: 2,
+  surfaceMosaic: 0,
+  surfaceOpacity: 0.92,
+  terminalOpacity: 0.94,
+  backgroundFit: 'cover',
+  backgroundPosition: 'center'
+} as const satisfies AppearanceSettings;
+
 export const GeneralSettingsSchema = z.strictObject({
+  version: z.literal(6),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema,
+  appearance: AppearanceSettingsSchema
+});
+
+export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
+
+export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
+  version: 6,
+  showInformationalNotices: true,
+  startMaximized: true,
+  checkProviderUpdatesAutomatically: true,
+  autoExpandSidebar: true,
+  windowCloseBehavior: 'quit',
+  crossAgentWorkflowEnabled: false,
+  crossAgentHandoffRetentionDays: 30,
+  enabledProviders: [...PROVIDER_IDS],
+  appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
+};
+
+const VersionFiveAppearanceSettingsSchema = AppearanceSettingsSchema
+  .omit({ surfaceMosaic: true })
+  .extend({ theme: z.enum(['system', 'lumora', 'light', 'dark']) });
+
+const VersionFiveGeneralSettingsSchema = z.strictObject({
+  version: z.literal(5),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema,
+  appearance: VersionFiveAppearanceSettingsSchema
+});
+
+const VersionFourGeneralSettingsSchema = z.strictObject({
   version: z.literal(4),
   showInformationalNotices: z.boolean(),
   startMaximized: z.boolean(),
@@ -643,20 +736,6 @@ export const GeneralSettingsSchema = z.strictObject({
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema
 });
-
-export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
-
-export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 4,
-  showInformationalNotices: true,
-  startMaximized: true,
-  checkProviderUpdatesAutomatically: true,
-  autoExpandSidebar: true,
-  windowCloseBehavior: 'quit',
-  crossAgentWorkflowEnabled: false,
-  crossAgentHandoffRetentionDays: 30,
-  enabledProviders: [...PROVIDER_IDS]
-};
 
 const VersionThreeGeneralSettingsSchema = z.strictObject({
   version: z.literal(3),
@@ -687,12 +766,36 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionFive = VersionFiveGeneralSettingsSchema.safeParse(value);
+  if (versionFive.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionFive.data,
+      version: 6,
+      appearance: {
+        ...versionFive.data.appearance,
+        theme: versionFive.data.appearance.theme === 'system'
+          ? 'lumora'
+          : versionFive.data.appearance.theme,
+        surfaceMosaic: 0
+      }
+    });
+  }
+
+  const versionFour = VersionFourGeneralSettingsSchema.safeParse(value);
+  if (versionFour.success) {
+    return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      ...versionFour.data,
+      version: 6
+    });
+  }
+
   const versionThree = VersionThreeGeneralSettingsSchema.safeParse(value);
   if (versionThree.success) {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 4
+      version: 6
     });
   }
 
@@ -701,7 +804,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 4
+      version: 6
     });
   }
 
@@ -997,6 +1100,21 @@ export const ClipboardWriteResultSchema = z.strictObject({
 
 export type ClipboardText = z.infer<typeof ClipboardTextSchema>;
 
+export const AppearanceBackgroundStateSchema = z.discriminatedUnion(
+  'available',
+  [
+    z.strictObject({ available: z.literal(false), revision: z.null() }),
+    z.strictObject({
+      available: z.literal(true),
+      revision: z.string().regex(/^\d+-\d+$/).max(64)
+    })
+  ]
+);
+
+export type AppearanceBackgroundState = z.infer<
+  typeof AppearanceBackgroundStateSchema
+>;
+
 export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1014,6 +1132,9 @@ export const IPC_CHANNELS = {
   trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
+  appearanceBackgroundGet: 'lumora:appearance:background:get',
+  appearanceBackgroundChoose: 'lumora:appearance:background:choose',
+  appearanceBackgroundRemove: 'lumora:appearance:background:remove',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -1069,6 +1190,9 @@ export interface LumoraApi {
   ): () => void;
   readClipboardText(): Promise<string>;
   writeClipboardText(text: string): Promise<void>;
+  getAppearanceBackground(): Promise<AppearanceBackgroundState>;
+  chooseAppearanceBackground(): Promise<AppearanceBackgroundState>;
+  removeAppearanceBackground(): Promise<AppearanceBackgroundState>;
   getTerminalProfiles(): Promise<TerminalProfile[]>;
   saveTerminalProfile(
     input: CustomTerminalProfileInput

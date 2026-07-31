@@ -16,6 +16,19 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   control, and an explicit orderly exit.
 - Add a General settings switch that chooses whether closing the window exits
   Lumora or hides it while keeping managed agents running.
+- Add a dedicated Appearance settings category with live Lumora mixed, Light,
+  and Dark themes. New and migrated installations use Lumora's original mixed
+  theme by default, while managed terminals remain dark unless their separate
+  light-terminal option is enabled.
+- Add an optional full-window custom background with managed local image
+  storage and controls for opacity, brightness, blur, fit, position, surface
+  transparency, terminal transparency, and an optional `0–24 px` Surface
+  mosaic. Surface and terminal transparency support the full `0–100%` range;
+  terminal canvases, terminal page chrome, system status, controls, cards, and
+  in-app dialogs follow those controls. Semantic opacity levels distinguish
+  recessed, normal, raised, and popup surfaces, while popups retain a readable
+  minimum opacity. Mosaic defaults to zero so custom backgrounds can remain
+  clear.
 
 ### Changed
 
@@ -32,6 +45,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   protocols blocked.
 - Preserve POSIX nested workspace paths when importing Claude Code sessions on
   macOS and Linux, and keep transfer dialog path verification platform-native.
+- Make xterm's parent viewport follow Terminal opacity so managed backgrounds
+  remain visible through the complete PTY area while provider ANSI colors stay
+  intact.
+
+### Security
+
+- Validate, resize, and normalize custom backgrounds into an app-owned PNG.
+  The renderer receives only a fixed `app://appearance/background` URL, never
+  the selected source path or unrestricted filesystem access.
 
 ## [0.2.0] - 2026-07-30
 
