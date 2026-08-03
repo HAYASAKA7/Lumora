@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-08-03
+
 ### Changed
 
 - Replace browser-native hover titles with compact, theme-aware Lumora tooltips
