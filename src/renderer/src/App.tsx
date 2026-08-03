@@ -41,6 +41,7 @@ import {
 } from './appearance/opacity-tiers';
 import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
+import { installAppFocusPolicy } from './focus/app-focus-policy';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import {
   DeveloperEnvironmentNotice,
@@ -412,6 +413,8 @@ export default function App(): ReactNode {
   const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
+
+  useEffect(() => installAppFocusPolicy(document), []);
 
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
@@ -1450,8 +1453,10 @@ export default function App(): ReactNode {
           aria-expanded={sidebarExpanded}
           aria-label={sidebarToggleLabel}
           className="brand"
+          data-lumora-command
           onClick={() => setSidebarExpanded((expanded) => !expanded)}
           title={sidebarToggleTitle}
+          tabIndex={-1}
           type="button"
         >
           <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
@@ -1472,6 +1477,7 @@ export default function App(): ReactNode {
                 !terminalActive && activeRouteId === route.id ? 'page' : undefined
               }
               className="nav-item"
+              data-lumora-command
               key={route.id}
               onClick={() => navigateToRoute(route.id)}
               title={
@@ -1483,6 +1489,7 @@ export default function App(): ReactNode {
                       shortcutPlatform
                     )
               }
+              tabIndex={-1}
               type="button"
             >
               <Icon name={route.icon} />
@@ -1501,7 +1508,7 @@ export default function App(): ReactNode {
           </div>
           <div aria-label="Session actions" className="topbar-actions" role="group">
             {activeRuntimeId === null && liveRuntimes.length > 0 ? (
-              <button className="secondary-button" onClick={openLiveTerminals} type="button">
+              <button className="secondary-button" data-lumora-command onClick={openLiveTerminals} tabIndex={-1} type="button">
                 Open terminals
               </button>
             ) : null}
@@ -1511,6 +1518,7 @@ export default function App(): ReactNode {
             visibleCatalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
               <button
                 className="refresh-button"
+                data-lumora-command
                 onClick={() => {
                   setResumeIntent(null);
                   setRecoveryRuntime(null);
@@ -1521,6 +1529,7 @@ export default function App(): ReactNode {
                         : null
                   });
                 }}
+                tabIndex={-1}
                 type="button"
               >
                 New session

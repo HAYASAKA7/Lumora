@@ -3166,4 +3166,20 @@ describe('App', () => {
       ).not.toBeInTheDocument()
     );
   });
+  it('keeps main navigation out of the browser Tab cycle and releases stale focus', () => {
+    render(<App />);
+    const home = screen.getByRole('button', { name: 'Home' });
+    const sidebarToggle = screen.getByRole('button', {
+      name: 'Collapse sidebar'
+    });
+
+    expect(home).toHaveAttribute('tabindex', '-1');
+    expect(home).toHaveAttribute('data-lumora-command');
+    expect(sidebarToggle).toHaveAttribute('tabindex', '-1');
+
+    home.focus();
+    expect(home).toHaveFocus();
+    fireEvent.keyDown(home, { key: 'a', code: 'KeyA' });
+    expect(home).not.toHaveFocus();
+  });
 });
