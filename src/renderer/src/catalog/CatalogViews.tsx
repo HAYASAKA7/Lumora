@@ -20,6 +20,7 @@ import {
   providerDefinition
 } from '../../../shared/provider-definitions';
 import { formatLifetimeTokens } from './session-usage';
+import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -84,6 +85,8 @@ const WorkspaceCard = memo(function WorkspaceCard({
         aria-label={`Open sessions for ${workspace.displayName} at ${workspace.canonicalPath}`}
         className="workspace-card-action"
         onClick={() => onOpenWorkspace(workspace.id)}
+        data-lumora-command
+        tabIndex={-1}
         type="button"
       />
     </article>
@@ -121,7 +124,13 @@ export function WorkspacesView({
           <h2>Catalog unavailable</h2>
           <p>Lumora could not read its local session catalog.</p>
         </div>
-        <button className="secondary-button" onClick={onRefresh} type="button">
+        <button
+          className="secondary-button"
+          data-lumora-command
+          onClick={onRefresh}
+          tabIndex={-1}
+          type="button"
+        >
           Try again
         </button>
       </section>
@@ -142,6 +151,8 @@ export function WorkspacesView({
             className="secondary-button"
             disabled={isRefreshing}
             onClick={onRefresh}
+            data-lumora-command
+            tabIndex={-1}
             type="button"
           >
             {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
@@ -149,6 +160,8 @@ export function WorkspacesView({
           <button
             className="refresh-button"
             onClick={onAddWorkspace}
+            data-lumora-command
+            tabIndex={-1}
             type="button"
           >
             Add workspace
@@ -227,21 +240,28 @@ const SessionRow = memo(function SessionRow({
     profiles
   });
   return (
-    <tr
-      className={`session-row${
-        disabledReason === null ? '' : ' session-row-unavailable'
-      }`}
-      title={disabledReason ?? undefined}
-    >
+    <Tooltip content={disabledReason} multiline>
+      <tr
+        aria-description={disabledReason ?? undefined}
+        className={`session-row${
+          disabledReason === null ? '' : ' session-row-unavailable'
+        }`}
+      >
       <td>
-        <button
-          aria-label={`Resume ${session.title}`}
-          className="session-row-action"
-          disabled={disabledReason !== null}
-          onClick={() => onResume(session)}
-          title={disabledReason ?? 'Resume this session'}
-          type="button"
-        />
+        <Tooltip
+          content={disabledReason === null ? 'Resume this session' : null}
+        >
+          <button
+            aria-description={disabledReason ?? 'Resume this session'}
+            aria-label={`Resume ${session.title}`}
+            className="session-row-action"
+            disabled={disabledReason !== null}
+            onClick={() => onResume(session)}
+            data-lumora-command
+            tabIndex={-1}
+            type="button"
+          />
+        </Tooltip>
         <strong>{session.title}</strong>
       </td>
       <td>
@@ -273,7 +293,8 @@ const SessionRow = memo(function SessionRow({
           <span className="source-current">Current</span>
         )}
       </td>
-    </tr>
+      </tr>
+    </Tooltip>
   );
 });
 
@@ -316,7 +337,13 @@ export function SessionsView({
           <h2>Catalog unavailable</h2>
           <p>Lumora could not read its local session catalog.</p>
         </div>
-        <button className="secondary-button" onClick={onRefresh} type="button">
+        <button
+          className="secondary-button"
+          data-lumora-command
+          onClick={onRefresh}
+          tabIndex={-1}
+          type="button"
+        >
           Try again
         </button>
       </section>
@@ -365,6 +392,8 @@ export function SessionsView({
           className="secondary-button"
           disabled={isRefreshing}
           onClick={onRefresh}
+          data-lumora-command
+          tabIndex={-1}
           type="button"
         >
           {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
@@ -389,15 +418,18 @@ export function SessionsView({
                 <strong>{diagnostic.message}</strong>
                 <span>{diagnostic.recovery}</span>
               </div>
-              <button
-                aria-label={`Dismiss warning: ${diagnostic.message}`}
-                className="catalog-diagnostic-dismiss"
-                onClick={() => onDismissDiagnostic(identity)}
-                title="Dismiss warning"
-                type="button"
-              >
-                <span aria-hidden="true">×</span>
-              </button>
+              <Tooltip content="Dismiss warning">
+                <button
+                  aria-label={`Dismiss warning: ${diagnostic.message}`}
+                  className="catalog-diagnostic-dismiss"
+                  onClick={() => onDismissDiagnostic(identity)}
+                  data-lumora-command
+                  tabIndex={-1}
+                  type="button"
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              </Tooltip>
             </div>
           );
         })}
@@ -569,6 +601,8 @@ export function CatalogHomeSummary({
                     <button
                       className="text-button"
                       onClick={() => onRecover(runtime)}
+                      data-lumora-command
+                      tabIndex={-1}
                       type="button"
                     >
                       Recover
@@ -603,18 +637,19 @@ export function CatalogHomeSummary({
               return (
                 <li key={session.id}>
                   <span className="recent-session-copy">
-                    <strong title={session.title}>{session.title}</strong>
+                    <OverflowTooltip content={session.title}>
+                      <strong>{session.title}</strong>
+                    </OverflowTooltip>
                     <span className="recent-session-metadata">
                       <span className="recent-session-provider">
                         {providerDefinition(session.provider).displayName}
                       </span>
                       {workspace === undefined ? null : (
-                        <span
-                          className="recent-session-workspace"
-                          title={workspace.displayName}
-                        >
-                          {workspace.displayName}
-                        </span>
+                        <OverflowTooltip content={workspace.displayName}>
+                          <span className="recent-session-workspace">
+                            {workspace.displayName}
+                          </span>
+                        </OverflowTooltip>
                       )}
                       {session.lifetimeTokens === null ? null : (
                         <span className="session-token-usage">
@@ -623,15 +658,19 @@ export function CatalogHomeSummary({
                       )}
                     </span>
                   </span>
-                  <button
-                    className="text-button recent-session-resume"
-                    disabled={disabledReason !== null}
-                    onClick={() => onResume(session)}
-                    title={disabledReason ?? 'Resume this session'}
-                    type="button"
-                  >
-                    Resume
-                  </button>
+                  <Tooltip content={disabledReason ?? 'Resume this session'}>
+                    <button
+                      aria-description={disabledReason ?? 'Resume this session'}
+                      className="text-button recent-session-resume"
+                      disabled={disabledReason !== null}
+                      onClick={() => onResume(session)}
+                      data-lumora-command
+                      tabIndex={-1}
+                      type="button"
+                    >
+                      Resume
+                    </button>
+                  </Tooltip>
                 </li>
               );
             })}

@@ -654,7 +654,7 @@ describe('SessionsView', () => {
     expect(currentAction).toBeEmptyDOMElement();
     expect(secondAction).toBeEnabled();
     expect(staleAction).toBeDisabled();
-    expect(staleAction).toHaveAttribute('title', 'Session source is stale.');
+    expect(staleAction).toHaveAttribute('aria-description', 'Session source is stale.');
 
     fireEvent.click(currentAction);
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
@@ -731,7 +731,7 @@ describe('SessionsView', () => {
     expect(screen.getByRole('button', {
       name: 'Resume Catalog implementation'
     })).toHaveAttribute(
-      'title',
+      'aria-description',
       'Workspace is unavailable.'
     );
 
@@ -779,7 +779,7 @@ describe('SessionsView', () => {
     expect(screen.getByRole('button', {
       name: 'Resume Catalog implementation'
     })).toHaveAttribute(
-      'title',
+      'aria-description',
       'Provider is unavailable.'
     );
 
@@ -809,7 +809,7 @@ describe('SessionsView', () => {
     expect(screen.getByRole('button', {
       name: 'Resume Catalog implementation'
     })).toHaveAttribute(
-      'title',
+      'aria-description',
       'No terminal profile is available.'
     );
   });
@@ -861,9 +861,9 @@ describe('CatalogHomeSummary', () => {
 
     const actions = screen.getAllByRole('button', { name: 'Resume' });
     expect(actions).toHaveLength(3);
-    expect(actions[0]).toHaveAttribute('title', 'Resume this session');
+    expect(actions[0]).toHaveAttribute('aria-description', 'Resume this session');
     expect(actions[0]).toBeEnabled();
-    expect(actions[2]).toHaveAttribute('title', 'Session source is stale.');
+    expect(actions[2]).toHaveAttribute('aria-description', 'Session source is stale.');
     expect(actions[2]).toBeDisabled();
     expect(screen.queryByText(fourthSession.title)).not.toBeInTheDocument();
 

@@ -4,6 +4,7 @@ import type {
   DeveloperEnvironmentScanResult,
   DeveloperToolStatus
 } from '../../../shared/contracts';
+import { OverflowTooltip } from '../ui/Tooltip';
 
 export type DeveloperEnvironmentStatus =
   | { state: 'loading' }
@@ -161,9 +162,9 @@ function DeveloperToolCard({
           <div><dt>Version</dt><dd>{tool.version}</dd></div>
           <div>
             <dt>Executable</dt>
-            <dd className="developer-tool-path" title={tool.executablePath}>
-              {tool.executablePath}
-            </dd>
+            <OverflowTooltip content={tool.executablePath}>
+              <dd className="developer-tool-path">{tool.executablePath}</dd>
+            </OverflowTooltip>
           </div>
         </dl>
       ) : tool.state === 'not_found' ? (
@@ -171,9 +172,9 @@ function DeveloperToolCard({
       ) : (
         <>
           <p>Run {command} --version in a terminal, then refresh.</p>
-          <p className="developer-tool-path" title={tool.executablePath}>
-            {tool.executablePath}
-          </p>
+          <OverflowTooltip content={tool.executablePath}>
+            <p className="developer-tool-path">{tool.executablePath}</p>
+          </OverflowTooltip>
         </>
       )}
     </article>

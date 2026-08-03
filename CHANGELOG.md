@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Replace browser-native hover titles with compact, theme-aware Lumora tooltips
+  that support delayed hover, deliberate keyboard focus, shortcut labels,
+  overflow-only hints, and viewport-safe placement.
+- Make navigation, catalog cards, and page toolbar actions follow app-style
+  focus behavior while preserving normal input, dialog, settings, transfer,
+  shortcut-recorder, and terminal focus.
+
 ## [0.2.2] - 2026-07-31
 
 ### Changed

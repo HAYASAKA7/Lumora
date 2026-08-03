@@ -118,6 +118,8 @@ export function ProgressiveListControl({
         className="secondary-button"
         onClick={onLoadMore}
         ref={buttonRef}
+        data-lumora-command
+        tabIndex={-1}
         type="button"
       >
         {label}

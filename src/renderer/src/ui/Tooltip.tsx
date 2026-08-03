@@ -45,7 +45,11 @@ interface TooltipContextValue {
   open: (request: OpenTooltipRequest) => void;
 }
 
-const TooltipContext = createContext<TooltipContextValue | null>(null);
+const TooltipContext = createContext<TooltipContextValue>({
+  activeId: null,
+  close: () => undefined,
+  open: () => undefined
+});
 
 export interface TooltipProviderProps {
   children: ReactNode;
@@ -64,7 +68,6 @@ export function TooltipProvider({
     top: -10_000,
     placement: 'top'
   });
-  const activeRef = useRef<ActiveTooltip | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const inputModality = useRef<InputModality>('pointer');
   const openTimer = useRef<number | null>(null);
@@ -95,7 +98,6 @@ export function TooltipProvider({
           return current;
         }
         startWarmWindow();
-        activeRef.current = null;
         return null;
       });
     },
@@ -124,7 +126,6 @@ export function TooltipProvider({
           shortcut: request.shortcut,
           trigger: request.trigger
         };
-        activeRef.current = next;
         setActive(next);
       };
       pendingId.current = request.id;
@@ -227,7 +228,7 @@ export interface TooltipProps {
   content: ReactNode | null;
   focus?: boolean;
   multiline?: boolean;
-  shortcut?: string;
+  shortcut?: string | undefined;
 }
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
@@ -246,9 +247,6 @@ export function Tooltip({
   shortcut
 }: TooltipProps): React.JSX.Element {
   const context = useContext(TooltipContext);
-  if (context === null) {
-    throw new Error('Tooltip must be rendered inside TooltipProvider.');
-  }
   if (!isValidElement<TooltipChildProps>(children)) {
     throw new Error('Tooltip requires one element child.');
   }
@@ -363,4 +361,4 @@ export function OverflowTooltip({
       {cloneElement(children, { ref: setRef })}
     </Tooltip>
   );
- }
+}

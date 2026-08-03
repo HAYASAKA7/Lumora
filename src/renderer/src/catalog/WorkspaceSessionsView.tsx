@@ -17,6 +17,7 @@ import {
   providerDefinition
 } from '../../../shared/provider-definitions';
 import { formatLifetimeTokens } from './session-usage';
+import { Tooltip } from '../ui/Tooltip';
 
 const SESSION_BATCH_SIZE = 40;
 
@@ -53,12 +54,13 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
     profiles
   });
   return (
-    <article
-      className={`workspace-session-card${
-        disabledReason === null ? '' : ' workspace-session-card-unavailable'
-      }`}
-      title={disabledReason ?? undefined}
-    >
+    <Tooltip content={disabledReason} multiline>
+      <article
+        aria-description={disabledReason ?? undefined}
+        className={`workspace-session-card${
+          disabledReason === null ? '' : ' workspace-session-card-unavailable'
+        }`}
+      >
       <div className="workspace-session-copy">
         <div className="workspace-session-heading">
           <h3>{session.title}</h3>
@@ -85,15 +87,22 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
           )}
         </div>
       </div>
-      <button
-        aria-label={`Resume ${session.title}`}
-        className="workspace-session-action"
-        disabled={disabledReason !== null}
-        onClick={() => onResume(session)}
-        title={disabledReason ?? 'Resume this session'}
-        type="button"
-      />
-    </article>
+        <Tooltip
+          content={disabledReason === null ? 'Resume this session' : null}
+        >
+          <button
+            aria-description={disabledReason ?? 'Resume this session'}
+            aria-label={`Resume ${session.title}`}
+            className="workspace-session-action"
+            disabled={disabledReason !== null}
+            onClick={() => onResume(session)}
+            data-lumora-command
+            tabIndex={-1}
+            type="button"
+          />
+        </Tooltip>
+      </article>
+    </Tooltip>
   );
 });
 
@@ -126,7 +135,7 @@ export function WorkspaceSessionsView({
   if (status.state === 'loading') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" onClick={onBack} type="button">
+        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
           Back to workspaces
         </button>
         <div className="catalog-state" role="status">
@@ -139,7 +148,7 @@ export function WorkspaceSessionsView({
   if (status.state === 'error') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" onClick={onBack} type="button">
+        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
           Back to workspaces
         </button>
         <div className="catalog-state catalog-error" role="alert">
@@ -147,7 +156,7 @@ export function WorkspaceSessionsView({
             <h2>Workspace history unavailable</h2>
             <p>Lumora could not read this workspace's session history.</p>
           </div>
-          <button className="secondary-button" onClick={onRetry} type="button">
+          <button className="secondary-button" data-lumora-command onClick={onRetry} tabIndex={-1} type="button">
             Try again
           </button>
         </div>
@@ -161,7 +170,7 @@ export function WorkspaceSessionsView({
   if (workspace === undefined) {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" onClick={onBack} type="button">
+        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
           Back to workspaces
         </button>
         <div className="catalog-empty" role="status">
@@ -179,7 +188,7 @@ export function WorkspaceSessionsView({
       className="catalog-panel workspace-detail"
     >
       <div className="workspace-detail-toolbar">
-        <button className="secondary-button" onClick={onBack} type="button">
+        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
           Back to workspaces
         </button>
         <div className="catalog-actions">
@@ -190,6 +199,8 @@ export function WorkspaceSessionsView({
             className="secondary-button"
             disabled={isRefreshing}
             onClick={onRefresh}
+            data-lumora-command
+            tabIndex={-1}
             type="button"
           >
             {isRefreshing ? 'Refreshing sessions' : 'Refresh sessions'}

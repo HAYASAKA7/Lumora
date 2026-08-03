@@ -468,16 +468,16 @@ describe('App', () => {
     const expand = screen.getByRole('button', { name: 'Expand sidebar' });
     expect(shell).toHaveClass('sidebar-collapsed');
     expect(expand).toHaveAttribute('aria-expanded', 'false');
+    expect(expand).not.toHaveAttribute('title');
+    expect(home).not.toHaveAttribute('title');
+    await screen.findByText('Windows · x64');
+    fireEvent.pointerEnter(home);
+    const homeTooltip = await screen.findByRole('tooltip');
+    expect(homeTooltip).toHaveTextContent('Home');
+    expect(homeTooltip).toHaveTextContent('Ctrl + 1');
+    fireEvent.pointerLeave(home);
     await waitFor(() => {
-      expect(expand).toHaveAttribute(
-        'title',
-        'Expand sidebar (Ctrl + Shift + L)'
-      );
-      expect(home).toHaveAttribute('title', 'Home (Ctrl + 1)');
-      expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute(
-        'title',
-        'Settings (Ctrl + 5)'
-      );
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     });
     expect(home.querySelector('.icon')).toBe(homeIcon);
     expect(document.querySelector('.nav-label-divider')).toHaveAttribute(
@@ -531,7 +531,7 @@ describe('App', () => {
     expect(home.querySelector('.icon')).toBe(homeIcon);
   });
 
-  it('uses customized platform-aware shortcuts in collapsed sidebar titles', async () => {
+  it('uses customized platform-aware shortcuts in collapsed sidebar tooltips', async () => {
     const getKeyboardSettings = vi.fn().mockResolvedValue({
       ...DEFAULT_KEYBOARD_SETTINGS,
       toggleSidebar: {
@@ -563,15 +563,13 @@ describe('App', () => {
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'Expand sidebar' })
-      ).toHaveAttribute('title', 'Expand sidebar (⌥ + ⌘ + B)');
-      expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
-        'title',
-        'Home (⇧ + ⌘ + H)'
-      );
-    });
+    const home = screen.getByRole('button', { name: 'Home' });
+    expect(home).not.toHaveAttribute('title');
+    await screen.findByText('macOS · arm64');
+    fireEvent.pointerEnter(home);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Home');
+    expect(tooltip).toHaveTextContent('⇧ + ⌘ + H');
   });
 
   it('expands while navigating from a collapsed sidebar', () => {

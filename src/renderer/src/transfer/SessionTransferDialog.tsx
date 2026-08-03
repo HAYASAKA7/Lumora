@@ -19,6 +19,7 @@ import {
   INITIAL_IMPORT_FLOW_STATE,
   reduceImportFlow
 } from './session-transfer-state';
+import { OverflowTooltip } from '../ui/Tooltip';
 
 interface SessionTransferDialogProps {
   selection: SessionTransferArchiveSelection;
@@ -364,7 +365,7 @@ export function SessionTransferDialog({
                     <span>
                       {source.displayName} · {sessionCountLabel(source.sessionCount)}
                     </span>
-                    <small title={source.originalPath}>{source.originalPath}</small>
+                    <OverflowTooltip content={source.originalPath}><small>{source.originalPath}</small></OverflowTooltip>
                     <select
                       aria-label={`${source.displayName} workspace destination`}
                       disabled={busy}

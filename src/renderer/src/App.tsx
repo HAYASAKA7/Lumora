@@ -75,6 +75,7 @@ import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
+import { Tooltip, TooltipProvider } from './ui/Tooltip';
 
 type RouteId =
   | 'home'
@@ -217,16 +218,6 @@ const BACKGROUND_POSITIONS: Record<
   'bottom-right': 'right bottom'
 };
 
-function shortcutTitle(
-  label: string,
-  shortcut: KeyboardSettings[NavigationShortcutKey],
-  platform: SystemInfo['platform'] | null
-): string {
-  return platform === null
-    ? label
-    : `${label} (${formatShortcutChord(shortcut, platform)})`;
-}
-
 function Icon({ name }: { name: IconName }): ReactNode {
   const paths: Record<IconName, ReactNode> = {
     home: <path d="M3.5 9.3 10 3.8l6.5 5.5v7.2a1 1 0 0 1-1 1h-4v-5h-3v5h-4a1 1 0 0 1-1-1Z" />,
@@ -330,7 +321,7 @@ function SystemStatusBar({ status }: { status: SystemStatus }): ReactNode {
   );
 }
 
-export default function App(): ReactNode {
+function AppContent(): ReactNode {
   const [startupShouldPlay, setStartupShouldPlay] = useState<boolean | null>(
     null
   );
@@ -1247,13 +1238,10 @@ export default function App(): ReactNode {
     : 'Expand sidebar';
   const shortcutPlatform =
     systemStatus.state === 'ready' ? systemStatus.info.platform : null;
-  const sidebarToggleTitle = sidebarExpanded
-    ? undefined
-    : shortcutTitle(
-        sidebarToggleLabel,
-        keyboardSettings.toggleSidebar,
-        shortcutPlatform
-      );
+  const sidebarToggleShortcut =
+    shortcutPlatform === null
+      ? undefined
+      : formatShortcutChord(keyboardSettings.toggleSidebar, shortcutPlatform);
   const dismissSessionDiagnostic = useCallback((identity: string) => {
     setDismissedSessionDiagnostics((current) => {
       if (current.has(identity)) return current;
@@ -1449,22 +1437,26 @@ export default function App(): ReactNode {
       </a>
 
       <aside className="sidebar">
-        <button
-          aria-expanded={sidebarExpanded}
-          aria-label={sidebarToggleLabel}
-          className="brand"
-          data-lumora-command
-          onClick={() => setSidebarExpanded((expanded) => !expanded)}
-          title={sidebarToggleTitle}
-          tabIndex={-1}
-          type="button"
+        <Tooltip
+          content={sidebarExpanded ? null : sidebarToggleLabel}
+          shortcut={sidebarToggleShortcut}
         >
-          <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
-          <span className="brand-copy">
-            <strong>Lumora</strong>
-            <small>Agent workspace manager</small>
-          </span>
-        </button>
+          <button
+            aria-expanded={sidebarExpanded}
+            aria-label={sidebarToggleLabel}
+            className="brand"
+            data-lumora-command
+            onClick={() => setSidebarExpanded((expanded) => !expanded)}
+            tabIndex={-1}
+            type="button"
+          >
+            <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
+            <span className="brand-copy">
+              <strong>Lumora</strong>
+              <small>Agent workspace manager</small>
+            </span>
+          </button>
+        </Tooltip>
 
         <nav className="primary-nav" aria-label="Primary navigation">
           <p className="nav-label">
@@ -1472,29 +1464,32 @@ export default function App(): ReactNode {
             <span aria-hidden="true" className="nav-label-divider" />
           </p>
           {ROUTES.map((route) => (
-            <button
-              aria-current={
-                !terminalActive && activeRouteId === route.id ? 'page' : undefined
-              }
-              className="nav-item"
-              data-lumora-command
+            <Tooltip
+              content={sidebarExpanded ? null : route.label}
               key={route.id}
-              onClick={() => navigateToRoute(route.id)}
-              title={
-                sidebarExpanded
+              shortcut={
+                shortcutPlatform === null
                   ? undefined
-                  : shortcutTitle(
-                      route.label,
+                  : formatShortcutChord(
                       keyboardSettings[route.shortcut],
                       shortcutPlatform
                     )
               }
-              tabIndex={-1}
-              type="button"
             >
-              <Icon name={route.icon} />
-              <span className="nav-item-label">{route.label}</span>
-            </button>
+              <button
+                aria-current={
+                  !terminalActive && activeRouteId === route.id ? 'page' : undefined
+                }
+                className="nav-item"
+                data-lumora-command
+                onClick={() => navigateToRoute(route.id)}
+                tabIndex={-1}
+                type="button"
+              >
+                <Icon name={route.icon} />
+                <span className="nav-item-label">{route.label}</span>
+              </button>
+            </Tooltip>
           ))}
         </nav>
 
@@ -1772,5 +1767,12 @@ export default function App(): ReactNode {
         videoSrc={startupVideoUrl}
       />
     </>
+  );
+}
+export default function App(): ReactNode {
+  return (
+    <TooltipProvider>
+      <AppContent />
+    </TooltipProvider>
   );
 }

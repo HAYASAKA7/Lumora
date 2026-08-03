@@ -43,6 +43,18 @@ The renderer keeps active terminal components mounted while application routes
 change. This preserves PTY attachments and avoids recreating terminal views on
 ordinary navigation.
 
+A renderer-root tooltip provider owns one portal-based hover surface. Tooltip
+placement is clamped to the viewport, uses semantic appearance tokens, and
+supports delayed pointer intent, deliberate keyboard focus, shortcut labels,
+and overflow-only disclosure. Renderer JSX is contract-tested to reject native
+`title` attributes so browser-owned hover bubbles cannot silently return.
+
+App-style focus handling is scoped to navigation, catalog cards, and page
+commands. Those controls leave the browser Tab cycle and release stale pointer
+focus before ordinary typing or application shortcuts. Editable fields,
+dialogs, settings, transfer workflows, shortcut recording, and managed
+terminals retain their native focus behavior.
+
 ### Preload API
 
 The preload layer exposes a narrow `window.lumora` API. Every request and

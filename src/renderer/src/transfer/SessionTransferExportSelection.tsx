@@ -12,6 +12,7 @@ import {
   useProgressiveList
 } from '../catalog/progressive-list';
 import { formatLifetimeTokens } from '../catalog/session-usage';
+import { Tooltip } from '../ui/Tooltip';
 import { useSessionExportSelection } from './useSessionExportSelection';
 
 const SESSION_BATCH_SIZE = 40;
@@ -160,15 +161,18 @@ export function SessionTransferExportSelection({
               .map((session) => {
                 const disabledReason = selection.disabledReason(session);
                 return (
-                  <label
-                    className={`transfer-export-session-row${
-                      disabledReason === null
-                        ? ''
-                        : ' transfer-export-session-row-disabled'
-                    }`}
+                  <Tooltip
+                    content={disabledReason ?? 'Select this session'}
                     key={session.id}
-                    title={disabledReason ?? 'Select this session'}
+                    multiline={disabledReason !== null}
                   >
+                    <label
+                      className={`transfer-export-session-row${
+                        disabledReason === null
+                          ? ''
+                          : ' transfer-export-session-row-disabled'
+                      }`}
+                    >
                     <input
                       aria-label={session.title}
                       checked={selection.selected.has(session.id)}
@@ -188,7 +192,8 @@ export function SessionTransferExportSelection({
                     <span className="transfer-export-session-state">
                       {disabledReason ?? 'Ready'}
                     </span>
-                  </label>
+                    </label>
+                  </Tooltip>
                 );
               })}
           </div>

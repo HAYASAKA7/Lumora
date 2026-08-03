@@ -223,7 +223,7 @@ describe('WorkspaceSessionsView', () => {
     });
     expect(action).toBeDisabled();
     expect(action).toHaveAttribute(
-      'title',
+      'aria-description',
       'Workspace is unavailable.'
     );
     fireEvent.click(action);
