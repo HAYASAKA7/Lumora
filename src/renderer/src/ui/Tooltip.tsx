@@ -206,7 +206,7 @@ export function TooltipProvider({
                 </span>
               )}
             </div>,
-            document.body
+            active.trigger.closest('.app-shell') ?? document.body
           )}
     </TooltipContext.Provider>
   );
@@ -316,3 +316,51 @@ export function Tooltip({
     ref: setRef
   });
 }
+
+export interface OverflowTooltipProps {
+  children: ReactElement<TooltipChildProps>;
+  content: ReactNode;
+}
+
+export function OverflowTooltip({
+  children,
+  content
+}: OverflowTooltipProps): React.JSX.Element {
+  const [overflowing, setOverflowing] = useState(false);
+  const elementRef = useRef<HTMLElement | null>(null);
+  const childRef = children.props.ref;
+
+  const measure = useCallback(() => {
+    const element = elementRef.current;
+    setOverflowing(
+      element !== null &&
+        (element.scrollWidth > element.clientWidth ||
+          element.scrollHeight > element.clientHeight)
+    );
+  }, []);
+
+  const setRef = useCallback(
+    (node: HTMLElement | null) => {
+      elementRef.current = node;
+      assignRef(childRef, node);
+    },
+    [childRef]
+  );
+
+  useLayoutEffect(measure, [content, measure]);
+
+  useEffect(() => {
+    if (elementRef.current === null || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(elementRef.current);
+    return () => observer.disconnect();
+  }, [measure]);
+
+  return (
+    <Tooltip content={overflowing ? content : null}>
+      {cloneElement(children, { ref: setRef })}
+    </Tooltip>
+  );
+ }

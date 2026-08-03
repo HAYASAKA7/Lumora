@@ -16,6 +16,7 @@ const managedSurfaceTokens = [
   'surface',
   'surface-raised',
   'surface-subtle',
+  'tooltip-surface',
   'control-surface',
   'sidebar-hover',
   'sidebar-selected',
@@ -239,5 +240,23 @@ describe('appearance style contract', () => {
     );
 
     expect(hardCodedColors).toEqual(null);
+  });
+  it('styles Lumora tooltips as compact theme-aware popup surfaces', () => {
+    const rootRule = stylesheet.match(/^:root\s*\{([^}]*)\}/m)?.[1];
+    const tooltipRule = stylesheet.match(/\.lumora-tooltip\s*\{([^}]*)\}/)?.[1];
+    const reducedMotionRule = stylesheet.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/
+    )?.[1];
+
+    expect(rootRule).toContain('--tooltip-surface:');
+    expect(rootRule).toContain('--tooltip-border:');
+    expect(rootRule).toContain('--tooltip-text:');
+    expect(rootRule).toContain('--tooltip-shortcut:');
+    expect(tooltipRule).toContain('position: fixed');
+    expect(tooltipRule).toContain('padding: 7px 10px');
+    expect(tooltipRule).toContain('max-width: 320px');
+    expect(tooltipRule).toContain('pointer-events: none');
+    expect(tooltipRule).toContain('background: var(--tooltip-surface)');
+    expect(reducedMotionRule).toContain('.lumora-tooltip');
   });
 });

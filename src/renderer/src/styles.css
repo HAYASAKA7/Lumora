@@ -104,6 +104,12 @@
   --runtime-switcher-index-text: #d9e7fb;
   --raw-runtime-switcher-index-surface: #334b6c;
   --runtime-switcher-index-surface: var(--raw-runtime-switcher-index-surface);
+  --raw-tooltip-surface: var(--raw-surface-raised);
+  --tooltip-surface: var(--raw-tooltip-surface);
+  --tooltip-border: var(--line-strong);
+  --tooltip-text: var(--text);
+  --tooltip-shortcut: var(--text-muted);
+  --tooltip-shadow: var(--shadow);
   --startup-band-a: #040c15;
   --startup-band-b: #01040b;
   --startup-gradient-1: #040c15;
@@ -116,6 +122,10 @@
 }
 
 :root[data-theme='lumora'] {
+  --raw-tooltip-surface: var(--raw-navy-800);
+  --tooltip-border: var(--frame-border);
+  --tooltip-text: var(--sidebar-heading);
+  --tooltip-shortcut: var(--sidebar-text);
   color: #172033;
   background: #07111f;
   --raw-navy-950: #07111f;
@@ -293,6 +303,7 @@ button {
   --terminal-overlay: color-mix(in srgb, var(--raw-terminal-overlay) var(--appearance-opacity-normal), transparent);
   --runtime-switcher-selected-surface: color-mix(in srgb, var(--raw-runtime-switcher-selected-surface) var(--appearance-opacity-popup-raised), transparent);
   --runtime-switcher-index-surface: color-mix(in srgb, var(--raw-runtime-switcher-index-surface) var(--appearance-opacity-popup-raised), transparent);
+  --tooltip-surface: color-mix(in srgb, var(--raw-tooltip-surface) var(--appearance-opacity-popup), transparent);
 }
 
 .startup-overlay {
@@ -2837,7 +2848,60 @@ button {
   .session-table td:nth-child(6)::before { content: "Source"; }
 }
 
+.lumora-tooltip {
+  position: fixed;
+  z-index: 120;
+  display: inline-flex;
+  max-width: 320px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  color: var(--tooltip-text);
+  background: var(--tooltip-surface);
+  border: 1px solid var(--tooltip-border);
+  border-radius: 7px;
+  box-shadow: var(--tooltip-shadow);
+  pointer-events: none;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.3;
+  animation: lumora-tooltip-enter 90ms ease-out;
+}
+
+.lumora-tooltip-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lumora-tooltip-shortcut {
+  flex: 0 0 auto;
+  color: var(--tooltip-shortcut);
+  font-size: 0.69rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lumora-tooltip-multiline {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+@keyframes lumora-tooltip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .lumora-tooltip {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {

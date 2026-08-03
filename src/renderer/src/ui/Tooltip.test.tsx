@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { Tooltip, TooltipProvider } from './Tooltip';
+import { OverflowTooltip, Tooltip, TooltipProvider } from './Tooltip';
 
 function Example({ onClick }: { onClick?: () => void }): React.JSX.Element {
   return (
@@ -18,6 +18,7 @@ function Example({ onClick }: { onClick?: () => void }): React.JSX.Element {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('Tooltip', () => {
@@ -116,5 +117,55 @@ describe('Tooltip', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove trigger' }));
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+  it('shows overflow text only when the rendered content is clipped', () => {
+    vi.useFakeTimers();
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+      .mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100);
+    const { rerender } = render(
+      <TooltipProvider>
+        <OverflowTooltip content="A long workspace path">
+          <span>A long workspace path</span>
+        </OverflowTooltip>
+      </TooltipProvider>
+    );
+
+    fireEvent.pointerEnter(screen.getByText('A long workspace path'));
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    scrollWidth.mockReturnValue(180);
+    rerender(
+      <TooltipProvider>
+        <OverflowTooltip content="A longer workspace path">
+          <span>A longer workspace path</span>
+        </OverflowTooltip>
+      </TooltipProvider>
+    );
+    fireEvent.pointerEnter(screen.getByText('A longer workspace path'));
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      'A longer workspace path'
+    );
+  });
+  it('portals into the app shell so appearance tokens are inherited', () => {
+    vi.useFakeTimers();
+    render(
+      <div className="app-shell" data-testid="shell">
+        <TooltipProvider>
+          <Tooltip content="Shell hint">
+            <button type="button">Shell button</button>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
+
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Shell button' }));
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.getByRole('tooltip').parentElement).toBe(
+      screen.getByTestId('shell')
+    );
   });
 });
