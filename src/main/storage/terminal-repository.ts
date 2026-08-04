@@ -1,9 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
-  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
-  GeneralSettingsSchema,
+  ExecutionTargetIdSchema,
   KeyboardSettingsSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerListSchema,
@@ -15,8 +14,8 @@ import {
   TerminalProfileSchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
-  parseStoredGeneralSettings,
   parseKeyboardSettings,
+  type ExecutionTargetId,
   type GeneralSettings,
   type LaunchSettingsLayer,
   type LaunchSettingsLayerInput,
@@ -32,9 +31,9 @@ import {
 } from '../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../shared/provider-definitions';
 import { resolveRuntimeSessionMatches } from '../terminal/runtime-session-matcher';
+import { GeneralSettingsStorage } from './general-settings-storage';
 
 const KEYBOARD_SETTINGS_PREFERENCE_KEY = 'keyboardShortcuts.v1';
-const GENERAL_SETTINGS_PREFERENCE_KEY = 'generalSettings.v1';
 
 interface LaunchSettingsLayerRow {
   scope: LaunchSettingsLayer['scope'];
@@ -169,42 +168,35 @@ function rowToRuntime(row: RuntimeRow): RuntimeSummary {
 }
 
 export class TerminalRepository {
-  constructor(private readonly database: DatabaseSync) {}
+  private readonly executionTargetId: ExecutionTargetId;
+  private readonly generalSettingsStorage: GeneralSettingsStorage;
+
+  constructor(
+    private readonly database: DatabaseSync,
+    executionTargetId: ExecutionTargetId = 'local'
+  ) {
+    this.executionTargetId = ExecutionTargetIdSchema.parse(executionTargetId);
+    const target = this.database.prepare(
+      'SELECT 1 FROM execution_target WHERE id = ?'
+    ).get(this.executionTargetId);
+    if (target === undefined) {
+      throw new Error('The execution target does not exist.');
+    }
+    this.generalSettingsStorage = new GeneralSettingsStorage(
+      database,
+      this.executionTargetId
+    );
+  }
 
   getGeneralSettings(): GeneralSettings {
-    const row = this.database.prepare(
-      'SELECT value_json FROM app_preference WHERE key = ?'
-    ).get(GENERAL_SETTINGS_PREFERENCE_KEY) as
-      | { value_json: string }
-      | undefined;
-    if (row === undefined) {
-      return parseStoredGeneralSettings(DEFAULT_GENERAL_SETTINGS);
-    }
-
-    try {
-      return parseStoredGeneralSettings(JSON.parse(row.value_json));
-    } catch {
-      return parseStoredGeneralSettings(DEFAULT_GENERAL_SETTINGS);
-    }
+    return this.generalSettingsStorage.get();
   }
 
   saveGeneralSettings(
     value: GeneralSettings,
     timestamp: string
   ): GeneralSettings {
-    const settings = GeneralSettingsSchema.parse(value);
-    this.database.prepare(
-      `INSERT INTO app_preference (key, value_json, updated_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(key) DO UPDATE SET
-         value_json = excluded.value_json,
-         updated_at = excluded.updated_at`
-    ).run(
-      GENERAL_SETTINGS_PREFERENCE_KEY,
-      JSON.stringify(settings),
-      normalizeTimestamp(timestamp)
-    );
-    return settings;
+    return this.generalSettingsStorage.save(value, timestamp);
   }
 
   getKeyboardSettings(): KeyboardSettings {
@@ -257,10 +249,10 @@ export class TerminalRepository {
     const normalizedTimestamp = normalizeTimestamp(timestamp);
     const upsert = this.database.prepare(
       `INSERT INTO terminal_profile (
-        id, kind, name, shell_family, executable_path, args_json,
+        execution_target_id, id, kind, name, shell_family, executable_path, args_json,
         available, recommended, created_at, updated_at
-      ) VALUES (?, 'detected', ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      ) VALUES (?, ?, 'detected', ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(execution_target_id, id) DO UPDATE SET
         name = excluded.name,
         shell_family = excluded.shell_family,
         executable_path = excluded.executable_path,
@@ -277,11 +269,12 @@ export class TerminalRepository {
         .prepare(
           `UPDATE terminal_profile
            SET available = 0, recommended = 0, updated_at = ?
-           WHERE kind = 'detected'`
+           WHERE execution_target_id = ? AND kind = 'detected'`
         )
-        .run(normalizedTimestamp);
+        .run(normalizedTimestamp, this.executionTargetId);
       for (const profile of profiles) {
         upsert.run(
+          this.executionTargetId,
           profile.id,
           profile.name,
           profile.shellFamily,
@@ -309,10 +302,10 @@ export class TerminalRepository {
     this.database
       .prepare(
         `INSERT INTO terminal_profile (
-          id, kind, name, shell_family, executable_path, args_json,
+          execution_target_id, id, kind, name, shell_family, executable_path, args_json,
           available, recommended, created_at, updated_at
-        ) VALUES (?, 'custom', ?, ?, ?, ?, ?, 0, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
+        ) VALUES (?, ?, 'custom', ?, ?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT(execution_target_id, id) DO UPDATE SET
           name = excluded.name,
           shell_family = excluded.shell_family,
           executable_path = excluded.executable_path,
@@ -323,6 +316,7 @@ export class TerminalRepository {
         WHERE terminal_profile.kind = 'custom'`
       )
       .run(
+        this.executionTargetId,
         profile.id,
         profile.name,
         profile.shellFamily,
@@ -336,8 +330,10 @@ export class TerminalRepository {
 
   deleteCustomProfile(profileId: string): boolean {
     const result = this.database
-      .prepare("DELETE FROM terminal_profile WHERE id = ? AND kind = 'custom'")
-      .run(profileId);
+      .prepare(
+        "DELETE FROM terminal_profile WHERE execution_target_id = ? AND id = ? AND kind = 'custom'"
+      )
+      .run(this.executionTargetId, profileId);
     return result.changes === 1;
   }
 
@@ -347,11 +343,12 @@ export class TerminalRepository {
         `SELECT id, kind, name, shell_family, executable_path, args_json,
           available, recommended
          FROM terminal_profile
+         WHERE execution_target_id = ?
          ORDER BY recommended DESC, available DESC,
           CASE kind WHEN 'detected' THEN 0 ELSE 1 END,
           name COLLATE NOCASE, id`
       )
-      .all() as unknown as TerminalProfileRow[];
+      .all(this.executionTargetId) as unknown as TerminalProfileRow[];
     return rows.map(rowToProfile);
   }
 
@@ -360,9 +357,9 @@ export class TerminalRepository {
       .prepare(
         `SELECT id, kind, name, shell_family, executable_path, args_json,
           available, recommended
-         FROM terminal_profile WHERE id = ?`
+         FROM terminal_profile WHERE execution_target_id = ? AND id = ?`
       )
-      .get(profileId) as TerminalProfileRow | undefined;
+      .get(this.executionTargetId, profileId) as TerminalProfileRow | undefined;
     return row === undefined ? null : rowToProfile(row);
   }
 
@@ -370,9 +367,9 @@ export class TerminalRepository {
     const row = this.database
       .prepare(
         `SELECT id, canonical_path, display_name, available
-         FROM workspace WHERE id = ?`
+         FROM workspace WHERE execution_target_id = ? AND id = ?`
       )
-      .get(workspaceId) as WorkspaceLaunchRow | undefined;
+      .get(this.executionTargetId, workspaceId) as WorkspaceLaunchRow | undefined;
     return row === undefined
       ? null
       : {
@@ -388,9 +385,10 @@ export class TerminalRepository {
       .prepare(
         `SELECT workspace_id, canonical_path, trusted_at
          FROM trust_decision
+         WHERE execution_target_id = ?
          ORDER BY trusted_at DESC, workspace_id`
       )
-      .all() as unknown as WorkspaceTrustDecisionRow[];
+      .all(this.executionTargetId) as unknown as WorkspaceTrustDecisionRow[];
     return WorkspaceTrustDecisionListSchema.parse(
       rows.map((row) =>
         WorkspaceTrustDecisionSchema.parse({
@@ -408,9 +406,10 @@ export class TerminalRepository {
         .prepare(
           `SELECT 1
            FROM trust_decision
-           WHERE workspace_id = ? AND canonical_path = ?`
+           WHERE execution_target_id = ?
+             AND workspace_id = ? AND canonical_path = ?`
         )
-        .get(workspaceId, canonicalPath) !== undefined
+        .get(this.executionTargetId, workspaceId, canonicalPath) !== undefined
     );
   }
 
@@ -438,20 +437,27 @@ export class TerminalRepository {
     this.database
       .prepare(
         `INSERT INTO trust_decision (
-          workspace_id, canonical_path, trusted_at
-        ) VALUES (?, ?, ?)
-        ON CONFLICT(workspace_id) DO UPDATE SET
+          execution_target_id, workspace_id, canonical_path, trusted_at
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(execution_target_id, workspace_id) DO UPDATE SET
           canonical_path = excluded.canonical_path,
           trusted_at = excluded.trusted_at`
       )
-      .run(decision.workspaceId, decision.canonicalPath, decision.trustedAt);
+      .run(
+        this.executionTargetId,
+        decision.workspaceId,
+        decision.canonicalPath,
+        decision.trustedAt
+      );
     return decision;
   }
 
   revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[] {
     this.database
-      .prepare('DELETE FROM trust_decision WHERE workspace_id = ?')
-      .run(workspaceId);
+      .prepare(
+        'DELETE FROM trust_decision WHERE execution_target_id = ? AND workspace_id = ?'
+      )
+      .run(this.executionTargetId, workspaceId);
     return this.listWorkspaceTrustDecisions();
   }
 
@@ -459,9 +465,9 @@ export class TerminalRepository {
     const row = this.database
       .prepare(
         `SELECT id, title, native_id, provider, workspace_id, source_freshness
-         FROM session WHERE id = ?`
+         FROM session WHERE execution_target_id = ? AND id = ?`
       )
-      .get(sessionId) as SessionLaunchRow | undefined;
+      .get(this.executionTargetId, sessionId) as SessionLaunchRow | undefined;
     return row === undefined
       ? null
       : {
@@ -479,12 +485,14 @@ export class TerminalRepository {
       this.database.prepare(
         `SELECT source.source_key
          FROM session_source source
-         JOIN session ON session.id = source.session_id
-         WHERE source.session_id = ?
+         JOIN session ON session.execution_target_id = source.execution_target_id
+           AND session.id = source.session_id
+         WHERE source.execution_target_id = ?
+           AND source.session_id = ?
            AND source.stale = 0
            AND session.source_freshness = 'current'
          ORDER BY source.source_key`
-      ).all(sessionId) as unknown as Array<{ source_key: string }>
+      ).all(this.executionTargetId, sessionId) as unknown as Array<{ source_key: string }>
     ).map((row) => row.source_key);
   }
 
@@ -497,10 +505,11 @@ export class TerminalRepository {
         .prepare(
           `SELECT id, native_id
            FROM session
-           WHERE provider = ? AND workspace_id = ? AND source_freshness = 'current'
+           WHERE execution_target_id = ?
+             AND provider = ? AND workspace_id = ? AND source_freshness = 'current'
            ORDER BY native_id, id`
         )
-        .all(provider, workspaceId) as unknown as Array<{
+        .all(this.executionTargetId, provider, workspaceId) as unknown as Array<{
         id: string;
         native_id: string;
       }>
@@ -561,6 +570,7 @@ export class TerminalRepository {
       .prepare(
         `SELECT scope, target_id, settings_json, updated_at
          FROM config_layer
+         WHERE execution_target_id = ?
          ORDER BY CASE scope
           WHEN 'global' THEN 0
           WHEN 'provider' THEN 1
@@ -568,7 +578,7 @@ export class TerminalRepository {
           ELSE 3 END,
           target_id`
       )
-      .all() as unknown as LaunchSettingsLayerRow[];
+      .all(this.executionTargetId) as unknown as LaunchSettingsLayerRow[];
     return LaunchSettingsLayerListSchema.parse(
       rows.map((row) =>
         LaunchSettingsLayerSchema.parse({
@@ -616,19 +626,22 @@ export class TerminalRepository {
         Object.keys(input.settings.providerCommands).length === 0);
     if (empty) {
       this.database
-        .prepare('DELETE FROM config_layer WHERE scope = ? AND target_id = ?')
-        .run(input.scope, input.targetId);
+        .prepare(
+          'DELETE FROM config_layer WHERE execution_target_id = ? AND scope = ? AND target_id = ?'
+        )
+        .run(this.executionTargetId, input.scope, input.targetId);
     } else {
       this.database
         .prepare(
           `INSERT INTO config_layer (
-            scope, target_id, settings_json, updated_at
-          ) VALUES (?, ?, ?, ?)
-          ON CONFLICT(scope, target_id) DO UPDATE SET
+            execution_target_id, scope, target_id, settings_json, updated_at
+          ) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(execution_target_id, scope, target_id) DO UPDATE SET
             settings_json = excluded.settings_json,
             updated_at = excluded.updated_at`
         )
         .run(
+          this.executionTargetId,
           input.scope,
           input.targetId,
           JSON.stringify(input.settings),
@@ -664,11 +677,11 @@ export class TerminalRepository {
     }
     const save = this.database.prepare(
       `INSERT INTO runtime_instance (
-          id, display_name, strategy, session_id, native_session_id, reconciliation_state,
-          provider, workspace_id, terminal_profile_id, launch_hash, state, pid,
-          created_at, started_at, ended_at, exit_code, error_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
+          execution_target_id, id, display_name, strategy, session_id, native_session_id,
+          reconciliation_state, provider, workspace_id, terminal_profile_id, launch_hash,
+          state, pid, created_at, started_at, ended_at, exit_code, error_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(execution_target_id, id) DO UPDATE SET
           display_name = excluded.display_name,
           state = excluded.state,
           pid = excluded.pid,
@@ -679,6 +692,7 @@ export class TerminalRepository {
     );
     const runSave = () =>
       save.run(
+        this.executionTargetId,
         runtime.id,
         runtime.displayName,
         runtime.strategy,
@@ -708,11 +722,11 @@ export class TerminalRepository {
       this.database
         .prepare(
           `INSERT INTO runtime_reconciliation (
-            runtime_id, baseline_native_ids_json
-          ) VALUES (?, ?)
-          ON CONFLICT(runtime_id) DO NOTHING`
+            execution_target_id, runtime_id, baseline_native_ids_json
+          ) VALUES (?, ?, ?)
+          ON CONFLICT(execution_target_id, runtime_id) DO NOTHING`
         )
-        .run(runtime.id, JSON.stringify(baseline));
+        .run(this.executionTargetId, runtime.id, JSON.stringify(baseline));
       this.database.exec('COMMIT');
     } catch (error) {
       this.database.exec('ROLLBACK');
@@ -732,9 +746,9 @@ export class TerminalRepository {
             reconciliation_state, provider, workspace_id, terminal_profile_id,
             launch_hash, state, pid, created_at, started_at, ended_at,
             exit_code, error_code
-           FROM runtime_instance WHERE id = ?`
+           FROM runtime_instance WHERE execution_target_id = ? AND id = ?`
         )
-        .get(runtimeId) as RuntimeRow | undefined;
+        .get(this.executionTargetId, runtimeId) as RuntimeRow | undefined;
       if (
         current === undefined ||
         current.strategy === 'resume' ||
@@ -752,11 +766,11 @@ export class TerminalRepository {
         const claimed = this.database
           .prepare(
             `SELECT 1 FROM runtime_instance
-             WHERE id <> ? AND session_id = ?
+             WHERE execution_target_id = ? AND id <> ? AND session_id = ?
                AND state IN ('launching', 'running')
              LIMIT 1`
           )
-          .get(runtimeId, result.sessionId);
+          .get(this.executionTargetId, runtimeId, result.sessionId);
         if (
           session === null ||
           claimed !== undefined ||
@@ -778,9 +792,13 @@ export class TerminalRepository {
           `UPDATE runtime_instance
            SET reconciliation_state = ?, session_id = ?, native_session_id = ?,
              display_name = ?
-           WHERE id = ? AND strategy IN ('new', 'fork') AND reconciliation_state = 'pending'`
+           WHERE execution_target_id = ? AND id = ?
+             AND strategy IN ('new', 'fork') AND reconciliation_state = 'pending'`
         )
-        .run(result.state, sessionId, nativeSessionId, displayName, runtimeId);
+        .run(
+          result.state, sessionId, nativeSessionId, displayName,
+          this.executionTargetId, runtimeId
+        );
       if (update.changes !== 1) {
         this.database.exec('ROLLBACK');
         return null;
@@ -791,9 +809,9 @@ export class TerminalRepository {
             reconciliation_state, provider, workspace_id, terminal_profile_id,
             launch_hash, state, pid, created_at, started_at, ended_at,
             exit_code, error_code
-           FROM runtime_instance WHERE id = ?`
+           FROM runtime_instance WHERE execution_target_id = ? AND id = ?`
         )
-        .get(runtimeId) as unknown as RuntimeRow;
+        .get(this.executionTargetId, runtimeId) as unknown as RuntimeRow;
       const runtime = rowToRuntime(updated);
       this.database.exec('COMMIT');
       return runtime;
@@ -811,17 +829,19 @@ export class TerminalRepository {
         .prepare(
           `SELECT runtime.id, session.title
            FROM runtime_instance runtime
-           JOIN session ON session.id = runtime.session_id
-           WHERE session.source_freshness = 'current'
+           JOIN session ON session.execution_target_id = runtime.execution_target_id
+             AND session.id = runtime.session_id
+           WHERE runtime.execution_target_id = ?
+             AND session.source_freshness = 'current'
              AND runtime.state IN ('launching', 'running')
              AND runtime.display_name <> session.title`
         )
-        .all() as unknown as Array<{ id: string; title: string }>;
+        .all(this.executionTargetId) as unknown as Array<{ id: string; title: string }>;
       const updateTitle = this.database.prepare(
-        'UPDATE runtime_instance SET display_name = ? WHERE id = ?'
+        'UPDATE runtime_instance SET display_name = ? WHERE execution_target_id = ? AND id = ?'
       );
       for (const runtime of renamed) {
-        updateTitle.run(runtime.title, runtime.id);
+        updateTitle.run(runtime.title, this.executionTargetId, runtime.id);
         changedRuntimeIds.add(runtime.id);
       }
 
@@ -831,14 +851,16 @@ export class TerminalRepository {
              runtime.reconciliation_state, reconciliation.baseline_native_ids_json
            FROM runtime_instance runtime
            JOIN runtime_reconciliation reconciliation
-             ON reconciliation.runtime_id = runtime.id
-           WHERE runtime.strategy IN ('new', 'fork')
+             ON reconciliation.execution_target_id = runtime.execution_target_id
+             AND reconciliation.runtime_id = runtime.id
+           WHERE runtime.execution_target_id = ?
+             AND runtime.strategy IN ('new', 'fork')
              AND runtime.session_id IS NULL
              AND runtime.state IN ('launching', 'running')
              AND runtime.reconciliation_state IN ('unresolved', 'ambiguous')
            ORDER BY runtime.created_at, runtime.id`
         )
-        .all() as unknown as Array<{
+        .all(this.executionTargetId) as unknown as Array<{
         id: string;
         provider: ProviderId;
         workspace_id: string;
@@ -850,20 +872,20 @@ export class TerminalRepository {
           this.database
             .prepare(
               `SELECT session_id FROM runtime_instance
-               WHERE session_id IS NOT NULL
+               WHERE execution_target_id = ? AND session_id IS NOT NULL
                  AND state IN ('launching', 'running')`
             )
-            .all() as unknown as Array<{ session_id: string }>
+            .all(this.executionTargetId) as unknown as Array<{ session_id: string }>
         ).map((row) => row.session_id)
       );
       const currentSessions = this.database
         .prepare(
           `SELECT id, native_id, provider, workspace_id, title
            FROM session
-           WHERE source_freshness = 'current'
+           WHERE execution_target_id = ? AND source_freshness = 'current'
            ORDER BY native_id, id`
         )
-        .all() as unknown as Array<{
+        .all(this.executionTargetId) as unknown as Array<{
         id: string;
         native_id: string;
         provider: ProviderId;
@@ -914,12 +936,14 @@ export class TerminalRepository {
         `UPDATE runtime_instance
          SET reconciliation_state = 'linked', session_id = ?,
            native_session_id = ?, display_name = ?
-         WHERE id = ? AND strategy IN ('new', 'fork') AND session_id IS NULL
+         WHERE execution_target_id = ? AND id = ?
+           AND strategy IN ('new', 'fork') AND session_id IS NULL
            AND state IN ('launching', 'running')
            AND reconciliation_state IN ('unresolved', 'ambiguous')
            AND NOT EXISTS (
              SELECT 1 FROM runtime_instance claimed
-             WHERE claimed.id <> runtime_instance.id
+             WHERE claimed.execution_target_id = ?
+               AND claimed.id <> runtime_instance.id
                AND claimed.session_id = ?
                AND claimed.state IN ('launching', 'running')
            )`
@@ -931,7 +955,9 @@ export class TerminalRepository {
           match.sessionId,
           match.nativeSessionId,
           session.title,
+          this.executionTargetId,
           match.runtimeId,
+          this.executionTargetId,
           match.sessionId
         );
         if (update.changes === 1) {
@@ -941,7 +967,7 @@ export class TerminalRepository {
 
       const updateReconciliationState = this.database.prepare(
         `UPDATE runtime_instance SET reconciliation_state = ?
-         WHERE id = ? AND reconciliation_state <> ?`
+         WHERE execution_target_id = ? AND id = ? AND reconciliation_state <> ?`
       );
       for (const runtime of retryable) {
         if (matchedRuntimeIds.has(runtime.id)) continue;
@@ -951,6 +977,7 @@ export class TerminalRepository {
         const nextState = candidates.length === 0 ? 'unresolved' : 'ambiguous';
         const update = updateReconciliationState.run(
           nextState,
+          this.executionTargetId,
           runtime.id,
           nextState
         );
@@ -970,10 +997,10 @@ export class TerminalRepository {
                   terminal_profile_id, launch_hash, state, pid, created_at,
                   started_at, ended_at, exit_code, error_code
                  FROM runtime_instance
-                 WHERE id IN (${placeholders})
+                 WHERE execution_target_id = ? AND id IN (${placeholders})
                  ORDER BY created_at DESC, id`
               )
-              .all(...changedRuntimeIds) as unknown as RuntimeRow[]
+              .all(this.executionTargetId, ...changedRuntimeIds) as unknown as RuntimeRow[]
           ).map(rowToRuntime);
       this.database.exec('COMMIT');
       return changed;
@@ -990,9 +1017,10 @@ export class TerminalRepository {
           reconciliation_state, provider, workspace_id, terminal_profile_id,
           launch_hash, state, pid,
           created_at, started_at, ended_at, exit_code, error_code
-         FROM runtime_instance ORDER BY created_at DESC, id`
+         FROM runtime_instance WHERE execution_target_id = ?
+         ORDER BY created_at DESC, id`
       )
-      .all() as unknown as RuntimeRow[];
+      .all(this.executionTargetId) as unknown as RuntimeRow[];
     return rows.map(rowToRuntime);
   }
 
@@ -1004,16 +1032,16 @@ export class TerminalRepository {
         `UPDATE runtime_instance
          SET state = 'runtime_lost', pid = NULL, ended_at = ?,
           error_code = 'PTY_RUNTIME_LOST'
-         WHERE state IN ('launching', 'running')`
+         WHERE execution_target_id = ? AND state IN ('launching', 'running')`
         )
-        .run(normalizeTimestamp(timestamp));
+        .run(normalizeTimestamp(timestamp), this.executionTargetId);
       this.database
         .prepare(
           `UPDATE runtime_instance
            SET reconciliation_state = 'unresolved'
-           WHERE reconciliation_state = 'pending'`
+           WHERE execution_target_id = ? AND reconciliation_state = 'pending'`
         )
-        .run();
+        .run(this.executionTargetId);
       this.database.exec('COMMIT');
     } catch (error) {
       this.database.exec('ROLLBACK');

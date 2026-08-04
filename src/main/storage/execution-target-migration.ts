@@ -124,7 +124,7 @@ export const EXECUTION_TARGET_MIGRATION_STATEMENTS = [
     recovery, retryable, scanned_at FROM scan_error`,
   `CREATE TABLE terminal_profile_target (
     execution_target_id TEXT NOT NULL DEFAULT 'local' REFERENCES execution_target(id) ON DELETE RESTRICT,
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('detected', 'custom')),
     name TEXT NOT NULL,
     shell_family TEXT NOT NULL CHECK (
@@ -136,7 +136,7 @@ export const EXECUTION_TARGET_MIGRATION_STATEMENTS = [
     recommended INTEGER NOT NULL CHECK (recommended IN (0, 1)),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE (execution_target_id, id)
+    PRIMARY KEY (execution_target_id, id)
   ) STRICT`,
   `INSERT INTO terminal_profile_target (
     execution_target_id, id, kind, name, shell_family, executable_path,
@@ -210,8 +210,16 @@ export const EXECUTION_TARGET_MIGRATION_STATEMENTS = [
     FOREIGN KEY (execution_target_id, terminal_profile_id)
       REFERENCES terminal_profile_target(execution_target_id, id),
     FOREIGN KEY (execution_target_id, session_id)
-      REFERENCES session_target(execution_target_id, id) ON DELETE SET NULL
+      REFERENCES session_target(execution_target_id, id)
   ) STRICT`,
+  `CREATE TRIGGER session_target_runtime_unlink
+   BEFORE DELETE ON session_target
+   BEGIN
+     UPDATE runtime_instance_target
+     SET session_id = NULL
+     WHERE execution_target_id = OLD.execution_target_id
+       AND session_id = OLD.id;
+   END`,
   `INSERT INTO runtime_instance_target (
     execution_target_id, id, display_name, strategy, session_id,
     native_session_id, reconciliation_state, provider, workspace_id,

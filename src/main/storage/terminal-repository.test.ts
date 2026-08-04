@@ -384,6 +384,10 @@ describe('TerminalRepository', () => {
       `UPDATE app_preference SET value_json = ?
        WHERE key = 'generalSettings.v1'`
     ).run(JSON.stringify({ version: 1, showInformationalNotices: 'no' }));
+    database.prepare(
+      `UPDATE app_preference SET value_json = ?
+       WHERE key = 'generalSettings.global.v1'`
+    ).run(JSON.stringify({ startMaximized: 'no' }));
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
 
     database.exec('PRAGMA ignore_check_constraints = ON');

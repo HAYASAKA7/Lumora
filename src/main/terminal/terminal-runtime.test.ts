@@ -86,6 +86,7 @@ describe('createTerminalRuntime', () => {
     };
     const runtime = await createTerminalRuntime({
       databasePath: ':memory:',
+      executionTargetId: 'local',
       platform: testPlatform,
       env: {},
       scanProviders: async () => ({

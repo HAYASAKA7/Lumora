@@ -4,6 +4,7 @@ import { posix, win32 } from 'node:path';
 
 import {
   CustomTerminalProfileInputSchema,
+  type ExecutionTargetId,
   type GeneralSettings,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
@@ -86,6 +87,7 @@ export function collectActiveTransferSessions(
 
 interface CreateTerminalRuntimeOptions {
   databasePath: string;
+  executionTargetId: ExecutionTargetId;
   platform: SystemInfo['platform'];
   env: Environment;
   scanProviders(): Promise<ProviderScanResult>;
@@ -135,6 +137,7 @@ export interface TerminalRuntime {
 
 export async function createTerminalRuntime({
   databasePath,
+  executionTargetId,
   platform,
   env,
   scanProviders,
@@ -154,7 +157,7 @@ export async function createTerminalRuntime({
     database.close();
     throw error;
   }
-  const repository = new TerminalRepository(database);
+  const repository = new TerminalRepository(database, executionTargetId);
   repository.markLiveRuntimesLost(clock().toISOString());
   if (
     providedHandoffService === undefined &&
