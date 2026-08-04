@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { mkdtemp, mkdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -22,6 +23,7 @@ interface PackageVerification {
   artifactPath?: string;
   executablePath: string;
   nodePtyPath: string;
+  helperPath: string;
 }
 
 interface PackageFixture extends PackageVerification {
@@ -31,9 +33,36 @@ interface PackageFixture extends PackageVerification {
 
 const temporaryDirectories: string[] = [];
 
-async function writeFixtureFile(filePath: string, contents = 'fixture'): Promise<void> {
+async function writeFixtureFile(filePath: string, contents: string | Uint8Array = 'fixture'): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
   await writeFile(filePath, contents);
+}
+
+const helperTargets = [
+  ['darwin', 'arm64', 'macos-arm64/lumora-helper', Buffer.from([0xcf, 0xfa, 0xed, 0xfe])],
+  ['darwin', 'x64', 'macos-x64/lumora-helper', Buffer.from([0xcf, 0xfa, 0xed, 0xfe])],
+  ['linux', 'arm64', 'linux-arm64/lumora-helper', Buffer.from([0x7f, 0x45, 0x4c, 0x46])],
+  ['linux', 'x64', 'linux-x64/lumora-helper', Buffer.from([0x7f, 0x45, 0x4c, 0x46])],
+  ['win32', 'arm64', 'windows-arm64/lumora-helper.exe', Buffer.from([0x4d, 0x5a, 0, 0])],
+  ['win32', 'x64', 'windows-x64/lumora-helper.exe', Buffer.from([0x4d, 0x5a, 0, 0])]
+] as const;
+
+async function writeHelperBundle(resourcesPath: string): Promise<string> {
+  const helperPath = join(resourcesPath, 'helper');
+  const artifacts = [];
+  for (const [platform, architecture, suffix, contents] of helperTargets) {
+    const relativePath = `artifacts/${suffix}`;
+    await writeFixtureFile(join(helperPath, ...relativePath.split('/')), contents);
+    artifacts.push({
+      platform, architecture, relativePath, size: contents.length,
+      sha256: createHash('sha256').update(contents).digest('hex'),
+      capabilities: ['system-info']
+    });
+  }
+  await writeFixtureFile(join(helperPath, 'manifest.json'), JSON.stringify({
+    formatVersion: 1, helperVersion: '0.1.0', protocolVersion: 1, artifacts
+  }));
+  return helperPath;
 }
 
 async function createCompleteFixture(
@@ -90,7 +119,7 @@ async function createCompleteFixture(
       : platform === 'mac'
         ? join(nodePtyRoot, 'prebuilds', `darwin-${arch}`, 'pty.node')
         : join(nodePtyRoot, 'build', 'Release', 'pty.node');
-  const helperPath =
+  const nodePtyHelperPath =
     platform === 'win'
       ? join(nodePtyRoot, 'prebuilds', `win32-${arch}`, 'winpty-agent.exe')
       : platform === 'mac'
@@ -100,13 +129,15 @@ async function createCompleteFixture(
   await writeFixtureFile(executablePath);
   await writeFixtureFile(join(resourcesPath, 'app.asar'));
   await writeFixtureFile(nativeBinaryPath);
-  await writeFixtureFile(helperPath);
+  await writeFixtureFile(nodePtyHelperPath);
+  const helperPath = await writeHelperBundle(resourcesPath);
 
   return {
     rootDir,
     artifactPath,
     executablePath,
     nodePtyPath: nodePtyRoot,
+    helperPath,
     nativeBinaryPath
   };
 }
@@ -124,7 +155,8 @@ describe('verifyPackage', () => {
     expect(verifyPackage({ rootDir: fixture.rootDir, platform: 'win', arch: 'x64' })).toEqual({
       artifactPath: fixture.artifactPath,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 
@@ -136,7 +168,8 @@ describe('verifyPackage', () => {
     ).toEqual({
       artifactPath: fixture.artifactPath,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 
@@ -149,7 +182,8 @@ describe('verifyPackage', () => {
     ).toEqual({
       artifactPath: fixture.artifactPath,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 
@@ -159,7 +193,8 @@ describe('verifyPackage', () => {
     expect(verifyPackage({ rootDir: fixture.rootDir, platform: 'mac', arch: 'x64' })).toEqual({
       artifactPath: fixture.artifactPath,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 
@@ -169,7 +204,8 @@ describe('verifyPackage', () => {
     expect(verifyPackage({ rootDir: fixture.rootDir, platform: 'mac', arch: 'arm64' })).toEqual({
       artifactPath: fixture.artifactPath,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 
@@ -196,7 +232,8 @@ describe('verifyPackage', () => {
     ).toEqual({
       artifactPath: undefined,
       executablePath: fixture.executablePath,
-      nodePtyPath: fixture.nodePtyPath
+      nodePtyPath: fixture.nodePtyPath,
+      helperPath: fixture.helperPath
     });
   });
 });

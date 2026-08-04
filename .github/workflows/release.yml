@@ -24,6 +24,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.22.x'
+          cache: false
       - run: npm ci
       - run: node scripts/release/verify-release-tag.cjs
       - run: npm run verify
@@ -73,8 +77,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.22.x'
+          cache: false
       - run: npm ci
       - run: npm run build
+      - run: npm run helper:build
       - run: npx electron-builder ${{ matrix.builder_args }} --publish never
       - run: node scripts/release/verify-package.cjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
       - uses: actions/upload-artifact@v7

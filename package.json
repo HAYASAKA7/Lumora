@@ -13,16 +13,18 @@
     "predev": "install-electron --no",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "package:dir": "npm run build && electron-builder --dir",
-    "package": "npm run build && electron-builder",
-    "verify": "npm test && npm run typecheck && npm run build",
+    "package:dir": "npm run helper:build && npm run build && electron-builder --dir",
+    "package": "npm run helper:build && npm run build && electron-builder",
+    "verify": "npm test && npm run helper:test && npm run typecheck && npm run build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
     "benchmark:catalog": "vitest bench src/main/catalog/catalog-service.bench.ts --run --project node",
     "benchmark:transfer": "vitest bench src/main/transfer/session-transfer-service.bench.ts --run --project node",
     "benchmark:terminal": "vitest bench src/main/terminal/output-buffer.bench.ts --run --project node",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "helper:test": "go -C helper test ./...",
+    "helper:build": "node scripts/helper/build-helper.cjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

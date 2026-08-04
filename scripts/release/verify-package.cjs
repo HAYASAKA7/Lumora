@@ -1,5 +1,6 @@
 const { readFileSync, statSync } = require('node:fs');
 const { join, resolve } = require('node:path');
+const { verifyHelperBundle } = require('../helper/verify-helper.cjs');
 
 const TARGETS = {
   'win-x64': {
@@ -138,6 +139,10 @@ function verifyPackage({
   requireDirectory('application resources', resourcesPath);
   requireNonEmptyFile('app.asar', join(resourcesPath, 'app.asar'));
 
+  const helperRoot = join(resourcesPath, 'helper');
+  requireDirectory('Lumora helper bundle', helperRoot);
+  verifyHelperBundle(helperRoot);
+
   const nodePtyRoot = join(
     resourcesPath,
     'app.asar.unpacked',
@@ -152,7 +157,7 @@ function verifyPackage({
     requireNonEmptyFile('node-pty helper', join(nodePtyRoot, ...target.helperPath));
   }
 
-  return { artifactPath, executablePath, nodePtyPath: nodePtyRoot };
+  return { artifactPath, executablePath, nodePtyPath: nodePtyRoot, helperPath: helperRoot };
 }
 
 function parseArguments(argumentsList) {

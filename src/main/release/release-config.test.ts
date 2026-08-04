@@ -59,9 +59,15 @@ describe('release packaging configuration', () => {
     expect(packageJson.name).toBe('lumora');
     expect(packageJson.author).toBe('HAYASAKA7');
     expect(packageJson.scripts['package:dir']).toBe(
-      'npm run build && electron-builder --dir'
+      'npm run helper:build && npm run build && electron-builder --dir'
     );
-    expect(packageJson.scripts.package).toBe('npm run build && electron-builder');
+    expect(packageJson.scripts.package).toBe(
+      'npm run helper:build && npm run build && electron-builder'
+    );
+    expect(packageJson.scripts['helper:test']).toBe('go -C helper test ./...');
+    expect(packageJson.scripts['helper:build']).toBe(
+      'node scripts/helper/build-helper.cjs'
+    );
     expect(packageJson.devDependencies['electron-builder']).toBe('26.15.3');
   });
 
@@ -89,6 +95,8 @@ describe('release packaging configuration', () => {
       '  - from: resources/icons/lumora/windows/LumoraTransparent.ico'
     );
     expect(extraResources).toContain('    to: icons/LumoraTransparent.ico');
+    expect(extraResources).toContain('  - from: resources/helper/generated');
+    expect(extraResources).toContain('    to: helper');
     expect(config).toMatch(/^npmRebuild: false$/m);
     expect(config).toMatch(/^forceCodeSigning: false$/m);
     expect(extraMetadata).toContain('  desktopName: app.lumora.desktop');
