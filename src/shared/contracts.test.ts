@@ -10,9 +10,12 @@ import {
   DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
   DeveloperEnvironmentScanResultSchema,
+  ExecutionTargetIdSchema,
+  ExecutionTargetSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
+  LumoraWindowContextSchema,
   KeyboardShortcutChordSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerSchema,
@@ -61,6 +64,85 @@ const missingClaude = {
     retryable: true
   }
 } as const;
+
+describe('execution target contracts', () => {
+  const remoteId = '4f632901-1f8d-44c0-8418-aa823f791ca0';
+
+  it('accepts the permanent local identity and UUID remote identities', () => {
+    expect(ExecutionTargetIdSchema.parse('local')).toBe('local');
+    expect(ExecutionTargetIdSchema.parse(remoteId)).toBe(remoteId);
+    expect(() => ExecutionTargetIdSchema.parse('server-one')).toThrow();
+  });
+
+  it('keeps local and remote window contexts structurally isolated', () => {
+    expect(
+      LumoraWindowContextSchema.parse({
+        mode: 'local',
+        executionTargetId: 'local'
+      })
+    ).toEqual({ mode: 'local', executionTargetId: 'local' });
+    expect(
+      LumoraWindowContextSchema.parse({
+        mode: 'remote',
+        executionTargetId: remoteId
+      })
+    ).toEqual({ mode: 'remote', executionTargetId: remoteId });
+    expect(() =>
+      LumoraWindowContextSchema.parse({
+        mode: 'local',
+        executionTargetId: remoteId
+      })
+    ).toThrow();
+  });
+
+  it('validates local and remote target state independently', () => {
+    expect(
+      ExecutionTargetSchema.parse({
+        id: 'local',
+        kind: 'local',
+        displayName: 'This device',
+        platform: 'win32',
+        architecture: 'x64',
+        connectionState: 'local',
+        helperVersion: null,
+        protocolVersion: null,
+        capabilities: ['provider-scan', 'session-scan', 'pty'],
+        lastConnectedAt: null,
+        lastScannedAt: null
+      }).id
+    ).toBe('local');
+    expect(
+      ExecutionTargetSchema.parse({
+        id: remoteId,
+        kind: 'remote',
+        displayName: 'Build server',
+        platform: 'linux',
+        architecture: 'arm64',
+        connectionState: 'offline',
+        helperVersion: null,
+        protocolVersion: null,
+        capabilities: [],
+        lastConnectedAt: null,
+        lastScannedAt: null
+      }).id
+    ).toBe(remoteId);
+    expect(() =>
+      ExecutionTargetSchema.parse({
+        id: remoteId,
+        kind: 'remote',
+        displayName: 'Build server',
+        platform: 'linux',
+        architecture: 'arm64',
+        connectionState: 'local',
+        helperVersion: null,
+        protocolVersion: null,
+        capabilities: [],
+        lastConnectedAt: null,
+        lastScannedAt: null
+      })
+    ).toThrow();
+  });
+});
 
 describe('ProviderIdSchema', () => {
   it('accepts every provider in the wider lifecycle catalog', () => {

@@ -19,6 +19,81 @@ export * from './session-transfer';
 
 export const PlatformSchema = z.enum(['win32', 'darwin', 'linux']);
 
+export const LOCAL_EXECUTION_TARGET_ID = 'local' as const;
+export const RemoteExecutionTargetIdSchema = z.uuid();
+export const ExecutionTargetIdSchema = z.union([
+  z.literal(LOCAL_EXECUTION_TARGET_ID),
+  RemoteExecutionTargetIdSchema
+]);
+export const ExecutionTargetPlatformSchema = z.union([
+  PlatformSchema,
+  z.literal('unknown')
+]);
+export const ExecutionTargetArchitectureSchema = z.enum([
+  'x64',
+  'arm64',
+  'unknown'
+]);
+export const ExecutionTargetCapabilitySchema = z.enum([
+  'provider-scan',
+  'session-scan',
+  'pty',
+  'persistent-runtime'
+]);
+
+export const ExecutionTargetSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    id: z.literal(LOCAL_EXECUTION_TARGET_ID),
+    kind: z.literal('local'),
+    displayName: z.string().trim().min(1).max(120),
+    platform: PlatformSchema,
+    architecture: z.string().trim().min(1).max(32),
+    connectionState: z.literal('local'),
+    helperVersion: z.null(),
+    protocolVersion: z.null(),
+    capabilities: z.array(ExecutionTargetCapabilitySchema).max(4),
+    lastConnectedAt: z.null(),
+    lastScannedAt: z.iso.datetime().nullable()
+  }),
+  z.strictObject({
+    id: RemoteExecutionTargetIdSchema,
+    kind: z.literal('remote'),
+    displayName: z.string().trim().min(1).max(120),
+    platform: ExecutionTargetPlatformSchema,
+    architecture: ExecutionTargetArchitectureSchema,
+    connectionState: z.enum([
+      'offline',
+      'connecting',
+      'authenticating',
+      'helper-missing',
+      'helper-incompatible',
+      'ready',
+      'reconnecting',
+      'error'
+    ]),
+    helperVersion: z.string().trim().min(1).max(64).nullable(),
+    protocolVersion: z.number().int().nonnegative().nullable(),
+    capabilities: z.array(ExecutionTargetCapabilitySchema).max(4),
+    lastConnectedAt: z.iso.datetime().nullable(),
+    lastScannedAt: z.iso.datetime().nullable()
+  })
+]);
+
+export const LumoraWindowContextSchema = z.discriminatedUnion('mode', [
+  z.strictObject({
+    mode: z.literal('local'),
+    executionTargetId: z.literal(LOCAL_EXECUTION_TARGET_ID)
+  }),
+  z.strictObject({
+    mode: z.literal('remote'),
+    executionTargetId: RemoteExecutionTargetIdSchema
+  })
+]);
+
+export type ExecutionTargetId = z.infer<typeof ExecutionTargetIdSchema>;
+export type ExecutionTarget = z.infer<typeof ExecutionTargetSchema>;
+export type LumoraWindowContext = z.infer<typeof LumoraWindowContextSchema>;
+
 export const SystemInfoSchema = z.strictObject({
   platform: PlatformSchema,
   arch: z.string().min(1),
