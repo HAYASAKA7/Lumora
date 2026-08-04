@@ -4,7 +4,8 @@ import {
   CatalogSnapshotSchema,
   IPC_CHANNELS,
   type CatalogQuery,
-  type CatalogSnapshot
+  type CatalogSnapshot,
+  type LumoraWindowContext
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 
@@ -36,7 +37,7 @@ interface OpenDialogResult {
 interface RegisterCatalogIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  service: CatalogServiceLike;
+  resolveService(context: LumoraWindowContext): CatalogServiceLike;
   showOpenDialog(options: {
     properties: ['openDirectory'];
   }): Promise<OpenDialogResult>;
@@ -66,14 +67,15 @@ function assertTrusted(
   event: IpcInvokeEventLike,
   authorize: IpcAuthorizer,
   developmentOrigin?: string
-): void {
-  authorize(event);
+): LumoraWindowContext {
+  const context = authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
   ) {
     throw new IpcAccessError();
   }
+  return context;
 }
 
 async function validateCatalogOperation(
@@ -92,20 +94,22 @@ async function validateCatalogOperation(
 export function registerCatalogIpc({
   ipc,
   authorize,
-  service,
+  resolveService,
   showOpenDialog,
   onCatalogRefreshed,
   developmentOrigin
 }: RegisterCatalogIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.catalogGet, async (event, query) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const context = assertTrusted(event, authorize, developmentOrigin);
     const validatedQuery = CatalogQuerySchema.parse(query);
+    const service = resolveService(context);
     return validateCatalogOperation(() => service.getCatalog(validatedQuery));
   });
 
   ipc.handle(IPC_CHANNELS.catalogRefresh, async (event, query) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const context = assertTrusted(event, authorize, developmentOrigin);
     const validatedQuery = CatalogQuerySchema.parse(query);
+    const service = resolveService(context);
     return validateCatalogOperation(
       () => service.refreshCatalog(validatedQuery),
       onCatalogRefreshed
@@ -113,7 +117,7 @@ export function registerCatalogIpc({
   });
 
   ipc.handle(IPC_CHANNELS.workspaceChoose, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const context = assertTrusted(event, authorize, developmentOrigin);
 
     let result: OpenDialogResult;
     try {
@@ -127,6 +131,7 @@ export function registerCatalogIpc({
       return null;
     }
 
+    const service = resolveService(context);
     return validateCatalogOperation(() =>
       service.registerWorkspace(selectedPath)
     );

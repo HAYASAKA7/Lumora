@@ -32,6 +32,7 @@ const scan = {
 function createHarness(developmentOrigin?: string) {
   const handlers = new Map<string, InvokeHandler>();
   const scanner = { scan: vi.fn().mockResolvedValue(scan) };
+  const resolveScanner = vi.fn(() => scanner);
   const openExternal = vi.fn().mockResolvedValue(undefined);
   registerEnvironmentIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
@@ -40,17 +41,17 @@ function createHarness(developmentOrigin?: string) {
         handlers.set(channel, handler);
       }
     },
-    scanner,
+    resolveScanner,
     openExternal,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
-  return { handlers, scanner, openExternal };
+  return { handlers, scanner, resolveScanner, openExternal };
 }
 
 describe('registerEnvironmentIpc', () => {
   it('registers only narrow scan and fixed-download operations', async () => {
-    const { handlers, scanner, openExternal } = createHarness();
+    const { handlers, scanner, resolveScanner, openExternal } = createHarness();
     expect([...handlers.keys()]).toEqual([
       IPC_CHANNELS.environmentScan,
       IPC_CHANNELS.nodeDownloadOpen
@@ -64,6 +65,10 @@ describe('registerEnvironmentIpc', () => {
       handlers.get(IPC_CHANNELS.nodeDownloadOpen)!(event, 'https://evil.example')
     ).resolves.toEqual({ opened: true });
 
+    expect(resolveScanner).toHaveBeenCalledWith({
+      mode: 'local',
+      executionTargetId: 'local'
+    });
     expect(scanner.scan).toHaveBeenCalledOnce();
     expect(openExternal).toHaveBeenCalledOnce();
     expect(openExternal).toHaveBeenCalledWith(NODE_DOWNLOAD_URL);

@@ -69,6 +69,7 @@ function createHarness(options: {
       options.registerWorkspace ?? (async () => validSnapshot)
     )
   };
+  const resolveService = vi.fn(() => service);
   const showOpenDialog = vi.fn(async () =>
     Promise.resolve(
       options.dialogResult ?? {
@@ -81,7 +82,7 @@ function createHarness(options: {
   registerCatalogIpc({
     ipc,
     authorize,
-    service,
+    resolveService,
     showOpenDialog,
     ...(options.onCatalogRefreshed === undefined
       ? {}
@@ -91,7 +92,7 @@ function createHarness(options: {
       : { developmentOrigin: options.developmentOrigin })
   });
 
-  return { handlers, service, showOpenDialog, authorize };
+  return { handlers, service, resolveService, showOpenDialog, authorize };
 }
 
 function trustedEvent(): InvokeEventStub {
@@ -119,6 +120,31 @@ describe('registerCatalogIpc', () => {
     await expect(get(trustedEvent(), { text: '', provider: null }))
       .rejects.toThrow('IPC_UNTRUSTED_SENDER');
     expect(authorize).toHaveBeenCalledOnce();
+    expect(service.getCatalog).not.toHaveBeenCalled();
+  });
+
+  it('resolves the catalog service from the authorized window context', async () => {
+    const { handlers, resolveService } = createHarness();
+
+    await handlers.get(IPC_CHANNELS.catalogGet)!(
+      trustedEvent(),
+      { text: '', provider: null }
+    );
+
+    expect(resolveService).toHaveBeenCalledWith({
+      mode: 'local',
+      executionTargetId: 'local'
+    });
+  });
+
+  it('does not accept a request payload as target-routing authority', async () => {
+    const { handlers, service } = createHarness();
+
+    await expect(handlers.get(IPC_CHANNELS.catalogGet)!(trustedEvent(), {
+      text: '',
+      provider: null,
+      executionTargetId: '4f632901-1f8d-44c0-8418-aa823f791ca0'
+    })).rejects.toBeDefined();
     expect(service.getCatalog).not.toHaveBeenCalled();
   });
 

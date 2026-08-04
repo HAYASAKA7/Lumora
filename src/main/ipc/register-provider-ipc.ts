@@ -6,6 +6,7 @@ import {
   ProviderUpdateCheckResultSchema,
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
+  type LumoraWindowContext,
   type ProviderId,
   type ProviderScanResult,
   type ProviderUpdateCheckResult,
@@ -38,11 +39,15 @@ interface ProviderUpdatesLike {
   update(provider: ProviderId): Promise<unknown>;
 }
 
+interface ProviderTargetServices {
+  registry: ProviderRegistryLike;
+  updates: ProviderUpdatesLike;
+}
+
 interface RegisterProviderIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  registry: ProviderRegistryLike;
-  updates: ProviderUpdatesLike;
+  resolveServices(context: LumoraWindowContext): ProviderTargetServices;
   openExternal(url: string): Promise<unknown>;
   developmentOrigin?: string;
 }
@@ -59,25 +64,25 @@ class IpcAccessError extends Error {
 export function registerProviderIpc({
   ipc,
   authorize,
-  registry,
-  updates,
+  resolveServices,
   openExternal,
   developmentOrigin
 }: RegisterProviderIpcDependencies): void {
-  const assertTrusted = (event: IpcInvokeEventLike): void => {
-    authorize(event);
+  const assertTrusted = (event: IpcInvokeEventLike): LumoraWindowContext => {
+    const context = authorize(event);
     if (
       event.senderFrame === null ||
       !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
     ) {
       throw new IpcAccessError();
     }
+    return context;
   };
 
   ipc.handle(
     IPC_CHANNELS.providerScan,
     async (event): Promise<ProviderScanResult> => {
-      assertTrusted(event);
+      const { registry } = resolveServices(assertTrusted(event));
       return ProviderScanResultSchema.parse(await registry.scan());
     }
   );
@@ -85,7 +90,7 @@ export function registerProviderIpc({
   ipc.handle(
     IPC_CHANNELS.providerUpdatesCheck,
     async (event): Promise<ProviderUpdateCheckResult> => {
-      assertTrusted(event);
+      const { updates } = resolveServices(assertTrusted(event));
       return ProviderUpdateCheckResultSchema.parse(await updates.check());
     }
   );
@@ -93,7 +98,7 @@ export function registerProviderIpc({
   ipc.handle(
     IPC_CHANNELS.providerUpdateRun,
     async (event, input): Promise<ProviderUpdateResult> => {
-      assertTrusted(event);
+      const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
       return ProviderUpdateResultSchema.parse(
         await updates.update(request.provider)
@@ -104,7 +109,7 @@ export function registerProviderIpc({
   ipc.handle(
     IPC_CHANNELS.providerInstallRun,
     async (event, input): Promise<ProviderUpdateResult> => {
-      assertTrusted(event);
+      const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
       return ProviderUpdateResultSchema.parse(
         await updates.install(request.provider)

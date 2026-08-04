@@ -88,11 +88,30 @@ import {
   type WindowStateManager
 } from './window-state';
 import { resolveWindowCloseAction } from './window-close-policy';
+import { createExecutionTargetGateway } from './targets/execution-target-gateway';
 import { createWindowContextRegistry } from './targets/window-context-registry';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
+interface ExecutionTargetServices {
+  readonly catalog: CatalogRuntime['service'];
+  readonly terminal: TerminalRuntime;
+  readonly environmentScanner: ReturnType<
+    typeof createDeveloperEnvironmentScanner
+  >;
+  readonly providers: Readonly<{
+    registry: Readonly<{ scan: typeof scanEnabledProviders }>;
+    updates: ReturnType<typeof createProviderUpdateService>;
+  }>;
+  readonly transfer: Readonly<{
+    service: NonNullable<SessionTransferRuntime['service']>;
+    registerWorkspace(path: string): Promise<unknown>;
+  }>;
+}
+
 const windowContexts = createWindowContextRegistry();
+const executionTargetGateway =
+  createExecutionTargetGateway<ExecutionTargetServices>();
 const authorizeLocalIpc = createLocalIpcAuthorizer({
   contexts: windowContexts,
   ...(developmentOrigin === undefined ? {} : { developmentOrigin })
@@ -485,6 +504,33 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   if (transferService === null) {
     throw new Error('The session transfer service was not composed.');
   }
+  const registerLocalTransferWorkspace = async (path: string) => {
+    const canonical = await canonicalizeWorkspacePath(path, { platform });
+    const snapshot = await catalogRuntime!.service.registerWorkspace(path);
+    const workspace = snapshot.workspaces.find(
+      (candidate) => candidate.id === canonical.id
+    );
+    if (workspace === undefined || !workspace.available) {
+      throw new Error('The selected workspace could not be registered.');
+    }
+    return workspace;
+  };
+  executionTargetGateway.register(
+    LOCAL_EXECUTION_TARGET_ID,
+    Object.freeze({
+      catalog: catalogRuntime.service,
+      terminal: terminalRuntime,
+      environmentScanner: developerEnvironmentScanner,
+      providers: Object.freeze({
+        registry: Object.freeze({ scan: scanEnabledProviders }),
+        updates: providerUpdateService
+      }),
+      transfer: Object.freeze({
+        service: transferService,
+        registerWorkspace: registerLocalTransferWorkspace
+      })
+    })
+  );
   registerSystemIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
@@ -512,22 +558,24 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   registerEnvironmentIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    scanner: developerEnvironmentScanner,
+    resolveScanner: (context) =>
+      executionTargetGateway.resolve(context).environmentScanner,
     openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerProviderIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    registry: { scan: scanEnabledProviders },
-    updates: providerUpdateService,
+    resolveServices: (context) =>
+      executionTargetGateway.resolve(context).providers,
     openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerCatalogIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    service: catalogRuntime.service,
+    resolveService: (context) =>
+      executionTargetGateway.resolve(context).catalog,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     onCatalogRefreshed: () => {
       terminalRuntime!.synchronizeCatalogSessions();
@@ -538,23 +586,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   registerTransferIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    service: transferService,
+    resolveTarget: (context) =>
+      executionTargetGateway.resolve(context).transfer,
     downloadsDirectory: app.getPath('downloads'),
     lastDirectory: (direction) =>
       transferRuntime!.repository.getLastDirectory(direction),
     showSaveDialog: (options) => dialog.showSaveDialog(options),
     showOpenDialog: (options) => dialog.showOpenDialog(options),
-    registerWorkspace: async (path) => {
-      const canonical = await canonicalizeWorkspacePath(path, { platform });
-      const snapshot = await catalogRuntime!.service.registerWorkspace(path);
-      const workspace = snapshot.workspaces.find(
-        (candidate) => candidate.id === canonical.id
-      );
-      if (workspace === undefined || !workspace.available) {
-        throw new Error('The selected workspace could not be registered.');
-      }
-      return workspace;
-    },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerClipboardIpc({
@@ -576,7 +614,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    runtime: terminalRuntime,
+    resolveRuntime: (context) =>
+      executionTargetGateway.resolve(context).terminal,
+    subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
       if (event.type === 'state') {

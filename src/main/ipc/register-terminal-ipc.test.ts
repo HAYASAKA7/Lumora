@@ -87,10 +87,12 @@ function createHarness() {
     })
   };
   const sendRuntimeEvent = vi.fn();
+  const resolveRuntime = vi.fn(() => runtimeService);
   registerTerminalIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
-    runtime: runtimeService,
+    resolveRuntime,
+    subscribeRuntimeEvents: runtimeService.subscribe,
     sendRuntimeEvent,
     openExternal
   });
@@ -98,6 +100,7 @@ function createHarness() {
     handlers,
     openExternal,
     runtimeService,
+    resolveRuntime,
     sendRuntimeEvent,
     emit(event: RuntimeEvent) { eventListener?.(event); }
   };
@@ -136,6 +139,17 @@ describe('registerTerminalIpc', () => {
       IPC_CHANNELS.runtimeTerminate,
       IPC_CHANNELS.terminalLinkOpen
     ]);
+  });
+
+  it('resolves terminal operations from the authorized window context', async () => {
+    const { handlers, resolveRuntime } = createHarness();
+
+    await handlers.get(IPC_CHANNELS.runtimeList)!(trustedEvent);
+
+    expect(resolveRuntime).toHaveBeenCalledWith({
+      mode: 'local',
+      executionTargetId: 'local'
+    });
   });
 
   it('opens only validated HTTP(S) terminal links for trusted renderers', async () => {

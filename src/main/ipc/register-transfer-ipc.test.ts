@@ -182,23 +182,24 @@ function createHarness(options: {
         };
   });
   const registerWorkspace = vi.fn(async () => workspace);
+  const resolveTarget = vi.fn(() => ({ service, registerWorkspace }));
 
   registerTransferIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
-    service,
+    resolveTarget,
     downloadsDirectory: 'D:\\Downloads',
     lastDirectory: (direction) =>
       direction === 'export' ? 'D:\\Exports' : 'D:\\Imports',
     showSaveDialog,
     showOpenDialog,
-    registerWorkspace,
     clock: () => new Date(NOW)
   });
 
   return {
     handlers,
     service,
+    resolveTarget,
     showSaveDialog,
     showOpenDialog,
     registerWorkspace
@@ -214,8 +215,9 @@ function untrustedEvent(): InvokeEventStub {
 }
 
 describe('registerTransferIpc', () => {
-  it('registers only the narrowed transfer operations', () => {
-    expect([...createHarness().handlers.keys()]).toEqual([
+  it('registers only the narrowed transfer operations', async () => {
+    const harness = createHarness();
+    expect([...harness.handlers.keys()]).toEqual([
       IPC_CHANNELS.transferCapabilitiesGet,
       IPC_CHANNELS.transferExportPrepare,
       IPC_CHANNELS.transferExportExecute,
@@ -227,6 +229,13 @@ describe('registerTransferIpc', () => {
       IPC_CHANNELS.transferHistoryGet,
       IPC_CHANNELS.transferOperationCancel
     ]);
+    await harness.handlers.get(IPC_CHANNELS.transferCapabilitiesGet)!(
+      trustedEvent()
+    );
+    expect(harness.resolveTarget).toHaveBeenCalledWith({
+      mode: 'local',
+      executionTargetId: 'local'
+    });
   });
 
   it('uses native archive dialogs and returns null on cancellation', async () => {

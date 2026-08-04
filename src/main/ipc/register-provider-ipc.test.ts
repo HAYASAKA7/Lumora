@@ -93,11 +93,15 @@ function createHarness(
     }
   };
 
+  const resolveServices = vi.fn(() => ({
+    registry: { scan },
+    updates: { check, update, install }
+  }));
+
   registerProviderIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
-    registry: { scan },
-    updates: { check, update, install },
+    resolveServices,
     openExternal,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
@@ -107,12 +111,15 @@ function createHarness(
     throw new Error('Provider scan handler was not registered');
   }
 
-  return { handler, handlers, registeredChannels: [...handlers.keys()] };
+  return {
+    handler, handlers, resolveServices,
+    registeredChannels: [...handlers.keys()]
+  };
 }
 
 describe('registerProviderIpc', () => {
   it('registers one scan operation and validates its response', async () => {
-    const { handler, registeredChannels } = createHarness();
+    const { handler, registeredChannels, resolveServices } = createHarness();
 
     expect(registeredChannels).toEqual([
       IPC_CHANNELS.providerScan,
@@ -125,6 +132,10 @@ describe('registerProviderIpc', () => {
       senderFrame: { url: 'app://lumora/index.html' }
     });
     expect(ProviderScanResultSchema.parse(result)).toEqual(validScan);
+    expect(resolveServices).toHaveBeenCalledWith({
+      mode: 'local',
+      executionTargetId: 'local'
+    });
   });
 
   it('installs validated providers and opens only shipped guide URLs', async () => {

@@ -17,7 +17,8 @@ import {
   TransferHistoryListSchema,
   TransferOperationCancelRequestSchema,
   TransferOperationCancelResultSchema,
-  WorkspaceSummarySchema
+  WorkspaceSummarySchema,
+  type LumoraWindowContext
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 import type { SessionTransferService } from '../transfer/session-transfer-service';
@@ -75,17 +76,21 @@ interface WorkspaceDialogOptions {
   properties: ['openDirectory'];
 }
 
+interface TransferIpcTarget {
+  service: TransferIpcService;
+  registerWorkspace(path: string): Promise<unknown>;
+}
+
 interface RegisterTransferIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  service: TransferIpcService;
+  resolveTarget(context: LumoraWindowContext): TransferIpcTarget;
   downloadsDirectory: string;
   lastDirectory(direction: 'export' | 'import'): string | null;
   showSaveDialog(options: SaveArchiveDialogOptions): Promise<SaveDialogResult>;
   showOpenDialog(
     options: OpenArchiveDialogOptions | WorkspaceDialogOptions
   ): Promise<OpenDialogResult>;
-  registerWorkspace(path: string): Promise<unknown>;
   clock?: () => Date;
   developmentOrigin?: string;
 }
@@ -112,14 +117,15 @@ function assertTrusted(
   event: IpcInvokeEventLike,
   authorize: IpcAuthorizer,
   developmentOrigin?: string
-): void {
-  authorize(event);
+): LumoraWindowContext {
+  const context = authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
   ) {
     throw new IpcAccessError();
   }
+  return context;
 }
 
 async function privileged<T>(operation: () => Promise<T> | T): Promise<T> {
@@ -137,32 +143,37 @@ const ARCHIVE_FILTER = [
 export function registerTransferIpc({
   ipc,
   authorize,
-  service,
+  resolveTarget,
   downloadsDirectory,
   lastDirectory,
   showSaveDialog,
   showOpenDialog,
-  registerWorkspace,
   clock = () => new Date(),
   developmentOrigin
 }: RegisterTransferIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.transferCapabilitiesGet, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     return privileged(() =>
-      SessionTransferCapabilityListSchema.parse(service.getCapabilities())
+      SessionTransferCapabilityListSchema.parse(target.service.getCapabilities())
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferExportPrepare, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = SessionExportPrepareRequestSchema.parse(input);
     return privileged(async () =>
-      SessionExportPlanSchema.parse(await service.prepareExport(request))
+      SessionExportPlanSchema.parse(await target.service.prepareExport(request))
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferExportExecute, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = SessionExportExecuteRequestSchema.parse(input);
     return privileged(async () => {
       const date = clock().toISOString().slice(0, 10);
@@ -177,13 +188,15 @@ export function registerTransferIpc({
       });
       if (result.canceled || result.filePath === undefined) return null;
       return SessionTransferResultSchema.parse(
-        await service.executeExport(request, result.filePath)
+        await target.service.executeExport(request, result.filePath)
       );
     });
   });
 
   ipc.handle(IPC_CHANNELS.transferImportChoose, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     return privileged(async () => {
       const result = await showOpenDialog({
         defaultPath: lastDirectory('import') ?? downloadsDirectory,
@@ -193,58 +206,70 @@ export function registerTransferIpc({
       const archivePath = result.filePaths[0];
       if (result.canceled || archivePath === undefined) return null;
       return SessionTransferArchiveSelectionSchema.parse(
-        await service.chooseImportArchive(archivePath)
+        await target.service.chooseImportArchive(archivePath)
       );
     });
   });
 
   ipc.handle(IPC_CHANNELS.transferImportInspect, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = SessionImportInspectRequestSchema.parse(input);
     return privileged(async () =>
-      SessionImportInspectionSchema.parse(await service.inspectImport(request))
+      SessionImportInspectionSchema.parse(await target.service.inspectImport(request))
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferImportPlan, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = SessionImportPlanRequestSchema.parse(input);
     return privileged(async () =>
-      SessionImportPlanSchema.parse(await service.planImport(request))
+      SessionImportPlanSchema.parse(await target.service.planImport(request))
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferImportExecute, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = SessionImportExecuteRequestSchema.parse(input);
     return privileged(async () =>
-      SessionTransferResultSchema.parse(await service.executeImport(request))
+      SessionTransferResultSchema.parse(await target.service.executeImport(request))
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferWorkspaceChoose, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     return privileged(async () => {
       const result = await showOpenDialog({ properties: ['openDirectory'] });
       const workspacePath = result.filePaths[0];
       if (result.canceled || workspacePath === undefined) return null;
       return WorkspaceSummarySchema.parse(
-        await registerWorkspace(workspacePath)
+        await target.registerWorkspace(workspacePath)
       );
     });
   });
 
   ipc.handle(IPC_CHANNELS.transferHistoryGet, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
-    return privileged(() => TransferHistoryListSchema.parse(service.getHistory()));
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
+    return privileged(() => TransferHistoryListSchema.parse(target.service.getHistory()));
   });
 
   ipc.handle(IPC_CHANNELS.transferOperationCancel, async (event, input) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const target = resolveTarget(
+      assertTrusted(event, authorize, developmentOrigin)
+    );
     const request = TransferOperationCancelRequestSchema.parse(input);
     return privileged(() =>
       TransferOperationCancelResultSchema.parse(
-        service.cancelOperation(request.operationId)
+        target.service.cancelOperation(request.operationId)
       )
     );
   });

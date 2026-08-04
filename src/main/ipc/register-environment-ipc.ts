@@ -3,7 +3,8 @@ import {
   DeveloperEnvironmentScanResultSchema,
   ExternalOpenResultSchema,
   IPC_CHANNELS,
-  type DeveloperEnvironmentScanResult
+  type DeveloperEnvironmentScanResult,
+  type LumoraWindowContext
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 
@@ -30,7 +31,7 @@ interface EnvironmentScanner {
 interface RegisterEnvironmentIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  scanner: EnvironmentScanner;
+  resolveScanner(context: LumoraWindowContext): EnvironmentScanner;
   openExternal(url: string): Promise<void>;
   developmentOrigin?: string;
 }
@@ -48,25 +49,27 @@ function assertTrusted(
   event: IpcInvokeEventLike,
   authorize: IpcAuthorizer,
   developmentOrigin?: string
-): void {
-  authorize(event);
+): LumoraWindowContext {
+  const context = authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
   ) {
     throw new IpcAccessError();
   }
+  return context;
 }
 
 export function registerEnvironmentIpc({
   ipc,
   authorize,
-  scanner,
+  resolveScanner,
   openExternal,
   developmentOrigin
 }: RegisterEnvironmentIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.environmentScan, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    const context = assertTrusted(event, authorize, developmentOrigin);
+    const scanner = resolveScanner(context);
     return DeveloperEnvironmentScanResultSchema.parse(await scanner.scan());
   });
 
