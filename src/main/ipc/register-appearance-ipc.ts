@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   AppearanceBackgroundStateSchema,
   IPC_CHANNELS,
@@ -29,6 +30,7 @@ interface OpenDialogResult {
 
 interface RegisterAppearanceIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   service: AppearanceBackgroundService;
   showOpenDialog(options: {
     properties: ['openFile'];
@@ -53,7 +55,12 @@ class AppearanceIpcError extends Error {
   }
 }
 
-function assertTrusted(event: IpcInvokeEventLike, developmentOrigin?: string) {
+function assertTrusted(
+  event: IpcInvokeEventLike,
+  authorize: IpcAuthorizer,
+  developmentOrigin?: string
+) {
+  authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
@@ -64,6 +71,7 @@ function assertTrusted(event: IpcInvokeEventLike, developmentOrigin?: string) {
 
 export function registerAppearanceIpc({
   ipc,
+  authorize,
   service,
   showOpenDialog,
   developmentOrigin
@@ -79,12 +87,12 @@ export function registerAppearanceIpc({
   };
 
   ipc.handle(IPC_CHANNELS.appearanceBackgroundGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return safely(() => service.getState());
   });
 
   ipc.handle(IPC_CHANNELS.appearanceBackgroundChoose, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     try {
       const selection = await showOpenDialog({
         properties: ['openFile'],
@@ -103,7 +111,7 @@ export function registerAppearanceIpc({
   });
 
   ipc.handle(IPC_CHANNELS.appearanceBackgroundRemove, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return safely(() => service.remove());
   });
 }

@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   ClipboardTextSchema,
   ClipboardWriteResultSchema,
@@ -26,6 +27,7 @@ interface ClipboardAdapter {
 
 interface RegisterClipboardIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   clipboard: ClipboardAdapter;
   developmentOrigin?: string;
 }
@@ -54,8 +56,10 @@ class ClipboardIpcError extends Error {
 
 function assertTrusted(
   event: IpcInvokeEventLike,
+  authorize: IpcAuthorizer,
   developmentOrigin?: string
 ): void {
+  authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
@@ -66,11 +70,12 @@ function assertTrusted(
 
 export function registerClipboardIpc({
   ipc,
+  authorize,
   clipboard,
   developmentOrigin
 }: RegisterClipboardIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.clipboardTextRead, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
 
     try {
       return ClipboardTextSchema.parse(clipboard.readText());
@@ -80,7 +85,7 @@ export function registerClipboardIpc({
   });
 
   ipc.handle(IPC_CHANNELS.clipboardTextWrite, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const text = ClipboardTextSchema.parse(input);
 
     try {

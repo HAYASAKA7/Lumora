@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   CustomTerminalProfileInputSchema,
   GeneralSettingsSchema,
@@ -73,6 +74,7 @@ type TerminalIpcRuntime = Pick<
 
 interface RegisterTerminalIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   runtime: TerminalIpcRuntime;
   sendRuntimeEvent(event: RuntimeEvent): void;
   openExternal(url: string): Promise<unknown>;
@@ -107,8 +109,10 @@ async function privileged<T>(operation: () => Promise<T> | T): Promise<T> {
 
 function assertTrusted(
   event: IpcInvokeEventLike,
+  authorize: IpcAuthorizer,
   developmentOrigin?: string
 ): void {
+  authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
@@ -119,39 +123,40 @@ function assertTrusted(
 
 export function registerTerminalIpc({
   ipc,
+  authorize,
   runtime,
   sendRuntimeEvent,
   openExternal,
   developmentOrigin
 }: RegisterTerminalIpcDependencies): () => void {
   ipc.handle(IPC_CHANNELS.terminalProfilesGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       TerminalProfileListSchema.parse(runtime.getProfiles())
     );
   });
   ipc.handle(IPC_CHANNELS.terminalProfileSave, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = CustomTerminalProfileInputSchema.parse(input);
     return privileged(async () =>
       TerminalProfileListSchema.parse(await runtime.saveProfile(request))
     );
   });
   ipc.handle(IPC_CHANNELS.terminalProfileDelete, async (event, profileId) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = TerminalProfileIdSchema.parse(profileId);
     return privileged(() =>
       TerminalProfileListSchema.parse(runtime.deleteProfile(request))
     );
   });
   ipc.handle(IPC_CHANNELS.providerLaunchConfigsGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       ProviderLaunchConfigListSchema.parse(runtime.getProviderLaunchConfigs())
     );
   });
   ipc.handle(IPC_CHANNELS.providerLaunchConfigSave, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = ProviderLaunchConfigInputSchema.parse(input);
     return privileged(() =>
       ProviderLaunchConfigListSchema.parse(
@@ -160,13 +165,13 @@ export function registerTerminalIpc({
     );
   });
   ipc.handle(IPC_CHANNELS.launchSettingsLayersGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       LaunchSettingsLayerListSchema.parse(runtime.getLaunchSettingsLayers())
     );
   });
   ipc.handle(IPC_CHANNELS.launchSettingsLayerSave, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = LaunchSettingsLayerInputSchema.parse(input);
     return privileged(() =>
       LaunchSettingsLayerListSchema.parse(
@@ -175,40 +180,40 @@ export function registerTerminalIpc({
     );
   });
   ipc.handle(IPC_CHANNELS.generalSettingsGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       GeneralSettingsSchema.parse(runtime.getGeneralSettings())
     );
   });
   ipc.handle(IPC_CHANNELS.generalSettingsSave, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = GeneralSettingsSchema.parse(input);
     return privileged(() =>
       GeneralSettingsSchema.parse(runtime.saveGeneralSettings(request))
     );
   });
   ipc.handle(IPC_CHANNELS.keyboardSettingsGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       KeyboardSettingsSchema.parse(runtime.getKeyboardSettings())
     );
   });
   ipc.handle(IPC_CHANNELS.keyboardSettingsSave, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = KeyboardSettingsSchema.parse(input);
     return privileged(() =>
       KeyboardSettingsSchema.parse(runtime.saveKeyboardSettings(request))
     );
   });
   ipc.handle(IPC_CHANNELS.launchPrepare, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = LaunchPrepareRequestSchema.parse(input);
     return privileged(async () =>
       LaunchPreviewSchema.parse(await runtime.prepareLaunch(request))
     );
   });
   ipc.handle(IPC_CHANNELS.workspaceTrustGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       WorkspaceTrustDecisionListSchema.parse(
         runtime.getWorkspaceTrustDecisions()
@@ -216,7 +221,7 @@ export function registerTerminalIpc({
     );
   });
   ipc.handle(IPC_CHANNELS.workspaceTrustGrant, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = WorkspaceTrustGrantRequestSchema.parse(input);
     return privileged(() =>
       WorkspaceTrustDecisionSchema.parse(
@@ -225,7 +230,7 @@ export function registerTerminalIpc({
     );
   });
   ipc.handle(IPC_CHANNELS.workspaceTrustRevoke, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = WorkspaceTrustRevokeRequestSchema.parse(input);
     return privileged(() =>
       WorkspaceTrustDecisionListSchema.parse(
@@ -234,25 +239,25 @@ export function registerTerminalIpc({
     );
   });
   ipc.handle(IPC_CHANNELS.runtimeStart, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = RuntimeStartRequestSchema.parse(input);
     return privileged(async () =>
       RuntimeSummarySchema.parse(await runtime.startRuntime(request.launchToken))
     );
   });
   ipc.handle(IPC_CHANNELS.runtimeList, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() => RuntimeListSchema.parse(runtime.listRuntimes()));
   });
   ipc.handle(IPC_CHANNELS.runtimeAttach, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = RuntimeIdRequestSchema.parse(input);
     return privileged(() =>
       RuntimeAttachmentSchema.parse(runtime.attachRuntime(request.runtimeId))
     );
   });
   ipc.handle(IPC_CHANNELS.runtimeWrite, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = RuntimeWriteRequestSchema.parse(input);
     return privileged(() => {
       runtime.writeRuntime(request);
@@ -260,7 +265,7 @@ export function registerTerminalIpc({
     });
   });
   ipc.handle(IPC_CHANNELS.runtimeResize, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = RuntimeResizeRequestSchema.parse(input);
     return privileged(() => {
       runtime.resizeRuntime(request);
@@ -268,14 +273,14 @@ export function registerTerminalIpc({
     });
   });
   ipc.handle(IPC_CHANNELS.runtimeTerminate, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = RuntimeIdRequestSchema.parse(input);
     return privileged(async () =>
       RuntimeSummarySchema.parse(await runtime.terminateRuntime(request.runtimeId))
     );
   });
   ipc.handle(IPC_CHANNELS.terminalLinkOpen, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = TerminalLinkOpenRequestSchema.parse(input);
     return privileged(async () => {
       await openExternal(request.url);

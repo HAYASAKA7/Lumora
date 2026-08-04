@@ -34,6 +34,7 @@ function createHarness(developmentOrigin?: string) {
   const scanner = { scan: vi.fn().mockResolvedValue(scan) };
   const openExternal = vi.fn().mockResolvedValue(undefined);
   registerEnvironmentIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc: {
       handle(channel: string, handler: InvokeHandler) {
         handlers.set(channel, handler);

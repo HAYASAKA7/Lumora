@@ -23,6 +23,7 @@ function createHarness(
   };
 
   registerSystemIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
     platform: 'win32',
     arch: 'x64',

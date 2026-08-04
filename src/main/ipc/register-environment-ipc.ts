@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   DeveloperEnvironmentScanResultSchema,
   ExternalOpenResultSchema,
@@ -28,6 +29,7 @@ interface EnvironmentScanner {
 
 interface RegisterEnvironmentIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   scanner: EnvironmentScanner;
   openExternal(url: string): Promise<void>;
   developmentOrigin?: string;
@@ -44,8 +46,10 @@ class IpcAccessError extends Error {
 
 function assertTrusted(
   event: IpcInvokeEventLike,
+  authorize: IpcAuthorizer,
   developmentOrigin?: string
 ): void {
+  authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
@@ -56,17 +60,18 @@ function assertTrusted(
 
 export function registerEnvironmentIpc({
   ipc,
+  authorize,
   scanner,
   openExternal,
   developmentOrigin
 }: RegisterEnvironmentIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.environmentScan, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return DeveloperEnvironmentScanResultSchema.parse(await scanner.scan());
   });
 
   ipc.handle(IPC_CHANNELS.nodeDownloadOpen, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     await openExternal(NODE_DOWNLOAD_URL);
     return ExternalOpenResultSchema.parse({ opened: true });
   });

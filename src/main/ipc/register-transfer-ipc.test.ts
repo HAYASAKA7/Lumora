@@ -184,6 +184,7 @@ function createHarness(options: {
   const registerWorkspace = vi.fn(async () => workspace);
 
   registerTransferIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
     service,
     downloadsDirectory: 'D:\\Downloads',

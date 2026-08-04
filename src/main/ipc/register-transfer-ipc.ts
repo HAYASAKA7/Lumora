@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import { join } from 'node:path';
 
 import {
@@ -76,6 +77,7 @@ interface WorkspaceDialogOptions {
 
 interface RegisterTransferIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   service: TransferIpcService;
   downloadsDirectory: string;
   lastDirectory(direction: 'export' | 'import'): string | null;
@@ -108,8 +110,10 @@ export class SessionTransferIpcError extends Error {
 
 function assertTrusted(
   event: IpcInvokeEventLike,
+  authorize: IpcAuthorizer,
   developmentOrigin?: string
 ): void {
+  authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
@@ -132,6 +136,7 @@ const ARCHIVE_FILTER = [
 
 export function registerTransferIpc({
   ipc,
+  authorize,
   service,
   downloadsDirectory,
   lastDirectory,
@@ -142,14 +147,14 @@ export function registerTransferIpc({
   developmentOrigin
 }: RegisterTransferIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.transferCapabilitiesGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() =>
       SessionTransferCapabilityListSchema.parse(service.getCapabilities())
     );
   });
 
   ipc.handle(IPC_CHANNELS.transferExportPrepare, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = SessionExportPrepareRequestSchema.parse(input);
     return privileged(async () =>
       SessionExportPlanSchema.parse(await service.prepareExport(request))
@@ -157,7 +162,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferExportExecute, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = SessionExportExecuteRequestSchema.parse(input);
     return privileged(async () => {
       const date = clock().toISOString().slice(0, 10);
@@ -178,7 +183,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferImportChoose, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(async () => {
       const result = await showOpenDialog({
         defaultPath: lastDirectory('import') ?? downloadsDirectory,
@@ -194,7 +199,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferImportInspect, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = SessionImportInspectRequestSchema.parse(input);
     return privileged(async () =>
       SessionImportInspectionSchema.parse(await service.inspectImport(request))
@@ -202,7 +207,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferImportPlan, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = SessionImportPlanRequestSchema.parse(input);
     return privileged(async () =>
       SessionImportPlanSchema.parse(await service.planImport(request))
@@ -210,7 +215,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferImportExecute, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = SessionImportExecuteRequestSchema.parse(input);
     return privileged(async () =>
       SessionTransferResultSchema.parse(await service.executeImport(request))
@@ -218,7 +223,7 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferWorkspaceChoose, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(async () => {
       const result = await showOpenDialog({ properties: ['openDirectory'] });
       const workspacePath = result.filePaths[0];
@@ -230,12 +235,12 @@ export function registerTransferIpc({
   });
 
   ipc.handle(IPC_CHANNELS.transferHistoryGet, async (event) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     return privileged(() => TransferHistoryListSchema.parse(service.getHistory()));
   });
 
   ipc.handle(IPC_CHANNELS.transferOperationCancel, async (event, input) => {
-    assertTrusted(event, developmentOrigin);
+    assertTrusted(event, authorize, developmentOrigin);
     const request = TransferOperationCancelRequestSchema.parse(input);
     return privileged(() =>
       TransferOperationCancelResultSchema.parse(

@@ -18,6 +18,7 @@ function createHarness(cancelled = false) {
     remove: vi.fn().mockResolvedValue({ available: false, revision: null })
   };
   registerAppearanceIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     service,
     showOpenDialog: vi.fn().mockResolvedValue(

@@ -42,6 +42,7 @@ const validSnapshot: CatalogSnapshot = {
 };
 
 function createHarness(options: {
+  authorize?: () => never;
   developmentOrigin?: string;
   dialogResult?: { canceled: boolean; filePaths: string[] };
   getCatalog?: (query: CatalogQuery) => unknown;
@@ -55,6 +56,10 @@ function createHarness(options: {
       handlers.set(channel, handler);
     }
   };
+  const authorize = options.authorize ?? vi.fn(() => ({
+    mode: 'local',
+    executionTargetId: 'local'
+  } as const));
   const service = {
     getCatalog: vi.fn(options.getCatalog ?? (() => validSnapshot)),
     refreshCatalog: vi.fn(
@@ -75,6 +80,7 @@ function createHarness(options: {
 
   registerCatalogIpc({
     ipc,
+    authorize,
     service,
     showOpenDialog,
     ...(options.onCatalogRefreshed === undefined
@@ -85,7 +91,7 @@ function createHarness(options: {
       : { developmentOrigin: options.developmentOrigin })
   });
 
-  return { handlers, service, showOpenDialog };
+  return { handlers, service, showOpenDialog, authorize };
 }
 
 function trustedEvent(): InvokeEventStub {
@@ -101,6 +107,19 @@ describe('registerCatalogIpc', () => {
       IPC_CHANNELS.catalogRefresh,
       IPC_CHANNELS.workspaceChoose
     ]);
+  });
+
+  it('authorizes before invoking privileged catalog work', async () => {
+    const authorize = vi.fn(() => {
+      throw new Error('IPC_UNTRUSTED_SENDER');
+    });
+    const { handlers, service } = createHarness({ authorize });
+    const get = handlers.get(IPC_CHANNELS.catalogGet)!;
+
+    await expect(get(trustedEvent(), { text: '', provider: null }))
+      .rejects.toThrow('IPC_UNTRUSTED_SENDER');
+    expect(authorize).toHaveBeenCalledOnce();
+    expect(service.getCatalog).not.toHaveBeenCalled();
   });
 
   it('validates and forwards normalized get and refresh queries', async () => {

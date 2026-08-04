@@ -55,8 +55,8 @@ describe('createWindowContextRegistry', () => {
 
   it('stores an immutable copy instead of the caller object', () => {
     const registry = createWindowContextRegistry();
-    const mutable = {
-      mode: 'remote' as const,
+    const mutable: { mode: 'remote'; executionTargetId: string } = {
+      mode: 'remote',
       executionTargetId: remoteContext.executionTargetId
     };
 

@@ -6,7 +6,7 @@ import { isTrustedRendererUrl } from '../security-policy';
 import type { WindowContextRegistry } from '../targets/window-context-registry';
 
 export interface TargetAwareIpcEvent {
-  sender: { id: number };
+  sender?: { id: number };
   senderFrame: { url: string } | null;
 }
 
@@ -40,7 +40,8 @@ export function createLocalIpcAuthorizer({
       throw new IpcAccessError();
     }
 
-    const context = contexts.get(event.sender.id);
+    const senderId = event.sender?.id;
+    const context = senderId === undefined ? null : contexts.get(senderId);
     if (
       context === null ||
       context.mode !== 'local' ||

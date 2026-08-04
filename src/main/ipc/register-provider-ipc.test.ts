@@ -94,6 +94,7 @@ function createHarness(
   };
 
   registerProviderIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
     registry: { scan },
     updates: { check, update, install },

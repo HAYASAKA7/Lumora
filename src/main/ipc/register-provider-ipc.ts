@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   IPC_CHANNELS,
   ExternalOpenResultSchema,
@@ -39,6 +40,7 @@ interface ProviderUpdatesLike {
 
 interface RegisterProviderIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   registry: ProviderRegistryLike;
   updates: ProviderUpdatesLike;
   openExternal(url: string): Promise<unknown>;
@@ -56,12 +58,14 @@ class IpcAccessError extends Error {
 
 export function registerProviderIpc({
   ipc,
+  authorize,
   registry,
   updates,
   openExternal,
   developmentOrigin
 }: RegisterProviderIpcDependencies): void {
   const assertTrusted = (event: IpcInvokeEventLike): void => {
+    authorize(event);
     if (
       event.senderFrame === null ||
       !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)

@@ -88,6 +88,7 @@ function createHarness() {
   };
   const sendRuntimeEvent = vi.fn();
   registerTerminalIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     runtime: runtimeService,
     sendRuntimeEvent,

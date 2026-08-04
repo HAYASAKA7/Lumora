@@ -55,6 +55,16 @@ describe('createLocalIpcAuthorizer', () => {
     expect(() => authorize(packagedEvent(8))).toThrow('IPC_UNTRUSTED_SENDER');
   });
 
+  it('rejects events without an Electron sender identity', () => {
+    const contexts = createWindowContextRegistry();
+    contexts.register(7, { mode: 'local', executionTargetId: 'local' });
+    const authorize = createLocalIpcAuthorizer({ contexts });
+
+    expect(() => authorize({
+      senderFrame: { url: 'app://lumora/index.html' }
+    })).toThrow(IpcAccessError);
+  });
+
   it('rejects missing frames and untrusted URLs', () => {
     const contexts = createWindowContextRegistry();
     contexts.register(7, {

@@ -1,3 +1,4 @@
+import type { IpcAuthorizer } from './ipc-access';
 import {
   IPC_CHANNELS,
   StartupPresentationCompletionSchema,
@@ -20,6 +21,7 @@ interface IpcRegistrar {
 
 interface RegisterSystemIpcDependencies {
   ipc: IpcRegistrar;
+  authorize: IpcAuthorizer;
   platform: string;
   arch: string;
   appVersion: string;
@@ -39,6 +41,7 @@ class IpcAccessError extends Error {
 
 export function registerSystemIpc({
   ipc,
+  authorize,
   platform,
   arch,
   appVersion,
@@ -47,6 +50,7 @@ export function registerSystemIpc({
   developmentOrigin
 }: RegisterSystemIpcDependencies): void {
   const assertTrustedRenderer = (event: IpcInvokeEventLike): void => {
+    authorize(event);
     if (
       event.senderFrame === null ||
       !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)

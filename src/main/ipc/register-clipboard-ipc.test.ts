@@ -25,6 +25,7 @@ function createHarness(options: {
   };
 
   registerClipboardIpc({
+    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
     clipboard,
     ...(options.developmentOrigin === undefined

@@ -20,6 +20,7 @@ import type { MenuItemConstructorOptions } from 'electron';
 
 import {
   IPC_CHANNELS,
+  LOCAL_EXECUTION_TARGET_ID,
   PlatformSchema,
   TrayResumeSessionRequestSchema
 } from '../shared/contracts';
@@ -31,6 +32,7 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
+import { createLocalIpcAuthorizer } from './ipc/ipc-access';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
@@ -86,9 +88,15 @@ import {
   type WindowStateManager
 } from './window-state';
 import { resolveWindowCloseAction } from './window-close-policy';
+import { createWindowContextRegistry } from './targets/window-context-registry';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
+const windowContexts = createWindowContextRegistry();
+const authorizeLocalIpc = createLocalIpcAuthorizer({
+  contexts: windowContexts,
+  ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+});
 const platform = PlatformSchema.parse(process.platform);
 const { preloadPath, rendererRoot, windowIconPath, trayIconPath } = getRuntimePaths(
   currentDirectory,
@@ -233,6 +241,10 @@ async function createMainWindow({
     ...secureWindowOptions,
     ...(restore.normalBounds === null ? {} : restore.normalBounds)
   });
+  windowContexts.register(window.webContents.id, {
+    mode: 'local',
+    executionTargetId: LOCAL_EXECUTION_TARGET_ID
+  });
   const startupBackgroundActivityId = window.webContents.id;
   const startupBackgroundActivity =
     createStartupBackgroundActivityController(window.webContents);
@@ -280,6 +292,7 @@ async function createMainWindow({
     app.quit();
   });
   window.on('closed', () => {
+    windowContexts.unregister(window.webContents.id);
     startupBackgroundActivity.dispose();
     if (activeStartupBackgroundActivity === startupBackgroundActivity) {
       activeStartupBackgroundActivityId = null;
@@ -472,6 +485,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   }
   registerSystemIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
@@ -495,12 +509,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerEnvironmentIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     scanner: developerEnvironmentScanner,
     openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerProviderIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     registry: { scan: scanEnabledProviders },
     updates: providerUpdateService,
     openExternal: (url) => shell.openExternal(url),
@@ -508,6 +524,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerCatalogIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     service: catalogRuntime.service,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     onCatalogRefreshed: () => {
@@ -518,6 +535,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerTransferIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     service: transferService,
     downloadsDirectory: app.getPath('downloads'),
     lastDirectory: (direction) =>
@@ -539,6 +557,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerClipboardIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     clipboard: {
       readText: () => clipboard.readText(),
       writeText: (text) => clipboard.writeText(text)
@@ -547,12 +566,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerAppearanceIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     service: appearanceBackgroundStore,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
+    authorize: authorizeLocalIpc,
     runtime: terminalRuntime,
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
