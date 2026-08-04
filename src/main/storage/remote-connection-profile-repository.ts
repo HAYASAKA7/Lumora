@@ -4,6 +4,7 @@ import {
   RemoteConnectionProfileInputSchema,
   RemoteConnectionProfileSchema,
   RemoteExecutionTargetIdSchema,
+  SshHostFingerprintSchema,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
   type RemoteExecutionTargetId
@@ -142,4 +143,21 @@ export class RemoteConnectionProfileRepository {
     return saved;
   }
 
+  trustHostKey(
+    id: RemoteExecutionTargetId,
+    fingerprint: string,
+    now = new Date()
+  ): RemoteConnectionProfile {
+    const executionTargetId = RemoteExecutionTargetIdSchema.parse(id);
+    const verified = SshHostFingerprintSchema.parse(fingerprint);
+    const result = this.database.prepare(
+      `UPDATE remote_connection_profile
+       SET verified_host_fingerprint = ?, updated_at = ?
+       WHERE execution_target_id = ?`
+    ).run(verified, now.toISOString(), executionTargetId);
+    if (result.changes !== 1) {
+      throw new Error('The remote connection profile does not exist.');
+    }
+    return this.get(executionTargetId)!;
+  }
 }
