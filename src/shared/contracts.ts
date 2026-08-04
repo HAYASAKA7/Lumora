@@ -90,9 +90,103 @@ export const LumoraWindowContextSchema = z.discriminatedUnion('mode', [
   })
 ]);
 
+export const RemoteAuthenticationProfileSchema = z.discriminatedUnion('method', [
+  z.strictObject({ method: z.literal('password') }),
+  z.strictObject({
+    method: z.literal('private-key'),
+    privateKeyPath: z.string().trim().min(1).max(4096)
+  }),
+  z.strictObject({ method: z.literal('agent') })
+]);
+
+const RemoteProfileDisplayNameSchema = z.string().trim().min(1).max(120);
+const RemoteProfileHostSchema = z.string().trim().min(1).max(253);
+const RemoteProfileUsernameSchema = z.string().trim().min(1).max(128);
+const SshConfigHostSchema = z.string().trim().min(1).max(253).regex(/^\S+$/);
+
+export const RemoteConnectionProfileInputSchema = z.discriminatedUnion('route', [
+  z.strictObject({
+    displayName: RemoteProfileDisplayNameSchema,
+    route: z.literal('direct'),
+    host: RemoteProfileHostSchema,
+    port: z.number().int().min(1).max(65535),
+    username: RemoteProfileUsernameSchema,
+    authentication: RemoteAuthenticationProfileSchema
+  }),
+  z.strictObject({
+    displayName: RemoteProfileDisplayNameSchema,
+    route: z.literal('ssh-config'),
+    sshConfigHost: SshConfigHostSchema,
+    authentication: RemoteAuthenticationProfileSchema
+  })
+]);
+
+export const SshHostFingerprintSchema = z.string().regex(
+  /^SHA256:[A-Za-z0-9+/]{43}$/
+);
+
+export const RemoteConnectionProfileSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  displayName: RemoteProfileDisplayNameSchema,
+  route: z.enum(['direct', 'ssh-config']),
+  host: RemoteProfileHostSchema.nullable(),
+  port: z.number().int().min(1).max(65535).nullable(),
+  username: RemoteProfileUsernameSchema.nullable(),
+  sshConfigHost: SshConfigHostSchema.nullable(),
+  authentication: RemoteAuthenticationProfileSchema,
+  verifiedHostFingerprint: SshHostFingerprintSchema.nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+}).superRefine((profile, context) => {
+  const direct = profile.route === 'direct';
+  const directFieldsPresent =
+    profile.host !== null && profile.port !== null && profile.username !== null;
+  if (direct !== directFieldsPresent || direct === (profile.sshConfigHost !== null)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Remote profile route fields are inconsistent.'
+    });
+  }
+});
+
+export const RemoteTargetCredentialsSchema = z.discriminatedUnion('method', [
+  z.strictObject({
+    method: z.literal('password'),
+    password: z.string().min(1).max(4096)
+  }),
+  z.strictObject({
+    method: z.literal('private-key'),
+    passphrase: z.string().max(4096).nullable()
+  }),
+  z.strictObject({ method: z.literal('agent') })
+]);
+
+export const RemoteTargetConnectRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  credentials: RemoteTargetCredentialsSchema
+});
+
+export type RemoteExecutionTargetId = z.infer<
+  typeof RemoteExecutionTargetIdSchema
+>;
 export type ExecutionTargetId = z.infer<typeof ExecutionTargetIdSchema>;
 export type ExecutionTarget = z.infer<typeof ExecutionTargetSchema>;
 export type LumoraWindowContext = z.infer<typeof LumoraWindowContextSchema>;
+export type RemoteAuthenticationProfile = z.infer<
+  typeof RemoteAuthenticationProfileSchema
+>;
+export type RemoteConnectionProfileInput = z.infer<
+  typeof RemoteConnectionProfileInputSchema
+>;
+export type RemoteConnectionProfile = z.infer<
+  typeof RemoteConnectionProfileSchema
+>;
+export type RemoteTargetCredentials = z.infer<
+  typeof RemoteTargetCredentialsSchema
+>;
+export type RemoteTargetConnectRequest = z.infer<
+  typeof RemoteTargetConnectRequestSchema
+>;
 
 export const SystemInfoSchema = z.strictObject({
   platform: PlatformSchema,

@@ -473,6 +473,37 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
   {
     version: 16,
     statements: EXECUTION_TARGET_MIGRATION_STATEMENTS
+  },
+  {
+    version: 17,
+    statements: [
+      `CREATE TABLE remote_connection_profile (
+        execution_target_id TEXT PRIMARY KEY
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        route TEXT NOT NULL CHECK (route IN ('direct', 'ssh-config')),
+        host TEXT,
+        port INTEGER CHECK (port IS NULL OR (port >= 1 AND port <= 65535)),
+        username TEXT,
+        ssh_config_host TEXT,
+        authentication_method TEXT NOT NULL CHECK (
+          authentication_method IN ('password', 'private-key', 'agent')
+        ),
+        private_key_path TEXT,
+        verified_host_fingerprint TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (
+          (route = 'direct' AND host IS NOT NULL AND port IS NOT NULL
+            AND username IS NOT NULL AND ssh_config_host IS NULL) OR
+          (route = 'ssh-config' AND host IS NULL AND port IS NULL
+            AND username IS NULL AND ssh_config_host IS NOT NULL)
+        ),
+        CHECK (
+          (authentication_method = 'private-key' AND private_key_path IS NOT NULL) OR
+          (authentication_method <> 'private-key' AND private_key_path IS NULL)
+        )
+      ) STRICT`
+    ]
   }
 ];
 
