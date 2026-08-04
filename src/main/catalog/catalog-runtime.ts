@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path';
 import type {
   ProviderScanResult,
   SystemInfo,
-  ProviderId
+  ProviderId,
+  ExecutionTargetId
 } from '../../shared/contracts';
 import { canonicalizeWorkspacePath } from '../platform/workspace-path';
 import { discoverClaudeSessions } from '../providers/claude-session-source';
@@ -50,6 +51,7 @@ type Environment = Readonly<Record<string, string | undefined>>;
 
 interface CreateCatalogRuntimeOptions {
   databasePath: string;
+  executionTargetId: ExecutionTargetId;
   homeDirectory: string;
   platform: SystemInfo['platform'];
   env: Environment;
@@ -87,6 +89,7 @@ function environmentHome(
 
 export function createCatalogRuntime({
   databasePath,
+  executionTargetId,
   homeDirectory,
   platform,
   env,
@@ -104,7 +107,7 @@ export function createCatalogRuntime({
     throw error;
   }
 
-  const repository = new CatalogRepository(database);
+  const repository = new CatalogRepository(database, executionTargetId);
   const lookupSource = async (provider: ProviderId, sourceKey: string) =>
     repository.findSource(provider, sourceKey);
   const adapter = (

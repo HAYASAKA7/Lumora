@@ -45,6 +45,7 @@ const testPlatform =
 describe('createCatalogRuntime', () => {
   it('composes a migrated catalog and closes its database idempotently', async () => {
     const runtime = createCatalogRuntime({
+      executionTargetId: 'local',
       databasePath: ':memory:',
       homeDirectory: process.cwd(),
       platform: testPlatform,
@@ -106,6 +107,7 @@ describe('createCatalogRuntime', () => {
 
   it('enables adapter-backed transfer routes for explicit development testing', () => {
     const runtime = createCatalogRuntime({
+      executionTargetId: 'local',
       databasePath: ':memory:',
       homeDirectory: process.cwd(),
       platform: testPlatform,

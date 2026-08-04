@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
 
+import {
+  ExecutionTargetIdSchema,
+  LOCAL_EXECUTION_TARGET_ID,
+  type ExecutionTargetId
+} from '../../shared/contracts';
+
 import { z } from 'zod';
 
 import {
@@ -43,10 +49,15 @@ export type CatalogSourceFingerprint = z.infer<
 >;
 export type CatalogCandidate = z.infer<typeof CatalogCandidateSchema>;
 
-export function createSessionId(provider: string, nativeId: string): string {
-  return createHash('sha256')
-    .update(provider)
-    .update('\0')
-    .update(nativeId)
-    .digest('hex');
+export function createSessionId(
+  provider: string,
+  nativeId: string,
+  executionTargetId: ExecutionTargetId = LOCAL_EXECUTION_TARGET_ID
+): string {
+  const targetId = ExecutionTargetIdSchema.parse(executionTargetId);
+  const hash = createHash('sha256');
+  if (targetId !== LOCAL_EXECUTION_TARGET_ID) {
+    hash.update(targetId).update('\0');
+  }
+  return hash.update(provider).update('\0').update(nativeId).digest('hex');
 }

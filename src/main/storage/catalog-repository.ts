@@ -2,11 +2,14 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite';
 
 import {
   CatalogSnapshotSchema,
+  ExecutionTargetIdSchema,
+  LOCAL_EXECUTION_TARGET_ID,
   ProviderIdSchema,
   type CatalogDiagnostic,
   type CatalogProviderStatus,
   type CatalogQuery,
   type CatalogSnapshot,
+  type ExecutionTargetId,
   type ProviderId,
   type WorkspaceOrigin
 } from '../../shared/contracts';
@@ -122,7 +125,14 @@ function normalizeTimestamp(value: string): string {
 export class CatalogRepository {
   private readonly statements = new Map<string, StatementSync>();
 
-  constructor(private readonly database: DatabaseSync) {}
+  private readonly executionTargetId: ExecutionTargetId;
+
+  constructor(
+    private readonly database: DatabaseSync,
+    executionTargetId: ExecutionTargetId = LOCAL_EXECUTION_TARGET_ID
+  ) {
+    this.executionTargetId = ExecutionTargetIdSchema.parse(executionTargetId);
+  }
 
   private prepare(sql: string): StatementSync {
     const current = this.statements.get(sql);
@@ -141,10 +151,10 @@ export class CatalogRepository {
   ): void {
     this.prepare(
       `INSERT INTO workspace (
-        id, identity_key, canonical_path, display_name, available,
-        origin, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+        execution_target_id, id, identity_key, canonical_path, display_name,
+        available, origin, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(execution_target_id, id) DO UPDATE SET
         identity_key = excluded.identity_key,
         canonical_path = excluded.canonical_path,
         display_name = excluded.display_name,
@@ -156,6 +166,7 @@ export class CatalogRepository {
         updated_at = excluded.updated_at`
     )
       .run(
+        this.executionTargetId,
         workspace.id,
         workspace.identityKey,
         workspace.canonicalPath,
@@ -197,10 +208,11 @@ export class CatalogRepository {
 
     const upsertSession = this.prepare(
       `INSERT INTO session (
-        id, provider, native_id, workspace_id, title, normalized_title,
-        created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved', 'current')
-      ON CONFLICT(provider, native_id) DO UPDATE SET
+        execution_target_id, id, provider, native_id, workspace_id, title,
+        normalized_title, created_at, updated_at, lifetime_tokens, lifecycle,
+        source_freshness
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved', 'current')
+      ON CONFLICT(execution_target_id, provider, native_id) DO UPDATE SET
         workspace_id = CASE WHEN
           excluded.updated_at > session.updated_at OR
           (excluded.updated_at = session.updated_at AND excluded.title > session.title) OR
@@ -230,10 +242,10 @@ export class CatalogRepository {
     );
     const upsertSource = this.prepare(
       `INSERT INTO session_source (
-        provider, source_key, session_id, size, modified_at_ms,
-        last_seen_scan_id, stale
-      ) VALUES (?, ?, ?, ?, ?, ?, 0)
-      ON CONFLICT(provider, source_key) DO UPDATE SET
+        execution_target_id, provider, source_key, session_id, size,
+        modified_at_ms, last_seen_scan_id, stale
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+      ON CONFLICT(execution_target_id, provider, source_key) DO UPDATE SET
         session_id = excluded.session_id,
         size = excluded.size,
         modified_at_ms = excluded.modified_at_ms,
@@ -249,8 +261,13 @@ export class CatalogRepository {
           this.registerWorkspace(current.workspace, 'discovered', scannedAt);
           writtenWorkspaces.add(current.workspace.id);
         }
-        const sessionId = createSessionId(current.provider, current.nativeId);
+        const sessionId = createSessionId(
+          current.provider,
+          current.nativeId,
+          this.executionTargetId
+        );
         upsertSession.run(
+          this.executionTargetId,
           sessionId,
           current.provider,
           current.nativeId,
@@ -262,6 +279,7 @@ export class CatalogRepository {
           current.lifetimeTokens
         );
         upsertSource.run(
+          this.executionTargetId,
           current.provider,
           current.source.key,
           sessionId,
@@ -275,19 +293,21 @@ export class CatalogRepository {
         this.prepare(
           `UPDATE session_source
            SET stale = 1
-           WHERE provider = ? AND last_seen_scan_id <> ?`
+           WHERE execution_target_id = ? AND provider = ?
+             AND last_seen_scan_id <> ?`
         )
-          .run(provider, scanId);
+          .run(this.executionTargetId, provider, scanId);
       }
       this.prepare(
         `UPDATE session
          SET source_freshness = CASE WHEN EXISTS (
            SELECT 1 FROM session_source source
-           WHERE source.session_id = session.id AND source.stale = 0
+           WHERE source.execution_target_id = session.execution_target_id
+             AND source.session_id = session.id AND source.stale = 0
          ) THEN 'current' ELSE 'stale' END
-         WHERE provider = ?`
+         WHERE execution_target_id = ? AND provider = ?`
       )
-        .run(provider);
+        .run(this.executionTargetId, provider);
       this.database.exec('COMMIT');
     } catch (error) {
       this.database.exec('ROLLBACK');
@@ -307,11 +327,14 @@ export class CatalogRepository {
         workspace.identity_key, workspace.canonical_path,
         workspace.display_name, workspace.available
       FROM session_source source
-      JOIN session ON session.id = source.session_id
-      JOIN workspace ON workspace.id = session.workspace_id
-      WHERE source.provider = ? AND source.source_key = ?`
+      JOIN session ON session.execution_target_id = source.execution_target_id
+        AND session.id = source.session_id
+      JOIN workspace ON workspace.execution_target_id = session.execution_target_id
+        AND workspace.id = session.workspace_id
+      WHERE source.execution_target_id = ?
+        AND source.provider = ? AND source.source_key = ?`
     )
-      .get(provider, sourceKey) as SourceRow | undefined;
+      .get(this.executionTargetId, provider, sourceKey) as SourceRow | undefined;
 
     if (row === undefined) {
       return null;
@@ -350,10 +373,12 @@ export class CatalogRepository {
         session.id, session.provider, session.native_id, session.title,
         session.workspace_id, workspace.canonical_path
       FROM session
-      JOIN workspace ON workspace.id = session.workspace_id
-      WHERE session.id = ? AND session.source_freshness = 'current'`
+      JOIN workspace ON workspace.execution_target_id = session.execution_target_id
+        AND workspace.id = session.workspace_id
+      WHERE session.execution_target_id = ? AND session.id = ?
+        AND session.source_freshness = 'current'`
     )
-      .get(sessionId) as TransferSessionRow | undefined;
+      .get(this.executionTargetId, sessionId) as TransferSessionRow | undefined;
     if (row === undefined) {
       return null;
     }
@@ -362,10 +387,10 @@ export class CatalogRepository {
       this.prepare(
         `SELECT source_key
          FROM session_source
-         WHERE session_id = ? AND stale = 0
+         WHERE execution_target_id = ? AND session_id = ? AND stale = 0
          ORDER BY source_key`
       )
-        .all(sessionId) as unknown as TransferSourceRow[]
+        .all(this.executionTargetId, sessionId) as unknown as TransferSourceRow[]
     ).map(({ source_key }) => source_key);
     if (sourceKeys.length === 0) {
       return null;
@@ -389,8 +414,8 @@ export class CatalogRepository {
     const row = this.prepare(
       `SELECT provider
        FROM session
-       WHERE id = ?`
-    ).get(sessionId) as { provider: ProviderId } | undefined;
+       WHERE execution_target_id = ? AND id = ?`
+    ).get(this.executionTargetId, sessionId) as { provider: ProviderId } | undefined;
     return row === undefined ? null : ProviderIdSchema.parse(row.provider);
   }
 
@@ -403,10 +428,10 @@ export class CatalogRepository {
     return this.prepare(
       `SELECT 1
        FROM session
-       WHERE provider = ? AND native_id = ?
+       WHERE execution_target_id = ? AND provider = ? AND native_id = ?
        LIMIT 1`
     )
-      .get(provider, normalizedNativeId) !== undefined;
+      .get(this.executionTargetId, provider, normalizedNativeId) !== undefined;
   }
 
   getSnapshot({
@@ -433,11 +458,12 @@ export class CatalogRepository {
       `SELECT session.workspace_id, session.provider,
         COUNT(*) AS session_count
       FROM session
-      WHERE session.source_freshness = 'current'
+      WHERE session.execution_target_id = ?
+        AND session.source_freshness = 'current'
         AND ${currentProviderCondition}
       GROUP BY session.workspace_id, session.provider`
     )
-      .all(...visibleProviders) as unknown as ProviderCountRow[]) {
+      .all(this.executionTargetId, ...visibleProviders) as unknown as ProviderCountRow[]) {
       const counts = providerCountsByWorkspace.get(row.workspace_id) ?? {};
       counts[row.provider] = row.session_count;
       providerCountsByWorkspace.set(row.workspace_id, counts);
@@ -450,14 +476,16 @@ export class CatalogRepository {
           workspace.display_name, workspace.available, workspace.origin,
           MAX(session.updated_at) AS last_activity_at
         FROM workspace
-        LEFT JOIN session ON session.workspace_id = workspace.id
+        LEFT JOIN session ON session.execution_target_id = workspace.execution_target_id
+          AND session.workspace_id = workspace.id
           AND session.source_freshness = 'current'
           AND ${currentProviderCondition}
+        WHERE workspace.execution_target_id = ?
         GROUP BY workspace.id
         ORDER BY last_activity_at IS NULL, last_activity_at DESC,
           workspace.display_name COLLATE NOCASE, workspace.id`
       )
-        .all(...visibleProviders) as unknown as WorkspaceRow[]
+        .all(...visibleProviders, this.executionTargetId) as unknown as WorkspaceRow[]
     ).map((row) => {
       const providerCounts = providerCountsByWorkspace.get(row.id) ?? {};
       return {
@@ -480,11 +508,12 @@ export class CatalogRepository {
         this.prepare(
           `SELECT session.provider, COUNT(*) AS session_count
            FROM session
-           WHERE session.source_freshness = 'current'
+           WHERE session.execution_target_id = ?
+             AND session.source_freshness = 'current'
              AND ${currentProviderCondition}
            GROUP BY session.provider`
         )
-          .all(...visibleProviders) as unknown as ProviderFacetRow[]
+          .all(this.executionTargetId, ...visibleProviders) as unknown as ProviderFacetRow[]
       ).map((row) => [row.provider, row.session_count])
     );
     const providerFacets = SESSION_PROVIDER_IDS.flatMap((provider) => {
@@ -502,8 +531,10 @@ export class CatalogRepository {
           session.updated_at, session.lifetime_tokens, session.lifecycle,
           session.source_freshness
         FROM session
-        JOIN workspace ON workspace.id = session.workspace_id
-        WHERE (
+        JOIN workspace ON workspace.execution_target_id = session.execution_target_id
+          AND workspace.id = session.workspace_id
+        WHERE session.execution_target_id = ?
+        AND (
           ? = '' OR
           session.normalized_title LIKE ? ESCAPE '\\' OR
           LOWER(workspace.display_name) LIKE ? ESCAPE '\\' OR
@@ -515,6 +546,7 @@ export class CatalogRepository {
         LIMIT 25000`
       )
         .all(
+          this.executionTargetId,
           normalizedText,
           pattern,
           pattern,

@@ -400,6 +400,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerApplicationProtocol();
   catalogRuntime = createCatalogRuntime({
+    executionTargetId: LOCAL_EXECUTION_TARGET_ID,
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     homeDirectory: app.getPath('home'),
     platform,
