@@ -121,7 +121,8 @@ describe('catalog migrations', () => {
       { version: 12 },
       { version: 13 },
       { version: 14 },
-      { version: 15 }
+      { version: 15 },
+      { version: 16 }
     ]);
     expect(
       database

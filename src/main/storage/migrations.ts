@@ -1,5 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+import { EXECUTION_TARGET_MIGRATION_STATEMENTS } from './execution-target-migration';
+
 export interface CatalogMigration {
   version: number;
   statements: readonly string[];
@@ -467,6 +469,10 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       FROM runtime_reconciliation_fork_backup`,
       'DROP TABLE runtime_reconciliation_fork_backup'
     ]
+  },
+  {
+    version: 16,
+    statements: EXECUTION_TARGET_MIGRATION_STATEMENTS
   }
 ];
 
