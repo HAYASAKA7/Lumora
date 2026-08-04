@@ -32,13 +32,17 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
-import { createLocalIpcAuthorizer } from './ipc/ipc-access';
+import {
+  createIpcAuthorizer,
+  createLocalIpcAuthorizer
+} from './ipc/ipc-access';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
+import { registerTargetIpc } from './ipc/register-target-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
 import { registerTransferIpc } from './ipc/register-transfer-ipc';
 import { findExecutable } from './platform/executable-locator';
@@ -52,6 +56,10 @@ import { ProviderRegistry } from './providers/provider-registry';
 import { createProviderPolicy } from './providers/provider-policy';
 import { ProviderScanCoordinator } from './providers/provider-scan-coordinator';
 import { createProviderUpdateService } from './providers/provider-update-service';
+import {
+  createRemoteTargetRuntime,
+  type RemoteTargetRuntime
+} from './remote/remote-target-runtime';
 import { getRuntimePaths } from './runtime-paths';
 import {
   createTrayController,
@@ -89,6 +97,7 @@ import {
 } from './window-state';
 import { resolveWindowCloseAction } from './window-close-policy';
 import { createExecutionTargetGateway } from './targets/execution-target-gateway';
+import { createTargetWindowManager } from './targets/target-window-manager';
 import { createWindowContextRegistry } from './targets/window-context-registry';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -112,6 +121,10 @@ interface ExecutionTargetServices {
 const windowContexts = createWindowContextRegistry();
 const executionTargetGateway =
   createExecutionTargetGateway<ExecutionTargetServices>();
+const authorizeTargetIpc = createIpcAuthorizer({
+  contexts: windowContexts,
+  ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+});
 const authorizeLocalIpc = createLocalIpcAuthorizer({
   contexts: windowContexts,
   ...(developmentOrigin === undefined ? {} : { developmentOrigin })
@@ -178,6 +191,7 @@ let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
+let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let activeStartupBackgroundActivity:
@@ -354,6 +368,26 @@ const mainWindowCreation = createSingleWindowCreationGate({
   create: createMainWindow
 });
 
+const targetWindowManager = createTargetWindowManager({
+  contexts: windowContexts,
+  createWindow: () => {
+    const window = new BrowserWindow(createSecureWindowOptions(
+      preloadPath,
+      windowIconPath
+    ));
+    configurePackagedWindowsTaskbarWindow(window, {
+      platform,
+      packaged: app.isPackaged,
+      ...(windowIconPath === undefined ? {} : { iconPath: windowIconPath })
+    });
+    installWindowGuards(window.webContents, developmentOrigin);
+    return window;
+  },
+  loadWindow: (window) => window.loadURL(
+    developmentOrigin ?? 'app://lumora/index.html'
+  )
+});
+
 function createApplicationTray(): void {
   if (trayController !== null || trayIconPath === undefined) return;
   const trayImage = nativeImage.createFromPath(trayIconPath);
@@ -418,6 +452,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     loadImage: (path) => nativeImage.createFromPath(path)
   });
   registerApplicationProtocol();
+  remoteTargetRuntime = createRemoteTargetRuntime({
+    databasePath: join(app.getPath('userData'), 'lumora.db')
+  });
   catalogRuntime = createCatalogRuntime({
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
     databasePath: join(app.getPath('userData'), 'lumora.db'),
@@ -531,6 +568,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       })
     })
   );
+  registerTargetIpc({
+    ipc: ipcMain,
+    authorize: authorizeTargetIpc,
+    service: remoteTargetRuntime.service,
+    openTargetWindow: async (executionTargetId) => {
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      remoteTargetRuntime.service.get(executionTargetId);
+      await targetWindowManager.open(executionTargetId);
+    }
+  });
   registerSystemIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
@@ -682,6 +731,9 @@ app.on('before-quit', (event) => {
     } catch (error) {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
     } finally {
+      targetWindowManager.closeAll();
+      remoteTargetRuntime?.close();
+      remoteTargetRuntime = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
       runtime?.close();
@@ -696,6 +748,9 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  targetWindowManager.closeAll();
+  remoteTargetRuntime?.close();
+  remoteTargetRuntime = null;
   trayController?.dispose();
   trayController = null;
   unsubscribeTerminalEvents?.();

@@ -14,6 +14,7 @@ import {
   LaunchPreviewSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerListSchema,
+  LumoraWindowContextSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
   ProviderScanResultSchema,
@@ -29,6 +30,17 @@ import {
   RuntimeStartRequestSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
+  RemoteConnectionProfileInputSchema,
+  RemoteHostKeyObservationSchema,
+  RemoteHostTrustRequestSchema,
+  RemoteTargetConnectRequestSchema,
+  RemoteTargetConnectionDetailsSchema,
+  RemoteTargetIdRequestSchema,
+  RemoteTargetListSchema,
+  RemoteTargetRemovalResultSchema,
+  RemoteTargetSummarySchema,
+  RemoteTargetUpdateRequestSchema,
+  RemoteTargetWindowOpenResultSchema,
   SessionExportExecuteRequestSchema,
   SessionExportPlanSchema,
   SessionExportPrepareRequestSchema,
@@ -74,6 +86,57 @@ export function createLumoraApi(
 ): LumoraApi {
   let startupPresentationClaim: Promise<boolean> | null = null;
   const api: LumoraApi = {
+    async getWindowContext() {
+      const value = await invoke(IPC_CHANNELS.targetWindowContextGet);
+      return LumoraWindowContextSchema.parse(value);
+    },
+    async listRemoteTargets() {
+      const value = await invoke(IPC_CHANNELS.remoteTargetList);
+      return RemoteTargetListSchema.parse(value);
+    },
+    async createRemoteTarget(input) {
+      const request = RemoteConnectionProfileInputSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.remoteTargetCreate, request);
+      return RemoteTargetSummarySchema.parse(value);
+    },
+    async updateRemoteTarget(executionTargetId, input) {
+      const request = RemoteTargetUpdateRequestSchema.parse({
+        executionTargetId,
+        profile: input
+      });
+      const value = await invoke(IPC_CHANNELS.remoteTargetUpdate, request);
+      return RemoteTargetSummarySchema.parse(value);
+    },
+    async removeRemoteTarget(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(IPC_CHANNELS.remoteTargetRemove, request);
+      RemoteTargetRemovalResultSchema.parse(value);
+    },
+    async observeRemoteHost(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(IPC_CHANNELS.remoteTargetObserveHost, request);
+      return RemoteHostKeyObservationSchema.parse(value);
+    },
+    async trustRemoteHost(input) {
+      const request = RemoteHostTrustRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.remoteTargetTrustHost, request);
+      return RemoteTargetSummarySchema.parse(value);
+    },
+    async connectRemoteTarget(input) {
+      const request = RemoteTargetConnectRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.remoteTargetConnect, request);
+      return RemoteTargetConnectionDetailsSchema.parse(value);
+    },
+    async disconnectRemoteTarget(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(IPC_CHANNELS.remoteTargetDisconnect, request);
+      return RemoteTargetSummarySchema.parse(value);
+    },
+    async openRemoteTargetWindow(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(IPC_CHANNELS.remoteTargetWindowOpen, request);
+      RemoteTargetWindowOpenResultSchema.parse(value);
+    },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(
         IPC_CHANNELS.startupPresentationClaim

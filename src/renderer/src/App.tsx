@@ -43,6 +43,7 @@ import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
+import { RemoteTargetsView } from './remote/RemoteTargetsView';
 import {
   DeveloperEnvironmentNotice,
   type DeveloperEnvironmentStatus
@@ -82,6 +83,7 @@ type RouteId =
   | 'workspaces'
   | 'sessions'
   | 'profiles'
+  | 'remote'
   | 'settings';
 
 type NavigationShortcutKey =
@@ -97,7 +99,7 @@ interface RouteDefinition {
   eyebrow: string;
   description: string;
   icon: IconName;
-  shortcut: NavigationShortcutKey;
+  shortcut: NavigationShortcutKey | null;
 }
 
 type IconName =
@@ -105,6 +107,7 @@ type IconName =
   | 'workspace'
   | 'sessions'
   | 'terminal'
+  | 'remote'
   | 'settings'
   | 'activity'
   | 'attention'
@@ -187,6 +190,15 @@ const ROUTES = [
     shortcut: 'openProfiles'
   },
   {
+    id: 'remote',
+    label: 'Remote computers',
+    eyebrow: 'Remote Lumora',
+    description:
+      'Configure SSH access and open one isolated Lumora window for each remote computer.',
+    icon: 'remote',
+    shortcut: null
+  },
+  {
     id: 'settings',
     label: 'Settings',
     eyebrow: 'Application settings',
@@ -224,6 +236,7 @@ function Icon({ name }: { name: IconName }): ReactNode {
     workspace: <path d="M2.5 5.5h5l1.5 2h8.5v8a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5Zm0 2h15" />,
     sessions: <path d="M5 4.5h10M5 10h10M5 15.5h7M2.5 4.5h.1M2.5 10h.1M2.5 15.5h.1" />,
     terminal: <path d="m4 6 3.5 4L4 14m6 0h6" />,
+    remote: <path d="M3 5.5h14v9H3Zm3 12h8M10 14.5v3M6.5 9.5h7" />,
     settings: <path d="M10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm6.2 3a6 6 0 0 0-.1-1l1.6-1.3-1.8-3.1-2 .8a7 7 0 0 0-1.8-1L11.8 2H8.2l-.3 2.4a7 7 0 0 0-1.8 1l-2-.8-1.8 3.1L3.9 9a6 6 0 0 0 0 2l-1.6 1.3 1.8 3.1 2-.8a7 7 0 0 0 1.8 1l.3 2.4h3.6l.3-2.4a7 7 0 0 0 1.8-1l2 .8 1.8-3.1-1.6-1.3a6 6 0 0 0 .1-1Z" />,
     activity: <path d="M2 11h3l2-5 3.2 9 2.2-6 1.4 2H18" />,
     attention: <path d="M10 3 2.8 16h14.4Zm0 5v3.5m0 2.5v.1" />,
@@ -1468,7 +1481,7 @@ function AppContent(): ReactNode {
               content={sidebarExpanded ? null : route.label}
               key={route.id}
               shortcut={
-                shortcutPlatform === null
+                shortcutPlatform === null || route.shortcut === null
                   ? undefined
                   : formatShortcutChord(
                       keyboardSettings[route.shortcut],
@@ -1668,6 +1681,8 @@ function AppContent(): ReactNode {
               />
             ) : activeRoute.id === 'profiles' ? (
               <TerminalProfiles onProfilesChange={setTerminalProfiles} />
+            ) : activeRoute.id === 'remote' ? (
+              <RemoteTargetsView />
             ) : (
               <DestinationPlaceholder route={activeRoute} />
             )}

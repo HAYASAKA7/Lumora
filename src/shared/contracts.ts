@@ -166,6 +166,61 @@ export const RemoteTargetConnectRequestSchema = z.strictObject({
   credentials: RemoteTargetCredentialsSchema
 });
 
+export const RemoteExecutionTargetSchema = z.strictObject({
+  id: RemoteExecutionTargetIdSchema,
+  kind: z.literal('remote'),
+  displayName: z.string().trim().min(1).max(120),
+  platform: ExecutionTargetPlatformSchema,
+  architecture: ExecutionTargetArchitectureSchema,
+  connectionState: z.enum([
+    'offline', 'connecting', 'authenticating', 'helper-missing',
+    'helper-incompatible', 'ready', 'reconnecting', 'error'
+  ]),
+  helperVersion: z.string().trim().min(1).max(64).nullable(),
+  protocolVersion: z.number().int().nonnegative().nullable(),
+  capabilities: z.array(ExecutionTargetCapabilitySchema).max(4),
+  lastConnectedAt: z.iso.datetime().nullable(),
+  lastScannedAt: z.iso.datetime().nullable()
+});
+
+export const RemoteTargetSummarySchema = z.strictObject({
+  target: RemoteExecutionTargetSchema,
+  profile: RemoteConnectionProfileSchema
+}).superRefine((summary, context) => {
+  if (summary.target.id !== summary.profile.executionTargetId) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Remote target and profile identifiers do not match.'
+    });
+  }
+});
+export const RemoteTargetListSchema = z.array(RemoteTargetSummarySchema);
+export const RemoteTargetIdRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema
+});
+export const RemoteTargetUpdateRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  profile: RemoteConnectionProfileInputSchema
+});
+export const RemoteHostKeyObservationSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  fingerprint: SshHostFingerprintSchema
+});
+export const RemoteHostTrustRequestSchema = RemoteHostKeyObservationSchema;
+export const RemoteTargetConnectionDetailsSchema = z.strictObject({
+  target: RemoteExecutionTargetSchema,
+  profile: RemoteConnectionProfileSchema,
+  homeDirectory: z.string().trim().min(1).max(4096),
+  defaultShell: z.string().trim().min(1).max(4096)
+});
+export const RemoteTargetRemovalResultSchema = z.strictObject({
+  removed: z.literal(true)
+});
+export const RemoteTargetWindowOpenResultSchema = z.strictObject({
+  opened: z.literal(true),
+  executionTargetId: RemoteExecutionTargetIdSchema
+});
+
 export type RemoteExecutionTargetId = z.infer<
   typeof RemoteExecutionTargetIdSchema
 >;
@@ -186,6 +241,17 @@ export type RemoteTargetCredentials = z.infer<
 >;
 export type RemoteTargetConnectRequest = z.infer<
   typeof RemoteTargetConnectRequestSchema
+>;
+export type RemoteExecutionTarget = z.infer<typeof RemoteExecutionTargetSchema>;
+export type RemoteTargetSummary = z.infer<typeof RemoteTargetSummarySchema>;
+export type RemoteTargetUpdateRequest = z.infer<
+  typeof RemoteTargetUpdateRequestSchema
+>;
+export type RemoteHostKeyObservation = z.infer<
+  typeof RemoteHostKeyObservationSchema
+>;
+export type RemoteTargetConnectionDetails = z.infer<
+  typeof RemoteTargetConnectionDetailsSchema
 >;
 
 export const SystemInfoSchema = z.strictObject({
@@ -1338,6 +1404,16 @@ export type AppearanceBackgroundState = z.infer<
 >;
 
 export const IPC_CHANNELS = {
+  targetWindowContextGet: 'lumora:targets:window-context:get',
+  remoteTargetList: 'lumora:targets:list',
+  remoteTargetCreate: 'lumora:targets:create',
+  remoteTargetUpdate: 'lumora:targets:update',
+  remoteTargetRemove: 'lumora:targets:remove',
+  remoteTargetObserveHost: 'lumora:targets:host:observe',
+  remoteTargetTrustHost: 'lumora:targets:host:trust',
+  remoteTargetConnect: 'lumora:targets:connect',
+  remoteTargetDisconnect: 'lumora:targets:disconnect',
+  remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
   startupPresentationComplete: 'lumora:system:startup-presentation:complete',
@@ -1394,6 +1470,29 @@ export const IPC_CHANNELS = {
 } as const;
 
 export interface LumoraApi {
+  getWindowContext(): Promise<LumoraWindowContext>;
+  listRemoteTargets(): Promise<RemoteTargetSummary[]>;
+  createRemoteTarget(
+    input: RemoteConnectionProfileInput
+  ): Promise<RemoteTargetSummary>;
+  updateRemoteTarget(
+    executionTargetId: RemoteExecutionTargetId,
+    input: RemoteConnectionProfileInput
+  ): Promise<RemoteTargetSummary>;
+  removeRemoteTarget(executionTargetId: RemoteExecutionTargetId): Promise<void>;
+  observeRemoteHost(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteHostKeyObservation>;
+  trustRemoteHost(input: RemoteHostKeyObservation): Promise<RemoteTargetSummary>;
+  connectRemoteTarget(
+    input: RemoteTargetConnectRequest
+  ): Promise<RemoteTargetConnectionDetails>;
+  disconnectRemoteTarget(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteTargetSummary>;
+  openRemoteTargetWindow(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<void>;
   getSystemInfo(): Promise<SystemInfo>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;

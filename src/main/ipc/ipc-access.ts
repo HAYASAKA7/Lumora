@@ -25,13 +25,15 @@ export class IpcAccessError extends Error {
   }
 }
 
-export function createLocalIpcAuthorizer({
-  contexts,
-  developmentOrigin
-}: {
+interface CreateIpcAuthorizerOptions {
   contexts: WindowContextRegistry;
   developmentOrigin?: string;
-}): IpcAuthorizer {
+}
+
+export function createIpcAuthorizer({
+  contexts,
+  developmentOrigin
+}: CreateIpcAuthorizerOptions): IpcAuthorizer {
   return (event) => {
     if (
       event.senderFrame === null ||
@@ -39,17 +41,25 @@ export function createLocalIpcAuthorizer({
     ) {
       throw new IpcAccessError();
     }
-
     const senderId = event.sender?.id;
     const context = senderId === undefined ? null : contexts.get(senderId);
+    if (context === null) throw new IpcAccessError();
+    return context;
+  };
+}
+
+export function createLocalIpcAuthorizer(
+  options: CreateIpcAuthorizerOptions
+): IpcAuthorizer {
+  const authorize = createIpcAuthorizer(options);
+  return (event) => {
+    const context = authorize(event);
     if (
-      context === null ||
       context.mode !== 'local' ||
       context.executionTargetId !== LOCAL_EXECUTION_TARGET_ID
     ) {
       throw new IpcAccessError();
     }
-
     return context;
   };
 }

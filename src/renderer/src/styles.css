@@ -119,6 +119,24 @@
   --startup-gradient-5: #00070c;
   --startup-gradient-6: #00050b;
   --startup-gradient-7: #01040b;
+  --remote-spinner-track: rgb(83 212 220 / 28%);
+  --remote-spinner-accent: #53d4dc;
+  --remote-shell-text: #dce7f5;
+  --remote-shell-glow: rgb(36 159 175 / 18%);
+  --remote-shell-surface: #07111f;
+  --remote-card-text: #eef7ff;
+  --remote-card-text-muted: #91a4bc;
+  --remote-card-text-soft: #71869f;
+  --remote-card-line: #2a3c54;
+  --remote-card-line-strong: #40516a;
+  --remote-card-surface-subtle: #0b1829;
+  --remote-card-control-surface: #091525;
+  --remote-card-success: #58d8aa;
+  --remote-card-success-border: #2a765f;
+  --remote-card-danger: #ff9a9a;
+  --remote-card-accent: #53d4dc;
+  --remote-card-border: #2a405c;
+  --remote-card-shadow: 0 28px 80px rgb(0 0 0 / 42%);
 }
 
 :root[data-theme='lumora'] {
@@ -4424,4 +4442,262 @@ button {
   .appearance-background-actions {
     justify-content: flex-start;
   }
+}
+
+
+/* Remote Lumora phase 2 */
+.window-bootstrap,
+.remote-window-shell {
+  width: 100vw;
+  min-height: 100vh;
+}
+
+.window-bootstrap {
+  display: grid;
+  place-items: center;
+  background: var(--terminal-dark-surface);
+}
+
+.window-bootstrap-indicator {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--remote-spinner-track);
+  border-top-color: var(--remote-spinner-accent);
+  border-radius: 50%;
+  animation: remote-window-spin 0.8s linear infinite;
+}
+
+@keyframes remote-window-spin {
+  to { transform: rotate(360deg); }
+}
+
+.remote-targets-view {
+  display: grid;
+  gap: 20px;
+}
+
+.remote-targets-heading,
+.remote-target-card-heading,
+.remote-target-actions,
+.remote-window-header,
+.remote-window-actions,
+.modal-actions {
+  display: flex;
+  align-items: center;
+}
+
+.remote-targets-heading,
+.remote-target-card-heading,
+.remote-window-header {
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.remote-targets-heading h2,
+.remote-target-card h2,
+.remote-window-header h1 {
+  margin: 0;
+  color: var(--text);
+}
+
+.remote-targets-heading p,
+.remote-target-card p,
+.remote-window-header p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+}
+
+.remote-target-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  gap: 14px;
+}
+
+.remote-target-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--panel-shadow-soft);
+}
+
+.remote-state {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.remote-state.state-ready { color: var(--success); border-color: var(--success-border); }
+.remote-state.state-error { color: var(--danger); }
+.remote-state.state-connecting,
+.remote-state.state-authenticating { color: var(--blue); }
+
+.remote-target-meta,
+.remote-facts {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.remote-target-meta > div,
+.remote-facts > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.remote-target-meta dt,
+.remote-facts dt { color: var(--text-soft); }
+.remote-target-meta dd,
+.remote-facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text); }
+
+.remote-target-actions,
+.remote-window-actions,
+.modal-actions {
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--dialog-overlay);
+}
+
+.modal-card {
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.modal-card > header,
+.modal-card > footer,
+.remote-profile-fields,
+.remote-fingerprint-dialog > p,
+.remote-fingerprint-dialog > code {
+  margin: 0;
+  padding: 18px 20px;
+}
+
+.modal-card > header { border-bottom: 1px solid var(--line); }
+.modal-card > header h2 { margin: 0; font-size: 1.08rem; }
+.modal-card > footer { border-top: 1px solid var(--line); }
+
+.remote-profile-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.remote-profile-fields label,
+.remote-secret-field {
+  display: grid;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 680;
+}
+
+.remote-profile-fields input,
+.remote-profile-fields select,
+.remote-secret-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: var(--control-surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  outline: none;
+}
+
+.remote-profile-fields input:focus,
+.remote-profile-fields select:focus,
+.remote-secret-field input:focus {
+  border-color: var(--focus-outline);
+  box-shadow: var(--control-focus-ring);
+}
+
+.remote-direct-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 84px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.form-help,
+.remote-phase-note {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.remote-fingerprint-dialog code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  background: var(--surface-subtle);
+  border-block: 1px solid var(--line);
+}
+
+.remote-window-shell {
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 5vw, 64px);
+  color: var(--remote-shell-text);
+  background:
+    radial-gradient(circle at 12% 0%, var(--remote-shell-glow), transparent 36%),
+    var(--remote-shell-surface);
+}
+
+.remote-window-card {
+  --text: var(--remote-card-text);
+  --text-muted: var(--remote-card-text-muted);
+  --text-soft: var(--remote-card-text-soft);
+  --line: var(--remote-card-line);
+  --line-strong: var(--remote-card-line-strong);
+  --surface-subtle: var(--remote-card-surface-subtle);
+  --control-surface: var(--remote-card-control-surface);
+  --success: var(--remote-card-success);
+  --success-border: var(--remote-card-success-border);
+  --danger: var(--remote-card-danger);
+  --blue: var(--remote-card-accent);
+  width: min(820px, 100%);
+  display: grid;
+  gap: 24px;
+  padding: clamp(22px, 4vw, 38px);
+  background: var(--terminal-notice-surface);
+  border: 1px solid var(--remote-card-border);
+  border-radius: 16px;
+  box-shadow: var(--remote-card-shadow);
+}
+
+.remote-window-header h1 { margin-top: 5px; font-size: clamp(1.5rem, 3vw, 2.1rem); }
+.remote-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.remote-facts > div { grid-template-columns: 90px minmax(0, 1fr); padding: 12px; background: var(--surface-subtle); border: 1px solid var(--line); border-radius: 9px; }
+.remote-secret-field { max-width: 420px; }
+.remote-phase-note { padding-top: 18px; border-top: 1px solid var(--line); }
+
+@media (max-width: 720px) {
+  .remote-targets-heading,
+  .remote-window-header { align-items: stretch; flex-direction: column; }
+  .remote-direct-fields,
+  .remote-facts { grid-template-columns: 1fr; }
 }

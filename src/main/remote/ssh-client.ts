@@ -54,6 +54,15 @@ export type PreparedSshConnectionConfig = ConnectConfig & {
 
 const DEFAULT_CONNECTION_TIMEOUT_MS = 15_000;
 
+export function resolveDefaultSshAgentSocket(
+  platform: NodeJS.Platform = process.platform,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): string | null {
+  const configuredSocket = environment.SSH_AUTH_SOCK?.trim();
+  if (configuredSocket) return configuredSocket;
+  return platform === 'win32' ? '\\\\.\\pipe\\openssh-ssh-agent' : null;
+}
+
 export function fingerprintSshHostKey(key: Buffer): string {
   return `SHA256:${createHash('sha256')
     .update(key)
@@ -214,7 +223,9 @@ export function createRemoteSshClient(
     readPrivateKey: input.readPrivateKey ?? ((path) => readFile(path)),
     resolveSshConfigHost: input.resolveSshConfigHost ??
       createOpenSshConfigResolver(),
-    agentSocket: input.agentSocket ?? process.env.SSH_AUTH_SOCK ?? null,
+    agentSocket: input.agentSocket === undefined
+      ? resolveDefaultSshAgentSocket()
+      : input.agentSocket,
     setTimeout: input.setTimeout ?? globalThis.setTimeout,
     clearTimeout: input.clearTimeout ?? globalThis.clearTimeout
   };
