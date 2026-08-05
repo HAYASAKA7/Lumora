@@ -6,16 +6,15 @@ account. It is a local file workflow: Lumora does not upload archives, convert
 sessions into a Lumora-owned format, or synchronize them through a Lumora
 service.
 
-Transfer routes are enabled only after their provider, provider version, source
-operating system, and destination operating system have passed packaged
-verification. **Settings > Transfer** shows the capabilities available on the
-current computer. A route marked **Not verified** cannot export or import.
+**Settings > Transfer** shows the capabilities available on the current
+computer. Verified provider, version, and operating-system routes are marked
+**Supported**. Implemented routes that have not completed the packaged matrix
+are available as **Experimental** in both packaged and development builds. A
+route marked **Not verified** remains unavailable.
 
-Development builds expose implemented adapter-backed routes as
-**Experimental** so contributors can exercise export and import before the
-packaged verification matrix is complete. Experimental access does not mark a
-route as verified and is never enabled automatically in a normal packaged
-release.
+Experimental access does not mark a route as verified. Keep the source archive
+and provider data, and confirm imported sessions with the native provider before
+relying on them.
 
 ## What an archive contains
 

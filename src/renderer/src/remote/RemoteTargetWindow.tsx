@@ -167,7 +167,7 @@ export function RemoteTargetWindow({
             </button>
           ) : (
             <button
-              className="primary-button"
+              className="refresh-button"
               disabled={
                 busy || !trusted ||
                 (authentication.method === 'password' && secret.length === 0)

@@ -8,6 +8,7 @@ import type {
   RemoteHostKeyObservation,
   RemoteTargetSummary
 } from '../../../shared/contracts';
+import { SelectMenu } from '../ui/SelectMenu';
 
 interface RemoteTargetFormState {
   displayName: string;
@@ -30,6 +31,17 @@ const EMPTY_FORM: RemoteTargetFormState = {
   authenticationMethod: 'agent',
   privateKeyPath: ''
 };
+
+const ROUTE_OPTIONS = [
+  { value: 'direct', label: 'Direct SSH' },
+  { value: 'ssh-config', label: 'OpenSSH config alias' }
+] as const;
+
+const AUTHENTICATION_OPTIONS = [
+  { value: 'agent', label: 'SSH agent' },
+  { value: 'password', label: 'Password' },
+  { value: 'private-key', label: 'Private key' }
+] as const;
 
 function formFrom(summary: RemoteTargetSummary): RemoteTargetFormState {
   const profile = summary.profile;
@@ -166,7 +178,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
           <p>Configure SSH access and open an isolated Lumora window for each computer.</p>
         </div>
         <button
-          className="primary-button"
+          className="refresh-button"
           onClick={() => {
             setEditingId(null);
             setForm({ ...EMPTY_FORM });
@@ -204,14 +216,14 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <div className="remote-target-actions">
                   {trusted ? (
                     <button
-                      className="primary-button"
+                      className="refresh-button"
                       onClick={() => void api.openRemoteTargetWindow(item.target.id)}
                     >
                       Open remote Lumora
                     </button>
                   ) : (
                     <button
-                      className="primary-button"
+                      className="refresh-button"
                       disabled={busyId === item.target.id}
                       onClick={() => void verify(item.target.id)}
                     >
@@ -235,12 +247,27 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       )}
 
       {form !== null && (
-        <div className="modal-backdrop" role="presentation">
-          <section aria-label="Remote computer profile" aria-modal="true" className="modal-card remote-profile-dialog" role="dialog">
-            <header><h2>{editingId === null ? 'Add remote computer' : 'Edit remote computer'}</h2></header>
-            <div className="remote-profile-fields">
+        <div className="dialog-backdrop" role="presentation">
+          <section aria-label="Remote computer profile" aria-modal="true" className="new-session-dialog remote-profile-dialog" role="dialog">
+            <header>
+              <div>
+                <p className="card-label">Remote connection</p>
+                <h2>{editingId === null ? 'Add remote computer' : 'Edit remote computer'}</h2>
+              </div>
+              <button aria-label="Close remote computer profile" className="text-button" onClick={() => setForm(null)} type="button">Close</button>
+            </header>
+            <div className="dialog-body remote-profile-dialog-body" data-testid="remote-profile-dialog-body">
+              <div className="remote-profile-fields">
               <label><span>Name</span><input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
-              <label><span>Connection route</span><select value={form.route} onChange={(event) => setForm({ ...form, route: event.target.value as RemoteTargetFormState['route'] })}><option value="direct">Direct SSH</option><option value="ssh-config">OpenSSH config alias</option></select></label>
+              <div className="remote-profile-field">
+                <span>Connection route</span>
+                <SelectMenu
+                  label="Connection route"
+                  onChange={(route) => setForm({ ...form, route })}
+                  options={ROUTE_OPTIONS}
+                  value={form.route}
+                />
+              </div>
               {form.route === 'direct' ? (
                 <div className="remote-direct-fields">
                   <label><span>Host</span><input value={form.host} onChange={(event) => setForm({ ...form, host: event.target.value })} /></label>
@@ -250,29 +277,46 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
               ) : (
                 <label><span>SSH config alias</span><input value={form.sshConfigHost} onChange={(event) => setForm({ ...form, sshConfigHost: event.target.value })} /></label>
               )}
-              <label><span>Authentication</span><select value={form.authenticationMethod} onChange={(event) => setForm({ ...form, authenticationMethod: event.target.value as RemoteAuthenticationProfile['method'] })}><option value="agent">SSH agent</option><option value="password">Password</option><option value="private-key">Private key</option></select></label>
+              <div className="remote-profile-field">
+                <span>Authentication</span>
+                <SelectMenu
+                  label="Authentication"
+                  onChange={(authenticationMethod) => setForm({ ...form, authenticationMethod })}
+                  options={AUTHENTICATION_OPTIONS}
+                  value={form.authenticationMethod}
+                />
+              </div>
               {form.authenticationMethod === 'private-key' && (
                 <label><span>Private key path</span><input value={form.privateKeyPath} onChange={(event) => setForm({ ...form, privateKeyPath: event.target.value })} /></label>
               )}
               <p className="form-help">Passwords and key passphrases are requested only when connecting and are never saved.</p>
+              </div>
             </div>
             <footer className="modal-actions">
               <button className="secondary-button" onClick={() => setForm(null)}>Cancel</button>
-              <button className="primary-button" disabled={busyId === 'form'} onClick={() => void save()}>{busyId === 'form' ? 'Saving…' : 'Save remote computer'}</button>
+              <button className="refresh-button" disabled={busyId === 'form'} onClick={() => void save()}>{busyId === 'form' ? 'Saving…' : 'Save remote computer'}</button>
             </footer>
           </section>
         </div>
       )}
 
       {observation !== null && (
-        <div className="modal-backdrop" role="presentation">
-          <section aria-label="Verify remote identity" aria-modal="true" className="modal-card remote-fingerprint-dialog" role="dialog">
-            <header><h2>Verify remote identity</h2></header>
-            <p>Compare this SHA-256 fingerprint with the remote computer before trusting it.</p>
-            <code>{observation.fingerprint}</code>
+        <div className="dialog-backdrop" role="presentation">
+          <section aria-label="Verify remote identity" aria-modal="true" className="new-session-dialog remote-fingerprint-dialog" role="dialog">
+            <header>
+              <div>
+                <p className="card-label">Remote security</p>
+                <h2>Verify remote identity</h2>
+              </div>
+              <button aria-label="Close remote identity verification" className="text-button" onClick={() => setObservation(null)} type="button">Close</button>
+            </header>
+            <div className="dialog-body remote-fingerprint-dialog-body">
+              <p>Compare this SHA-256 fingerprint with the remote computer before trusting it.</p>
+              <code>{observation.fingerprint}</code>
+            </div>
             <footer className="modal-actions">
               <button className="secondary-button" onClick={() => setObservation(null)}>Cancel</button>
-              <button className="primary-button" onClick={() => void trust()}>Trust this fingerprint</button>
+              <button className="refresh-button" onClick={() => void trust()}>Trust this fingerprint</button>
             </footer>
           </section>
         </div>

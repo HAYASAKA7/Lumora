@@ -68,6 +68,11 @@ describe('application environment integration', () => {
     expect(mainSource).toContain('registerTransferIpc({');
   });
 
+  it('enables explicitly labelled experimental transfer routes in release builds', () => {
+    expect(mainSource).toContain('allowExperimentalTransferRoutes: true');
+    expect(mainSource).not.toContain('allowExperimentalTransferRoutes: !app.isPackaged');
+  });
+
   it('closes session transfer before terminal and catalog database owners', () => {
     const beforeQuit = mainSource.slice(mainSource.indexOf("app.on('before-quit'"));
     const closeTransfer = beforeQuit.indexOf('await transfer?.close()');

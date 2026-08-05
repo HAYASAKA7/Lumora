@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LumoraApi } from '../../../shared/contracts';
@@ -43,11 +43,14 @@ describe('RemoteTargetsView', () => {
     } as unknown as LumoraApi;
     render(<RemoteTargetsView api={api} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Add remote computer' }));
+    const addRemote = await screen.findByRole('button', {
+      name: 'Add remote computer'
+    });
+    expect(addRemote).toHaveClass('refresh-button');
+    fireEvent.click(addRemote);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Build server' } });
     fireEvent.change(screen.getByLabelText('Host'), { target: { value: 'build.internal' } });
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'builder' } });
-    fireEvent.change(screen.getByLabelText('Authentication'), { target: { value: 'agent' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save remote computer' }));
 
     await waitFor(() => expect(api.createRemoteTarget).toHaveBeenCalledWith({
@@ -59,6 +62,39 @@ describe('RemoteTargetsView', () => {
       authentication: { method: 'agent' }
     }));
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+  });
+
+  it('uses Lumora-owned option menus for remote profile choices', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([])
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Add remote computer'
+    }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Remote computer profile'
+    });
+    expect(dialog).toHaveClass('new-session-dialog');
+    expect(dialog.parentElement).toHaveClass('dialog-backdrop');
+    expect(within(dialog).getByTestId('remote-profile-dialog-body')).toHaveClass('dialog-body');
+
+
+    const route = screen.getByRole('button', { name: 'Connection route' });
+    expect(route).toHaveClass('select-menu-trigger');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    fireEvent.click(route);
+
+    const options = screen.getByRole('listbox', {
+      name: 'Connection route options'
+    });
+    expect(options).toHaveClass('select-menu-options');
+    fireEvent.click(within(options).getByRole('option', {
+      name: 'OpenSSH config alias'
+    }));
+
+    expect(screen.getByLabelText('SSH config alias')).toBeInTheDocument();
   });
 
   it('requires explicit fingerprint trust before opening the remote window', async () => {
@@ -76,10 +112,22 @@ describe('RemoteTargetsView', () => {
     } as unknown as LumoraApi;
     render(<RemoteTargetsView api={api} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Verify identity' }));
+    const verifyIdentity = await screen.findByRole('button', {
+      name: 'Verify identity'
+    });
+    expect(verifyIdentity).toHaveClass('refresh-button');
+    fireEvent.click(verifyIdentity);
     expect(await screen.findByText(fingerprint)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Trust this fingerprint' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open remote Lumora' }));
+    const trustFingerprint = screen.getByRole('button', {
+      name: 'Trust this fingerprint'
+    });
+    expect(trustFingerprint).toHaveClass('refresh-button');
+    fireEvent.click(trustFingerprint);
+    const openRemote = await screen.findByRole('button', {
+      name: 'Open remote Lumora'
+    });
+    expect(openRemote).toHaveClass('refresh-button');
+    fireEvent.click(openRemote);
 
     expect(api.trustRemoteHost).toHaveBeenCalledWith({
       executionTargetId: TARGET_ID, fingerprint

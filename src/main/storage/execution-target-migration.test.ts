@@ -1,7 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CATALOG_MIGRATIONS, runMigrations } from './migrations';
+import {
+  CATALOG_MIGRATIONS,
+  migrateCatalogDatabase,
+  runMigrations
+} from './migrations';
 
 const timestamp = '2026-08-04T00:00:00.000Z';
 const workspaceId = 'a'.repeat(64);
@@ -146,6 +150,63 @@ describe('execution-target migration', () => {
       { execution_target_id: remoteId, command: '/usr/bin/codex' },
       { execution_target_id: 'local', command: 'codex' }
     ]);
+  });
+
+  it('repairs the target schema when a discarded migration already claimed its version', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 15)
+    );
+    database.prepare(
+      `INSERT INTO workspace (
+        id, identity_key, canonical_path, display_name, available, origin,
+        created_at, updated_at
+      ) VALUES (?, 'path:/work/legacy', '/work/legacy', 'Legacy', 1,
+        'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+    database.prepare(
+      `INSERT INTO session (
+        id, provider, native_id, workspace_id, title, normalized_title,
+        created_at, updated_at, lifetime_tokens, lifecycle, source_freshness
+      ) VALUES (?, 'codex', 'legacy-native', ?, 'Legacy session',
+        'legacy session', ?, ?, NULL, 'saved', 'current')`
+    ).run(sessionId, workspaceId, timestamp, timestamp);
+    database.exec(`CREATE TABLE structured_runtime_instance (
+      id TEXT PRIMARY KEY,
+      session_id TEXT REFERENCES session(id) ON DELETE SET NULL,
+      workspace_id TEXT NOT NULL REFERENCES workspace(id)
+    ) STRICT`);
+    database.prepare(
+      `INSERT INTO structured_runtime_instance (id, session_id, workspace_id)
+       VALUES ('legacy-runtime', ?, ?)`
+    ).run(sessionId, workspaceId);
+    database.prepare(
+      'INSERT INTO schema_migration (version, applied_at) VALUES (16, ?)'
+    ).run('2026-07-28T08:41:36.519Z');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version === 17)
+    );
+
+    migrateCatalogDatabase(database);
+
+    expect(
+      database.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'execution_target'"
+      ).get()
+    ).toEqual({ name: 'execution_target' });
+    expect(
+      database.prepare(
+        'SELECT id, kind, connection_state FROM execution_target'
+      ).get()
+    ).toEqual({ id: 'local', kind: 'local', connection_state: 'local' });
+    expect(
+      database.prepare(
+        'SELECT id, session_id, workspace_id FROM structured_runtime_instance'
+      ).get()
+    ).toEqual({ id: 'legacy-runtime', session_id: sessionId, workspace_id: workspaceId });
+    expect(database.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
   });
 });
 

@@ -434,7 +434,8 @@ button {
 }
 
 .brand,
-.primary-nav {
+.primary-nav,
+.sidebar-remote-nav {
   position: relative;
   z-index: 1;
 }
@@ -494,6 +495,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.sidebar-remote-nav {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .nav-label,
@@ -2593,12 +2602,19 @@ button {
 
   .sidebar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 16px;
     padding: 12px 14px;
     border-right: 0;
     border-bottom: 1px solid var(--frame-border);
+  }
+
+  .sidebar-remote-nav {
+    margin-top: 0;
+    padding: 0 0 0 8px;
+    border-top: 0;
+    border-left: 1px solid var(--line-soft);
   }
 
   .brand {
@@ -2663,7 +2679,7 @@ button {
   }
 
   .sidebar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .brand {
@@ -3727,7 +3743,8 @@ button {
 }
 
 .has-appearance-background .new-session-dialog,
-.has-appearance-background .runtime-switcher {
+.has-appearance-background .runtime-switcher,
+.has-appearance-background .select-menu-options {
   --popup-dialog-shell-surface: color-mix(in srgb, var(--raw-surface-raised) var(--appearance-opacity-popup), transparent);
   --popup-switcher-shell-surface: color-mix(in srgb, var(--raw-navy-900) var(--appearance-opacity-popup), transparent);
   --navy-900: color-mix(in srgb, var(--raw-navy-900) var(--appearance-opacity-popup-raised), transparent);
@@ -3754,8 +3771,13 @@ button {
   background: var(--popup-switcher-shell-surface);
 }
 
+.has-appearance-background .select-menu-options {
+  background: var(--popup-dialog-shell-surface);
+}
+
 .has-appearance-background.has-surface-mosaic .new-session-dialog,
-.has-appearance-background.has-surface-mosaic .runtime-switcher {
+.has-appearance-background.has-surface-mosaic .runtime-switcher,
+.has-appearance-background.has-surface-mosaic .select-menu-options {
   backdrop-filter: blur(var(--appearance-surface-mosaic));
 }
 
@@ -4567,39 +4589,13 @@ button {
   gap: 9px;
 }
 
-.modal-backdrop {
-  position: fixed;
-  z-index: 90;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--dialog-overlay);
+.remote-profile-dialog {
+  width: min(600px, 100%);
 }
 
-.modal-card {
-  width: min(540px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
-  overflow: auto;
-  color: var(--text);
-  background: var(--surface-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
+.remote-fingerprint-dialog {
+  width: min(620px, 100%);
 }
-
-.modal-card > header,
-.modal-card > footer,
-.remote-profile-fields,
-.remote-fingerprint-dialog > p,
-.remote-fingerprint-dialog > code {
-  margin: 0;
-  padding: 18px 20px;
-}
-
-.modal-card > header { border-bottom: 1px solid var(--line); }
-.modal-card > header h2 { margin: 0; font-size: 1.08rem; }
-.modal-card > footer { border-top: 1px solid var(--line); }
 
 .remote-profile-fields {
   display: grid;
@@ -4607,6 +4603,7 @@ button {
 }
 
 .remote-profile-fields label,
+.remote-profile-field,
 .remote-secret-field {
   display: grid;
   gap: 7px;
@@ -4616,7 +4613,7 @@ button {
 }
 
 .remote-profile-fields input,
-.remote-profile-fields select,
+.select-menu-trigger,
 .remote-secret-field input {
   width: 100%;
   min-height: 40px;
@@ -4628,8 +4625,105 @@ button {
   outline: none;
 }
 
+.select-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.select-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-menu-trigger:hover:not(:disabled),
+.select-menu-trigger[aria-expanded='true'] {
+  border-color: var(--focus-outline);
+  background: var(--surface-raised);
+}
+
+.select-menu-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.select-menu-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-menu-chevron {
+  flex: 0 0 auto;
+  color: var(--text-soft);
+  font-size: 1rem;
+  transform: translateY(-1px);
+}
+
+.select-menu-options {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  padding: 4px;
+  overflow: auto;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.select-menu-options-overlay {
+  right: auto;
+}
+
+.select-menu-option {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.select-menu-option:hover,
+.select-menu-option.is-active {
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+
+.select-menu-option[aria-selected='true'] {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.select-menu-check {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.select-menu-option:focus-visible {
+  outline-offset: -3px;
+}
+
 .remote-profile-fields input:focus,
-.remote-profile-fields select:focus,
+.select-menu-trigger:focus,
 .remote-secret-field input:focus {
   border-color: var(--focus-outline);
   box-shadow: var(--control-focus-ring);
@@ -4647,6 +4741,20 @@ button {
   color: var(--text-soft);
   font-size: 0.76rem;
   line-height: 1.5;
+}
+
+.remote-fingerprint-dialog-body {
+  gap: 10px;
+}
+
+.remote-fingerprint-dialog-body p {
+  margin: 0;
+}
+
+.remote-fingerprint-dialog-body code {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
 }
 
 .remote-fingerprint-dialog code {

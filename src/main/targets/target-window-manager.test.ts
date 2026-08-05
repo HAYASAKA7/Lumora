@@ -7,22 +7,31 @@ import { createTargetWindowManager } from './target-window-manager';
 const TARGET_ID = '1a84cc80-7c76-4660-8b6b-d081d888ec39';
 
 class FakeWindow extends EventEmitter {
-  readonly webContents: { id: number; isDestroyed(): boolean };
+  private readonly contents: { id: number; isDestroyed(): boolean };
   readonly show = vi.fn();
   readonly focus = vi.fn();
   readonly restore = vi.fn();
-  readonly close = vi.fn(() => this.emit('closed'));
+  readonly close = vi.fn(() => {
+    this.destroyed = true;
+    this.emit('closed');
+  });
   minimized = false;
   destroyed = false;
 
   constructor(senderId: number) {
     super();
-    this.webContents = {
+    this.contents = {
       id: senderId,
       isDestroyed: () => this.destroyed
     };
   }
 
+  get webContents(): { id: number; isDestroyed(): boolean } {
+    if (this.destroyed) {
+      throw new Error('Object has been destroyed');
+    }
+    return this.contents;
+  }
   isDestroyed(): boolean { return this.destroyed; }
   isMinimized(): boolean { return this.minimized; }
 }
@@ -73,7 +82,8 @@ describe('target window manager', () => {
     expect(createWindow).toHaveBeenCalledOnce();
     expect(loadWindow).toHaveBeenCalledOnce();
     expect(contexts.get(43)).not.toBeNull();
-    window.emit('closed');
+    window.destroyed = true;
+    expect(() => window.emit('closed')).not.toThrow();
     expect(contexts.get(43)).toBeNull();
   });
 

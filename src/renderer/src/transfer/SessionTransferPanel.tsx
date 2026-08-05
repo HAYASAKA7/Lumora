@@ -208,7 +208,7 @@ export function SessionTransferPanel({
                       <h3 id="transfer-capabilities-title">Provider support</h3>
                       <p>
                         {hasExperimentalRoutes
-                          ? 'This development build enables adapter-backed routes for experimental testing. Release builds still require verification.'
+                          ? 'Experimental routes are enabled in this release. Keep backups and verify imported sessions before relying on them.'
                           : 'Untested provider and operating-system combinations stay unavailable to protect your sessions.'}
                       </p>
                     </div>

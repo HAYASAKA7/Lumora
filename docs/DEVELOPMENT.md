@@ -4,6 +4,11 @@ This guide covers source setup, project structure, verification, and local
 development conventions. User-facing instructions live in the
 [Lumora user guide](../README.md).
 
+Normative rules for code and review live in the
+[Lumora engineering standards](../standards/README.md). Read the relevant
+standards before changing a process boundary, UI pattern, IPC route, privileged
+operation, provider adapter, storage schema, or release workflow.
+
 ## Requirements
 
 - Windows, macOS, or Linux
@@ -69,6 +74,7 @@ resources/
 scripts/
   release/    package and release verification scripts
 docs/         public architecture, development, and release documentation
+standards/    normative engineering and review rules by domain
 .github/
   workflows/  CI, manual packaging, and tag-based prerelease workflows
 ```

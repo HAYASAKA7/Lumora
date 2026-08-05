@@ -610,6 +610,29 @@ describe('App', () => {
     }
   });
 
+  it('keeps Remote computers in its own lower sidebar entrance', () => {
+    render(<App />);
+
+    const primaryNavigation = screen.getByRole('navigation', {
+      name: 'Primary navigation'
+    });
+    const remoteNavigation = screen.getByRole('navigation', {
+      name: 'Remote access'
+    });
+
+    expect(
+      within(primaryNavigation).queryByRole('button', {
+        name: 'Remote computers'
+      })
+    ).not.toBeInTheDocument();
+    expect(
+      within(remoteNavigation).getByRole('button', {
+        name: 'Remote computers'
+      })
+    ).toBeInTheDocument();
+    expect(remoteNavigation).toHaveClass('sidebar-remote-nav');
+  });
+
   it('resets the shared page scroll position when navigation changes', async () => {
     render(<App />);
     const main = document.getElementById('main-content');
@@ -1616,7 +1639,7 @@ describe('App', () => {
     expect(terminalInput).toHaveFocus();
   });
 
-  it('passes non-reserved Lumora shortcuts to focused terminal input', async () => {
+  it('applies configured Lumora shortcuts while terminal input is focused', async () => {
     const runtime = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789adf'
     );
@@ -1647,7 +1670,7 @@ describe('App', () => {
       shiftKey: true
     });
     terminalInput.dispatchEvent(openTerminalEvent);
-    expect(openTerminalEvent.defaultPrevented).toBe(false);
+    expect(openTerminalEvent.defaultPrevented).toBe(true);
     expect(terminalInput).toHaveFocus();
 
     const homeEvent = new KeyboardEvent('keydown', {
@@ -1658,9 +1681,10 @@ describe('App', () => {
       ctrlKey: true
     });
     terminalInput.dispatchEvent(homeEvent);
-    expect(homeEvent.defaultPrevented).toBe(false);
-    expect(screen.getByRole('tab', { name: /Codex working session/ }))
-      .toHaveAttribute('aria-selected', 'true');
+    expect(homeEvent.defaultPrevented).toBe(true);
+    expect(
+      await screen.findByRole('heading', { name: 'Home' })
+    ).toBeInTheDocument();
   });
 
   it('clears the current primary navigation state while a terminal is active', async () => {

@@ -325,7 +325,7 @@ async function createMainWindow({
     app.quit();
   });
   window.on('closed', () => {
-    windowContexts.unregister(window.webContents.id);
+    windowContexts.unregister(startupBackgroundActivityId);
     startupBackgroundActivity.dispose();
     if (activeStartupBackgroundActivity === startupBackgroundActivity) {
       activeStartupBackgroundActivityId = null;
@@ -446,6 +446,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     platform,
     env: process.env
   });
+  if (shutdownStarted) return;
   configureApplicationMenu(Menu, { platform });
   appearanceBackgroundStore = new AppearanceBackgroundStore({
     directory: join(app.getPath('userData'), 'appearance'),
@@ -463,7 +464,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: applicationEnvironment,
     scanProviders: scanEnabledProviders,
     enabledProviders: () => providerPolicy.providers(),
-    allowExperimentalTransferRoutes: !app.isPackaged
+    allowExperimentalTransferRoutes: true
   });
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
@@ -684,6 +685,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   app.on('activate', () => {
     void showOrCreateMainWindow();
   });
+}).catch((error) => {
+  console.error('Unable to initialize Lumora.', error);
+  if (!shutdownStarted) {
+    app.quit();
+  }
 });
 
 async function showOrCreateMainWindow(): Promise<void> {
