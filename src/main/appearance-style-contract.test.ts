@@ -40,7 +40,7 @@ describe('appearance style contract', () => {
   it('composes every semantic component surface from centralized opacity tiers', () => {
     const rootRule = stylesheet.match(/^:root\s*\{([^}]*)\}/m)?.[1];
     const appearanceRule = stylesheet.match(
-      /\.app-shell\.has-appearance-background\s*\{([^}]*)\}/
+      /\.appearance-root\.has-appearance-background\s*\{([^}]*)\}/
     )?.[1];
     for (const token of managedSurfaceTokens) {
       expect(rootRule).toContain(`--raw-${token}:`);
@@ -126,7 +126,7 @@ describe('appearance style contract', () => {
 
   it('applies appearance opacity and mosaic to every popup shell', () => {
     const appearanceRule = stylesheet.match(
-      /\.app-shell\.has-appearance-background\s*\{([^}]*)\}/
+      /\.appearance-root\.has-appearance-background\s*\{([^}]*)\}/
     )?.[1];
     const popupRule = stylesheet.match(
       /\.has-appearance-background \.new-session-dialog,\s*\.has-appearance-background \.runtime-switcher,\s*\.has-appearance-background \.select-menu-options\s*\{([^}]*)\}/
@@ -163,7 +163,7 @@ describe('appearance style contract', () => {
 
   it('applies surface opacity to terminal chrome and the system status bar', () => {
     const appearanceRule = stylesheet.match(
-      /\.app-shell\.has-appearance-background\s*\{([^}]*)\}/
+      /\.appearance-root\.has-appearance-background\s*\{([^}]*)\}/
     )?.[1];
 
     expect(appearanceRule).toContain(
@@ -176,7 +176,7 @@ describe('appearance style contract', () => {
 
   it('applies surface mosaic only through the explicit opt-in class', () => {
     const appearanceRule = stylesheet.match(
-      /\.app-shell\.has-appearance-background\s*\{([^}]*)\}/
+      /\.appearance-root\.has-appearance-background\s*\{([^}]*)\}/
     )?.[1];
     const mosaicRule = stylesheet.match(
       /\.has-appearance-background\.has-surface-mosaic \.sidebar,\s*\.has-appearance-background\.has-surface-mosaic:not\(\.terminal-active\) \.workspace-frame\s*\{([^}]*)\}/
