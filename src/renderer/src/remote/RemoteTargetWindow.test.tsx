@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LumoraApi } from '../../../shared/contracts';
@@ -77,5 +77,54 @@ describe('RemoteTargetWindow', () => {
     expect(await screen.findByText(/verify this computer in the local Lumora window/i))
       .toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled();
+  });
+
+  it('confirms a missing helper inside Lumora before target-scoped installation', async () => {
+    const pendingDetails = {
+      ...summary,
+      target: { ...summary.target, connectionState: 'helper-missing' as const },
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      connectRemoteTarget: vi.fn().mockResolvedValue(pendingDetails),
+      getRemoteHelperInstallDetails: vi.fn().mockResolvedValue({
+        status: 'missing',
+        helperVersion: '0.1.0',
+        installLocation: '/home/builder/.local/share/lumora/helper/lumora-helper',
+        requiresConfirmation: true
+      }),
+      installRemoteHelper: vi.fn().mockResolvedValue({
+        ...pendingDetails,
+        target: {
+          ...pendingDetails.target,
+          connectionState: 'ready', helperVersion: '0.1.0', protocolVersion: 1
+        }
+      }),
+      disconnectRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.change(await screen.findByLabelText('SSH password'), {
+      target: { value: 'memory-only' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    const open = await screen.findByRole('button', { name: 'Install Lumora helper' });
+    expect(screen.queryByLabelText('SSH password')).not.toBeInTheDocument();
+    fireEvent.click(open);
+    let dialog = screen.getByRole('dialog', { name: 'Install Lumora helper' });
+    expect(dialog).toHaveClass('new-session-dialog');
+    expect(within(dialog).getByText('0.1.0')).toBeInTheDocument();
+    expect(within(dialog).getByText(/\.local\/share\/lumora\/helper/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(api.installRemoteHelper).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install Lumora helper' }));
+    dialog = screen.getByRole('dialog', { name: 'Install Lumora helper' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Install helper' }));
+    await waitFor(() => expect(api.installRemoteHelper).toHaveBeenCalledWith());
+    expect(await screen.findByText('ready')).toBeInTheDocument();
   });
 });

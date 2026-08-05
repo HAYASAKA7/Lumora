@@ -59,7 +59,19 @@ function createHarness(context: LumoraWindowContext) {
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash'
     }),
-    disconnect: vi.fn(() => summary)
+    disconnect: vi.fn(() => summary),
+    getHelperInstallDetails: vi.fn(() => ({
+      status: 'missing' as const,
+      helperVersion: '0.1.0',
+      installLocation: '/home/builder/.local/share/lumora/helper/lumora-helper',
+      requiresConfirmation: true as const
+    })),
+    installHelper: vi.fn().mockResolvedValue({
+      ...summary,
+      target: { ...summary.target, connectionState: 'ready' },
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
   registerTargetIpc({
@@ -93,6 +105,8 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteTargetTrustHost,
       IPC_CHANNELS.remoteTargetConnect,
       IPC_CHANNELS.remoteTargetDisconnect,
+      IPC_CHANNELS.remoteTargetHelperDetails,
+      IPC_CHANNELS.remoteTargetHelperInstall,
       IPC_CHANNELS.remoteTargetWindowOpen
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
@@ -129,8 +143,26 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteTargetRemove)!(event, {
       executionTargetId: TARGET_ID
     })).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperDetails)!(event))
+      .resolves.toMatchObject({ status: 'missing' });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperInstall)!(event))
+      .resolves.toMatchObject({ target: { connectionState: 'ready' } });
     expect(service.connect).toHaveBeenCalledOnce();
+    expect(service.getHelperInstallDetails).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.installHelper).toHaveBeenCalledWith(TARGET_ID);
     expect(service.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not expose target-scoped helper installation to the local window', async () => {
+    const { handlers, service } = createHarness({
+      mode: 'local', executionTargetId: 'local'
+    });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperDetails)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperInstall)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
+    expect(service.installHelper).not.toHaveBeenCalled();
   });
 
   it('returns the immutable authorized window context', async () => {

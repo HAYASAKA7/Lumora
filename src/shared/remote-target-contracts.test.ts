@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RemoteHostKeyObservationSchema,
+  RemoteHelperInstallDetailsSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetListSchema,
   RemoteTargetSummarySchema
@@ -44,6 +45,12 @@ describe('remote target API contracts', () => {
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash'
     })).toMatchObject({ homeDirectory: '/home/builder' });
+    expect(RemoteHelperInstallDetailsSchema.parse({
+      status: 'missing',
+      helperVersion: '0.1.0',
+      installLocation: '/home/builder/.local/share/lumora/helper/lumora-helper',
+      requiresConfirmation: true
+    })).toMatchObject({ status: 'missing', requiresConfirmation: true });
   });
 
   it('rejects local targets, unknown fields, and malformed observations', () => {
@@ -55,6 +62,22 @@ describe('remote target API contracts', () => {
       executionTargetId: target.id,
       fingerprint: 'not-a-fingerprint',
       privateKey: 'leak'
+    })).toThrow();
+  });
+
+  it('rejects unconfirmed or unbounded helper-install details', () => {
+    expect(() => RemoteHelperInstallDetailsSchema.parse({
+      status: 'missing',
+      helperVersion: '0.1.0',
+      installLocation: '/tmp/lumora-helper',
+      requiresConfirmation: false
+    })).toThrow();
+    expect(() => RemoteHelperInstallDetailsSchema.parse({
+      status: 'missing',
+      helperVersion: '0.1.0',
+      installLocation: '/tmp/lumora-helper',
+      requiresConfirmation: true,
+      command: 'hidden-command'
     })).toThrow();
   });
 });

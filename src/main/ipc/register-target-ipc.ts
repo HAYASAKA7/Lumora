@@ -4,6 +4,7 @@ import {
   RemoteConnectionProfileInputSchema,
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
+  RemoteHelperInstallDetailsSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetIdRequestSchema,
@@ -33,7 +34,8 @@ interface RegisterTargetIpcDependencies {
   authorize: IpcAuthorizer;
   service: Pick<RemoteTargetService,
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
-    'trustHostKey' | 'connect' | 'disconnect'>;
+    'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
+    'installHelper'>;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
 
@@ -48,6 +50,13 @@ export class RemoteTargetIpcError extends Error {
 
 function requireLocal(context: LumoraWindowContext): void {
   if (context.mode !== 'local') throw new RemoteTargetIpcError();
+}
+
+function requireRemote(
+  context: LumoraWindowContext
+): RemoteExecutionTargetId {
+  if (context.mode !== 'remote') throw new RemoteTargetIpcError();
+  return context.executionTargetId;
 }
 
 function requireTargetScope(
@@ -163,6 +172,20 @@ export function registerTargetIpc({
         service.disconnect(request.executionTargetId)
       );
     });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteTargetHelperDetails, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(() => RemoteHelperInstallDetailsSchema.parse(
+      service.getHelperInstallDetails(requireRemote(context))
+    ));
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteTargetHelperInstall, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(async () => RemoteTargetConnectionDetailsSchema.parse(
+      await service.installHelper(requireRemote(context))
+    ));
   });
 
   ipc.handle(IPC_CHANNELS.remoteTargetWindowOpen, async (event, input) => {

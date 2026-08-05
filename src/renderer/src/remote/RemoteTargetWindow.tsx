@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type {
   LumoraApi,
+  RemoteHelperInstallDetails,
   RemoteExecutionTargetId,
   RemoteTargetConnectionDetails,
   RemoteTargetCredentials,
@@ -26,6 +27,8 @@ export function RemoteTargetWindow({
 }: RemoteTargetWindowProps) {
   const [summary, setSummary] = useState<RemoteTargetSummary | null>(null);
   const [details, setDetails] = useState<RemoteTargetConnectionDetails | null>(null);
+  const [helperInstall, setHelperInstall] = useState<RemoteHelperInstallDetails | null>(null);
+  const [showHelperInstall, setShowHelperInstall] = useState(false);
   const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,16 @@ export function RemoteTargetWindow({
   };
   const trusted = summary.profile.verifiedHostFingerprint !== null;
   const connected = summary.target.connectionState === 'ready';
+  const helperPending = summary.target.connectionState === 'helper-missing' ||
+    summary.target.connectionState === 'helper-incompatible';
+
+  const loadHelperInstall = async () => {
+    try {
+      setHelperInstall(await api.getRemoteHelperInstallDetails());
+    } catch {
+      setError('Lumora could not inspect the remote helper installation.');
+    }
+  };
 
   const connect = async () => {
     if (!trusted || busy) return;
@@ -88,6 +101,14 @@ export function RemoteTargetWindow({
       });
       setDetails(connectedDetails);
       setSecret('');
+      if (
+        connectedDetails.target.connectionState === 'helper-missing' ||
+        connectedDetails.target.connectionState === 'helper-incompatible'
+      ) {
+        await loadHelperInstall();
+      } else {
+        setHelperInstall(null);
+      }
     } catch {
       setError('Lumora could not connect. Check the SSH credentials and try again.');
     } finally {
@@ -102,8 +123,30 @@ export function RemoteTargetWindow({
     try {
       setSummary(await api.disconnectRemoteTarget(executionTargetId));
       setDetails(null);
+      setHelperInstall(null);
+      setShowHelperInstall(false);
     } catch {
       setError('Lumora could not disconnect this remote computer cleanly.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const installHelper = async () => {
+    if (busy || helperInstall === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const connectedDetails = await api.installRemoteHelper();
+      setSummary({
+        target: connectedDetails.target,
+        profile: connectedDetails.profile
+      });
+      setDetails(connectedDetails);
+      setHelperInstall(null);
+      setShowHelperInstall(false);
+    } catch {
+      setError('Lumora could not install or start the remote helper.');
     } finally {
       setBusy(false);
     }
@@ -137,7 +180,7 @@ export function RemoteTargetWindow({
         )}
         {error !== null && <p className="inline-notice error">{error}</p>}
 
-        {!connected && authentication.method === 'password' && (
+        {!connected && !helperPending && authentication.method === 'password' && (
           <label className="remote-secret-field">
             <span>SSH password</span>
             <input
@@ -148,7 +191,7 @@ export function RemoteTargetWindow({
             />
           </label>
         )}
-        {!connected && authentication.method === 'private-key' && (
+        {!connected && !helperPending && authentication.method === 'private-key' && (
           <label className="remote-secret-field">
             <span>Private-key passphrase (optional)</span>
             <input
@@ -165,6 +208,19 @@ export function RemoteTargetWindow({
             <button className="secondary-button" disabled={busy} onClick={() => void disconnect()}>
               {busy ? 'Disconnecting…' : 'Disconnect'}
             </button>
+          ) : helperPending ? (
+            <>
+              <button className="secondary-button" disabled={busy} onClick={() => void disconnect()}>
+                Disconnect
+              </button>
+              <button
+                className="refresh-button"
+                disabled={busy || helperInstall === null}
+                onClick={() => setShowHelperInstall(true)}
+              >
+                Install Lumora helper
+              </button>
+            </>
           ) : (
             <button
               className="refresh-button"
@@ -180,10 +236,62 @@ export function RemoteTargetWindow({
         </div>
 
         <footer className="remote-phase-note">
-          Provider discovery, sessions, and terminals remain unavailable until the
-          lightweight Lumora helper phase.
+          Remote helper activation is available. Provider discovery, sessions, and
+          terminals arrive in the next remote phase.
         </footer>
       </section>
+      {showHelperInstall && helperInstall !== null && (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-label="Install Lumora helper"
+            aria-modal="true"
+            className="new-session-dialog remote-helper-install-dialog"
+            role="dialog"
+          >
+            <header>
+              <div>
+                <p className="card-label">Remote helper</p>
+                <h2>Install Lumora helper</h2>
+              </div>
+              <button
+                aria-label="Close helper installation"
+                className="text-button"
+                disabled={busy}
+                onClick={() => setShowHelperInstall(false)}
+                type="button"
+              >Close</button>
+            </header>
+            <div className="dialog-body remote-helper-dialog-body">
+              <p>
+                Lumora will install its lightweight helper for your account on
+                <strong> {summary.target.displayName}</strong>. Administrator access is not required.
+              </p>
+              <dl className="remote-helper-install-facts">
+                <div><dt>Version</dt><dd>{helperInstall.helperVersion}</dd></div>
+                <div><dt>Location</dt><dd>{helperInstall.installLocation}</dd></div>
+              </dl>
+              {helperInstall.status === 'invalid' && (
+                <p className="inline-notice warning">
+                  The existing helper is invalid and will be replaced only after
+                  the new copy has been verified.
+                </p>
+              )}
+            </div>
+            <footer className="modal-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setShowHelperInstall(false)}
+              >Cancel</button>
+              <button
+                className="refresh-button"
+                disabled={busy}
+                onClick={() => void installHelper()}
+              >{busy ? 'Installing…' : 'Install helper'}</button>
+            </footer>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

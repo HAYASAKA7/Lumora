@@ -4597,6 +4597,42 @@ button {
   width: min(620px, 100%);
 }
 
+.remote-helper-install-dialog {
+  width: min(620px, 100%);
+}
+
+.remote-helper-dialog-body > p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.remote-helper-install-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.remote-helper-install-facts > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.remote-helper-install-facts dt {
+  color: var(--text-soft);
+}
+
+.remote-helper-install-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
 .remote-profile-fields {
   display: grid;
   gap: 14px;
