@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   REMOTE_HELPER_PROTOCOL_VERSION,
+  RemoteHelperDiscoveryResponseSchema,
   RemoteHelperHandshakeResponseSchema,
   RemoteHelperRequestSchema,
   RemoteHelperResponseSchema
@@ -17,6 +18,48 @@ const request = {
 } as const;
 
 describe('remote helper protocol contracts', () => {
+  it('accepts a bounded discovery scan and its normalized result', () => {
+    const discoveryRequest = {
+      ...request,
+      operation: 'discovery-scan',
+      payload: { enabledProviders: ['codex', 'opencode'] }
+    } as const;
+    expect(RemoteHelperRequestSchema.parse(discoveryRequest)).toEqual(
+      discoveryRequest
+    );
+    expect(RemoteHelperRequestSchema.safeParse({
+      ...discoveryRequest,
+      payload: { enabledProviders: ['codex', 'codex'] }
+    }).success).toBe(false);
+    expect(RemoteHelperRequestSchema.safeParse({
+      ...discoveryRequest,
+      payload: { enabledProviders: ['unknown'] }
+    }).success).toBe(false);
+
+    const response = {
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 4,
+      requestId: 'request-4',
+      operation: 'discovery-scan',
+      ok: true,
+      result: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: {
+          state: 'ready', executablePath: '/usr/bin/node', version: 'v24.0.0'
+        },
+        npm: {
+          state: 'not_found', executablePath: null, version: null
+        },
+        providers: [{
+          provider: 'codex', state: 'probe_failed',
+          executablePath: '/usr/bin/codex', version: null
+        }]
+      }
+    } as const;
+    expect(RemoteHelperDiscoveryResponseSchema.parse(response)).toEqual(response);
+  });
+
   it('accepts strict named requests and rejects unknown operations or payload fields', () => {
     expect(RemoteHelperRequestSchema.parse(request)).toEqual(request);
     expect(RemoteHelperRequestSchema.safeParse({

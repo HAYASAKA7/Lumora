@@ -63,7 +63,7 @@ const artifacts = targets.map((target) => {
     relativePath: `artifacts/${target.directory}/${target.executable}`,
     size: stats.size,
     sha256: digest(output),
-    capabilities: ['system-info']
+    capabilities: ['system-info', 'provider-scan']
   };
 });
 

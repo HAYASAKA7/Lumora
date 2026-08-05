@@ -2,9 +2,11 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
+	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
 	"github.com/HAYASAKA7/lumora/helper/internal/systeminfo"
 )
 
@@ -16,6 +18,65 @@ func request(operation string) protocol.Request {
 		RequestID:       "request-9",
 		Operation:       operation,
 		Payload:         map[string]any{},
+	}
+}
+
+func TestServeDiscoveryScanValidatesProvidersBeforeScanning(t *testing.T) {
+	discovery := request("discovery-scan")
+	discovery.Payload = map[string]any{
+		"enabledProviders": []any{"codex", "opencode"},
+	}
+	var input bytes.Buffer
+	if err := protocol.WriteFrame(&input, discovery); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	calls := 0
+	if err := Serve(&input, &output, Dependencies{
+		HelperVersion: "0.2.0",
+		Discover: func(_ context.Context, providers []string) providerprobe.Result {
+			calls++
+			if len(providers) != 2 || providers[0] != "codex" || providers[1] != "opencode" {
+				t.Fatalf("unexpected providers: %#v", providers)
+			}
+			return providerprobe.Result{
+				CheckedAt: "2026-08-05T04:03:02Z",
+				Node:      providerprobe.ToolResult{State: "not_found"},
+				NPM:       providerprobe.ToolResult{State: "not_found"},
+				Providers: []providerprobe.ProviderResult{},
+			}
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var response protocol.Response
+	if err := protocol.ReadFrame(&output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || response.Operation != "discovery-scan" || calls != 1 {
+		t.Fatalf("unexpected discovery response: %#v calls=%d", response, calls)
+	}
+
+	invalid := request("discovery-scan")
+	invalid.Payload = map[string]any{"enabledProviders": []any{"codex", "codex"}}
+	input.Reset()
+	output.Reset()
+	if err := protocol.WriteFrame(&input, invalid); err != nil {
+		t.Fatal(err)
+	}
+	if err := Serve(&input, &output, Dependencies{
+		Discover: func(context.Context, []string) providerprobe.Result {
+			calls++
+			return providerprobe.Result{}
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := protocol.ReadFrame(&output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
+		t.Fatalf("invalid discovery was not rejected: %#v calls=%d", response, calls)
 	}
 }
 
