@@ -88,14 +88,18 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
 
   return {
     open,
+    close(input: RemoteExecutionTargetId): void {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const window = windows.get(id);
+      if (window === undefined) return;
+      windows.delete(id);
+      const senderId = senderIds.get(window);
+      if (senderId !== undefined) contexts.unregister(senderId);
+      senderIds.delete(window);
+      if (!window.isDestroyed()) window.close();
+    },
     closeAll(): void {
-      for (const window of windows.values()) {
-        const senderId = senderIds.get(window);
-        if (senderId !== undefined) contexts.unregister(senderId);
-        senderIds.delete(window);
-        if (!window.isDestroyed()) window.close();
-      }
-      windows.clear();
+      for (const id of [...windows.keys()]) this.close(id);
     }
   };
 }

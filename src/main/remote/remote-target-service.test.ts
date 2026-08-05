@@ -159,6 +159,35 @@ describe('remote target service', () => {
     expect(JSON.stringify(service.list())).not.toContain('password":"');
   });
 
+  it('disconnects active resources and resets state when a profile is edited', async () => {
+    const harness = createHarness();
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    expect(harness.service.update(TARGET_ID, {
+      displayName: 'Renamed build server',
+      route: 'direct',
+      host: 'build.internal',
+      port: 2222,
+      username: 'builder',
+      authentication: { method: 'password' }
+    })).toMatchObject({ target: { connectionState: 'offline' } });
+
+    expect(harness.helper.close).toHaveBeenCalledOnce();
+    expect(harness.files.close).toHaveBeenCalledOnce();
+    expect(harness.connected.close).toHaveBeenCalledOnce();
+    expect(harness.profiles.save).toHaveBeenCalledWith(
+      TARGET_ID,
+      expect.objectContaining({ displayName: 'Renamed build server', port: 2222 }),
+      new Date('2026-08-04T08:00:00.000Z')
+    );
+    expect(harness.targets.updateRemoteConnection).toHaveBeenLastCalledWith(
+      TARGET_ID,
+      { connectionState: 'offline' }
+    );
+  });
+
   it('connects through the verified profile, probes the platform, and persists safe state', async () => {
     const { service, targets, ssh, probePlatform } = createHarness();
     const credentials: RemoteTargetCredentials = {

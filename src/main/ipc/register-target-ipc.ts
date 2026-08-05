@@ -39,6 +39,7 @@ interface RegisterTargetIpcDependencies {
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
     'scanDiscovery'>;
+  beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
 
@@ -87,6 +88,7 @@ export function registerTargetIpc({
   ipc,
   authorize,
   service,
+  beforeProfileMutation,
   openTargetWindow
 }: RegisterTargetIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.targetWindowContextGet, async (event) =>
@@ -113,8 +115,9 @@ export function registerTargetIpc({
   ipc.handle(IPC_CHANNELS.remoteTargetUpdate, async (event, input) => {
     const context = authorize(event);
     requireLocal(context);
-    return protectedOperation(() => {
+    return protectedOperation(async () => {
       const request = RemoteTargetUpdateRequestSchema.parse(input);
+      await beforeProfileMutation(request.executionTargetId);
       return RemoteTargetSummarySchema.parse(
         service.update(request.executionTargetId, request.profile)
       );
@@ -124,8 +127,9 @@ export function registerTargetIpc({
   ipc.handle(IPC_CHANNELS.remoteTargetRemove, async (event, input) => {
     const context = authorize(event);
     requireLocal(context);
-    return protectedOperation(() => {
+    return protectedOperation(async () => {
       const request = RemoteTargetIdRequestSchema.parse(input);
+      await beforeProfileMutation(request.executionTargetId);
       service.remove(request.executionTargetId);
       return RemoteTargetRemovalResultSchema.parse({ removed: true });
     });

@@ -330,6 +330,10 @@ export function createRemoteTargetService({
     ): RemoteTargetSummary {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const profile = RemoteConnectionProfileInputSchema.parse(profileInput);
+      const active = activeTargets.get(id);
+      activeTargets.delete(id);
+      disposeActive(active);
+      targets.updateRemoteConnection(id, { connectionState: 'offline' });
       profiles.save(id, profile, clock());
       return summary(id);
     },

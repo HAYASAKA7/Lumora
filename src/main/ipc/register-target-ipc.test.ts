@@ -91,6 +91,7 @@ function createHarness(context: LumoraWindowContext) {
     })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
+  const beforeProfileMutation = vi.fn().mockResolvedValue(undefined);
   registerTargetIpc({
     ipc: {
       handle(channel, handler) {
@@ -99,9 +100,10 @@ function createHarness(context: LumoraWindowContext) {
     },
     authorize: vi.fn(() => context),
     service,
+    beforeProfileMutation,
     openTargetWindow
   });
-  return { handlers, service, openTargetWindow };
+  return { handlers, service, beforeProfileMutation, openTargetWindow };
 }
 
 const event = { senderFrame: { url: 'app://lumora/index.html' }, sender: { id: 1 } };
@@ -142,6 +144,36 @@ describe('registerTargetIpc', () => {
     })).resolves.toEqual({ opened: true, executionTargetId: TARGET_ID });
     expect(service.create).toHaveBeenCalledOnce();
     expect(openTargetWindow).toHaveBeenCalledWith(TARGET_ID);
+  });
+
+  it('closes the target window before editing or removing a profile', async () => {
+    const { handlers, service, beforeProfileMutation } = createHarness({
+      mode: 'local', executionTargetId: 'local'
+    });
+    const edited = {
+      displayName: 'Renamed build server',
+      route: 'direct' as const,
+      host: 'build.internal',
+      port: 2222,
+      username: 'builder',
+      authentication: { method: 'password' as const }
+    };
+
+    await handlers.get(IPC_CHANNELS.remoteTargetUpdate)!(event, {
+      executionTargetId: TARGET_ID,
+      profile: edited
+    });
+    await handlers.get(IPC_CHANNELS.remoteTargetRemove)!(event, {
+      executionTargetId: TARGET_ID
+    });
+
+    expect(beforeProfileMutation).toHaveBeenCalledTimes(2);
+    expect(beforeProfileMutation).toHaveBeenNthCalledWith(1, TARGET_ID);
+    expect(beforeProfileMutation).toHaveBeenNthCalledWith(2, TARGET_ID);
+    expect(beforeProfileMutation.mock.invocationCallOrder[0]!)
+      .toBeLessThan(service.update.mock.invocationCallOrder[0]!);
+    expect(beforeProfileMutation.mock.invocationCallOrder[1]!)
+      .toBeLessThan(service.remove.mock.invocationCallOrder[0]!);
   });
 
   it('limits a remote window to reading and connecting its own target', async () => {

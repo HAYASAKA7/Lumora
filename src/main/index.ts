@@ -576,6 +576,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     ipc: ipcMain,
     authorize: authorizeTargetIpc,
     service: remoteTargetRuntime.service,
+    beforeProfileMutation: (executionTargetId) => {
+      targetWindowManager.close(executionTargetId);
+    },
     openTargetWindow: async (executionTargetId) => {
       if (remoteTargetRuntime === null) {
         throw new Error('Remote target storage is unavailable.');
