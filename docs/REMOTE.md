@@ -16,6 +16,11 @@ remote saved sessions, workspaces, or terminals.
 5. Open the isolated remote window and connect with the configured password,
    private key, or SSH agent method.
 
+Profiles can be edited or deleted from the local Remote page. Lumora closes the
+profile's isolated window and active SSH/helper resources before either
+mutation. Deletion requires an in-app confirmation and never removes files from
+the remote computer.
+
 Passwords and passphrases are connection-only values. Lumora does not save or
 log them.
 
@@ -52,6 +57,11 @@ Provider choices belong to the remote target and do not change local provider
 settings. At least one provider must remain enabled. Saving a provider selection
 starts a new scan, and **Refresh** repeats the scan without reconnecting.
 
+The isolated window follows Lumora's global Appearance settings, including the
+theme, managed background, opacity hierarchy, and surface mosaic. Appearance
+can only be changed in the local window; refocusing an isolated window refreshes
+its read-only presentation.
+
 Discovery is read-only. Lumora does not install, update, or repair Node.js, npm,
 or agent CLIs on the remote computer. Perform those operations on the remote
 computer, then refresh the isolated page. The helper uses a fixed command
@@ -72,6 +82,8 @@ tokens, or provider session contents.
 ## Manual test checklist
 
 - Add direct and SSH-config profiles without storing a secret.
+- Edit and delete disconnected profiles; confirm open target windows and SSH
+  resources close before the profile changes.
 - Reject an untrusted or changed host fingerprint.
 - Connect each configured authentication method.
 - Confirm that Cancel performs no installation.
@@ -85,6 +97,8 @@ tokens, or provider session contents.
 - Disconnect from missing, incompatible, and ready states.
 - Test local/remote OS combinations independently where machines are available.
 - Close Lumora and confirm the SSH channel and helper process stop cleanly.
+- Change global Appearance settings, refocus the isolated window, and confirm
+  its theme and surfaces update without exposing appearance controls remotely.
 
 See [Troubleshooting](TROUBLESHOOTING.md#remote-computers) when a target cannot
 reach the ready state.

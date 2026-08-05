@@ -85,6 +85,12 @@ SQLite. A remote target opens in its own BrowserWindow with an immutable target
 context. Remote-window IPC may read, connect, disconnect, inspect helper state,
 or confirm helper installation only for that bound target. It cannot enumerate
 or mutate other targets, and helper IPC accepts no renderer-provided target ID.
+Profile edits and deletion first close the bound window and dispose active SSH,
+helper, and file-transfer resources.
+
+Remote windows receive a narrow read-only projection of the global appearance
+settings and managed-background state. Appearance selection and file mutations
+remain local-window-only IPC operations.
 
 The SSH connection verifies a stored SHA-256 host fingerprint before sending
 credentials. Passwords and private-key passphrases remain memory-only. After
@@ -101,8 +107,9 @@ replacement upload has passed verification and the user confirmed replacement.
 
 The helper uses length-prefixed, schema-validated frames with bounded payloads,
 timeouts, generation-bound request IDs, and an initial compatibility handshake.
-The current capability is limited to system information; provider discovery,
-session operations, and PTY streaming remain later remote phases.
+The current capabilities are limited to system information and allowlisted
+provider discovery; session operations and PTY streaming remain later remote
+phases.
 
 ## Provider model
 

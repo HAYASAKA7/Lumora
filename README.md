@@ -193,10 +193,11 @@ architecture, verifies its digest, activates it atomically, and completes a
 bounded protocol handshake. Installation does not require administrator or
 root access.
 
-This phase establishes secure remote connection and helper activation only.
-Remote provider discovery, session catalogs, and terminal execution are not
-yet available. See [Remote computers](docs/REMOTE.md) for the current boundary
-and test guidance.
+The isolated window also checks remote Node.js, npm, and the providers enabled
+for that target. It follows the global Lumora appearance settings while keeping
+target data and provider choices isolated. Remote session catalogs and terminal
+execution are not yet available. See [Remote computers](docs/REMOTE.md) for
+the current boundary and test guidance.
 
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and

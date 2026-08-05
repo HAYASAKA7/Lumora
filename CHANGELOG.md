@@ -20,6 +20,18 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
 
+### Changed
+
+- Make isolated remote windows use Lumora's global theme, managed background,
+  opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
+
+### Fixed
+
+- Allow remote connection profiles to be edited and deleted with validated,
+  in-app confirmation workflows and user-safe failure messages.
+- Close a target's isolated window and dispose its active SSH/helper resources
+  before changing or deleting that profile, preventing stale target state.
+
 ### Security
 
 - Scope remote-helper inspection and installation to the immutable target of
@@ -30,6 +42,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep remote discovery read-only and allowlisted with bounded probes. Remote
   environment variables, credentials, tokens, and provider session contents
   are not returned to the renderer.
+- Expose only a read-only appearance projection to isolated remote windows;
+  appearance mutations remain restricted to the local Lumora window.
 
 ## [0.2.3] - 2026-08-03
 
