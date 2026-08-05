@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { ExecutionTargetRepository } from '../storage/execution-target-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { RemoteConnectionProfileRepository } from '../storage/remote-connection-profile-repository';
+import { RemoteProviderPreferenceRepository } from '../storage/remote-provider-preference-repository';
 import type { RemotePlatformFacts } from './platform-probe';
 import { resolveRemoteHelperArtifact } from './helper-artifact-resolver';
 import type { ConnectedRemoteSshClient } from './ssh-client';
@@ -46,9 +47,11 @@ export function createRemoteTargetRuntime({
   const targets = new ExecutionTargetRepository(database);
   targets.resetRemoteConnectionStates();
   const profiles = new RemoteConnectionProfileRepository(database);
+  const providerPreferences = new RemoteProviderPreferenceRepository(database);
   const service = createRemoteTargetService({
     targets,
     profiles,
+    providerPreferences,
     ...(clock === undefined ? {} : { clock }),
     ...(createTargetId === undefined ? {} : { createTargetId }),
     ...(ssh === undefined ? {} : { ssh }),

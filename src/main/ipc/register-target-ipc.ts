@@ -5,6 +5,8 @@ import {
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteDiscoverySnapshotSchema,
+  RemoteProviderPreferencesSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetIdRequestSchema,
@@ -35,7 +37,8 @@ interface RegisterTargetIpcDependencies {
   service: Pick<RemoteTargetService,
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
-    'installHelper'>;
+    'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
+    'scanDiscovery'>;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
 
@@ -185,6 +188,33 @@ export function registerTargetIpc({
     const context = authorize(event);
     return protectedOperation(async () => RemoteTargetConnectionDetailsSchema.parse(
       await service.installHelper(requireRemote(context))
+    ));
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteProviderPreferencesGet, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(() => RemoteProviderPreferencesSchema.parse(
+      service.getProviderPreferences(requireRemote(context))
+    ));
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.remoteProviderPreferencesSave,
+    async (event, input) => {
+      const context = authorize(event);
+      return protectedOperation(() => RemoteProviderPreferencesSchema.parse(
+        service.saveProviderPreferences(
+          requireRemote(context),
+          RemoteProviderPreferencesSchema.parse(input)
+        )
+      ));
+    }
+  );
+
+  ipc.handle(IPC_CHANNELS.remoteDiscoveryScan, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(async () => RemoteDiscoverySnapshotSchema.parse(
+      await service.scanDiscovery(requireRemote(context))
     ));
   });
 

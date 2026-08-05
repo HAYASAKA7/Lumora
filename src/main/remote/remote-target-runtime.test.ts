@@ -10,14 +10,15 @@ describe('createRemoteTargetRuntime', () => {
       createTargetId: () => '3dfeaa39-7779-45c8-995c-f13b4a2f47bc'
     });
 
-    expect(runtime.service.create({
+    const created = runtime.service.create({
       displayName: 'Mac build host',
       route: 'direct',
       host: 'mac-build.internal',
       port: 22,
       username: 'builder',
       authentication: { method: 'agent' }
-    })).toMatchObject({
+    });
+    expect(created).toMatchObject({
       target: {
         id: '3dfeaa39-7779-45c8-995c-f13b4a2f47bc',
         connectionState: 'offline'
@@ -26,6 +27,12 @@ describe('createRemoteTargetRuntime', () => {
         host: 'mac-build.internal',
         authentication: { method: 'agent' }
       }
+    });
+    expect(runtime.service.saveProviderPreferences(created.target.id, {
+      enabledProviders: ['codex']
+    })).toEqual({ enabledProviders: ['codex'] });
+    expect(runtime.service.getProviderPreferences(created.target.id)).toEqual({
+      enabledProviders: ['codex']
     });
     expect(runtime.service.list()).toHaveLength(1);
     expect(runtime.close).not.toThrow();

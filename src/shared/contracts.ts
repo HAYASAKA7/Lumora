@@ -860,7 +860,7 @@ export type KeyboardShortcutChord = z.infer<
   typeof KeyboardShortcutChordSchema
 >;
 
-const EnabledProviderIdsSchema = z
+export const EnabledProviderIdsSchema = z
   .array(ProviderIdSchema)
   .min(1)
   .max(PROVIDER_IDS.length)
@@ -936,6 +936,24 @@ export const GeneralSettingsSchema = z.strictObject({
   enabledProviders: EnabledProviderIdsSchema,
   appearance: AppearanceSettingsSchema
 });
+
+export const RemoteProviderPreferencesSchema = z.strictObject({
+  enabledProviders: EnabledProviderIdsSchema
+});
+
+export const RemoteDiscoverySnapshotSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  scannedAt: z.iso.datetime(),
+  environment: DeveloperEnvironmentScanResultSchema,
+  providers: ProviderScanResultSchema
+});
+
+export type RemoteProviderPreferences = z.infer<
+  typeof RemoteProviderPreferencesSchema
+>;
+export type RemoteDiscoverySnapshot = z.infer<
+  typeof RemoteDiscoverySnapshotSchema
+>;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
@@ -1424,6 +1442,9 @@ export const IPC_CHANNELS = {
   remoteTargetDisconnect: 'lumora:targets:disconnect',
   remoteTargetHelperDetails: 'lumora:targets:helper:details',
   remoteTargetHelperInstall: 'lumora:targets:helper:install',
+  remoteProviderPreferencesGet: 'lumora:targets:providers:get',
+  remoteProviderPreferencesSave: 'lumora:targets:providers:save',
+  remoteDiscoveryScan: 'lumora:targets:discovery:scan',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1503,6 +1524,11 @@ export interface LumoraApi {
   ): Promise<RemoteTargetSummary>;
   getRemoteHelperInstallDetails(): Promise<RemoteHelperInstallDetails>;
   installRemoteHelper(): Promise<RemoteTargetConnectionDetails>;
+  getRemoteProviderPreferences(): Promise<RemoteProviderPreferences>;
+  saveRemoteProviderPreferences(
+    preferences: RemoteProviderPreferences
+  ): Promise<RemoteProviderPreferences>;
+  scanRemoteDiscovery(): Promise<RemoteDiscoverySnapshot>;
   openRemoteTargetWindow(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<void>;

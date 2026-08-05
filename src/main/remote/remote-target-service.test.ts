@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type {
   ExecutionTarget,
+  ProviderId,
   RemoteConnectionProfile,
   RemoteTargetCredentials
 } from '../../shared/contracts';
@@ -105,9 +106,27 @@ function createHarness() {
       architecture: 'arm64' as const,
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash',
-      capabilities: ['system-info' as const]
+      capabilities: ['system-info' as const, 'provider-scan' as const]
     },
+    scanDiscovery: vi.fn().mockResolvedValue({
+      checkedAt: '2026-08-05T04:03:02.000Z',
+      node: {
+        state: 'ready', executablePath: '/usr/bin/node', version: 'v24.0.0'
+      },
+      npm: { state: 'not_found', executablePath: null, version: null },
+      providers: [{
+        provider: 'codex', state: 'ready',
+        executablePath: '/usr/bin/codex', version: 'codex 1.2.3'
+      }, {
+        provider: 'opencode', state: 'not_found',
+        executablePath: null, version: null
+      }]
+    }),
     close: vi.fn()
+  };
+  const providerPreferences = {
+    get: vi.fn(() => ['codex', 'opencode'] as const),
+    save: vi.fn((_id, providers: readonly ProviderId[]) => [...providers])
   };
   const connectHelper = vi.fn().mockResolvedValue(helper);
   const clock = vi.fn(() => new Date('2026-08-04T08:00:00.000Z'));
@@ -121,13 +140,14 @@ function createHarness() {
     inspectHelper,
     installHelper,
     connectHelper,
+    providerPreferences,
     clock,
     createTargetId: () => TARGET_ID
   });
   return {
     service, targets, profiles, ssh, connected, probePlatform,
     artifact, paths, files, resolveHelperArtifact, inspectHelper,
-    installHelper, connectHelper, helper
+    installHelper, connectHelper, helper, providerPreferences
   };
 }
 
@@ -177,7 +197,7 @@ describe('remote target service', () => {
           architecture: 'arm64',
           helperVersion: '0.1.0',
           protocolVersion: 1,
-          capabilities: [],
+          capabilities: ['provider-scan'],
           lastConnectedAt: '2026-08-04T08:00:00.000Z'
         }
       ]);
@@ -185,6 +205,57 @@ describe('remote target service', () => {
     expect(probePlatform).toHaveBeenCalledWith(expect.any(Function));
     expect(JSON.stringify(targets.updateRemoteConnection.mock.calls))
       .not.toContain('memory-only');
+  });
+
+  it('scans only target-enabled providers and normalizes helper results', async () => {
+    const harness = createHarness();
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    await expect(harness.service.scanDiscovery(TARGET_ID)).resolves.toEqual({
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-05T04:03:02.000Z',
+      environment: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: {
+          state: 'ready', executablePath: '/usr/bin/node', version: 'v24.0.0'
+        },
+        npm: { state: 'not_found', executablePath: null, version: null }
+      },
+      providers: {
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        providers: [
+          {
+            provider: 'codex', displayName: 'Codex', state: 'ready',
+            executablePath: '/usr/bin/codex', version: 'codex 1.2.3', issue: null
+          },
+          {
+            provider: 'opencode', displayName: 'OpenCode', state: 'not_found',
+            executablePath: null, version: null,
+            issue: {
+              code: 'PROVIDER_NOT_FOUND',
+              message: 'OpenCode was not found on PATH.',
+              recovery: 'Install OpenCode on the remote computer, then refresh.',
+              retryable: true
+            }
+          }
+        ]
+      }
+    });
+    expect(harness.helper.scanDiscovery).toHaveBeenCalledWith([
+      'codex', 'opencode'
+    ]);
+    expect(harness.targets.updateRemoteConnection).toHaveBeenLastCalledWith(
+      TARGET_ID,
+      { lastScannedAt: '2026-08-05T04:03:02.000Z' }
+    );
+    expect(harness.service.getProviderPreferences(TARGET_ID)).toEqual({
+      enabledProviders: ['codex', 'opencode']
+    });
+    expect(harness.service.saveProviderPreferences(TARGET_ID, {
+      enabledProviders: ['opencode']
+    })).toEqual({ enabledProviders: ['opencode'] });
   });
 
   it('keeps authenticated SSH available when the helper is missing', async () => {

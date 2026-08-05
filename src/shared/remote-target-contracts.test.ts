@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   RemoteHostKeyObservationSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteDiscoverySnapshotSchema,
+  RemoteProviderPreferencesSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetListSchema,
   RemoteTargetSummarySchema
@@ -79,5 +81,38 @@ describe('remote target API contracts', () => {
       requiresConfirmation: true,
       command: 'hidden-command'
     })).toThrow();
+  });
+
+  it('validates target-scoped provider preferences and discovery snapshots', () => {
+    expect(RemoteProviderPreferencesSchema.parse({
+      enabledProviders: ['opencode', 'codex']
+    })).toEqual({ enabledProviders: ['codex', 'opencode'] });
+    expect(RemoteProviderPreferencesSchema.safeParse({
+      enabledProviders: []
+    }).success).toBe(false);
+
+    const snapshot = {
+      executionTargetId: target.id,
+      scannedAt: '2026-08-05T04:03:02.000Z',
+      environment: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: {
+          state: 'ready', executablePath: '/usr/bin/node', version: 'v24'
+        },
+        npm: { state: 'not_found', executablePath: null, version: null }
+      },
+      providers: {
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        providers: [{
+          provider: 'codex', displayName: 'Codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: 'codex 1.2.3', issue: null
+        }]
+      }
+    } as const;
+    expect(RemoteDiscoverySnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(RemoteDiscoverySnapshotSchema.safeParse({
+      ...snapshot,
+      environmentVariables: { PATH: '/private' }
+    }).success).toBe(false);
   });
 });

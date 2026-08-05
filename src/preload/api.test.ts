@@ -32,6 +32,42 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
+  it('uses target-derived remote discovery and provider-preference channels', async () => {
+    const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
+    const snapshot = {
+      executionTargetId: '05f4e306-4af2-4c73-9e0d-706084623645',
+      scannedAt: '2026-08-05T04:03:02.000Z',
+      environment: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: { state: 'not_found', executablePath: null, version: null },
+        npm: { state: 'not_found', executablePath: null, version: null }
+      },
+      providers: { scannedAt: '2026-08-05T04:03:02.000Z', providers: [] }
+    } as const;
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      if (channel === IPC_CHANNELS.remoteDiscoveryScan) return snapshot;
+      if (channel === IPC_CHANNELS.remoteProviderPreferencesSave) return args[0];
+      return { enabledProviders: ['codex'] };
+    });
+
+    await expect(api.getRemoteProviderPreferences()).resolves.toEqual({
+      enabledProviders: ['codex']
+    });
+    await expect(api.saveRemoteProviderPreferences({
+      enabledProviders: ['opencode', 'codex']
+    })).resolves.toEqual({ enabledProviders: ['codex', 'opencode'] });
+    await expect(api.scanRemoteDiscovery()).resolves.toEqual(snapshot);
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.remoteProviderPreferencesGet, args: [] },
+      {
+        channel: IPC_CHANNELS.remoteProviderPreferencesSave,
+        args: [{ enabledProviders: ['codex', 'opencode'] }]
+      },
+      { channel: IPC_CHANNELS.remoteDiscoveryScan, args: [] }
+    ]);
+  });
+
   it('invokes only the system-info channel for system details', async () => {
     const invokedChannels: string[] = [];
     const api = createLumoraApi(async (channel) => {

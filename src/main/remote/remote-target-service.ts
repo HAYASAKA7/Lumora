@@ -2,14 +2,18 @@ import { randomUUID } from 'node:crypto';
 
 import {
   RemoteConnectionProfileInputSchema,
+  RemoteDiscoverySnapshotSchema,
   RemoteExecutionTargetIdSchema,
+  RemoteProviderPreferencesSchema,
   RemoteTargetCredentialsSchema,
+  PROVIDER_IDS,
   type ExecutionTarget,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
   type RemoteExecutionTargetId,
   type RemoteTargetCredentials
 } from '../../shared/contracts';
+import { providerDefinition } from '../../shared/provider-definitions';
 import type { RemotePlatformFacts } from './platform-probe';
 import { probeRemotePlatform } from './platform-probe';
 import {
@@ -74,6 +78,15 @@ interface SshService {
   ): Promise<ConnectedRemoteSshClient>;
 }
 
+interface ProviderPreferenceRepository {
+  get(id: RemoteExecutionTargetId): readonly (typeof PROVIDER_IDS)[number][];
+  save(
+    id: RemoteExecutionTargetId,
+    providers: readonly (typeof PROVIDER_IDS)[number][],
+    now?: Date
+  ): readonly (typeof PROVIDER_IDS)[number][];
+}
+
 export interface RemoteTargetSummary {
   target: RemoteTarget;
   profile: RemoteConnectionProfile;
@@ -98,6 +111,7 @@ interface CreateRemoteTargetServiceOptions {
   inspectHelper?: typeof inspectRemoteHelper;
   installHelper?: typeof installRemoteHelper;
   connectHelper?: typeof connectRemoteHelper;
+  providerPreferences?: ProviderPreferenceRepository;
   clock?: () => Date;
   createTargetId?: () => string;
 }
@@ -148,6 +162,10 @@ export function createRemoteTargetService({
   inspectHelper = inspectRemoteHelper,
   installHelper: performHelperInstall = installRemoteHelper,
   connectHelper = connectRemoteHelper,
+  providerPreferences = {
+    get: () => [...PROVIDER_IDS],
+    save: (_id, providers) => [...providers]
+  },
   clock = () => new Date(),
   createTargetId = () => randomUUID()
 }: CreateRemoteTargetServiceOptions) {
@@ -217,6 +235,68 @@ export function createRemoteTargetService({
       lastConnectedAt: clock().toISOString()
     });
     return connectionDetails(id, active.facts);
+  };
+
+  const normalizeDiscovery = (
+    id: RemoteExecutionTargetId,
+    result: Awaited<ReturnType<ConnectedRemoteHelper['scanDiscovery']>>,
+    enabledProviders: readonly (typeof PROVIDER_IDS)[number][]
+  ) => {
+    if (
+      result.providers.length !== enabledProviders.length ||
+      result.providers.some(
+        ({ provider }, index) => provider !== enabledProviders[index]
+      )
+    ) throw new RemoteTargetServiceError();
+
+    const providers = result.providers.map((probe) => {
+      const definition = providerDefinition(probe.provider);
+      if (probe.state === 'ready') {
+        return {
+          ...probe,
+          displayName: definition.displayName,
+          issue: null
+        } as const;
+      }
+      if (probe.state === 'not_found') {
+        return {
+          ...probe,
+          displayName: definition.displayName,
+          issue: {
+            code: 'PROVIDER_NOT_FOUND' as const,
+            message: `${definition.displayName} was not found on PATH.`,
+            recovery:
+              `Install ${definition.displayName} on the remote computer, then refresh.`,
+            retryable: true
+          }
+        } as const;
+      }
+      return {
+        ...probe,
+        displayName: definition.displayName,
+        issue: {
+          code: 'PROVIDER_VERSION_PROBE_FAILED' as const,
+          message:
+            `Lumora found ${definition.displayName} but could not read its version.`,
+          recovery:
+            `Check ${definition.displayName} on the remote computer, then refresh.`,
+          retryable: true
+        }
+      } as const;
+    });
+    return RemoteDiscoverySnapshotSchema.parse({
+      executionTargetId: id,
+      scannedAt: result.checkedAt,
+      environment: {
+        checkedAt: result.checkedAt,
+        node: result.node,
+        npm: result.npm
+      },
+      providers: {
+        scannedAt: result.checkedAt,
+        providers
+      }
+    });
   };
 
   return {
@@ -388,6 +468,56 @@ export function createRemoteTargetService({
         targets.updateRemoteConnection(id, {
           connectionState: 'helper-incompatible'
         });
+        throw new RemoteTargetServiceError();
+      }
+    },
+
+    getProviderPreferences(input: RemoteExecutionTargetId) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      summary(id);
+      return RemoteProviderPreferencesSchema.parse({
+        enabledProviders: providerPreferences.get(id)
+      });
+    },
+
+    saveProviderPreferences(
+      input: RemoteExecutionTargetId,
+      preferencesInput: unknown
+    ) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      summary(id);
+      const preferences = RemoteProviderPreferencesSchema.parse(
+        preferencesInput
+      );
+      return RemoteProviderPreferencesSchema.parse({
+        enabledProviders: providerPreferences.save(
+          id,
+          preferences.enabledProviders,
+          clock()
+        )
+      });
+    },
+
+    async scanDiscovery(input: RemoteExecutionTargetId) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      if (
+        active?.helper === null || active === undefined ||
+        !active.helper.info.capabilities.includes('provider-scan')
+      ) throw new RemoteTargetServiceError();
+      const enabledProviders = providerPreferences.get(id);
+      try {
+        const result = normalizeDiscovery(
+          id,
+          await active.helper.scanDiscovery(enabledProviders),
+          enabledProviders
+        );
+        targets.updateRemoteConnection(id, {
+          lastScannedAt: result.scannedAt
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof RemoteTargetServiceError) throw error;
         throw new RemoteTargetServiceError();
       }
     },

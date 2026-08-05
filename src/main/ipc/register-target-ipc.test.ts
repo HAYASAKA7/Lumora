@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   IPC_CHANNELS,
+  type ProviderId,
   type LumoraWindowContext,
   type RemoteTargetSummary
 } from '../../shared/contracts';
@@ -71,6 +72,22 @@ function createHarness(context: LumoraWindowContext) {
       target: { ...summary.target, connectionState: 'ready' },
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash'
+    }),
+    getProviderPreferences: vi.fn(() => ({
+      enabledProviders: ['codex'] as ProviderId[]
+    })),
+    saveProviderPreferences: vi.fn((_id, preferences) => preferences),
+    scanDiscovery: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-05T04:03:02.000Z',
+      environment: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: { state: 'not_found', executablePath: null, version: null },
+        npm: { state: 'not_found', executablePath: null, version: null }
+      },
+      providers: {
+        scannedAt: '2026-08-05T04:03:02.000Z', providers: []
+      }
     })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
@@ -107,6 +124,9 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteTargetDisconnect,
       IPC_CHANNELS.remoteTargetHelperDetails,
       IPC_CHANNELS.remoteTargetHelperInstall,
+      IPC_CHANNELS.remoteProviderPreferencesGet,
+      IPC_CHANNELS.remoteProviderPreferencesSave,
+      IPC_CHANNELS.remoteDiscoveryScan,
       IPC_CHANNELS.remoteTargetWindowOpen
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
@@ -147,9 +167,23 @@ describe('registerTargetIpc', () => {
       .resolves.toMatchObject({ status: 'missing' });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperInstall)!(event))
       .resolves.toMatchObject({ target: { connectionState: 'ready' } });
+    await expect(handlers.get(IPC_CHANNELS.remoteProviderPreferencesGet)!(event))
+      .resolves.toEqual({ enabledProviders: ['codex'] });
+    await expect(handlers.get(IPC_CHANNELS.remoteProviderPreferencesSave)!(
+      event,
+      { enabledProviders: ['opencode', 'codex'] }
+    )).resolves.toEqual({ enabledProviders: ['codex', 'opencode'] });
+    await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
+      .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     expect(service.connect).toHaveBeenCalledOnce();
     expect(service.getHelperInstallDetails).toHaveBeenCalledWith(TARGET_ID);
     expect(service.installHelper).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.getProviderPreferences).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.saveProviderPreferences).toHaveBeenCalledWith(
+      TARGET_ID,
+      { enabledProviders: ['codex', 'opencode'] }
+    );
+    expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
     expect(service.remove).not.toHaveBeenCalled();
   });
 
@@ -160,6 +194,10 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperDetails)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetHelperInstall)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteProviderPreferencesGet)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();
