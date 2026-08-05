@@ -125,14 +125,20 @@ function ProviderCard({
           <h3>{provider.displayName}</h3>
         </div>
         <label className="remote-provider-toggle">
-          <input
-            aria-label={`Enable ${provider.displayName}`}
-            checked={enabled}
-            disabled={enabled && onlyEnabled}
-            onChange={(event) => onToggle(provider.provider, event.target.checked)}
-            type="checkbox"
-          />
           <span>{enabled ? 'Enabled' : 'Disabled'}</span>
+          <span className="settings-switch">
+            <input
+              aria-label={`Enable ${provider.displayName}`}
+              checked={enabled}
+              disabled={enabled && onlyEnabled}
+              onChange={(event) => onToggle(provider.provider, event.target.checked)}
+              role="switch"
+              type="checkbox"
+            />
+            <span aria-hidden="true" className="settings-switch-track">
+              <span className="settings-switch-thumb" />
+            </span>
+          </span>
         </label>
       </header>
       {!enabled || installation === null ? (

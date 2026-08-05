@@ -1,21 +1,59 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 
-import type { LumoraApi, LumoraWindowContext } from '../../shared/contracts';
+import type {
+  AppearancePresentation,
+  LumoraApi,
+  LumoraWindowContext
+} from '../../shared/contracts';
 import App from './App';
+import { buildAppearancePresentation } from './appearance/presentation';
 import { RemoteTargetWindow } from './remote/RemoteTargetWindow';
 
 export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
   const [context, setContext] = useState<LumoraWindowContext | null>(null);
+  const [appearance, setAppearance] = useState<AppearancePresentation | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     void api.getWindowContext().then(
-      (value) => { if (active) setContext(value); },
+      async (value) => {
+        if (!active) return;
+        setContext(value);
+        if (value.mode === 'remote') {
+          try {
+            const presentation = await api.getAppearancePresentation();
+            if (active) setAppearance(presentation);
+          } catch {
+            if (active) setFailed(true);
+          }
+        }
+      },
       () => { if (active) setFailed(true); }
     );
     return () => { active = false; };
   }, [api]);
+
+  const refreshRemoteAppearance = useCallback(() => {
+    if (context?.mode !== 'remote') return;
+    void api.getAppearancePresentation().then(
+      setAppearance,
+      () => undefined
+    );
+  }, [api, context]);
+
+  useEffect(() => {
+    if (context?.mode !== 'remote') return;
+    window.addEventListener('focus', refreshRemoteAppearance);
+    return () => window.removeEventListener('focus', refreshRemoteAppearance);
+  }, [context, refreshRemoteAppearance]);
+
+  useLayoutEffect(() => {
+    if (context?.mode !== 'remote' || appearance === null) return;
+    const theme = appearance.appearance.theme;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+  }, [appearance, context]);
 
   if (failed) {
     return (
@@ -35,12 +73,37 @@ export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
       </main>
     );
   }
-  return context.mode === 'local'
-    ? <App />
-    : (
+  if (context.mode === 'local') return <App />;
+  if (appearance === null) {
+    return (
+      <main className="window-bootstrap" aria-label="Opening Lumora">
+        <span className="window-bootstrap-indicator" />
+      </main>
+    );
+  }
+
+  const presentation = buildAppearancePresentation(
+    appearance.appearance,
+    appearance.background
+  );
+  return (
+    <div
+      className={`appearance-root remote-window-root${presentation.backgroundActive ? ' has-appearance-background' : ''}${presentation.hasSurfaceMosaic ? ' has-surface-mosaic' : ''}`}
+      data-testid="remote-appearance-root"
+      data-theme={appearance.appearance.theme}
+      style={presentation.shellStyle}
+    >
+      {presentation.backgroundStyle === undefined ? null : (
+        <div
+          aria-hidden="true"
+          className="appearance-background-layer"
+          style={presentation.backgroundStyle}
+        />
+      )}
         <RemoteTargetWindow
           api={api}
           executionTargetId={context.executionTargetId}
         />
-      );
+    </div>
+  );
 }

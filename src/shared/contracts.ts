@@ -1430,6 +1430,15 @@ export type AppearanceBackgroundState = z.infer<
   typeof AppearanceBackgroundStateSchema
 >;
 
+export const AppearancePresentationSchema = z.strictObject({
+  appearance: AppearanceSettingsSchema,
+  background: AppearanceBackgroundStateSchema
+});
+
+export type AppearancePresentation = z.infer<
+  typeof AppearancePresentationSchema
+>;
+
 export const IPC_CHANNELS = {
   targetWindowContextGet: 'lumora:targets:window-context:get',
   remoteTargetList: 'lumora:targets:list',
@@ -1462,6 +1471,7 @@ export const IPC_CHANNELS = {
   trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
+  appearancePresentationGet: 'lumora:appearance:presentation:get',
   appearanceBackgroundGet: 'lumora:appearance:background:get',
   appearanceBackgroundChoose: 'lumora:appearance:background:choose',
   appearanceBackgroundRemove: 'lumora:appearance:background:remove',
@@ -1532,6 +1542,7 @@ export interface LumoraApi {
   openRemoteTargetWindow(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<void>;
+  getAppearancePresentation(): Promise<AppearancePresentation>;
   getSystemInfo(): Promise<SystemInfo>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;

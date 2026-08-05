@@ -194,7 +194,9 @@ describe('RemoteTargetWindow', () => {
     expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable OpenCode' }));
+    const openCodeSwitch = screen.getByRole('switch', { name: 'Enable OpenCode' });
+    expect(openCodeSwitch.closest('.settings-switch')).not.toBeNull();
+    fireEvent.click(openCodeSwitch);
     fireEvent.click(screen.getByRole('button', { name: 'Save and scan' }));
 
     await waitFor(() => expect(api.saveRemoteProviderPreferences)

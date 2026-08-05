@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { IPC_CHANNELS } from '../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  IPC_CHANNELS,
+  type LumoraWindowContext
+} from '../../shared/contracts';
 import { registerAppearanceIpc } from './register-appearance-ipc';
 
 type Handler = (
   event: { senderFrame: { url: string } | null }
 ) => Promise<unknown> | unknown;
 
-function createHarness(cancelled = false) {
+function createHarness(
+  cancelled = false,
+  context: LumoraWindowContext = { mode: 'local', executionTargetId: 'local' }
+) {
   const handlers = new Map<string, Handler>();
   const service = {
     getState: vi.fn().mockResolvedValue({ available: false, revision: null }),
@@ -18,9 +25,14 @@ function createHarness(cancelled = false) {
     remove: vi.fn().mockResolvedValue({ available: false, revision: null })
   };
   registerAppearanceIpc({
-    authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
+    authorizeRead: () => context,
+    authorizeWrite: () => {
+      if (context.mode !== 'local') throw new Error('local only');
+      return context;
+    },
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     service,
+    getAppearanceSettings: () => DEFAULT_GENERAL_SETTINGS.appearance,
     showOpenDialog: vi.fn().mockResolvedValue(
       cancelled ? { canceled: true, filePaths: [] } : {
         canceled: false,
@@ -62,5 +74,22 @@ describe('registerAppearanceIpc', () => {
         senderFrame: { url: 'https://example.com' }
       })
     ).rejects.toMatchObject({ code: 'IPC_UNTRUSTED_SENDER' });
+  });
+
+  it('lets a trusted remote window read global presentation but not mutate it', async () => {
+    const { handlers } = createHarness(false, {
+      mode: 'remote',
+      executionTargetId: '5dd607fb-cd81-4a17-bb5f-0fba91ad631f'
+    });
+
+    await expect(
+      handlers.get(IPC_CHANNELS.appearancePresentationGet)!(trustedEvent)
+    ).resolves.toEqual({
+      appearance: DEFAULT_GENERAL_SETTINGS.appearance,
+      background: { available: false, revision: null }
+    });
+    await expect(
+      handlers.get(IPC_CHANNELS.appearanceBackgroundChoose)!(trustedEvent)
+    ).rejects.toBeDefined();
   });
 });

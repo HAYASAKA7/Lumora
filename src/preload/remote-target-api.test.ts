@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { IPC_CHANNELS } from '../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS, IPC_CHANNELS } from '../shared/contracts';
 import { createLumoraApi } from './api';
 
 const TARGET_ID = '5dd607fb-cd81-4a17-bb5f-0fba91ad631f';
@@ -67,6 +67,12 @@ describe('remote target preload API', () => {
       if (channel === IPC_CHANNELS.remoteTargetWindowOpen) {
         return { opened: true, executionTargetId: TARGET_ID };
       }
+      if (channel === IPC_CHANNELS.appearancePresentationGet) {
+        return {
+          appearance: DEFAULT_GENERAL_SETTINGS.appearance,
+          background: { available: false, revision: null }
+        };
+      }
       return summary;
     });
     const api = createLumoraApi(invoke);
@@ -90,6 +96,10 @@ describe('remote target preload API', () => {
       target: { connectionState: 'ready' }
     });
     await expect(api.openRemoteTargetWindow(TARGET_ID)).resolves.toBeUndefined();
+    await expect(api.getAppearancePresentation()).resolves.toEqual({
+      appearance: DEFAULT_GENERAL_SETTINGS.appearance,
+      background: { available: false, revision: null }
+    });
 
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {
       executionTargetId: TARGET_ID,
@@ -97,6 +107,7 @@ describe('remote target preload API', () => {
     });
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperDetails);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperInstall);
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appearancePresentationGet);
   });
 
   it('rejects malformed requests before invoking IPC', async () => {

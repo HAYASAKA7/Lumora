@@ -662,8 +662,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerAppearanceIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
+    authorizeRead: authorizeTargetIpc,
+    authorizeWrite: authorizeLocalIpc,
     service: appearanceBackgroundStore,
+    getAppearanceSettings: () => terminalRuntime!.getGeneralSettings().appearance,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });

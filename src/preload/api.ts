@@ -1,5 +1,6 @@
 import {
   AppearanceBackgroundStateSchema,
+  AppearancePresentationSchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -163,6 +164,10 @@ export function createLumoraApi(
       const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
       const value = await invoke(IPC_CHANNELS.remoteTargetWindowOpen, request);
       RemoteTargetWindowOpenResultSchema.parse(value);
+    },
+    async getAppearancePresentation() {
+      const value = await invoke(IPC_CHANNELS.appearancePresentationGet);
+      return AppearancePresentationSchema.parse(value);
     },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(

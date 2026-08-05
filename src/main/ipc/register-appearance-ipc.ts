@@ -1,7 +1,9 @@
 import type { IpcAuthorizer } from './ipc-access';
 import {
+  AppearancePresentationSchema,
   AppearanceBackgroundStateSchema,
   IPC_CHANNELS,
+  type AppearanceSettings,
   type AppearanceBackgroundState
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
@@ -30,8 +32,10 @@ interface OpenDialogResult {
 
 interface RegisterAppearanceIpcDependencies {
   ipc: IpcRegistrar;
-  authorize: IpcAuthorizer;
+  authorizeRead: IpcAuthorizer;
+  authorizeWrite: IpcAuthorizer;
   service: AppearanceBackgroundService;
+  getAppearanceSettings(): AppearanceSettings;
   showOpenDialog(options: {
     properties: ['openFile'];
     filters: Array<{ name: string; extensions: string[] }>;
@@ -71,8 +75,10 @@ function assertTrusted(
 
 export function registerAppearanceIpc({
   ipc,
-  authorize,
+  authorizeRead,
+  authorizeWrite,
   service,
+  getAppearanceSettings,
   showOpenDialog,
   developmentOrigin
 }: RegisterAppearanceIpcDependencies): void {
@@ -86,13 +92,25 @@ export function registerAppearanceIpc({
     }
   };
 
+  ipc.handle(IPC_CHANNELS.appearancePresentationGet, async (event) => {
+    assertTrusted(event, authorizeRead, developmentOrigin);
+    try {
+      return AppearancePresentationSchema.parse({
+        appearance: getAppearanceSettings(),
+        background: await service.getState()
+      });
+    } catch {
+      throw new AppearanceIpcError();
+    }
+  });
+
   ipc.handle(IPC_CHANNELS.appearanceBackgroundGet, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    assertTrusted(event, authorizeWrite, developmentOrigin);
     return safely(() => service.getState());
   });
 
   ipc.handle(IPC_CHANNELS.appearanceBackgroundChoose, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    assertTrusted(event, authorizeWrite, developmentOrigin);
     try {
       const selection = await showOpenDialog({
         properties: ['openFile'],
@@ -111,7 +129,7 @@ export function registerAppearanceIpc({
   });
 
   ipc.handle(IPC_CHANNELS.appearanceBackgroundRemove, async (event) => {
-    assertTrusted(event, authorize, developmentOrigin);
+    assertTrusted(event, authorizeWrite, developmentOrigin);
     return safely(() => service.remove());
   });
 }

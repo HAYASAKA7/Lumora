@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode
 } from 'react';
 
@@ -36,9 +35,8 @@ import {
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import {
-  buildAppearanceOpacityTiers,
-  formatAppearanceOpacity
-} from './appearance/opacity-tiers';
+  buildAppearancePresentation
+} from './appearance/presentation';
 import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
@@ -216,21 +214,6 @@ const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
   darwin: 'macOS',
   linux: 'Linux'
-};
-
-const BACKGROUND_POSITIONS: Record<
-  GeneralSettings['appearance']['backgroundPosition'],
-  string
-> = {
-  center: 'center',
-  top: 'center top',
-  bottom: 'center bottom',
-  left: 'left center',
-  right: 'right center',
-  'top-left': 'left top',
-  'top-right': 'right top',
-  'bottom-left': 'left bottom',
-  'bottom-right': 'right bottom'
 };
 
 function Icon({ name }: { name: IconName }): ReactNode {
@@ -1387,53 +1370,19 @@ function AppContent(): ReactNode {
       : catalogStatus;
   const appearance = generalSettings?.appearance ??
     DEFAULT_GENERAL_SETTINGS.appearance;
-  const appearanceBackgroundActive =
-    appearance.backgroundEnabled && appearanceBackground.available;
-  const appearanceOpacityTiers = buildAppearanceOpacityTiers(
-    appearance.surfaceOpacity
+  const appearancePresentation = buildAppearancePresentation(
+    appearance,
+    appearanceBackground
   );
-  const appearanceShellStyle = appearanceBackgroundActive
-    ? ({
-        '--appearance-terminal-opacity': `${Math.round(appearance.terminalOpacity * 100)}%`,
-        '--appearance-opacity-recessed': formatAppearanceOpacity(
-          appearanceOpacityTiers.recessed
-        ),
-        '--appearance-opacity-normal': formatAppearanceOpacity(
-          appearanceOpacityTiers.normal
-        ),
-        '--appearance-opacity-raised': formatAppearanceOpacity(
-          appearanceOpacityTiers.raised
-        ),
-        '--appearance-opacity-popup': formatAppearanceOpacity(
-          appearanceOpacityTiers.popup
-        ),
-        '--appearance-opacity-popup-raised': formatAppearanceOpacity(
-          appearanceOpacityTiers.popupRaised
-        ),
-        '--appearance-surface-mosaic': appearance.surfaceMosaic > 0
-          ? `${appearance.surfaceMosaic}px`
-          : undefined
-      } as CSSProperties)
-    : undefined;
-  const appearanceBackgroundStyle = appearanceBackgroundActive
-    ? ({
-        backgroundImage: `url("app://appearance/background?revision=${encodeURIComponent(appearanceBackground.revision ?? '')}")`,
-        backgroundPosition: BACKGROUND_POSITIONS[appearance.backgroundPosition],
-        backgroundSize:
-          appearance.backgroundFit === 'original'
-            ? 'auto'
-            : appearance.backgroundFit,
-        filter: `brightness(${appearance.backgroundBrightness}) blur(${appearance.backgroundBlur}px)`,
-        opacity: appearance.backgroundOpacity,
-        transform: appearance.backgroundBlur > 0 ? 'scale(1.04)' : undefined
-      } as CSSProperties)
-    : undefined;
+  const appearanceBackgroundActive = appearancePresentation.backgroundActive;
+  const appearanceShellStyle = appearancePresentation.shellStyle;
+  const appearanceBackgroundStyle = appearancePresentation.backgroundStyle;
 
   return (
     <>
     <div
       aria-hidden={startupPresentationActive ? true : undefined}
-      className={`app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}${appearanceBackgroundActive ? ' has-appearance-background' : ''}${appearanceBackgroundActive && appearance.surfaceMosaic > 0 ? ' has-surface-mosaic' : ''}${terminalActive ? ' terminal-active' : ''}`}
+      className={`appearance-root app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}${appearanceBackgroundActive ? ' has-appearance-background' : ''}${appearancePresentation.hasSurfaceMosaic ? ' has-surface-mosaic' : ''}${terminalActive ? ' terminal-active' : ''}`}
       data-theme={resolvedTheme}
       style={appearanceShellStyle}
     >
