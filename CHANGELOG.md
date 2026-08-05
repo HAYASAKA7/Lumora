@@ -16,6 +16,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add an explicit Lumora confirmation workflow that installs or safely replaces
   the per-user remote helper, verifies its digest, and negotiates compatibility
   before marking the remote target ready.
+- Add isolated remote **Environment** and **Providers** pages that discover
+  remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
+  manual refresh, and per-target provider preferences.
 
 ### Security
 
@@ -24,6 +27,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   target identifier.
 - Keep remote helper installation non-elevated, versioned, digest-verified, and
   atomically activated without exposing remote diagnostics or credentials.
+- Keep remote discovery read-only and allowlisted with bounded probes. Remote
+  environment variables, credentials, tokens, and provider session contents
+  are not returned to the renderer.
 
 ## [0.2.3] - 2026-08-03
 

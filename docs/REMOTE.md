@@ -2,8 +2,9 @@
 
 Remote computers are an experimental Lumora feature. The current phase creates
 an isolated remote window, verifies SSH identity, detects the remote platform,
-and installs and negotiates a lightweight Lumora helper. It does not yet expose
-remote providers, saved sessions, workspaces, or terminals.
+installs and negotiates a lightweight Lumora helper, and checks the remote
+developer environment and enabled agent providers. It does not yet expose
+remote saved sessions, workspaces, or terminals.
 
 ## Connect a computer
 
@@ -40,6 +41,23 @@ The helper runs only while Lumora has an active remote connection and consumes
 minimal resources. It requires no administrator service, background daemon, or
 open inbound port; communication stays inside the existing SSH channel.
 
+## Check the remote environment
+
+After the target reaches `ready`, use the isolated window's **Environment** and
+**Providers** pages. Lumora checks remote Node.js, npm, and only the providers
+enabled for that target. Results include the resolved executable path and
+version when available.
+
+Provider choices belong to the remote target and do not change local provider
+settings. At least one provider must remain enabled. Saving a provider selection
+starts a new scan, and **Refresh** repeats the scan without reconnecting.
+
+Discovery is read-only. Lumora does not install, update, or repair Node.js, npm,
+or agent CLIs on the remote computer. Perform those operations on the remote
+computer, then refresh the isolated page. The helper uses a fixed command
+allowlist, bounded version probes, and never returns environment variables,
+tokens, or provider session contents.
+
 ## Current states
 
 - `offline`: no active SSH connection.
@@ -59,6 +77,11 @@ open inbound port; communication stays inside the existing SSH channel.
 - Confirm that Cancel performs no installation.
 - Install on a clean account and verify the state becomes `ready`.
 - Corrupt a helper copy and verify Lumora requires confirmed replacement.
+- Confirm Environment reports remote Node.js/npm paths and versions.
+- Enable and disable providers, save, and confirm only enabled providers are
+  scanned. Confirm at least one provider must remain enabled.
+- Install or remove a provider on the remote computer, refresh, and confirm the
+  status changes without reconnecting.
 - Disconnect from missing, incompatible, and ready states.
 - Test local/remote OS combinations independently where machines are available.
 - Close Lumora and confirm the SSH channel and helper process stop cleanly.

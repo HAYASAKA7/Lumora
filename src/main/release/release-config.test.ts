@@ -64,7 +64,9 @@ describe('release packaging configuration', () => {
     expect(packageJson.scripts.package).toBe(
       'npm run helper:build && npm run build && electron-builder'
     );
-    expect(packageJson.scripts['helper:test']).toBe('go -C helper test ./...');
+    expect(packageJson.scripts['helper:test']).toBe(
+      'node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...'
+    );
     expect(packageJson.scripts['helper:build']).toBe(
       'node scripts/helper/build-helper.cjs'
     );

@@ -17,6 +17,7 @@ import {
 import type { RemoteExecChannel } from './ssh-client';
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_DISCOVERY_REQUEST_TIMEOUT_MS = 75_000;
 const MAX_STDERR_BYTES = 64 * 1024;
 
 export type RemoteHelperConnectionErrorCode =
@@ -57,12 +58,17 @@ export function connectRemoteHelper(input: {
   expectedArchitecture: 'x64' | 'arm64';
   createRequestId?: () => string;
   timeoutMs?: number;
+  discoveryTimeoutMs?: number;
 }): Promise<ConnectedRemoteHelper> {
   const tracker = new RemoteHelperResponseTracker(input.generation);
   const decoder = createHelperFrameDecoder();
   const pending = new Map<string, PendingRequest>();
   const createRequestId = input.createRequestId ?? randomUUID;
   const timeoutMs = input.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const discoveryTimeoutMs = input.discoveryTimeoutMs ?? Math.max(
+    timeoutMs,
+    DEFAULT_DISCOVERY_REQUEST_TIMEOUT_MS
+  );
   let stderrBytes = 0;
   let closed = false;
   let channelClosed = false;
@@ -135,7 +141,8 @@ export function connectRemoteHelper(input: {
 
   const send = (
     operation: RemoteHelperResponse['operation'],
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    requestTimeoutMs = timeoutMs
   ): Promise<RemoteHelperResponse> => {
     if (closed) {
       return Promise.reject(
@@ -160,7 +167,7 @@ export function connectRemoteHelper(input: {
           pending.delete(requestId);
           tracker.expire(requestId);
           request.reject(new RemoteHelperConnectionError('HELPER_TIMEOUT'));
-        }, timeoutMs);
+        }, requestTimeoutMs);
         timeout.unref?.();
         pending.set(requestId, { operation, resolve, reject, timeout });
         input.channel.stdin.write(encodeHelperFrame(request));
@@ -189,7 +196,7 @@ export function connectRemoteHelper(input: {
       async scanDiscovery(enabledProviders: readonly ProviderId[]) {
         const discovery = await send('discovery-scan', {
           enabledProviders: [...enabledProviders]
-        });
+        }, discoveryTimeoutMs);
         if (discovery.operation !== 'discovery-scan' || !discovery.ok) {
           throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
         }

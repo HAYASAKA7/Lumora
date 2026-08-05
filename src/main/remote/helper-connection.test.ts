@@ -151,6 +151,40 @@ describe('remote helper connection', () => {
     expect(remote.close).toHaveBeenCalledOnce();
   });
 
+  it('allows bounded discovery to outlive the short handshake timeout', async () => {
+    vi.useFakeTimers();
+    const remote = channel();
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 25,
+      discoveryTimeoutMs: 75
+    });
+    remote.stdout.write(encodeHelperFrame(response()));
+    const connected = await connecting;
+    let settled = false;
+    const scanning = connected.scanDiscovery(['codex']).finally(() => {
+      settled = true;
+    });
+    const rejection = expect(scanning).rejects.toMatchObject({
+      code: 'HELPER_TIMEOUT'
+    });
+
+    await vi.advanceTimersByTimeAsync(25);
+    expect(settled).toBe(false);
+    expect(remote.close).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(50);
+    await rejection;
+    expect(remote.close).not.toHaveBeenCalled();
+    connected.close();
+    vi.useRealTimers();
+  });
+
   it.each([
     ['stale generation', response({ generation: 6 })],
     ['wrong platform', response({ result: { ...response().result as object, platform: 'darwin' } })],
