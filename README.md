@@ -172,11 +172,11 @@ destination device, the same Transfer page lets you select installed providers,
 map source workspaces to existing local directories, and review duplicates and
 other exclusions before import.
 
-Transfer support is version- and route-specific. Lumora keeps a provider and
-operating-system route disabled until it passes packaged verification; an
-implemented adapter alone is not treated as proof that native sessions can be
-moved safely. The original archive and source sessions remain unchanged, so a
-provider skipped on the first import can be retried later.
+Transfer support is version- and route-specific. Verified combinations are
+marked **Supported**; implemented combinations awaiting packaged verification
+are available as **Experimental**. Unimplemented routes remain disabled. The
+original archive and source sessions remain unchanged, so a provider skipped on
+the first import can be retried later.
 
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and

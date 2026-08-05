@@ -185,7 +185,7 @@ describe('SessionTransferPanel', () => {
     expect(screen.getByText(`Exporting ${session.id}`)).toBeInTheDocument();
   });
 
-  it('labels development-only routes as experimental and allows their sessions', async () => {
+  it('labels released experimental routes and allows their sessions', async () => {
     vi.mocked(window.lumora.getTransferCapabilities).mockResolvedValue([
       {
         provider: 'codex',
@@ -214,7 +214,7 @@ describe('SessionTransferPanel', () => {
 
     expect(await screen.findAllByText('Experimental')).not.toHaveLength(0);
     expect(
-      screen.getByText(/development build enables adapter-backed routes/i)
+      screen.getByText(/experimental routes are enabled in this release/i)
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Export sessions' }));

@@ -18,4 +18,22 @@ describe('remote target application integration', () => {
     expect(shutdown).toContain('targetWindowManager.closeAll()');
     expect(shutdown).toContain('remoteTargetRuntime?.close()');
   });
+
+  it('stops startup composition during shutdown and handles initialization failures', () => {
+    const startup = mainSource.slice(
+      mainSource.indexOf('if (hasSingleInstanceLock)')
+    );
+    const environmentResolved = startup.indexOf(
+      'applicationEnvironment = await resolveApplicationEnvironment({'
+    );
+    const shutdownGuard = startup.indexOf('if (shutdownStarted) return;');
+    const remoteRuntime = startup.indexOf('createRemoteTargetRuntime({');
+
+    expect(shutdownGuard).toBeGreaterThan(environmentResolved);
+    expect(remoteRuntime).toBeGreaterThan(shutdownGuard);
+    expect(startup).toContain('.catch((error) => {');
+    expect(startup).toContain(
+      "console.error('Unable to initialize Lumora.', error)"
+    );
+  });
 });

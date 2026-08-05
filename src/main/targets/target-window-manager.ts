@@ -37,6 +37,7 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
   loadWindow
 }: CreateTargetWindowManagerOptions<Window>) {
   const windows = new Map<RemoteExecutionTargetId, Window>();
+  const senderIds = new WeakMap<Window, number>();
   const pending = new Map<RemoteExecutionTargetId, Promise<void>>();
 
   const open = (input: RemoteExecutionTargetId): Promise<void> => {
@@ -56,13 +57,16 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
     if (existing !== undefined) windows.delete(id);
 
     const window = createWindow(id);
-    contexts.register(window.webContents.id, {
+    const senderId = window.webContents.id;
+    senderIds.set(window, senderId);
+    contexts.register(senderId, {
       mode: 'remote',
       executionTargetId: id
     });
     windows.set(id, window);
     window.once('closed', () => {
-      contexts.unregister(window.webContents.id);
+      contexts.unregister(senderId);
+      senderIds.delete(window);
       if (windows.get(id) === window) windows.delete(id);
     });
 
@@ -70,7 +74,8 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
     creation = loadWindow(window).then(() => {
       focusWindow(window);
     }).catch((error: unknown) => {
-      contexts.unregister(window.webContents.id);
+      contexts.unregister(senderId);
+      senderIds.delete(window);
       if (windows.get(id) === window) windows.delete(id);
       if (!window.isDestroyed()) window.close();
       throw error;
@@ -85,7 +90,9 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
     open,
     closeAll(): void {
       for (const window of windows.values()) {
-        contexts.unregister(window.webContents.id);
+        const senderId = senderIds.get(window);
+        if (senderId !== undefined) contexts.unregister(senderId);
+        senderIds.delete(window);
         if (!window.isDestroyed()) window.close();
       }
       windows.clear();

@@ -53,7 +53,9 @@ describe('RemoteTargetWindow', () => {
     fireEvent.change(screen.getByLabelText('SSH password'), {
       target: { value: 'memory-only' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    const connect = screen.getByRole('button', { name: 'Connect' });
+    expect(connect).toHaveClass('refresh-button');
+    fireEvent.click(connect);
 
     await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
       executionTargetId: TARGET_ID,

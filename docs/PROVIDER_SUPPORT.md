@@ -50,13 +50,12 @@ from another.
 
 ## Cross-device transfer verification
 
-Cross-device transfer has a separate, stricter gate from saved-session support.
-A provider route is available only when the exact provider version, source
-operating system, and destination operating system have passed the packaged
-export/import matrix. Unit tests, a working session parser, or a successful
-same-device development run do not verify a release route. Development builds
-may expose an implemented adapter as **Experimental** so that matrix testing
-can begin; normal packaged releases remain evidence-gated.
+Cross-device transfer has a separate verification matrix from saved-session
+support. Routes that pass the exact provider-version and operating-system
+matrix are marked **Supported**. Implemented routes that have not completed the
+matrix are available as **Experimental** in packaged and development builds so
+users can opt into them with clear status. Unit tests or a successful
+same-device run still do not make an experimental route verified.
 
 | Provider | Transfer adapter | Export | Same-OS import | Cross-platform import |
 | --- | --- | --- | --- | --- |
@@ -67,12 +66,12 @@ can begin; normal packaged releases remain evidence-gated.
 | GitHub Copilot CLI | Implemented; native session-state directory | Verification pending | Verification pending | Verification pending |
 | Qwen Code | Implemented; native project chat JSONL | Verification pending | Verification pending | Verification pending |
 
-A pending route is reported as **Not verified** under **Settings > Transfer**
-in release builds and cannot change provider-owned session files. The matrix is
-intentionally empty until native packaged tests record evidence. In `npm run
-dev`, all six implemented adapters are reported as **Experimental** and may be
-exercised without altering the release matrix. See the [cross-device transfer
-guide](SESSION_TRANSFER.md) for user steps and archive boundaries.
+The six implemented adapters are reported as **Experimental** until native
+packaged tests record evidence for their exact routes. Experimental routes are
+selectable in release and development builds without altering the verification
+matrix. Unimplemented combinations remain **Not verified** and unavailable.
+See the [cross-device transfer guide](SESSION_TRANSFER.md) for user steps,
+archive boundaries, and safety guidance.
 
 For every provider route proposed for release:
 

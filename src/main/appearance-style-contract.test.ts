@@ -94,7 +94,7 @@ describe('appearance style contract', () => {
 
   it('raises popup shells and their nested component surfaces above normal pages', () => {
     const popupRule = stylesheet.match(
-      /\.has-appearance-background \.new-session-dialog,\s*\.has-appearance-background \.runtime-switcher\s*\{([^}]*)\}/
+      /\.has-appearance-background \.new-session-dialog,\s*\.has-appearance-background \.runtime-switcher,\s*\.has-appearance-background \.select-menu-options\s*\{([^}]*)\}/
     )?.[1];
 
     expect(popupRule).toContain('var(--appearance-opacity-popup)');
@@ -129,10 +129,10 @@ describe('appearance style contract', () => {
       /\.app-shell\.has-appearance-background\s*\{([^}]*)\}/
     )?.[1];
     const popupRule = stylesheet.match(
-      /\.has-appearance-background \.new-session-dialog,\s*\.has-appearance-background \.runtime-switcher\s*\{([^}]*)\}/
+      /\.has-appearance-background \.new-session-dialog,\s*\.has-appearance-background \.runtime-switcher,\s*\.has-appearance-background \.select-menu-options\s*\{([^}]*)\}/
     )?.[1];
     const mosaicRule = stylesheet.match(
-      /\.has-appearance-background\.has-surface-mosaic \.new-session-dialog,\s*\.has-appearance-background\.has-surface-mosaic \.runtime-switcher\s*\{([^}]*)\}/
+      /\.has-appearance-background\.has-surface-mosaic \.new-session-dialog,\s*\.has-appearance-background\.has-surface-mosaic \.runtime-switcher,\s*\.has-appearance-background\.has-surface-mosaic \.select-menu-options\s*\{([^}]*)\}/
     )?.[1];
 
     expect(appearanceRule).toContain(
@@ -143,6 +143,22 @@ describe('appearance style contract', () => {
     expect(mosaicRule).toContain(
       'backdrop-filter: blur(var(--appearance-surface-mosaic))'
     );
+  });
+
+  it('styles custom select option tables as Lumora popup surfaces', () => {
+    const tableRule = [...stylesheet.matchAll(
+      /\.has-appearance-background \.select-menu-options\s*\{([^}]*)\}/g
+    )].find((match) => match[1]?.includes('background:'))?.[1];
+    const optionStateRule = stylesheet.match(
+      /\.select-menu-option:hover,\s*\.select-menu-option\.is-active\s*\{([^}]*)\}/
+    )?.[1];
+
+    expect(tableRule).toContain(
+      'background: var(--popup-dialog-shell-surface)'
+    );
+    expect(optionStateRule).toContain('color: var(--text)');
+    expect(optionStateRule).toContain('background: var(--surface-subtle)');
+    expect(optionStateRule).not.toContain('sidebar');
   });
 
   it('applies surface opacity to terminal chrome and the system status bar', () => {

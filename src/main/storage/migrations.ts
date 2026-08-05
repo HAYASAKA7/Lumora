@@ -5,6 +5,13 @@ import { EXECUTION_TARGET_MIGRATION_STATEMENTS } from './execution-target-migrat
 export interface CatalogMigration {
   version: number;
   statements: readonly string[];
+  isSchemaPresent?: (database: DatabaseSync) => boolean;
+}
+
+function hasTable(database: DatabaseSync, table: string): boolean {
+  return database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?"
+  ).get(table) !== undefined;
 }
 
 export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
@@ -472,10 +479,13 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
   },
   {
     version: 16,
-    statements: EXECUTION_TARGET_MIGRATION_STATEMENTS
+    statements: EXECUTION_TARGET_MIGRATION_STATEMENTS,
+    isSchemaPresent: (database) => hasTable(database, 'execution_target')
   },
   {
     version: 17,
+    isSchemaPresent: (database) =>
+      hasTable(database, 'remote_connection_profile'),
     statements: [
       `CREATE TABLE remote_connection_profile (
         execution_target_id TEXT PRIMARY KEY
@@ -527,20 +537,46 @@ export function runMigrations(
   for (const migration of [...migrations].sort(
     (left, right) => left.version - right.version
   )) {
-    if (applied.get(migration.version) !== undefined) {
+    const hasMigrationRecord = applied.get(migration.version) !== undefined;
+    const schemaIsPresent = migration.isSchemaPresent?.(database) ?? true;
+
+    if (hasMigrationRecord && schemaIsPresent) {
       continue;
     }
 
-    database.exec('BEGIN IMMEDIATE');
+    const repairingRecordedSchema = hasMigrationRecord && !schemaIsPresent;
+    let transactionStarted = false;
+    if (repairingRecordedSchema) {
+      database.exec('PRAGMA foreign_keys = OFF');
+    }
     try {
+      database.exec('BEGIN IMMEDIATE');
+      transactionStarted = true;
       for (const statement of migration.statements) {
         database.exec(statement);
       }
-      record.run(migration.version, new Date().toISOString());
+      if (repairingRecordedSchema) {
+        const violation = database.prepare('PRAGMA foreign_key_check').get();
+        if (violation !== undefined) {
+          throw new Error(
+            `Migration ${migration.version} could not repair its schema safely.`
+          );
+        }
+      }
+      if (!hasMigrationRecord) {
+        record.run(migration.version, new Date().toISOString());
+      }
       database.exec('COMMIT');
+      transactionStarted = false;
     } catch (error) {
-      database.exec('ROLLBACK');
+      if (transactionStarted) {
+        database.exec('ROLLBACK');
+      }
       throw error;
+    } finally {
+      if (repairingRecordedSchema) {
+        database.exec('PRAGMA foreign_keys = ON');
+      }
     }
   }
 }

@@ -162,4 +162,16 @@ describe('window-state main-process integration', () => {
     expect(shutdownBlock).toContain('try {');
     expect(shutdownBlock).toContain('} finally {');
   });
+
+  it('does not read webContents from an already destroyed window', () => {
+    const closed = source.slice(
+      source.indexOf("window.on('closed'"),
+      source.indexOf('if (developmentOrigin', source.indexOf("window.on('closed'"))
+    );
+
+    expect(closed).toContain(
+      'windowContexts.unregister(startupBackgroundActivityId)'
+    );
+    expect(closed).not.toContain('window.webContents.id');
+  });
 });

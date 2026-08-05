@@ -209,6 +209,9 @@ const ROUTES = [
   }
 ] as const satisfies readonly RouteDefinition[];
 
+const PRIMARY_ROUTES = ROUTES.filter((route) => route.id !== 'remote');
+const REMOTE_ROUTE = ROUTES.find((route) => route.id === 'remote')!;
+
 const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
   darwin: 'macOS',
@@ -1136,9 +1139,6 @@ function AppContent(): ReactNode {
         setRuntimeSwitcher(null);
         return;
       }
-      const terminalInputFocused =
-        event.target instanceof Element &&
-        event.target.closest('.managed-terminal') !== null;
       if (keyboardEventMatchesChord(event, switcherChord)) {
         if (openRuntimeIds.length === 0) return;
 
@@ -1183,7 +1183,6 @@ function AppContent(): ReactNode {
         setSidebarExpanded((expanded) => !expanded);
         return;
       }
-      if (terminalInputFocused) return;
 
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
@@ -1476,7 +1475,7 @@ function AppContent(): ReactNode {
             <span className="nav-label-text">Workspace</span>
             <span aria-hidden="true" className="nav-label-divider" />
           </p>
-          {ROUTES.map((route) => (
+          {PRIMARY_ROUTES.map((route) => (
             <Tooltip
               content={sidebarExpanded ? null : route.label}
               key={route.id}
@@ -1504,6 +1503,26 @@ function AppContent(): ReactNode {
               </button>
             </Tooltip>
           ))}
+        </nav>
+
+        <nav aria-label="Remote access" className="sidebar-remote-nav">
+          <Tooltip content={sidebarExpanded ? null : REMOTE_ROUTE.label}>
+            <button
+              aria-current={
+                !terminalActive && activeRouteId === REMOTE_ROUTE.id
+                  ? 'page'
+                  : undefined
+              }
+              className="nav-item"
+              data-lumora-command
+              onClick={() => navigateToRoute(REMOTE_ROUTE.id)}
+              tabIndex={-1}
+              type="button"
+            >
+              <Icon name={REMOTE_ROUTE.icon} />
+              <span className="nav-item-label">{REMOTE_ROUTE.label}</span>
+            </button>
+          </Tooltip>
         </nav>
 
       </aside>

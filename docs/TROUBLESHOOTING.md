@@ -164,12 +164,11 @@ message before reporting the issue.
 **Symptom:** The session checkbox or provider-wide selection is disabled.
 
 **Likely cause:** The session is running or stale, the provider is unavailable,
-or the provider/version/operating-system transfer route has not passed packaged
-verification.
+or the provider/version/operating-system route is not implemented.
 
 **Resolution:** Stop the provider session, refresh the catalog and provider
-status, then open **Settings > Transfer**. A route shown as **Not verified** is
-intentionally unavailable and cannot be bypassed safely.
+status, then open **Settings > Transfer**. Routes marked **Experimental** are
+selectable with caution; routes shown as **Not verified** are unavailable.
 
 ### An archive password is rejected
 
