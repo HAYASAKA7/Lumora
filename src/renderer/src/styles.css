@@ -4601,6 +4601,15 @@ button {
   width: min(620px, 100%);
 }
 
+.remote-delete-dialog {
+  width: min(520px, 100%);
+}
+
+.remote-delete-dialog-body > p {
+  margin: 0;
+  line-height: 1.6;
+}
+
 .remote-helper-dialog-body > p {
   margin: 0;
   line-height: 1.6;

@@ -134,4 +134,83 @@ describe('RemoteTargetsView', () => {
     });
     expect(api.openRemoteTargetWindow).toHaveBeenCalledWith(TARGET_ID);
   });
+
+  it('edits an existing profile and replaces the card with saved data', async () => {
+    const saved = {
+      ...summary,
+      target: { ...summary.target, displayName: 'Renamed server' },
+      profile: { ...summary.profile, displayName: 'Renamed server' }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      updateRemoteTarget: vi.fn().mockResolvedValue(saved)
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Build server' }));
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Renamed server' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save remote computer' }));
+
+    await waitFor(() => expect(api.updateRemoteTarget).toHaveBeenCalledWith(
+      TARGET_ID,
+      expect.objectContaining({ displayName: 'Renamed server', port: 22 })
+    ));
+    expect(await screen.findByRole('heading', { name: 'Renamed server' }))
+      .toBeInTheDocument();
+  });
+
+  it('reports an invalid port without invoking profile update', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      updateRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Build server' }));
+    fireEvent.change(screen.getByLabelText('Port'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save remote computer' }));
+
+    expect(await screen.findByText('Enter a port from 1 to 65535.'))
+      .toBeInTheDocument();
+    expect(api.updateRemoteTarget).not.toHaveBeenCalled();
+  });
+
+  it('confirms deletion before removing a remote computer card', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      removeRemoteTarget: vi.fn().mockResolvedValue(undefined)
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Build server' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete remote computer' });
+    expect(dialog).toHaveClass('new-session-dialog');
+    expect(api.removeRemoteTarget).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', {
+      name: 'Delete remote computer'
+    }));
+
+    await waitFor(() => expect(api.removeRemoteTarget).toHaveBeenCalledWith(TARGET_ID));
+    expect(screen.queryByRole('heading', { name: 'Build server' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('keeps the card visible when deletion fails', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      removeRemoteTarget: vi.fn().mockRejectedValue(new Error('private detail'))
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Build server' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete remote computer' }));
+
+    expect(await screen.findByText(
+      'Lumora could not delete this remote computer. Disconnect it and try again.'
+    )).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Build server' })).toBeInTheDocument();
+    expect(screen.queryByText('private detail')).not.toBeInTheDocument();
+  });
 });

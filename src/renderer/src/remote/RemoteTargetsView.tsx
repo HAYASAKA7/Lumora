@@ -59,26 +59,44 @@ function formFrom(summary: RemoteTargetSummary): RemoteTargetFormState {
   };
 }
 
-function inputFrom(form: RemoteTargetFormState): RemoteConnectionProfileInput {
+function validateForm(form: RemoteTargetFormState):
+  | { ok: true; input: RemoteConnectionProfileInput }
+  | { ok: false; message: string } {
+  const displayName = form.displayName.trim();
+  if (displayName.length === 0) {
+    return { ok: false, message: 'Enter a name for this remote computer.' };
+  }
+  if (form.authenticationMethod === 'private-key' && form.privateKeyPath.trim().length === 0) {
+    return { ok: false, message: 'Enter the private key path.' };
+  }
   const authentication: RemoteAuthenticationProfile =
     form.authenticationMethod === 'private-key'
-      ? { method: 'private-key', privateKeyPath: form.privateKeyPath }
+      ? { method: 'private-key', privateKeyPath: form.privateKeyPath.trim() }
       : { method: form.authenticationMethod };
-  return form.route === 'direct'
-    ? {
-        displayName: form.displayName,
-        route: 'direct',
-        host: form.host,
-        port: Number(form.port),
-        username: form.username,
-        authentication
-      }
-    : {
-        displayName: form.displayName,
-        route: 'ssh-config',
-        sshConfigHost: form.sshConfigHost,
-        authentication
-      };
+  if (form.route === 'direct') {
+    const host = form.host.trim();
+    const username = form.username.trim();
+    const port = Number(form.port);
+    if (host.length === 0) return { ok: false, message: 'Enter the remote host.' };
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return { ok: false, message: 'Enter a port from 1 to 65535.' };
+    }
+    if (username.length === 0) {
+      return { ok: false, message: 'Enter the SSH username.' };
+    }
+    return {
+      ok: true,
+      input: { displayName, route: 'direct', host, port, username, authentication }
+    };
+  }
+  const sshConfigHost = form.sshConfigHost.trim();
+  if (sshConfigHost.length === 0 || /\s/.test(sshConfigHost)) {
+    return { ok: false, message: 'Enter one OpenSSH config alias without spaces.' };
+  }
+  return {
+    ok: true,
+    input: { displayName, route: 'ssh-config', sshConfigHost, authentication }
+  };
 }
 
 function address(summary: RemoteTargetSummary): string {
@@ -92,7 +110,10 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
   const [targets, setTargets] = useState<RemoteTargetSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<RemoteTargetFormState | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<RemoteExecutionTargetId | null>(null);
+  const [deleting, setDeleting] = useState<RemoteTargetSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [observation, setObservation] = useState<RemoteHostKeyObservation | null>(null);
   const [busyId, setBusyId] = useState<RemoteExecutionTargetId | 'form' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -130,15 +151,38 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
     setBusyId('form');
     setError(null);
     try {
-      const input = inputFrom(form);
+      const validation = validateForm(form);
+      if (!validation.ok) {
+        setFormError(validation.message);
+        return;
+      }
+      setFormError(null);
       const saved = editingId === null
-        ? await api.createRemoteTarget(input)
-        : await api.updateRemoteTarget(editingId, input);
+        ? await api.createRemoteTarget(validation.input)
+        : await api.updateRemoteTarget(editingId, validation.input);
       replaceTarget(saved);
       setForm(null);
       setEditingId(null);
     } catch {
-      setError('Check the connection profile fields and try again.');
+      setFormError('Lumora could not save this remote computer. Check the fields and try again.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async () => {
+    if (deleting === null || busyId !== null) return;
+    const id = deleting.target.id;
+    setBusyId(id);
+    setDeleteError(null);
+    try {
+      await api.removeRemoteTarget(id);
+      setTargets((current) => current.filter(({ target }) => target.id !== id));
+      setDeleting(null);
+    } catch {
+      setDeleteError(
+        'Lumora could not delete this remote computer. Disconnect it and try again.'
+      );
     } finally {
       setBusyId(null);
     }
@@ -181,6 +225,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
           className="refresh-button"
           onClick={() => {
             setEditingId(null);
+            setFormError(null);
             setForm({ ...EMPTY_FORM });
           }}
         >
@@ -231,13 +276,26 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                     </button>
                   )}
                   <button
+                    aria-label={`Edit ${item.target.displayName}`}
                     className="secondary-button"
                     onClick={() => {
                       setEditingId(item.target.id);
+                      setFormError(null);
                       setForm(formFrom(item));
                     }}
                   >
                     Edit
+                  </button>
+                  <button
+                    aria-label={`Delete ${item.target.displayName}`}
+                    className="text-button danger-text"
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleting(item);
+                    }}
+                    type="button"
+                  >
+                    Delete
                   </button>
                 </div>
               </article>
@@ -290,11 +348,63 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <label><span>Private key path</span><input value={form.privateKeyPath} onChange={(event) => setForm({ ...form, privateKeyPath: event.target.value })} /></label>
               )}
               <p className="form-help">Passwords and key passphrases are requested only when connecting and are never saved.</p>
+              {formError !== null && (
+                <p className="inline-notice error" role="alert">{formError}</p>
+              )}
               </div>
             </div>
             <footer className="modal-actions">
               <button className="secondary-button" onClick={() => setForm(null)}>Cancel</button>
               <button className="refresh-button" disabled={busyId === 'form'} onClick={() => void save()}>{busyId === 'form' ? 'Saving…' : 'Save remote computer'}</button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {deleting !== null && (
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-label="Delete remote computer"
+            aria-modal="true"
+            className="new-session-dialog remote-delete-dialog"
+            role="dialog"
+          >
+            <header>
+              <div>
+                <p className="card-label">Remote connection</p>
+                <h2>Delete remote computer</h2>
+              </div>
+              <button
+                aria-label="Close remote computer deletion"
+                className="text-button"
+                disabled={busyId === deleting.target.id}
+                onClick={() => setDeleting(null)}
+                type="button"
+              >Close</button>
+            </header>
+            <div className="dialog-body remote-delete-dialog-body">
+              <p>
+                Delete <strong>{deleting.target.displayName}</strong> from Lumora?
+                Lumora will close its remote window and connection, but will not
+                change anything on the remote computer.
+              </p>
+              {deleteError !== null && (
+                <p className="inline-notice error" role="alert">{deleteError}</p>
+              )}
+            </div>
+            <footer className="modal-actions">
+              <button
+                className="secondary-button"
+                disabled={busyId === deleting.target.id}
+                onClick={() => setDeleting(null)}
+                type="button"
+              >Cancel</button>
+              <button
+                className="secondary-button danger-text"
+                disabled={busyId === deleting.target.id}
+                onClick={() => void remove()}
+                type="button"
+              >{busyId === deleting.target.id ? 'Deleting…' : 'Delete remote computer'}</button>
             </footer>
           </section>
         </div>
