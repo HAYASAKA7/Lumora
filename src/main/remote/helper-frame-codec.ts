@@ -106,6 +106,7 @@ interface TrackedResponseIdentity {
 export class RemoteHelperResponseTracker {
   readonly #pending = new Set<string>();
   readonly #completed = new Set<string>();
+  readonly #expired = new Set<string>();
 
   constructor(readonly generation: number) {}
 
@@ -116,13 +117,20 @@ export class RemoteHelperResponseTracker {
     this.#pending.add(requestId);
   }
 
-  accept(response: TrackedResponseIdentity): true {
+  expire(requestId: string): boolean {
+    if (!this.#pending.delete(requestId)) return false;
+    this.#expired.add(requestId);
+    return true;
+  }
+
+  accept(response: TrackedResponseIdentity): boolean {
     if (response.generation !== this.generation) {
       throw new HelperFrameProtocolError('The helper response belongs to a stale connection.');
     }
     if (this.#completed.has(response.requestId)) {
       throw new HelperFrameProtocolError('The helper response is duplicated.');
     }
+    if (this.#expired.delete(response.requestId)) return false;
     if (!this.#pending.delete(response.requestId)) {
       throw new HelperFrameProtocolError('The helper response has an unknown request ID.');
     }

@@ -61,4 +61,11 @@ describe('remote helper frame codec', () => {
     expect(() => tracker.accept({ generation: 7, requestId: 'request-1' }))
       .toThrow(/duplicate/i);
   });
+
+  it('ignores one late response after a request timeout', () => {
+    const tracker = new RemoteHelperResponseTracker(7);
+    tracker.register('request-1');
+    expect(tracker.expire('request-1')).toBe(true);
+    expect(tracker.accept({ generation: 7, requestId: 'request-1' })).toBe(false);
+  });
 });

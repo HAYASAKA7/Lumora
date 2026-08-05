@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
-import { encodeHelperFrame } from './helper-frame-codec';
+import { createHelperFrameDecoder, encodeHelperFrame } from './helper-frame-codec';
 import {
   RemoteHelperConnectionError,
   connectRemoteHelper
@@ -72,6 +72,82 @@ describe('remote helper connection', () => {
     expect(Buffer.concat(written).length).toBeGreaterThan(4);
     connected.close();
     connected.close();
+    expect(remote.close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the channel alive for correlated discovery requests', async () => {
+    const remote = channel();
+    const written: Buffer[] = [];
+    remote.stdin.on('data', (chunk: Buffer) => written.push(chunk));
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 100
+    });
+    remote.stdout.write(encodeHelperFrame(response({
+      result: {
+        ...response().result as object,
+        capabilities: ['system-info', 'provider-scan']
+      }
+    })));
+    const connected = await connecting;
+    const scanning = connected.scanDiscovery(['codex']);
+    remote.stdout.write(encodeHelperFrame({
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 7,
+      requestId: 'request-2',
+      operation: 'discovery-scan',
+      ok: true,
+      result: {
+        checkedAt: '2026-08-05T04:03:02.000Z',
+        node: { state: 'ready', executablePath: '/usr/bin/node', version: 'v24' },
+        npm: { state: 'not_found', executablePath: null, version: null },
+        providers: [{
+          provider: 'codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: 'codex 1.2.3'
+        }]
+      }
+    }));
+
+    await expect(scanning).resolves.toMatchObject({
+      providers: [{ provider: 'codex', state: 'ready' }]
+    });
+    const decoder = createHelperFrameDecoder();
+    const requests = decoder.push(Buffer.concat(written));
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({
+      requestId: 'request-2',
+      operation: 'discovery-scan',
+      payload: { enabledProviders: ['codex'] }
+    });
+    expect(remote.close).not.toHaveBeenCalled();
+    connected.close();
+  });
+
+  it('rejects pending discovery when the connected helper closes', async () => {
+    const remote = channel();
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 100
+    });
+    remote.stdout.write(encodeHelperFrame(response()));
+    const connected = await connecting;
+    const scanning = connected.scanDiscovery(['codex']);
+    connected.close();
+    await expect(scanning).rejects.toMatchObject({
+      name: RemoteHelperConnectionError.name,
+      code: 'HELPER_INCOMPATIBLE'
+    });
     expect(remote.close).toHaveBeenCalledOnce();
   });
 
