@@ -33,6 +33,13 @@ Remote SSH connections must verify a host fingerprint before trust is stored.
 Changed fingerprints require a new explicit decision. Remote contexts must not
 inherit local provider settings or access another target.
 
+Remote helper artifacts must be selected only after probing the remote target,
+validated against a bounded manifest, uploaded to a private versioned per-user
+path, verified by size and SHA-256 digest, and atomically activated. Replacing
+an invalid helper requires explicit Lumora-owned confirmation. Target-scoped
+helper IPC must derive its target from the authorized window context and accept
+no renderer-provided target identifier.
+
 Transfers must authenticate archive structure and content, default to
 encryption, use private staging, expire operation tokens, verify native imports,
 and roll back when supported. Historical handoff content must be marked as
@@ -45,6 +52,8 @@ untrusted context.
 - `src/main/transfer/transfer-path-safety.ts`
 - `src/main/storage/remote-host-trust.test.ts`
 - `src/main/remote/ssh-client.ts`
+- `src/main/remote/helper-installer.ts`
+- `src/main/remote/helper-connection.ts`
 
 ## Review checklist
 

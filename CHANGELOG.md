@@ -7,6 +7,24 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add isolated remote-computer windows with SSH profile management, explicit
+  host-fingerprint trust, remote platform detection, and ephemeral credentials.
+- Add a bounded cross-platform Lumora helper protocol and verified helper
+  bundle for Windows, macOS, and Linux on x64 and arm64.
+- Add an explicit Lumora confirmation workflow that installs or safely replaces
+  the per-user remote helper, verifies its digest, and negotiates compatibility
+  before marking the remote target ready.
+
+### Security
+
+- Scope remote-helper inspection and installation to the immutable target of
+  the authorized remote window; the renderer cannot supply or change that
+  target identifier.
+- Keep remote helper installation non-elevated, versioned, digest-verified, and
+  atomically activated without exposing remote diagnostics or credentials.
+
 ## [0.2.3] - 2026-08-03
 
 ### Changed
