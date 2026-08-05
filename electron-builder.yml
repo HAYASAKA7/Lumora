@@ -24,6 +24,8 @@ extraResources:
     to: icons/LumoraTemplate@2x.png
   - from: resources/icons/lumora/linux/usr/share/icons/hicolor/22x22/apps/lumora.png
     to: icons/lumora-tray.png
+  - from: resources/helper/generated
+    to: helper
 
 extraMetadata:
   desktopName: app.lumora.desktop

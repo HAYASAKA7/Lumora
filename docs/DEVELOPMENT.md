@@ -56,10 +56,18 @@ or window state.
 | `npm run benchmark:transfer` | Benchmark transfer planning and streamed archive memory |
 | `npm run benchmark:terminal` | Compare batched and per-fragment terminal output processing |
 | `npm run build` | Build main, preload, and renderer bundles into `out/` |
+| `npm run helper:test` | Run the lightweight remote-helper Go tests |
+| `npm run helper:build` | Cross-compile and verify all supported helper artifacts |
 | `npm run package:dir` | Create an unpacked native application in `dist/` |
 | `npm run package` | Build the native package configured for the host OS |
 
 Run `npm run verify` before committing a code change.
+
+Remote-helper source changes additionally require `npm run helper:build`. The
+generated bundle is intentionally ignored; packages rebuild it and copy it to
+the application resources directory. `scripts/release/verify-package.cjs`
+rejects packages without a complete, digest-valid helper manifest and artifact
+set.
 
 ## Project layout
 
@@ -71,7 +79,10 @@ src/
   shared/     cross-process schemas, contracts, and provider definitions
 resources/
   icons/      canonical Lumora platform icon assets
+  helper/     generated helper bundle used only for builds and packages
+helper/       lightweight remote-helper Go source and protocol implementation
 scripts/
+  helper/     deterministic helper build and bundle verification
   release/    package and release verification scripts
 docs/         public architecture, development, and release documentation
 standards/    normative engineering and review rules by domain

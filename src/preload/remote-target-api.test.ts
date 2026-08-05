@@ -49,6 +49,20 @@ describe('remote target preload API', () => {
       if (channel === IPC_CHANNELS.remoteTargetConnect) {
         return { ...summary, homeDirectory: '/home/builder', defaultShell: '/bin/bash' };
       }
+      if (channel === IPC_CHANNELS.remoteTargetHelperDetails) {
+        return {
+          status: 'missing', helperVersion: '0.1.0',
+          installLocation: '/home/builder/.local/share/lumora/helper/lumora-helper',
+          requiresConfirmation: true
+        };
+      }
+      if (channel === IPC_CHANNELS.remoteTargetHelperInstall) {
+        return {
+          ...summary,
+          target: { ...summary.target, connectionState: 'ready' },
+          homeDirectory: '/home/builder', defaultShell: '/bin/bash'
+        };
+      }
       if (channel === IPC_CHANNELS.remoteTargetRemove) return { removed: true };
       if (channel === IPC_CHANNELS.remoteTargetWindowOpen) {
         return { opened: true, executionTargetId: TARGET_ID };
@@ -69,12 +83,20 @@ describe('remote target preload API', () => {
       credentials: { method: 'password', password: 'memory-only' }
     })).resolves.toMatchObject({ homeDirectory: '/home/builder' });
     await expect(api.removeRemoteTarget(TARGET_ID)).resolves.toBeUndefined();
+    await expect(api.getRemoteHelperInstallDetails()).resolves.toMatchObject({
+      status: 'missing', requiresConfirmation: true
+    });
+    await expect(api.installRemoteHelper()).resolves.toMatchObject({
+      target: { connectionState: 'ready' }
+    });
     await expect(api.openRemoteTargetWindow(TARGET_ID)).resolves.toBeUndefined();
 
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {
       executionTargetId: TARGET_ID,
       credentials: { method: 'password', password: 'memory-only' }
     });
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperDetails);
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperInstall);
   });
 
   it('rejects malformed requests before invoking IPC', async () => {

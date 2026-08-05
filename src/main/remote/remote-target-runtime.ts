@@ -1,9 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
 
 import { ExecutionTargetRepository } from '../storage/execution-target-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { RemoteConnectionProfileRepository } from '../storage/remote-connection-profile-repository';
 import type { RemotePlatformFacts } from './platform-probe';
+import { resolveRemoteHelperArtifact } from './helper-artifact-resolver';
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import {
   createRemoteTargetService,
@@ -18,6 +20,7 @@ interface CreateRemoteTargetRuntimeOptions {
   probePlatform?: (
     execute: ConnectedRemoteSshClient['execute']
   ) => Promise<RemotePlatformFacts>;
+  helperBundleRoot?: string;
 }
 
 export interface RemoteTargetRuntime {
@@ -30,7 +33,8 @@ export function createRemoteTargetRuntime({
   clock,
   createTargetId,
   ssh,
-  probePlatform
+  probePlatform,
+  helperBundleRoot = join(process.cwd(), 'resources', 'helper', 'generated')
 }: CreateRemoteTargetRuntimeOptions): RemoteTargetRuntime {
   const database = new DatabaseSync(databasePath);
   try {
@@ -48,7 +52,17 @@ export function createRemoteTargetRuntime({
     ...(clock === undefined ? {} : { clock }),
     ...(createTargetId === undefined ? {} : { createTargetId }),
     ...(ssh === undefined ? {} : { ssh }),
-    ...(probePlatform === undefined ? {} : { probePlatform })
+    ...(probePlatform === undefined ? {} : { probePlatform }),
+    resolveHelperArtifact: (facts) => {
+      if (facts.platform === 'unknown' || facts.architecture === 'unknown') {
+        throw new Error('The remote helper target is unsupported.');
+      }
+      return resolveRemoteHelperArtifact({
+        bundleRoot: helperBundleRoot,
+        platform: facts.platform,
+        architecture: facts.architecture
+      });
+    }
   });
   let closed = false;
 

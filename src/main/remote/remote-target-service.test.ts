@@ -57,6 +57,8 @@ function createHarness() {
   };
   const connected = {
     execute: vi.fn(),
+    openExec: vi.fn().mockResolvedValue({}),
+    openFileTransfer: vi.fn().mockResolvedValue({ close: vi.fn() }),
     close: vi.fn()
   };
   const ssh = {
@@ -70,18 +72,63 @@ function createHarness() {
     platform: 'linux',
     architecture: 'arm64',
     homeDirectory: '/home/builder',
+    helperBaseDirectory: '/home/builder',
     defaultShell: '/bin/bash'
   });
+  const artifact = {
+    helperVersion: '0.1.0',
+    protocolVersion: 1,
+    platform: 'linux' as const,
+    architecture: 'arm64' as const,
+    absolutePath: 'D:\\helper',
+    size: 42,
+    sha256: 'a'.repeat(64),
+    capabilities: ['system-info' as const]
+  };
+  const paths = {
+    rootDirectory: '/home/builder/.lumora/helper',
+    versionDirectory: '/home/builder/.lumora/helper/0.1.0',
+    executablePath: '/home/builder/.lumora/helper/0.1.0/lumora-helper',
+    temporaryPath: '/home/builder/.lumora/helper/0.1.0/.helper.tmp'
+  };
+  const files = { close: vi.fn() };
+  connected.openFileTransfer.mockResolvedValue(files);
+  const resolveHelperArtifact = vi.fn().mockResolvedValue(artifact);
+  const createHelperPaths = vi.fn(() => paths);
+  const inspectHelper = vi.fn().mockResolvedValue({ status: 'installed', paths });
+  const installHelper = vi.fn().mockResolvedValue(undefined);
+  const helper = {
+    info: {
+      helperVersion: '0.1.0',
+      protocolVersion: 1,
+      platform: 'linux' as const,
+      architecture: 'arm64' as const,
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash',
+      capabilities: ['system-info' as const]
+    },
+    close: vi.fn()
+  };
+  const connectHelper = vi.fn().mockResolvedValue(helper);
   const clock = vi.fn(() => new Date('2026-08-04T08:00:00.000Z'));
   const service = createRemoteTargetService({
     targets,
     profiles,
     ssh,
     probePlatform,
+    resolveHelperArtifact,
+    createHelperPaths,
+    inspectHelper,
+    installHelper,
+    connectHelper,
     clock,
     createTargetId: () => TARGET_ID
   });
-  return { service, targets, profiles, ssh, connected, probePlatform };
+  return {
+    service, targets, profiles, ssh, connected, probePlatform,
+    artifact, paths, files, resolveHelperArtifact, inspectHelper,
+    installHelper, connectHelper, helper
+  };
 }
 
 describe('remote target service', () => {
@@ -104,6 +151,8 @@ describe('remote target service', () => {
         connectionState: 'ready',
         platform: 'linux',
         architecture: 'arm64',
+        helperVersion: '0.1.0',
+        protocolVersion: 1,
         lastConnectedAt: '2026-08-04T08:00:00.000Z'
       },
       homeDirectory: '/home/builder',
@@ -114,9 +163,21 @@ describe('remote target service', () => {
         { connectionState: 'connecting' },
         { connectionState: 'authenticating' },
         {
+          connectionState: 'authenticating',
+          platform: 'linux',
+          architecture: 'arm64',
+          helperVersion: null,
+          protocolVersion: null,
+          capabilities: [],
+          lastConnectedAt: '2026-08-04T08:00:00.000Z'
+        },
+        {
           connectionState: 'ready',
           platform: 'linux',
           architecture: 'arm64',
+          helperVersion: '0.1.0',
+          protocolVersion: 1,
+          capabilities: [],
           lastConnectedAt: '2026-08-04T08:00:00.000Z'
         }
       ]);
@@ -124,6 +185,59 @@ describe('remote target service', () => {
     expect(probePlatform).toHaveBeenCalledWith(expect.any(Function));
     expect(JSON.stringify(targets.updateRemoteConnection.mock.calls))
       .not.toContain('memory-only');
+  });
+
+  it('keeps authenticated SSH available when the helper is missing', async () => {
+    const harness = createHarness();
+    harness.inspectHelper.mockResolvedValueOnce({
+      status: 'missing',
+      paths: harness.paths
+    });
+
+    await expect(harness.service.connect(TARGET_ID, {
+      method: 'password',
+      password: 'memory-only'
+    })).resolves.toMatchObject({
+      target: { connectionState: 'helper-missing' }
+    });
+    expect(harness.connected.close).not.toHaveBeenCalled();
+    expect(harness.files.close).not.toHaveBeenCalled();
+    expect(harness.service.getHelperInstallDetails(TARGET_ID)).toEqual({
+      status: 'missing',
+      helperVersion: '0.1.0',
+      installLocation: harness.paths.executablePath,
+      requiresConfirmation: true
+    });
+
+    await expect(harness.service.installHelper(TARGET_ID)).resolves.toMatchObject({
+      target: { connectionState: 'ready', helperVersion: '0.1.0' }
+    });
+    expect(harness.installHelper).toHaveBeenCalledWith(expect.objectContaining({
+      replaceExisting: false,
+      artifact: harness.artifact,
+      paths: harness.paths
+    }));
+    expect(harness.connectHelper).toHaveBeenCalled();
+  });
+
+  it('marks an invalid installed helper incompatible until confirmed replacement', async () => {
+    const harness = createHarness();
+    harness.inspectHelper.mockResolvedValueOnce({
+      status: 'invalid',
+      paths: harness.paths
+    });
+
+    await expect(harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    })).resolves.toMatchObject({
+      target: { connectionState: 'helper-incompatible' }
+    });
+    expect(harness.service.getHelperInstallDetails(TARGET_ID))
+      .toMatchObject({ status: 'invalid' });
+    await harness.service.installHelper(TARGET_ID);
+    expect(harness.installHelper).toHaveBeenCalledWith(expect.objectContaining({
+      replaceExisting: true
+    }));
   });
 
   it('closes a partially connected client and stores only a generic error state', async () => {

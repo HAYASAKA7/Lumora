@@ -178,6 +178,26 @@ are available as **Experimental**. Unimplemented routes remain disabled. The
 original archive and source sessions remain unchanged, so a provider skipped on
 the first import can be retried later.
 
+## Remote computers (experimental)
+
+Lumora can create an isolated window for a trusted SSH computer and activate a
+lightweight Lumora helper there. Add the computer from the separate **Remote**
+entrance, verify its SHA-256 host fingerprint, then connect with a password,
+private-key passphrase, or SSH agent. Credentials are used only for that
+connection and are not saved.
+
+When the helper is missing or incompatible, the remote window shows the exact
+per-user install location and version before asking for confirmation. Lumora
+uploads a packaged helper for the detected remote operating system and
+architecture, verifies its digest, activates it atomically, and completes a
+bounded protocol handshake. Installation does not require administrator or
+root access.
+
+This phase establishes secure remote connection and helper activation only.
+Remote provider discovery, session catalogs, and terminal execution are not
+yet available. See [Remote computers](docs/REMOTE.md) for the current boundary
+and test guidance.
+
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and
 current verification matrix.
@@ -412,11 +432,14 @@ provider may contact its own services according to its terms and configuration.
   on-demand Session Details view with a small normalized excerpt that neither
   resumes the provider nor imports its transcript into Lumora's catalog.
 - Terminal viewport sizing remains a known issue on some layouts.
+- Remote computers currently stop at verified helper activation; remote
+  provider discovery, session management, and terminals remain future phases.
 
 ## Technical documentation
 
 - [Troubleshooting guide](docs/TROUBLESHOOTING.md)
 - [Cross-device session transfer](docs/SESSION_TRANSFER.md)
+- [Remote computers](docs/REMOTE.md)
 - [Provider support and verification](docs/PROVIDER_SUPPORT.md)
 - [Architecture and privacy model](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)

@@ -306,6 +306,47 @@ bracketed-paste compatibility sequence does not resolve every case.
 multiline text in an editor and paste it into Codex. Do not assume the
 `Shift+Enter` compatibility path is working merely because the key is accepted.
 
+## Remote computers
+
+### Lumora asks to verify the remote identity
+
+**Symptom:** The remote window will not accept credentials and asks for host
+verification.
+
+**Likely cause:** The SSH host fingerprint has not been trusted yet, or it
+changed since the previous connection.
+
+**Resolution:** Return to the local Lumora window, observe the fingerprint, and
+compare it through a trusted channel with the remote computer. Trust it only
+when it matches. Never bypass a changed fingerprint.
+
+### The remote helper is missing or incompatible
+
+**Symptom:** SSH authentication succeeds, but the remote state is
+`helper-missing` or `helper-incompatible`.
+
+**Likely cause:** The per-user helper is absent, its digest does not match, or
+its protocol is incompatible with this Lumora build.
+
+**Resolution:** Review the version and install location in the remote window,
+then choose **Install Lumora helper** if the target is expected. Lumora verifies
+the packaged and uploaded copies before activation. The action does not require
+administrator access. If it continues to fail, confirm that the SSH account can
+write to its own home or local application-data directory and that security
+software is not removing the helper.
+
+### Remote target is ready but has no sessions or terminals
+
+**Symptom:** The remote helper reports ready, but Lumora does not show remote
+providers, sessions, or terminal controls.
+
+**Likely cause:** This is the current experimental boundary, not a discovery
+failure.
+
+**Resolution:** No action is required. The current phase verifies SSH,
+platform detection, helper installation, and protocol compatibility. Remote
+provider discovery, catalogs, and PTY execution arrive in later phases.
+
 ## Development builds
 
 ### Development and packaged Lumora show different data

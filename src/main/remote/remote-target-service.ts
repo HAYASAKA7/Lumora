@@ -12,6 +12,21 @@ import {
 } from '../../shared/contracts';
 import type { RemotePlatformFacts } from './platform-probe';
 import { probeRemotePlatform } from './platform-probe';
+import {
+  connectRemoteHelper,
+  type ConnectedRemoteHelper
+} from './helper-connection';
+import type { VerifiedRemoteHelperArtifact } from './helper-artifact-resolver';
+import {
+  inspectRemoteHelper,
+  installRemoteHelper,
+  type RemoteHelperInspection
+} from './helper-installer';
+import {
+  createRemoteHelperPaths,
+  helperLaunchCommand,
+  type RemoteHelperPaths
+} from './helper-remote-paths';
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSshClient } from './ssh-client';
 
@@ -76,6 +91,13 @@ interface CreateRemoteTargetServiceOptions {
   probePlatform?: (
     execute: ConnectedRemoteSshClient['execute']
   ) => Promise<RemotePlatformFacts>;
+  resolveHelperArtifact?: (
+    facts: RemotePlatformFacts
+  ) => Promise<VerifiedRemoteHelperArtifact>;
+  createHelperPaths?: typeof createRemoteHelperPaths;
+  inspectHelper?: typeof inspectRemoteHelper;
+  installHelper?: typeof installRemoteHelper;
+  connectHelper?: typeof connectRemoteHelper;
   clock?: () => Date;
   createTargetId?: () => string;
 }
@@ -87,6 +109,24 @@ export class RemoteTargetServiceError extends Error {
     super('Lumora could not connect to the remote computer.');
     this.name = 'RemoteTargetServiceError';
   }
+}
+
+export interface RemoteHelperInstallDetails {
+  status: 'missing' | 'invalid';
+  helperVersion: string;
+  installLocation: string;
+  requiresConfirmation: true;
+}
+
+interface ActiveRemoteTarget {
+  generation: number;
+  ssh: ConnectedRemoteSshClient;
+  files: Awaited<ReturnType<ConnectedRemoteSshClient['openFileTransfer']>>;
+  facts: RemotePlatformFacts;
+  artifact: VerifiedRemoteHelperArtifact;
+  paths: RemoteHelperPaths;
+  inspection: RemoteHelperInspection;
+  helper: ConnectedRemoteHelper | null;
 }
 
 function remoteTarget(value: ExecutionTarget | null): RemoteTarget {
@@ -101,11 +141,26 @@ export function createRemoteTargetService({
   profiles,
   ssh = createRemoteSshClient(),
   probePlatform: probe = probeRemotePlatform,
+  resolveHelperArtifact = async () => {
+    throw new Error('The packaged remote helper is unavailable.');
+  },
+  createHelperPaths = createRemoteHelperPaths,
+  inspectHelper = inspectRemoteHelper,
+  installHelper: performHelperInstall = installRemoteHelper,
+  connectHelper = connectRemoteHelper,
   clock = () => new Date(),
   createTargetId = () => randomUUID()
 }: CreateRemoteTargetServiceOptions) {
-  const clients = new Map<RemoteExecutionTargetId, ConnectedRemoteSshClient>();
+  const activeTargets = new Map<RemoteExecutionTargetId, ActiveRemoteTarget>();
+  let nextGeneration = 1;
   let closed = false;
+
+  const disposeActive = (active: ActiveRemoteTarget | undefined) => {
+    if (active === undefined) return;
+    active.helper?.close();
+    active.files.close();
+    active.ssh.close();
+  };
 
   const summary = (id: RemoteExecutionTargetId): RemoteTargetSummary => {
     const target = remoteTarget(targets.get(id));
@@ -118,13 +173,50 @@ export function createRemoteTargetService({
 
   const disconnect = (input: RemoteExecutionTargetId): RemoteTargetSummary => {
     const id = RemoteExecutionTargetIdSchema.parse(input);
-    const client = clients.get(id);
-    if (client !== undefined) {
-      clients.delete(id);
-      client.close();
-    }
+    const active = activeTargets.get(id);
+    activeTargets.delete(id);
+    disposeActive(active);
     targets.updateRemoteConnection(id, { connectionState: 'offline' });
     return summary(id);
+  };
+
+  const connectionDetails = (
+    id: RemoteExecutionTargetId,
+    facts: RemotePlatformFacts
+  ): RemoteTargetConnectionDetails => ({
+    ...summary(id),
+    homeDirectory: facts.homeDirectory,
+    defaultShell: facts.defaultShell
+  });
+
+  const activateHelper = async (
+    id: RemoteExecutionTargetId,
+    active: ActiveRemoteTarget
+  ): Promise<RemoteTargetConnectionDetails> => {
+    const channel = await active.ssh.openExec(
+      helperLaunchCommand(active.paths, active.artifact.platform)
+    );
+    const helper = await connectHelper({
+      channel,
+      generation: active.generation,
+      expectedPlatform: active.artifact.platform,
+      expectedArchitecture: active.artifact.architecture
+    });
+    active.helper = helper;
+    const supportedCapabilities = helper.info.capabilities.filter(
+      (capability): capability is RemoteTarget['capabilities'][number] =>
+        capability !== 'system-info'
+    );
+    targets.updateRemoteConnection(id, {
+      connectionState: 'ready',
+      platform: active.facts.platform,
+      architecture: active.facts.architecture,
+      helperVersion: helper.info.helperVersion,
+      protocolVersion: helper.info.protocolVersion,
+      capabilities: supportedCapabilities,
+      lastConnectedAt: clock().toISOString()
+    });
+    return connectionDetails(id, active.facts);
   };
 
   return {
@@ -164,11 +256,9 @@ export function createRemoteTargetService({
 
     remove(input: RemoteExecutionTargetId): void {
       const id = RemoteExecutionTargetIdSchema.parse(input);
-      const client = clients.get(id);
-      if (client !== undefined) {
-        clients.delete(id);
-        client.close();
-      }
+      const active = activeTargets.get(id);
+      activeTargets.delete(id);
+      disposeActive(active);
       targets.deleteRemote(id);
     },
 
@@ -190,33 +280,114 @@ export function createRemoteTargetService({
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const credentials = RemoteTargetCredentialsSchema.parse(credentialsInput);
       const profile = summary(id).profile;
-      const former = clients.get(id);
-      if (former !== undefined) {
-        clients.delete(id);
-        former.close();
-      }
+      const former = activeTargets.get(id);
+      activeTargets.delete(id);
+      disposeActive(former);
       targets.updateRemoteConnection(id, { connectionState: 'connecting' });
       let connected: ConnectedRemoteSshClient | null = null;
+      let files: ActiveRemoteTarget['files'] | null = null;
       try {
         targets.updateRemoteConnection(id, { connectionState: 'authenticating' });
         connected = await ssh.connect(profile, credentials);
         const facts = await probe(connected.execute);
-        clients.set(id, connected);
-        const target = remoteTarget(targets.updateRemoteConnection(id, {
-          connectionState: 'ready',
+        if (
+          facts.platform === 'unknown' ||
+          facts.architecture === 'unknown'
+        ) throw new Error('Unsupported remote helper target.');
+        const artifact = await resolveHelperArtifact(facts);
+        const paths = createHelperPaths({
+          platform: facts.platform,
+          baseDirectory: facts.helperBaseDirectory,
+          helperVersion: artifact.helperVersion,
+          temporaryId: randomUUID()
+        });
+        files = await connected.openFileTransfer();
+        const inspection = await inspectHelper({
+          files,
+          execute: connected.execute,
+          paths,
+          artifact
+        });
+        const active: ActiveRemoteTarget = {
+          generation: nextGeneration++,
+          ssh: connected,
+          files,
+          facts,
+          artifact,
+          paths,
+          inspection,
+          helper: null
+        };
+        activeTargets.set(id, active);
+        targets.updateRemoteConnection(id, {
+          connectionState: inspection.status === 'missing'
+            ? 'helper-missing'
+            : inspection.status === 'invalid'
+              ? 'helper-incompatible'
+              : 'authenticating',
           platform: facts.platform,
           architecture: facts.architecture,
+          helperVersion: null,
+          protocolVersion: null,
+          capabilities: [],
           lastConnectedAt: clock().toISOString()
-        }));
-        return {
-          target,
-          profile: profiles.get(id)!,
-          homeDirectory: facts.homeDirectory,
-          defaultShell: facts.defaultShell
-        };
+        });
+        if (inspection.status !== 'installed') {
+          return connectionDetails(id, facts);
+        }
+        try {
+          return await activateHelper(id, active);
+        } catch {
+          active.inspection = { status: 'invalid', paths };
+          targets.updateRemoteConnection(id, {
+            connectionState: 'helper-incompatible'
+          });
+          return connectionDetails(id, facts);
+        }
       } catch {
+        files?.close();
         connected?.close();
         targets.updateRemoteConnection(id, { connectionState: 'error' });
+        throw new RemoteTargetServiceError();
+      }
+    },
+
+    getHelperInstallDetails(input: RemoteExecutionTargetId): RemoteHelperInstallDetails {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      if (active === undefined || active.inspection.status === 'installed') {
+        throw new RemoteTargetServiceError();
+      }
+      return {
+        status: active.inspection.status,
+        helperVersion: active.artifact.helperVersion,
+        installLocation: active.paths.executablePath,
+        requiresConfirmation: true
+      };
+    },
+
+    async installHelper(
+      input: RemoteExecutionTargetId
+    ): Promise<RemoteTargetConnectionDetails> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      if (active === undefined || active.inspection.status === 'installed') {
+        throw new RemoteTargetServiceError();
+      }
+      try {
+        await performHelperInstall({
+          files: active.files,
+          execute: active.ssh.execute,
+          paths: active.paths,
+          artifact: active.artifact,
+          replaceExisting: active.inspection.status === 'invalid'
+        });
+        active.inspection = { status: 'installed', paths: active.paths };
+        return await activateHelper(id, active);
+      } catch {
+        targets.updateRemoteConnection(id, {
+          connectionState: 'helper-incompatible'
+        });
         throw new RemoteTargetServiceError();
       }
     },
@@ -226,11 +397,11 @@ export function createRemoteTargetService({
     close(): void {
       if (closed) return;
       closed = true;
-      for (const [id, client] of clients) {
-        client.close();
+      for (const [id, active] of activeTargets) {
+        disposeActive(active);
         targets.updateRemoteConnection(id, { connectionState: 'offline' });
       }
-      clients.clear();
+      activeTargets.clear();
     }
   };
 }

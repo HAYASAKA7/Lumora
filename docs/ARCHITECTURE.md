@@ -78,6 +78,32 @@ It owns:
 New-window requests are denied, and navigation is restricted to Lumora's
 packaged application origin or its known development origin.
 
+### Remote target boundary
+
+Remote profiles, host trust, and connection state live in the main process and
+SQLite. A remote target opens in its own BrowserWindow with an immutable target
+context. Remote-window IPC may read, connect, disconnect, inspect helper state,
+or confirm helper installation only for that bound target. It cannot enumerate
+or mutate other targets, and helper IPC accepts no renderer-provided target ID.
+
+The SSH connection verifies a stored SHA-256 host fingerprint before sending
+credentials. Passwords and private-key passphrases remain memory-only. After
+authentication, Lumora probes the remote OS, architecture, home directory, and
+shell before choosing a packaged helper artifact; local and remote platforms
+are independent.
+
+Helper artifacts are built for Windows, macOS, and Linux on x64 and arm64. A
+bounded manifest records target, size, SHA-256 digest, protocol version, and
+capabilities. Lumora validates the local artifact, uploads to a private
+versioned per-user path, checks the remote digest, and atomically renames the
+verified temporary file. Existing invalid helpers are removed only after the
+replacement upload has passed verification and the user confirmed replacement.
+
+The helper uses length-prefixed, schema-validated frames with bounded payloads,
+timeouts, generation-bound request IDs, and an initial compatibility handshake.
+The current capability is limited to system information; provider discovery,
+session operations, and PTY streaming remain later remote phases.
+
 ## Provider model
 
 The shared provider definitions are the source of truth for display names,
@@ -411,6 +437,7 @@ must not prevent an otherwise valid session from being resumed.
 | `src/main/providers/` | Provider discovery and session-source adapters |
 | `src/main/handoff/` | Temporary cross-agent context lifecycle and cleanup |
 | `src/main/terminal/` | Launch resolution, PTY runtime, recovery, reconciliation |
+| `src/main/remote/` | SSH targets, platform probing, helper install and protocol lifecycle |
 | `src/main/storage/` | SQLite migrations and repositories |
 | `src/main/ipc/` | Validated privileged IPC handlers |
 | `src/preload/` | Typed renderer bridge |

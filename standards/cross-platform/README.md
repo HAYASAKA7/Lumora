@@ -28,6 +28,11 @@ Remote probing must identify the remote OS and architecture through the SSH
 connection before choosing helper or provider behavior. Local settings and
 paths must not leak into the remote target.
 
+Remote helper builds must cover Windows, macOS, and Linux independently from
+the packaging host, with x64 and arm64 artifacts explicitly represented in the
+verified manifest. Remote install paths and digest commands must use the
+probed platform's conventions and must never reuse local path syntax.
+
 ## Canonical references
 
 - `src/main/platform/`
@@ -36,6 +41,7 @@ paths must not leak into the remote target.
 - `src/main/branding/icon-assets.test.ts`
 - `scripts/release/verify-package.cjs`
 - `src/main/remote/platform-probe.ts`
+- `scripts/helper/build-helper.cjs`
 
 ## Review checklist
 

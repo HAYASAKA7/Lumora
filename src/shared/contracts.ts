@@ -213,6 +213,12 @@ export const RemoteTargetConnectionDetailsSchema = z.strictObject({
   homeDirectory: z.string().trim().min(1).max(4096),
   defaultShell: z.string().trim().min(1).max(4096)
 });
+export const RemoteHelperInstallDetailsSchema = z.strictObject({
+  status: z.enum(['missing', 'invalid']),
+  helperVersion: z.string().trim().min(1).max(64),
+  installLocation: z.string().trim().min(1).max(4096),
+  requiresConfirmation: z.literal(true)
+});
 export const RemoteTargetRemovalResultSchema = z.strictObject({
   removed: z.literal(true)
 });
@@ -252,6 +258,9 @@ export type RemoteHostKeyObservation = z.infer<
 >;
 export type RemoteTargetConnectionDetails = z.infer<
   typeof RemoteTargetConnectionDetailsSchema
+>;
+export type RemoteHelperInstallDetails = z.infer<
+  typeof RemoteHelperInstallDetailsSchema
 >;
 
 export const SystemInfoSchema = z.strictObject({
@@ -1413,6 +1422,8 @@ export const IPC_CHANNELS = {
   remoteTargetTrustHost: 'lumora:targets:host:trust',
   remoteTargetConnect: 'lumora:targets:connect',
   remoteTargetDisconnect: 'lumora:targets:disconnect',
+  remoteTargetHelperDetails: 'lumora:targets:helper:details',
+  remoteTargetHelperInstall: 'lumora:targets:helper:install',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1490,6 +1501,8 @@ export interface LumoraApi {
   disconnectRemoteTarget(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<RemoteTargetSummary>;
+  getRemoteHelperInstallDetails(): Promise<RemoteHelperInstallDetails>;
+  installRemoteHelper(): Promise<RemoteTargetConnectionDetails>;
   openRemoteTargetWindow(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<void>;

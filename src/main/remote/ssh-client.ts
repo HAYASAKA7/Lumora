@@ -18,6 +18,19 @@ export interface ResolvedSshConfigHost {
   username: string;
 }
 
+export interface SftpAdapter {
+  stat(
+    path: string,
+    callback: (error: Error | undefined, attributes?: { size: number }) => void
+  ): void;
+  mkdir(path: string, callback: (error?: Error) => void): void;
+  fastPut(localPath: string, remotePath: string, callback: (error?: Error) => void): void;
+  chmod(path: string, mode: number, callback: (error?: Error) => void): void;
+  rename(from: string, to: string, callback: (error?: Error) => void): void;
+  unlink(path: string, callback: (error?: Error) => void): void;
+  end(): void;
+}
+
 export interface SshClientAdapter {
   on(event: string, listener: (...args: any[]) => void): this;
   once(event: string, listener: (...args: any[]) => void): this;
@@ -27,6 +40,7 @@ export interface SshClientAdapter {
     command: string,
     callback: (error: Error | undefined, channel: ClientChannel) => void
   ): void;
+  sftp?(callback: (error: Error | undefined, sftp: SftpAdapter) => void): void;
   end(): void;
   destroy(): void;
 }
@@ -212,7 +226,93 @@ function commandExecutor(
 
 export interface ConnectedRemoteSshClient {
   execute: RemoteCommandExecutor;
+  openExec(command: string): Promise<RemoteExecChannel>;
+  openFileTransfer(): Promise<RemoteFileTransfer>;
   close(): void;
+}
+
+export interface RemoteExecChannel {
+  stdin: NodeJS.WritableStream;
+  stdout: NodeJS.ReadableStream;
+  stderr: NodeJS.ReadableStream;
+  close(): void;
+}
+
+export interface RemoteFileTransfer {
+  stat(path: string): Promise<{ exists: boolean; size: number | null }>;
+  mkdir(path: string): Promise<void>;
+  upload(localPath: string, remotePath: string): Promise<void>;
+  chmod(path: string, mode: number): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
+  remove(path: string): Promise<void>;
+  close(): void;
+}
+
+function remoteOperationFailed(): RemoteSshError {
+  return new RemoteSshError(
+    'SSH_CONNECTION_FAILED',
+    'Lumora could not complete the remote operation.'
+  );
+}
+
+function isMissingFile(error: Error): boolean {
+  return 'code' in error && (error as Error & { code?: unknown }).code === 'ENOENT';
+}
+
+function createRemoteFileTransfer(sftp: SftpAdapter): RemoteFileTransfer {
+  let closed = false;
+  const ensureOpen = () => {
+    if (closed) throw remoteOperationFailed();
+  };
+  const operation = (
+    run: (callback: (error?: Error) => void) => void
+  ): Promise<void> => new Promise((resolve, reject) => {
+    try {
+      ensureOpen();
+      run((error) => error === undefined ? resolve() : reject(remoteOperationFailed()));
+    } catch {
+      reject(remoteOperationFailed());
+    }
+  });
+
+  return {
+    stat(path) {
+      return new Promise((resolve, reject) => {
+        try {
+          ensureOpen();
+          sftp.stat(path, (error, attributes) => {
+            if (error !== undefined) {
+              if (isMissingFile(error)) {
+                resolve({ exists: false, size: null });
+              } else {
+                reject(remoteOperationFailed());
+              }
+              return;
+            }
+            if (attributes === undefined || !Number.isSafeInteger(attributes.size)) {
+              reject(remoteOperationFailed());
+              return;
+            }
+            resolve({ exists: true, size: attributes.size });
+          });
+        } catch {
+          reject(remoteOperationFailed());
+        }
+      });
+    },
+    mkdir: (path) => operation((callback) => sftp.mkdir(path, callback)),
+    upload: (localPath, remotePath) => operation((callback) =>
+      sftp.fastPut(localPath, remotePath, callback)
+    ),
+    chmod: (path, mode) => operation((callback) => sftp.chmod(path, mode, callback)),
+    rename: (from, to) => operation((callback) => sftp.rename(from, to, callback)),
+    remove: (path) => operation((callback) => sftp.unlink(path, callback)),
+    close() {
+      if (closed) return;
+      closed = true;
+      sftp.end();
+    }
+  };
 }
 
 export function createRemoteSshClient(
@@ -331,9 +431,82 @@ export function createRemoteSshClient(
           if (settled) return;
           settled = true;
           dependencies.clearTimeout(timeout);
+          let connectionClosed = false;
           resolve({
             execute: commandExecutor(client, dependencies),
-            close: () => client.end()
+            openExec(command) {
+              if (connectionClosed) return Promise.reject(remoteOperationFailed());
+              return new Promise<RemoteExecChannel>((resolveChannel, rejectChannel) => {
+                let opened = false;
+                const openTimeout = dependencies.setTimeout(() => {
+                  if (opened) return;
+                  opened = true;
+                  rejectChannel(new RemoteSshError(
+                    'SSH_TIMEOUT',
+                    'The remote helper channel timed out.'
+                  ));
+                }, DEFAULT_CONNECTION_TIMEOUT_MS);
+                client.exec(command, (error, channel) => {
+                  if (opened) {
+                    channel?.destroy();
+                    return;
+                  }
+                  opened = true;
+                  dependencies.clearTimeout(openTimeout);
+                  if (connectionClosed || error !== undefined) {
+                    channel?.destroy();
+                    rejectChannel(remoteOperationFailed());
+                    return;
+                  }
+                  let channelClosed = false;
+                  resolveChannel({
+                    stdin: channel,
+                    stdout: channel,
+                    stderr: channel.stderr,
+                    close() {
+                      if (channelClosed) return;
+                      channelClosed = true;
+                      channel.destroy();
+                    }
+                  });
+                });
+              });
+            },
+            openFileTransfer() {
+              if (connectionClosed || client.sftp === undefined) {
+                return Promise.reject(remoteOperationFailed());
+              }
+              return new Promise<RemoteFileTransfer>((resolveTransfer, rejectTransfer) => {
+                let opened = false;
+                const openTimeout = dependencies.setTimeout(() => {
+                  if (opened) return;
+                  opened = true;
+                  rejectTransfer(new RemoteSshError(
+                    'SSH_TIMEOUT',
+                    'The remote file transfer timed out.'
+                  ));
+                }, DEFAULT_CONNECTION_TIMEOUT_MS);
+                client.sftp!((error, sftp) => {
+                  if (opened) {
+                    sftp?.end();
+                    return;
+                  }
+                  opened = true;
+                  dependencies.clearTimeout(openTimeout);
+                  if (connectionClosed || error !== undefined) {
+                    sftp?.end();
+                    rejectTransfer(remoteOperationFailed());
+                    return;
+                  }
+                  resolveTransfer(createRemoteFileTransfer(sftp));
+                });
+              });
+            },
+            close() {
+              if (connectionClosed) return;
+              connectionClosed = true;
+              client.end();
+            }
           });
         });
         client.connect({

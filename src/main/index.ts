@@ -454,7 +454,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerApplicationProtocol();
   remoteTargetRuntime = createRemoteTargetRuntime({
-    databasePath: join(app.getPath('userData'), 'lumora.db')
+    databasePath: join(app.getPath('userData'), 'lumora.db'),
+    helperBundleRoot: app.isPackaged
+      ? join(process.resourcesPath, 'helper')
+      : join(app.getAppPath(), 'resources', 'helper', 'generated')
   });
   catalogRuntime = createCatalogRuntime({
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,

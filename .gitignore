@@ -13,3 +13,4 @@ AI_Agent_Workspace_Manager_Design_Specification_v0.2.docx
 *.log
 .DS_Store
 Thumbs.db
+resources/helper/generated/

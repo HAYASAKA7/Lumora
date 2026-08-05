@@ -20,7 +20,7 @@ export const WINDOWS_PLATFORM_PROBE_COMMAND =
   `powershell -NoProfile -NonInteractive -Command ` +
   `"[Console]::OutputEncoding=[Text.Encoding]::UTF8; ` +
   `$value=[ordered]@{platform='win32';architecture=$env:PROCESSOR_ARCHITECTURE;` +
-  `homeDirectory=$HOME;defaultShell='powershell.exe'};` +
+  `homeDirectory=$HOME;helperBaseDirectory=$env:LOCALAPPDATA;defaultShell='powershell.exe'};` +
   `$value|ConvertTo-Json -Compress"`;
 
 export interface RemoteCommandResult {
@@ -38,6 +38,7 @@ export interface RemotePlatformFacts {
   platform: Extract<ExecutionTarget, { kind: 'remote' }>['platform'];
   architecture: Extract<ExecutionTarget, { kind: 'remote' }>['architecture'];
   homeDirectory: string;
+  helperBaseDirectory: string;
   defaultShell: string;
 }
 
@@ -45,6 +46,7 @@ const WindowsProbeSchema = z.strictObject({
   platform: z.literal('win32'),
   architecture: z.string().trim().min(1).max(64),
   homeDirectory: z.string().trim().min(1).max(4096),
+  helperBaseDirectory: z.string().trim().min(1).max(4096),
   defaultShell: z.string().trim().min(1).max(4096)
 });
 
@@ -93,6 +95,7 @@ function parsePosix(stdout: string): RemotePlatformFacts {
       normalizeArchitecture(architecture)
     ),
     homeDirectory,
+    helperBaseDirectory: homeDirectory,
     defaultShell
   };
 }
@@ -104,6 +107,7 @@ function parseWindows(stdout: string): RemotePlatformFacts {
       platform: value.platform,
       architecture: normalizeArchitecture(value.architecture),
       homeDirectory: value.homeDirectory,
+      helperBaseDirectory: value.helperBaseDirectory,
       defaultShell: value.defaultShell
     };
   } catch {
