@@ -34,17 +34,46 @@ const summary = {
   }
 } as const;
 
+const discovery = {
+  executionTargetId: TARGET_ID,
+  scannedAt: '2026-08-05T04:03:02.000Z',
+  environment: {
+    checkedAt: '2026-08-05T04:03:02.000Z',
+    node: {
+      state: 'ready', executablePath: '/usr/bin/node', version: 'v24.0.0'
+    },
+    npm: { state: 'not_found', executablePath: null, version: null }
+  },
+  providers: {
+    scannedAt: '2026-08-05T04:03:02.000Z',
+    providers: [{
+      provider: 'codex', displayName: 'Codex', state: 'ready',
+      executablePath: '/usr/bin/codex', version: 'codex 1.2.3', issue: null
+    }]
+  }
+} as const;
+
 describe('RemoteTargetWindow', () => {
   it('connects its bound target with an ephemeral password and exposes no local controls', async () => {
     const api = {
       listRemoteTargets: vi.fn().mockResolvedValue([summary]),
       connectRemoteTarget: vi.fn().mockResolvedValue({
         ...summary,
-        target: { ...summary.target, connectionState: 'ready' },
+        target: {
+          ...summary.target,
+          connectionState: 'ready',
+          helperVersion: '0.2.0',
+          protocolVersion: 1,
+          capabilities: ['provider-scan']
+        },
         homeDirectory: '/home/builder',
         defaultShell: '/bin/bash'
       }),
-      disconnectRemoteTarget: vi.fn()
+      disconnectRemoteTarget: vi.fn(),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery)
     } as unknown as LumoraApi;
 
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
@@ -62,6 +91,8 @@ describe('RemoteTargetWindow', () => {
       credentials: { method: 'password', password: 'memory-only' }
     }));
     expect(await screen.findByText('/home/builder')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    expect(await screen.findByText('v24.0.0')).toBeInTheDocument();
     expect(screen.queryByText('All sessions')).not.toBeInTheDocument();
   });
 
@@ -102,7 +133,11 @@ describe('RemoteTargetWindow', () => {
           connectionState: 'ready', helperVersion: '0.1.0', protocolVersion: 1
         }
       }),
-      disconnectRemoteTarget: vi.fn()
+      disconnectRemoteTarget: vi.fn(),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery)
     } as unknown as LumoraApi;
 
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
@@ -126,5 +161,73 @@ describe('RemoteTargetWindow', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Install helper' }));
     await waitFor(() => expect(api.installRemoteHelper).toHaveBeenCalledWith());
     expect(await screen.findByText('ready')).toBeInTheDocument();
+  });
+
+  it('saves target-scoped provider choices and rescans without install controls', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.2.0',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      saveRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex', 'opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      disconnectRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
+    expect(await screen.findByText('codex 1.2.3')).toBeInTheDocument();
+    expect(screen.getByText(/install or repair CLIs directly on the remote computer/i))
+      .toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable OpenCode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save and scan' }));
+
+    await waitFor(() => expect(api.saveRemoteProviderPreferences)
+      .toHaveBeenCalledWith({ enabledProviders: ['codex', 'opencode'] }));
+    expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps connected pages stable and explains when the helper cannot scan yet', async () => {
+    const readyWithoutDiscovery = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.1.0',
+        protocolVersion: 1,
+        capabilities: []
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readyWithoutDiscovery]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn(),
+      disconnectRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Environment' }));
+
+    expect(await screen.findByText(/helper cannot scan providers yet/i))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled();
+    expect(api.scanRemoteDiscovery).not.toHaveBeenCalled();
   });
 });
