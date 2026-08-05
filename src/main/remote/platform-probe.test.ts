@@ -24,6 +24,7 @@ describe('probeRemotePlatform', () => {
       platform: 'linux',
       architecture: 'arm64',
       homeDirectory: '/home/builder',
+      helperBaseDirectory: '/home/builder',
       defaultShell: '/bin/bash'
     });
     expect(execute).toHaveBeenCalledWith(POSIX_PLATFORM_PROBE_COMMAND, {
@@ -56,6 +57,7 @@ describe('probeRemotePlatform', () => {
           platform: 'win32',
           architecture: 'AMD64',
           homeDirectory: 'C:\\Users\\builder',
+          helperBaseDirectory: 'C:\\Users\\builder\\AppData\\Local',
           defaultShell: 'powershell.exe'
         }),
         stderr: ''
@@ -65,6 +67,7 @@ describe('probeRemotePlatform', () => {
       platform: 'win32',
       architecture: 'x64',
       homeDirectory: 'C:\\Users\\builder',
+      helperBaseDirectory: 'C:\\Users\\builder\\AppData\\Local',
       defaultShell: 'powershell.exe'
     });
     expect(execute.mock.calls[1]).toEqual([
