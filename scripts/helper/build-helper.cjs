@@ -4,6 +4,8 @@ const { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } = require('no
 const { join, relative, resolve, sep } = require('node:path');
 const { verifyHelperBundle } = require('./verify-helper.cjs');
 
+require('./generate-provider-probes.cjs');
+
 const root = resolve(__dirname, '..', '..');
 const helperRoot = join(root, 'helper');
 const outputRoot = join(root, 'resources', 'helper', 'generated');

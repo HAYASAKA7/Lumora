@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   PROVIDER_DEFINITIONS,
@@ -12,6 +14,23 @@ import {
 } from './provider-definitions';
 
 describe('provider definitions', () => {
+  it('keeps helper probe commands in one canonical registry', () => {
+    const registryPath = resolve('src/shared/provider-probes.json');
+    expect(existsSync(registryPath)).toBe(true);
+    if (!existsSync(registryPath)) return;
+
+    const registry = JSON.parse(readFileSync(registryPath, 'utf8')) as Array<{
+      provider: string;
+      command: string;
+      versionArgs: string[];
+    }>;
+    expect(registry).toEqual(PROVIDER_DEFINITIONS.map((definition) => ({
+      provider: definition.provider,
+      command: definition.command,
+      versionArgs: [...definition.versionArgs]
+    })));
+  });
+
   it('ships stable lifecycle metadata in UI order', () => {
     expect(PROVIDER_DEFINITIONS.map(({ provider }) => provider)).toEqual([
       'codex',

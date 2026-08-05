@@ -23,7 +23,7 @@
     "benchmark:terminal": "vitest bench src/main/terminal/output-buffer.bench.ts --run --project node",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "helper:test": "go -C helper test ./...",
+    "helper:test": "node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...",
     "helper:build": "node scripts/helper/build-helper.cjs"
   },
   "dependencies": {

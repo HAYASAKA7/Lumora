@@ -1,4 +1,5 @@
 import type { ProviderId } from './contracts';
+import { providerProbe } from './provider-probes';
 
 export type SessionSupport = 'complete' | 'launch_only';
 
@@ -14,110 +15,86 @@ export interface ProviderDefinition {
 
 export const PROVIDER_DEFINITIONS = Object.freeze([
   {
-    provider: 'codex',
+    ...providerProbe('codex'),
     displayName: 'Codex',
-    command: 'codex',
-    versionArgs: ['--version'],
     sessionSupport: 'complete',
     npmPackage: '@openai/codex',
     installGuideUrl: 'https://developers.openai.com/codex/cli/'
   },
   {
-    provider: 'claude',
+    ...providerProbe('claude'),
     displayName: 'Claude Code',
-    command: 'claude',
-    versionArgs: ['--version'],
     sessionSupport: 'complete',
     npmPackage: '@anthropic-ai/claude-code',
     installGuideUrl: 'https://docs.anthropic.com/en/docs/claude-code/setup'
   },
   {
-    provider: 'gemini',
+    ...providerProbe('gemini'),
     displayName: 'Gemini CLI',
-    command: 'gemini',
-    versionArgs: ['--version'],
     sessionSupport: 'complete',
     npmPackage: '@google/gemini-cli',
     installGuideUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
-    provider: 'antigravity',
+    ...providerProbe('antigravity'),
     displayName: 'Antigravity',
-    command: 'agy',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: null,
     installGuideUrl: 'https://antigravity.google/docs/cli-getting-started'
   },
   {
-    provider: 'opencode',
+    ...providerProbe('opencode'),
     displayName: 'OpenCode',
-    command: 'opencode',
-    versionArgs: ['--version'],
     sessionSupport: 'complete',
     npmPackage: 'opencode-ai',
     installGuideUrl: 'https://opencode.ai/docs/'
   },
   {
-    provider: 'cursor',
+    ...providerProbe('cursor'),
     displayName: 'Cursor CLI',
-    command: 'cursor-agent',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: null,
     installGuideUrl: 'https://cursor.com/docs/cli/installation'
   },
   {
-    provider: 'copilot',
+    ...providerProbe('copilot'),
     displayName: 'GitHub Copilot CLI',
-    command: 'copilot',
-    versionArgs: ['version'],
     sessionSupport: 'complete',
     npmPackage: '@github/copilot',
     installGuideUrl:
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli'
   },
   {
-    provider: 'qwen',
+    ...providerProbe('qwen'),
     displayName: 'Qwen Code',
-    command: 'qwen',
-    versionArgs: ['--version'],
     sessionSupport: 'complete',
     npmPackage: '@qwen-code/qwen-code',
     installGuideUrl: 'https://qwenlm.github.io/qwen-code-docs/en/'
   },
   {
-    provider: 'amp',
+    ...providerProbe('amp'),
     displayName: 'Amp',
-    command: 'amp',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: null,
     installGuideUrl: 'https://ampcode.com/manual'
   },
   {
-    provider: 'crush',
+    ...providerProbe('crush'),
     displayName: 'Crush',
-    command: 'crush',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: '@charmland/crush',
     installGuideUrl: 'https://github.com/charmbracelet/crush'
   },
   {
-    provider: 'goose',
+    ...providerProbe('goose'),
     displayName: 'goose',
-    command: 'goose',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: null,
     installGuideUrl: 'https://block.github.io/goose/docs/getting-started/installation'
   },
   {
-    provider: 'aider',
+    ...providerProbe('aider'),
     displayName: 'Aider',
-    command: 'aider',
-    versionArgs: ['--version'],
     sessionSupport: 'launch_only',
     npmPackage: null,
     installGuideUrl: 'https://aider.chat/docs/install.html'

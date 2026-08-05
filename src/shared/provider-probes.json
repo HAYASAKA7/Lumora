@@ -1,0 +1,14 @@
+[
+  { "provider": "codex", "command": "codex", "versionArgs": ["--version"] },
+  { "provider": "claude", "command": "claude", "versionArgs": ["--version"] },
+  { "provider": "gemini", "command": "gemini", "versionArgs": ["--version"] },
+  { "provider": "antigravity", "command": "agy", "versionArgs": ["--version"] },
+  { "provider": "opencode", "command": "opencode", "versionArgs": ["--version"] },
+  { "provider": "cursor", "command": "cursor-agent", "versionArgs": ["--version"] },
+  { "provider": "copilot", "command": "copilot", "versionArgs": ["version"] },
+  { "provider": "qwen", "command": "qwen", "versionArgs": ["--version"] },
+  { "provider": "amp", "command": "amp", "versionArgs": ["--version"] },
+  { "provider": "crush", "command": "crush", "versionArgs": ["--version"] },
+  { "provider": "goose", "command": "goose", "versionArgs": ["--version"] },
+  { "provider": "aider", "command": "aider", "versionArgs": ["--version"] }
+]
