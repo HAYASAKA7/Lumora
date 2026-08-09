@@ -25,6 +25,7 @@ interface ManagedTerminalProps {
 }
 
 const TERMINAL_BLOCK_SIZE = '100%';
+const TERMINAL_INPUT_CHUNK_SIZE = 60_000;
 export const TERMINAL_EXIT_GRACE_MS = 2_000;
 
 const TERMINAL_THEMES = {
@@ -191,6 +192,7 @@ export function ManagedTerminal({
             requestTermination();
           }, TERMINAL_EXIT_GRACE_MS);
         };
+        let inputWriteChain = Promise.resolve();
         const writeRuntimeInput = (
           data: string,
           options: { observeExitIntent?: boolean } = {}
@@ -200,7 +202,25 @@ export function ManagedTerminal({
             options.observeExitIntent === false
               ? false
               : exitIntent.observe(data);
-          void window.lumora.writeRuntime({ runtimeId: runtime.id, data }).then(
+          const chunks: string[] = [];
+          for (
+            let offset = 0;
+            offset < data.length;
+            offset += TERMINAL_INPUT_CHUNK_SIZE
+          ) {
+            chunks.push(data.slice(offset, offset + TERMINAL_INPUT_CHUNK_SIZE));
+          }
+          const queuedWrite = inputWriteChain.then(async () => {
+            for (const chunk of chunks) {
+              if (!alive || !acceptingInputRef.current) return;
+              await window.lumora.writeRuntime({
+                runtimeId: runtime.id,
+                data: chunk
+              });
+            }
+          });
+          inputWriteChain = queuedWrite.catch(() => undefined);
+          void queuedWrite.then(
             () => {
               if (submittedExit && alive && acceptingInputRef.current) {
                 scheduleExitFallback();

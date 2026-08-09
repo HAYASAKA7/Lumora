@@ -363,6 +363,29 @@ describe('CatalogRepository', () => {
     });
   });
 
+  it('accepts an authoritative renamed title when the provider timestamp is unchanged', () => {
+    const repository = createRepository();
+    const updatedAt = '2026-07-11T03:00:00.000Z';
+
+    repository.applyProviderScan({
+      provider: 'codex',
+      scanId: 'scan-before-rename',
+      scannedAt: '2026-07-11T03:01:00.000Z',
+      candidates: [candidate({ title: 'Zeta fork title', updatedAt })]
+    });
+    repository.applyProviderScan({
+      provider: 'codex',
+      scanId: 'scan-after-rename',
+      scannedAt: '2026-07-11T03:02:00.000Z',
+      candidates: [candidate({ title: 'Alpha renamed fork', updatedAt })]
+    });
+
+    expect(snapshot(repository).sessions[0]).toMatchObject({
+      title: 'Alpha renamed fork',
+      updatedAt
+    });
+  });
+
   it('writes each unique workspace once per provider scan', () => {
     const database = createDatabase();
     migrateCatalogDatabase(database);

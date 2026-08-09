@@ -214,22 +214,13 @@ export class CatalogRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'saved', 'current')
       ON CONFLICT(execution_target_id, provider, native_id) DO UPDATE SET
         workspace_id = CASE WHEN
-          excluded.updated_at > session.updated_at OR
-          (excluded.updated_at = session.updated_at AND excluded.title > session.title) OR
-          (excluded.updated_at = session.updated_at AND excluded.title = session.title
-            AND excluded.workspace_id > session.workspace_id)
+          excluded.updated_at >= session.updated_at
           THEN excluded.workspace_id ELSE session.workspace_id END,
         title = CASE WHEN
-          excluded.updated_at > session.updated_at OR
-          (excluded.updated_at = session.updated_at AND excluded.title > session.title) OR
-          (excluded.updated_at = session.updated_at AND excluded.title = session.title
-            AND excluded.workspace_id > session.workspace_id)
+          excluded.updated_at >= session.updated_at
           THEN excluded.title ELSE session.title END,
         normalized_title = CASE WHEN
-          excluded.updated_at > session.updated_at OR
-          (excluded.updated_at = session.updated_at AND excluded.title > session.title) OR
-          (excluded.updated_at = session.updated_at AND excluded.title = session.title
-            AND excluded.workspace_id > session.workspace_id)
+          excluded.updated_at >= session.updated_at
           THEN excluded.normalized_title ELSE session.normalized_title END,
         created_at = MIN(session.created_at, excluded.created_at),
         updated_at = MAX(session.updated_at, excluded.updated_at),

@@ -230,6 +230,64 @@ describe('TerminalWorkspace', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps the stopping state attached to the runtime being stopped', () => {
+    const firstRuntime: RuntimeSummary = {
+      ...runtime,
+      state: 'running',
+      pid: 4321,
+      endedAt: null,
+      exitCode: null
+    };
+    const secondRuntime: RuntimeSummary = {
+      ...firstRuntime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abd',
+      displayName: 'Second active terminal',
+      pid: 4322
+    };
+    const terminateRuntime = vi.fn(
+      () => new Promise<RuntimeSummary>(() => undefined)
+    );
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: { terminateRuntime }
+    });
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <TerminalWorkspace
+        activeRuntimeId={firstRuntime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[firstRuntime, secondRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.getByRole('button', { name: 'Stopping' })).toBeDisabled();
+    expect(terminateRuntime).toHaveBeenCalledWith(firstRuntime.id);
+
+    rerender(
+      <TerminalWorkspace
+        activeRuntimeId={secondRuntime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[firstRuntime, secondRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+    expect(
+      screen.queryByRole('button', { name: 'Stopping' })
+    ).not.toBeInTheDocument();
+  });
+
   it('keeps one mounted terminal for every open tab while switching', () => {
     const secondRuntime: RuntimeSummary = {
       ...runtime,
