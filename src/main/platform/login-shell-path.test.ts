@@ -24,11 +24,30 @@ describe('resolveApplicationEnvironment', () => {
     const resolved = await resolveApplicationEnvironment({
       platform: 'win32',
       env,
-      runCommand
+      runCommand,
+      readWindowsUserEnvironment: async () => ({})
     });
 
     expect(resolved).toBe(env);
     expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it('fills missing Claude authentication variables from the current Windows user environment', async () => {
+    const resolved = await resolveApplicationEnvironment({
+      platform: 'win32',
+      env: { PATH: 'C:\\Windows\\System32' },
+      readWindowsUserEnvironment: async () => ({
+        ANTHROPIC_API_KEY: 'windows-api-key',
+        ANTHROPIC_AUTH_TOKEN: 'windows-auth-token',
+        ANTHROPIC_BASE_URL: 'https://gateway.example.test'
+      })
+    });
+
+    expect(resolved).toMatchObject({
+      ANTHROPIC_API_KEY: 'windows-api-key',
+      ANTHROPIC_AUTH_TOKEN: 'windows-auth-token',
+      ANTHROPIC_BASE_URL: 'https://gateway.example.test'
+    });
   });
 
   it('recovers the macOS login-shell PATH and preserves inherited entries', async () => {
@@ -52,6 +71,69 @@ describe('resolveApplicationEnvironment', () => {
       SHELL: '/bin/zsh',
       LANG: 'en_US.UTF-8'
     });
+  });
+
+  it('recovers missing Claude authentication variables from the login shell', async () => {
+    const runCommand = vi.fn(async (invocation: ShellPathInvocation) => ({
+      stdout: [
+        invocation.outputStartMarker,
+        '/opt/homebrew/bin:/usr/bin',
+        invocation.outputEndMarker,
+        '__LUMORA_PROVIDER_ENV_BEGIN_5E76A1B2__',
+        'ANTHROPIC_API_KEY=recovered-api-key',
+        'ANTHROPIC_AUTH_TOKEN=recovered-auth-token',
+        'ANTHROPIC_BASE_URL=https://gateway.example.test',
+        '__LUMORA_PROVIDER_ENV_END_5E76A1B2__'
+      ].join('\n'),
+      stderr: '',
+      exitCode: 0
+    }));
+
+    const resolved = await resolveApplicationEnvironment({
+      platform: 'darwin',
+      env: {
+        PATH: '/usr/bin:/bin',
+        SHELL: '/bin/zsh',
+        ANTHROPIC_API_KEY: 'inherited-api-key'
+      },
+      shellExists: async (path) => path === '/bin/zsh',
+      runCommand
+    });
+
+    expect(resolved).toMatchObject({
+      ANTHROPIC_API_KEY: 'inherited-api-key',
+      ANTHROPIC_AUTH_TOKEN: 'recovered-auth-token',
+      ANTHROPIC_BASE_URL: 'https://gateway.example.test'
+    });
+  });
+
+  it('rejects a malformed provider environment block instead of accepting partial secrets', async () => {
+    const runCommand = vi.fn(async (invocation: ShellPathInvocation) => ({
+      stdout: [
+        invocation.outputStartMarker,
+        '/usr/local/bin:/usr/bin',
+        invocation.outputEndMarker,
+        '__LUMORA_PROVIDER_ENV_BEGIN_5E76A1B2__',
+        'ANTHROPIC_API_KEY=partial-secret',
+        'injected-line',
+        'ANTHROPIC_AUTH_TOKEN=auth-token',
+        'ANTHROPIC_BASE_URL=https://gateway.example.test',
+        '__LUMORA_PROVIDER_ENV_END_5E76A1B2__'
+      ].join('\n'),
+      stderr: '',
+      exitCode: 0
+    }));
+
+    const resolved = await resolveApplicationEnvironment({
+      platform: 'linux',
+      env: { PATH: '/usr/bin', SHELL: '/bin/zsh' },
+      shellExists: async (path) => path === '/bin/zsh',
+      runCommand
+    });
+
+    expect(resolved).not.toHaveProperty('ANTHROPIC_API_KEY');
+    expect(resolved).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN');
+    expect(resolved).not.toHaveProperty('ANTHROPIC_BASE_URL');
   });
 
   it('combines Linux bash interactive and login PATH values with interactive entries first', async () => {

@@ -136,6 +136,7 @@ function harness(options: {
   exitOnWaitCode?: number;
 } = {}) {
   const pty = new FakePty();
+  const ptys = [pty];
   const stored: RuntimeSummary[] = [];
   const repository = {
     saveRuntime: vi.fn((runtime: RuntimeSummary) => {
@@ -164,10 +165,15 @@ function harness(options: {
   };
   const startReconciliation = vi.fn();
   let waitCallCount = 0;
+  let spawnCount = 0;
   const spawn = vi.fn((_options: PtySpawnOptions) => {
     if (options.spawnError !== undefined) throw options.spawnError;
-    return pty;
+    const current = ptys[spawnCount] ?? new FakePty();
+    if (ptys[spawnCount] === undefined) ptys.push(current);
+    spawnCount += 1;
+    return current;
   });
+  let runtimeIdCount = 0;
   const host = new RuntimeHost({
     repository,
     consumeLaunch: vi.fn(async () => options.launch ?? launchSpec),
@@ -175,7 +181,11 @@ function harness(options: {
     startReconciliation,
     platform: options.platform ?? 'linux',
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
-    createRuntimeId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+    createRuntimeId: () => {
+      const suffix = runtimeIdCount === 0 ? 'abc' : 'abd';
+      runtimeIdCount += 1;
+      return `0198f8b6-18f3-7ca0-9f0f-123456789${suffix}`;
+    },
     wait: vi.fn(async () => {
       waitCallCount += 1;
       if (options.exitDuringWait !== undefined) {
@@ -186,7 +196,7 @@ function harness(options: {
       }
     })
   });
-  return { host, pty, repository, spawn, startReconciliation };
+  return { host, pty, ptys, repository, spawn, startReconciliation };
 }
 
 describe('RuntimeHost', () => {
@@ -647,5 +657,24 @@ describe('RuntimeHost', () => {
     expect(pty.writes).toEqual(['\u0003', '\u0003']);
     expect(pty.killCount).toBe(1);
     expect(first).toEqual(second);
+  });
+
+  it('waits for every live PTY shutdown sequence before resolving', async () => {
+    const { host, ptys } = harness();
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abd');
+
+    await host.shutdown();
+
+    expect(ptys).toHaveLength(2);
+    for (const current of ptys) {
+      expect(current.writes).toEqual(['\u0003', '\u0003']);
+      expect(current.killCount).toBe(1);
+      expect(current.killed).toBe(true);
+    }
+    expect(host.list()).toEqual([
+      expect.objectContaining({ state: 'runtime_lost' }),
+      expect.objectContaining({ state: 'runtime_lost' })
+    ]);
   });
 });

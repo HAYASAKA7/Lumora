@@ -56,7 +56,9 @@ export function TerminalWorkspace({
   onReorder,
   onRuntimeChange
 }: TerminalWorkspaceProps): ReactNode {
-  const [stopping, setStopping] = useState(false);
+  const [stoppingRuntimeIds, setStoppingRuntimeIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [dragPresentation, setDragPresentation] = useState<{
     destinationIndex: number;
@@ -94,6 +96,7 @@ export function TerminalWorkspace({
   const preview = previews.get(runtime.id);
   const workspace = workspaces.find((item) => item.id === runtime.workspaceId);
   const isLive = runtime.state === 'launching' || runtime.state === 'running';
+  const stopping = stoppingRuntimeIds.has(runtime.id);
   const providerName = runtime.provider === 'codex' ? 'Codex' : 'Claude Code';
 
   const handleTabPointerDown = (
@@ -197,10 +200,22 @@ export function TerminalWorkspace({
   };
 
   const stop = () => {
-    setStopping(true);
-    void window.lumora.terminateRuntime(runtime.id).then(
-      (value) => { onRuntimeChange(value); setStopping(false); },
-      () => setStopping(false)
+    const runtimeId = runtime.id;
+    setStoppingRuntimeIds((current) => new Set(current).add(runtimeId));
+    const clearStopping = () => {
+      setStoppingRuntimeIds((current) => {
+        if (!current.has(runtimeId)) return current;
+        const next = new Set(current);
+        next.delete(runtimeId);
+        return next;
+      });
+    };
+    void window.lumora.terminateRuntime(runtimeId).then(
+      (value) => {
+        onRuntimeChange(value);
+        clearStopping();
+      },
+      clearStopping
     );
   };
 

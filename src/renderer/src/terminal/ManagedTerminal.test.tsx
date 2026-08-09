@@ -592,6 +592,31 @@ describe('ManagedTerminal', () => {
     });
   });
 
+  it('delivers oversized terminal input as ordered IPC-safe chunks', async () => {
+    const api = installLumora();
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.dataHandler).not.toBeNull());
+    const input = `${'a'.repeat(70_000)}${'b'.repeat(70_000)}`;
+
+    act(() => {
+      xterm.dataHandler?.(input);
+    });
+
+    await waitFor(() => expect(api.writeRuntime).toHaveBeenCalledTimes(3));
+    const writes = vi.mocked(api.writeRuntime).mock.calls.map(
+      ([request]) => request.data
+    );
+    expect(writes.every((chunk) => chunk.length <= 65_536)).toBe(true);
+    expect(writes.join('')).toBe(input);
+  });
+
   it('does not treat a Codex multiline newline as an exit submission', async () => {
     const terminateRuntime = vi.fn();
     installLumora({ terminateRuntime });
