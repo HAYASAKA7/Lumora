@@ -1,7 +1,44 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const { spawnMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn()
+}));
+
+vi.mock('node-pty', () => ({
+  spawn: spawnMock
+}));
 
 import { PtyProcessExitedError } from './runtime-host';
-import { runPtyOperation } from './pty-adapter';
+import { runPtyOperation, spawnPty } from './pty-adapter';
+
+describe('spawnPty', () => {
+  it('does not pass the unsupported encoding option to node-pty', () => {
+    spawnMock.mockReturnValue({
+      pid: 42,
+      write: vi.fn(),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      onData: vi.fn(() => ({ dispose: vi.fn() })),
+      onExit: vi.fn(() => ({ dispose: vi.fn() }))
+    });
+
+    spawnPty({
+      executablePath: 'powershell.exe',
+      args: ['-NoLogo'],
+      cwd: 'D:\\work',
+      env: { PATH: 'C:\\Windows\\System32' },
+      cols: 100,
+      rows: 30
+    });
+
+    const spawnOptions = spawnMock.mock.calls[0]?.[2];
+    expect(spawnOptions).not.toHaveProperty('encoding');
+    expect(spawnOptions).toMatchObject({
+      name: 'xterm-256color',
+      handleFlowControl: true
+    });
+  });
+});
 
 describe('runPtyOperation', () => {
   it.each([

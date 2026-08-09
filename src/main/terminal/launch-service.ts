@@ -442,23 +442,7 @@ export class LaunchService {
       createdAt: createdAt.toISOString()
     };
     const expiresAtMs = createdAt.getTime() + 5 * 60 * 1_000;
-    if (generation !== this.prepareGeneration) {
-      throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
-    }
-    this.prepared.set(token, {
-      spec,
-      expiresAtMs,
-      requestedTerminalProfileId: request.terminalProfileId,
-      startPrompt: request.startPrompt
-    });
-    const expiryTimer = setTimeout(
-      () => this.removePrepared(token),
-      Math.max(0, expiresAtMs - this.clock().getTime())
-    );
-    expiryTimer.unref?.();
-    this.expiryTimers.set(token, expiryTimer);
-
-    return LaunchPreviewSchema.parse({
+    const preview = LaunchPreviewSchema.parse({
       launchToken: token,
       launchHash: spec.launchHash,
       strategy: spec.strategy,
@@ -479,6 +463,23 @@ export class LaunchService {
       createdAt: spec.createdAt,
       expiresAt: new Date(expiresAtMs).toISOString()
     });
+    if (generation !== this.prepareGeneration) {
+      return preview;
+    }
+    this.prepared.set(token, {
+      spec,
+      expiresAtMs,
+      requestedTerminalProfileId: request.terminalProfileId,
+      startPrompt: request.startPrompt
+    });
+    const expiryTimer = setTimeout(
+      () => this.removePrepared(token),
+      Math.max(0, expiresAtMs - this.clock().getTime())
+    );
+    expiryTimer.unref?.();
+    this.expiryTimers.set(token, expiryTimer);
+
+    return preview;
   }
 
   trustWorkspaceForLaunch(token: string): WorkspaceTrustDecision {

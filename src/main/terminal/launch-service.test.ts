@@ -94,6 +94,14 @@ function captureLaunchError(action: () => unknown): TerminalLaunchError {
   throw new Error('Expected a terminal launch error.');
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 function harness(overrides: {
   workspace?: { id: string; canonicalPath: string; displayName: string; available: boolean } | null;
   profile?: TerminalProfile | null;
@@ -110,6 +118,7 @@ function harness(overrides: {
   generalSettings?: GeneralSettings;
   sourceKeys?: readonly string[];
   createToken?: () => string;
+  scanProviders?: () => Promise<ProviderScanResult>;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentWorkspace =
@@ -202,7 +211,9 @@ function harness(overrides: {
   const service = new LaunchService({
     repository,
     sessionCatalogRegistry: overrides.sessionCatalogRegistry ?? sessionCatalogRegistry,
-    scanProviders: vi.fn(async () => currentScan),
+    scanProviders: vi.fn(
+      overrides.scanProviders ?? (async () => currentScan)
+    ),
     isExecutablePath: vi.fn(async () => true),
     captureSessionBaseline,
     handoffService,
@@ -321,6 +332,50 @@ describe('LaunchService', () => {
       cols: 100,
       rows: 30
     });
+
+    await expect(service.consume(first.launchToken)).rejects.toMatchObject({
+      code: 'LAUNCH_TOKEN_INVALID'
+    });
+    await expect(service.consume(second.launchToken)).resolves.toMatchObject({
+      args: ['Second task.']
+    });
+  });
+
+  it('returns an unusable stale preview when a newer prepare supersedes it', async () => {
+    const firstScan = deferred<ProviderScanResult>();
+    let scanIndex = 0;
+    let tokenIndex = 0;
+    const tokens = [
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+    ];
+    const { service } = harness({
+      trusted: true,
+      createToken: () => tokens[tokenIndex++]!,
+      scanProviders: () =>
+        scanIndex++ === 0 ? firstScan.promise : Promise.resolve(scan)
+    });
+
+    const firstPrepare = service.prepare({
+      strategy: 'new',
+      startPrompt: 'First task.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    const second = await service.prepare({
+      strategy: 'new',
+      startPrompt: 'Second task.',
+      provider: 'codex',
+      workspaceId,
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    firstScan.resolve(scan);
+    const first = await firstPrepare;
 
     await expect(service.consume(first.launchToken)).rejects.toMatchObject({
       code: 'LAUNCH_TOKEN_INVALID'

@@ -20,6 +20,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
 
+### Fixed
+
+- Stop superseded launch-preflight requests from surfacing as terminal IPC
+  failures while keeping their launch tokens unusable.
+- Remove the unsupported Windows node-pty encoding option and its development
+  console warning.
+
 ### Security
 
 - Scope remote-helper inspection and installation to the immutable target of

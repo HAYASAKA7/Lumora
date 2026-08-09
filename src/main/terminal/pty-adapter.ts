@@ -53,7 +53,6 @@ export function spawnPty(options: PtySpawnOptions): PtyProcess {
     env: definedEnvironment(options.env),
     cols: options.cols,
     rows: options.rows,
-    encoding: 'utf8',
     handleFlowControl: true
   });
   return {
