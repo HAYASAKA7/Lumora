@@ -58,6 +58,21 @@ func DefaultDependencies() Dependencies {
 	}
 }
 
+func LocateProvider(ctx context.Context, provider string, dependencies Dependencies) (string, error) {
+	dependencies = withDefaults(dependencies)
+	var command string
+	for _, definition := range Registry {
+		if definition.Provider == provider {
+			command = definition.Command
+			break
+		}
+	}
+	if command == "" {
+		return "", ErrExecutableNotFound
+	}
+	return dependencies.FindExecutable(command, dependencies.SearchPaths(ctx))
+}
+
 func Scan(ctx context.Context, enabled []string, dependencies Dependencies) Result {
 	dependencies = withDefaults(dependencies)
 	paths := dependencies.SearchPaths(ctx)

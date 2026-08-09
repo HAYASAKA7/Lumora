@@ -5027,6 +5027,168 @@ button {
   border-radius: 11px;
 }
 
+.remote-session-provider-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 9px;
+}
+
+.remote-provider-summary {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 13px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.remote-provider-summary.state-ready {
+  border-color: var(--success-border);
+}
+
+.remote-provider-summary.state-unavailable,
+.remote-provider-summary.state-unsupported {
+  border-color: var(--warning-border);
+}
+
+.remote-provider-summary p,
+.remote-provider-summary span {
+  margin: 0;
+}
+
+.remote-provider-summary p {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.remote-provider-summary span {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+}
+
+.remote-workspace-list {
+  display: grid;
+  gap: 14px;
+}
+
+.remote-workspace-group {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.remote-workspace-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.remote-workspace-group > header > div {
+  min-width: 0;
+}
+
+.remote-workspace-group > header h3,
+.remote-session-card h3,
+.remote-session-empty h3 {
+  margin: 3px 0 0;
+  color: var(--text);
+}
+
+.remote-workspace-group > header p:last-child {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.remote-workspace-group > header > span {
+  display: grid;
+  flex: 0 0 auto;
+  min-width: 28px;
+  min-height: 28px;
+  place-items: center;
+  color: var(--text-muted);
+  background: var(--control-surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.remote-session-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 9px;
+}
+
+.remote-session-card {
+  display: grid;
+  min-width: 0;
+  align-content: space-between;
+  gap: 15px;
+  min-height: 132px;
+  padding: 14px;
+  background: var(--control-surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.remote-session-card h3 {
+  overflow-wrap: anywhere;
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+.remote-session-card dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.remote-session-card dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.7rem;
+}
+
+.remote-session-card dt {
+  color: var(--text-soft);
+}
+
+.remote-session-card dd {
+  margin: 0;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.remote-session-empty {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 24px;
+  text-align: center;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.remote-session-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
 @media (max-width: 720px) {
   .remote-targets-heading,
   .remote-window-header,

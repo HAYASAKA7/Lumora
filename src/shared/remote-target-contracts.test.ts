@@ -5,6 +5,7 @@ import {
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteProviderPreferencesSchema,
+  RemoteSessionCatalogSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetListSchema,
   RemoteTargetSummarySchema
@@ -113,6 +114,31 @@ describe('remote target API contracts', () => {
     expect(RemoteDiscoverySnapshotSchema.safeParse({
       ...snapshot,
       environmentVariables: { PATH: '/private' }
+    }).success).toBe(false);
+  });
+
+  it('exposes only normalized remote session metadata', () => {
+    const catalog = {
+      executionTargetId: target.id,
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      sessions: [{
+        provider: 'opencode', nativeId: 'session-1',
+        workspacePath: '/work/lumora', title: 'Remote work',
+        createdAt: '2026-08-08T04:03:02.000Z',
+        updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null
+      }],
+      providers: [{
+        provider: 'opencode', status: 'ready', sessionCount: 1,
+        invalidCount: 0
+      }, {
+        provider: 'claude', status: 'unsupported', sessionCount: 0,
+        invalidCount: 0
+      }]
+    } as const;
+    expect(RemoteSessionCatalogSchema.parse(catalog)).toEqual(catalog);
+    expect(RemoteSessionCatalogSchema.safeParse({
+      ...catalog,
+      sessions: [{ ...catalog.sessions[0], sourceKey: '/private/session.json' }]
     }).success).toBe(false);
   });
 });

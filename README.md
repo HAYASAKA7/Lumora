@@ -194,10 +194,12 @@ bounded protocol handshake. Installation does not require administrator or
 root access.
 
 The isolated window also checks remote Node.js, npm, and the providers enabled
-for that target. It follows the global Lumora appearance settings while keeping
-target data and provider choices isolated. Remote session catalogs and terminal
-execution are not yet available. See [Remote computers](docs/REMOTE.md) for
-the current boundary and test guidance.
+for that target. Its read-only Sessions page discovers OpenCode session
+metadata on demand and reports other provider adapters as pending instead of
+showing a misleading empty catalog. It follows global Lumora appearance while
+keeping target data and provider choices isolated. Remote resume and terminal
+execution are not yet available. See [Remote computers](docs/REMOTE.md) for the
+current boundary and test guidance.
 
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and
@@ -433,8 +435,9 @@ provider may contact its own services according to its terms and configuration.
   on-demand Session Details view with a small normalized excerpt that neither
   resumes the provider nor imports its transcript into Lumora's catalog.
 - Terminal viewport sizing remains a known issue on some layouts.
-- Remote computers currently stop at verified helper activation; remote
-  provider discovery, session management, and terminals remain future phases.
+- Remote computers currently support environment/provider discovery and
+  read-only OpenCode session metadata. Other remote catalog adapters, native
+  session resume, and remote terminals remain future phases.
 
 ## Technical documentation
 

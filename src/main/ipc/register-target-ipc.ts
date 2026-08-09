@@ -6,6 +6,7 @@ import {
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
+  RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
@@ -38,7 +39,7 @@ interface RegisterTargetIpcDependencies {
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
-    'scanDiscovery'>;
+    'scanDiscovery' | 'scanSessions'>;
   beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
@@ -219,6 +220,13 @@ export function registerTargetIpc({
     const context = authorize(event);
     return protectedOperation(async () => RemoteDiscoverySnapshotSchema.parse(
       await service.scanDiscovery(requireRemote(context))
+    ));
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteSessionScan, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(async () => RemoteSessionCatalogSchema.parse(
+      await service.scanSessions(requireRemote(context))
     ));
   });
 

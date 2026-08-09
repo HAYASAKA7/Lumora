@@ -6,6 +6,7 @@ import {
   RemoteHelperResponseSchema,
   type RemoteHelperDiscoveryResult,
   type RemoteHelperResponse,
+  type RemoteHelperSessionScanResult,
   type RemoteHelperSystemInfo
 } from '../../shared/remote-helper-protocol';
 import type { ProviderId } from '../../shared/contracts';
@@ -41,6 +42,11 @@ export interface ConnectedRemoteHelper {
   scanDiscovery(
     enabledProviders: readonly ProviderId[]
   ): Promise<RemoteHelperDiscoveryResult>;
+  scanSessionPage(
+    provider: ProviderId,
+    cursor: string | null,
+    limit: number
+  ): Promise<RemoteHelperSessionScanResult>;
   close(): void;
 }
 
@@ -201,6 +207,21 @@ export function connectRemoteHelper(input: {
           throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
         }
         return discovery.result;
+      },
+      async scanSessionPage(
+        provider: ProviderId,
+        cursor: string | null,
+        limit: number
+      ) {
+        const sessions = await send('session-scan', {
+          provider,
+          cursor,
+          limit
+        }, discoveryTimeoutMs);
+        if (sessions.operation !== 'session-scan' || !sessions.ok) {
+          throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
+        }
+        return sessions.result;
       },
       close() {
         failConnection('HELPER_INCOMPATIBLE');

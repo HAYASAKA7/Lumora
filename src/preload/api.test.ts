@@ -44,9 +44,16 @@ describe('createLumoraApi', () => {
       },
       providers: { scannedAt: '2026-08-05T04:03:02.000Z', providers: [] }
     } as const;
+    const sessions = {
+      executionTargetId: snapshot.executionTargetId,
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      sessions: [],
+      providers: []
+    } as const;
     const api = createLumoraApi(async (channel, ...args) => {
       invocations.push({ channel, args });
       if (channel === IPC_CHANNELS.remoteDiscoveryScan) return snapshot;
+      if (channel === IPC_CHANNELS.remoteSessionScan) return sessions;
       if (channel === IPC_CHANNELS.remoteProviderPreferencesSave) return args[0];
       return { enabledProviders: ['codex'] };
     });
@@ -58,13 +65,15 @@ describe('createLumoraApi', () => {
       enabledProviders: ['opencode', 'codex']
     })).resolves.toEqual({ enabledProviders: ['codex', 'opencode'] });
     await expect(api.scanRemoteDiscovery()).resolves.toEqual(snapshot);
+    await expect(api.scanRemoteSessions()).resolves.toEqual(sessions);
     expect(invocations).toEqual([
       { channel: IPC_CHANNELS.remoteProviderPreferencesGet, args: [] },
       {
         channel: IPC_CHANNELS.remoteProviderPreferencesSave,
         args: [{ enabledProviders: ['codex', 'opencode'] }]
       },
-      { channel: IPC_CHANNELS.remoteDiscoveryScan, args: [] }
+      { channel: IPC_CHANNELS.remoteDiscoveryScan, args: [] },
+      { channel: IPC_CHANNELS.remoteSessionScan, args: [] }
     ]);
   });
 

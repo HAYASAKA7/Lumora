@@ -5,15 +5,20 @@ import {
   RemoteDiscoverySnapshotSchema,
   RemoteExecutionTargetIdSchema,
   RemoteProviderPreferencesSchema,
+  RemoteSessionCatalogSchema,
   RemoteTargetCredentialsSchema,
   PROVIDER_IDS,
   type ExecutionTarget,
+  type ProviderId,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
   type RemoteExecutionTargetId,
   type RemoteTargetCredentials
 } from '../../shared/contracts';
-import { providerDefinition } from '../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  providerDefinition
+} from '../../shared/provider-definitions';
 import type { RemotePlatformFacts } from './platform-probe';
 import { probeRemotePlatform } from './platform-probe';
 import {
@@ -299,6 +304,79 @@ export function createRemoteTargetService({
     });
   };
 
+  const scanProviderSessions = async (
+    helper: ConnectedRemoteHelper,
+    provider: ProviderId
+  ) => {
+    const sessions = new Map<string, {
+      provider: ProviderId;
+      nativeId: string;
+      workspacePath: string;
+      title: string;
+      createdAt: string;
+      updatedAt: string;
+      lifetimeTokens: number | null;
+    }>();
+    const seenCursors = new Set<string>();
+    let cursor: string | null = null;
+    let invalidCount = 0;
+    let status: 'ready' | 'unavailable' | 'unsupported' = 'ready';
+
+    for (let page = 0; page < 250; page += 1) {
+      const result = await helper.scanSessionPage(provider, cursor, 100);
+      if (result.provider !== provider) throw new RemoteTargetServiceError();
+      status = result.status;
+      invalidCount = Math.max(invalidCount, result.invalidCount);
+      if (result.status !== 'ready') {
+        if (cursor !== null || result.sessions.length !== 0) {
+          throw new RemoteTargetServiceError();
+        }
+        break;
+      }
+      for (const session of result.sessions) {
+        const normalized = {
+          provider,
+          nativeId: session.nativeId,
+          workspacePath: session.workspacePath,
+          title: session.title,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          lifetimeTokens: session.lifetimeTokens
+        };
+        const existing = sessions.get(session.nativeId);
+        if (
+          existing === undefined ||
+          normalized.updatedAt > existing.updatedAt ||
+          (normalized.updatedAt === existing.updatedAt &&
+            normalized.title > existing.title)
+        ) {
+          sessions.set(session.nativeId, normalized);
+        }
+      }
+      if (sessions.size > 25_000) throw new RemoteTargetServiceError();
+      if (result.nextCursor === null) break;
+      if (seenCursors.has(result.nextCursor)) throw new RemoteTargetServiceError();
+      seenCursors.add(result.nextCursor);
+      cursor = result.nextCursor;
+      if (page === 249) throw new RemoteTargetServiceError();
+    }
+
+    const ordered = [...sessions.values()].sort(
+      (left, right) =>
+        right.updatedAt.localeCompare(left.updatedAt) ||
+        left.nativeId.localeCompare(right.nativeId)
+    );
+    return {
+      sessions: ordered,
+      provider: {
+        provider,
+        status,
+        sessionCount: ordered.length,
+        invalidCount
+      }
+    };
+  };
+
   return {
     list(): RemoteTargetSummary[] {
       return profiles.list().map((profile) => ({
@@ -520,6 +598,42 @@ export function createRemoteTargetService({
           lastScannedAt: result.scannedAt
         });
         return result;
+      } catch (error) {
+        if (error instanceof RemoteTargetServiceError) throw error;
+        throw new RemoteTargetServiceError();
+      }
+    },
+
+    async scanSessions(input: RemoteExecutionTargetId) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      if (
+        active?.helper === null || active === undefined ||
+        !active.helper.info.capabilities.includes('session-scan')
+      ) throw new RemoteTargetServiceError();
+      const enabled = new Set(providerPreferences.get(id));
+      const providers = SESSION_PROVIDER_IDS.filter((provider) => enabled.has(provider));
+      try {
+        const results = [];
+        for (const provider of providers) {
+          results.push(await scanProviderSessions(active.helper, provider));
+        }
+        const scannedAt = clock().toISOString();
+        const catalog = RemoteSessionCatalogSchema.parse({
+          executionTargetId: id,
+          scannedAt,
+          sessions: results
+            .flatMap((result) => result.sessions)
+            .sort(
+              (left, right) =>
+                right.updatedAt.localeCompare(left.updatedAt) ||
+                left.provider.localeCompare(right.provider) ||
+                left.nativeId.localeCompare(right.nativeId)
+            ),
+          providers: results.map((result) => result.provider)
+        });
+        targets.updateRemoteConnection(id, { lastScannedAt: scannedAt });
+        return catalog;
       } catch (error) {
         if (error instanceof RemoteTargetServiceError) throw error;
         throw new RemoteTargetServiceError();

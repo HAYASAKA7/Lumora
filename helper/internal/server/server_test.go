@@ -7,6 +7,7 @@ import (
 
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
+	"github.com/HAYASAKA7/lumora/helper/internal/sessioncatalog"
 	"github.com/HAYASAKA7/lumora/helper/internal/systeminfo"
 )
 
@@ -77,6 +78,66 @@ func TestServeDiscoveryScanValidatesProvidersBeforeScanning(t *testing.T) {
 	}
 	if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
 		t.Fatalf("invalid discovery was not rejected: %#v calls=%d", response, calls)
+	}
+}
+
+func TestServeSessionScanValidatesPaginationBeforeScanning(t *testing.T) {
+	scan := request("session-scan")
+	scan.Payload = map[string]any{
+		"provider": "codex",
+		"cursor":   nil,
+		"limit":    float64(50),
+	}
+	var input bytes.Buffer
+	if err := protocol.WriteFrame(&input, scan); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	calls := 0
+	if err := Serve(&input, &output, Dependencies{
+		SessionScan: func(_ context.Context, query sessioncatalog.Query) sessioncatalog.Result {
+			calls++
+			if query.Provider != "codex" || query.Cursor != 0 || query.Limit != 50 {
+				t.Fatalf("unexpected session query: %#v", query)
+			}
+			return sessioncatalog.Result{
+				Provider: "codex", ScannedAt: "2026-08-09T04:03:02Z",
+				Status: "ready", Sessions: []sessioncatalog.Session{}, InvalidCount: 0,
+			}
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var response protocol.Response
+	if err := protocol.ReadFrame(&output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || response.Operation != "session-scan" || calls != 1 {
+		t.Fatalf("unexpected session response: %#v calls=%d", response, calls)
+	}
+
+	invalid := request("session-scan")
+	invalid.Payload = map[string]any{
+		"provider": "aider", "cursor": nil, "limit": float64(50),
+	}
+	input.Reset()
+	output.Reset()
+	if err := protocol.WriteFrame(&input, invalid); err != nil {
+		t.Fatal(err)
+	}
+	if err := Serve(&input, &output, Dependencies{
+		SessionScan: func(context.Context, sessioncatalog.Query) sessioncatalog.Result {
+			calls++
+			return sessioncatalog.Result{}
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := protocol.ReadFrame(&output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
+		t.Fatalf("invalid session scan was not rejected: %#v calls=%d", response, calls)
 	}
 }
 

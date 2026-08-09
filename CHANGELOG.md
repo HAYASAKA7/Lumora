@@ -19,6 +19,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add isolated remote **Environment** and **Providers** pages that discover
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
+- Add an on-demand, read-only remote **Sessions** page with bounded pagination,
+  workspace grouping, explicit per-provider coverage, and OpenCode metadata
+  discovery. Remote resume and terminal execution remain unavailable.
 
 ### Changed
 
@@ -42,6 +45,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep remote discovery read-only and allowlisted with bounded probes. Remote
   environment variables, credentials, tokens, and provider session contents
   are not returned to the renderer.
+- Keep remote session discovery metadata-only, strip helper-private source keys
+  at the main-process boundary, and bound command output, page size, page count,
+  record count, and control-frame size.
 - Expose only a read-only appearance projection to isolated remote windows;
   appearance mutations remain restricted to the local Lumora window.
 

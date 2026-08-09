@@ -94,6 +94,25 @@ func TestScanKeepsReadyNodeAndFailedNPMProbe(t *testing.T) {
 	}
 }
 
+func TestLocateProviderUsesCanonicalRegistryAndSearchPaths(t *testing.T) {
+	paths := []string{filepath.Clean("/tools")}
+	path, err := LocateProvider(context.Background(), "opencode", Dependencies{
+		SearchPaths: func(context.Context) []string { return paths },
+		FindExecutable: func(command string, received []string) (string, error) {
+			if command != "opencode" || !reflect.DeepEqual(received, paths) {
+				t.Fatalf("unexpected lookup: %s %#v", command, received)
+			}
+			return filepath.Join(paths[0], command), nil
+		},
+	})
+	if err != nil || path != filepath.Join(paths[0], "opencode") {
+		t.Fatalf("unexpected location: %q %v", path, err)
+	}
+	if _, err := LocateProvider(context.Background(), "unknown", Dependencies{}); !errors.Is(err, ErrExecutableNotFound) {
+		t.Fatalf("unknown provider was not rejected: %v", err)
+	}
+}
+
 func TestMergeSearchPathsNormalizesAndDeduplicates(t *testing.T) {
 	merged := mergeSearchPaths(
 		[]string{" /usr/bin ", "/opt/bin", ""},

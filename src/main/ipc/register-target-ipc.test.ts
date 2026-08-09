@@ -88,6 +88,12 @@ function createHarness(context: LumoraWindowContext) {
       providers: {
         scannedAt: '2026-08-05T04:03:02.000Z', providers: []
       }
+    }),
+    scanSessions: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      sessions: [],
+      providers: []
     })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
@@ -129,6 +135,7 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteProviderPreferencesGet,
       IPC_CHANNELS.remoteProviderPreferencesSave,
       IPC_CHANNELS.remoteDiscoveryScan,
+      IPC_CHANNELS.remoteSessionScan,
       IPC_CHANNELS.remoteTargetWindowOpen
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
@@ -207,6 +214,8 @@ describe('registerTargetIpc', () => {
     )).resolves.toEqual({ enabledProviders: ['codex', 'opencode'] });
     await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
+    await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
+      .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     expect(service.connect).toHaveBeenCalledOnce();
     expect(service.getHelperInstallDetails).toHaveBeenCalledWith(TARGET_ID);
     expect(service.installHelper).toHaveBeenCalledWith(TARGET_ID);
@@ -216,6 +225,7 @@ describe('registerTargetIpc', () => {
       { enabledProviders: ['codex', 'opencode'] }
     );
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
     expect(service.remove).not.toHaveBeenCalled();
   });
 
@@ -230,6 +240,8 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteProviderPreferencesGet)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();

@@ -36,6 +36,7 @@ import {
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
+  RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
@@ -159,6 +160,10 @@ export function createLumoraApi(
     async scanRemoteDiscovery() {
       const value = await invoke(IPC_CHANNELS.remoteDiscoveryScan);
       return RemoteDiscoverySnapshotSchema.parse(value);
+    },
+    async scanRemoteSessions() {
+      const value = await invoke(IPC_CHANNELS.remoteSessionScan);
+      return RemoteSessionCatalogSchema.parse(value);
     },
     async openRemoteTargetWindow(executionTargetId) {
       const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });

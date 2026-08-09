@@ -106,7 +106,11 @@ function createHarness() {
       architecture: 'arm64' as const,
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash',
-      capabilities: ['system-info' as const, 'provider-scan' as const]
+      capabilities: [
+        'system-info' as const,
+        'provider-scan' as const,
+        'session-scan' as const
+      ]
     },
     scanDiscovery: vi.fn().mockResolvedValue({
       checkedAt: '2026-08-05T04:03:02.000Z',
@@ -121,6 +125,36 @@ function createHarness() {
         provider: 'opencode', state: 'not_found',
         executablePath: null, version: null
       }]
+    }),
+    scanSessionPage: vi.fn(async (provider: ProviderId, cursor: string | null) => {
+      if (provider === 'codex') {
+        return {
+          provider,
+          scannedAt: '2026-08-09T04:03:02.000Z',
+          status: 'unsupported' as const,
+          sessions: [] as const,
+          invalidCount: 0 as const,
+          nextCursor: null
+        };
+      }
+      return {
+        provider: 'opencode' as const,
+        scannedAt: '2026-08-09T04:03:02.000Z',
+        status: 'ready' as const,
+        sessions: cursor === null ? [{
+          nativeId: 'session-1', workspacePath: '/work/lumora',
+          title: 'Remote work', createdAt: '2026-08-08T04:03:02.000Z',
+          updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null,
+          sourceKey: '/private/opencode/session-1'
+        }] : [{
+          nativeId: 'session-2', workspacePath: '/work/other',
+          title: 'Older work', createdAt: '2026-08-07T04:03:02.000Z',
+          updatedAt: '2026-08-08T04:03:02.000Z', lifetimeTokens: 12,
+          sourceKey: '/private/opencode/session-2'
+        }],
+        invalidCount: 1,
+        nextCursor: cursor === null ? '1' : null
+      };
     }),
     close: vi.fn()
   };
@@ -226,7 +260,7 @@ describe('remote target service', () => {
           architecture: 'arm64',
           helperVersion: '0.1.0',
           protocolVersion: 1,
-          capabilities: ['provider-scan'],
+          capabilities: ['provider-scan', 'session-scan'],
           lastConnectedAt: '2026-08-04T08:00:00.000Z'
         }
       ]);
@@ -285,6 +319,44 @@ describe('remote target service', () => {
     expect(harness.service.saveProviderPreferences(TARGET_ID, {
       enabledProviders: ['opencode']
     })).toEqual({ enabledProviders: ['opencode'] });
+  });
+
+  it('collects bounded session pages and strips helper-only source paths', async () => {
+    const harness = createHarness();
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(catalog).toEqual({
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-04T08:00:00.000Z',
+      sessions: [{
+        provider: 'opencode', nativeId: 'session-1',
+        workspacePath: '/work/lumora', title: 'Remote work',
+        createdAt: '2026-08-08T04:03:02.000Z',
+        updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null
+      }, {
+        provider: 'opencode', nativeId: 'session-2',
+        workspacePath: '/work/other', title: 'Older work',
+        createdAt: '2026-08-07T04:03:02.000Z',
+        updatedAt: '2026-08-08T04:03:02.000Z', lifetimeTokens: 12
+      }],
+      providers: [{
+        provider: 'codex', status: 'unsupported',
+        sessionCount: 0, invalidCount: 0
+      }, {
+        provider: 'opencode', status: 'ready',
+        sessionCount: 2, invalidCount: 1
+      }]
+    });
+    expect(harness.helper.scanSessionPage.mock.calls).toEqual([
+      ['codex', null, 100],
+      ['opencode', null, 100],
+      ['opencode', '1', 100]
+    ]);
+    expect(JSON.stringify(catalog)).not.toContain('/private/opencode');
   });
 
   it('keeps authenticated SSH available when the helper is missing', async () => {

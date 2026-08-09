@@ -3,8 +3,9 @@
 Remote computers are an experimental Lumora feature. The current phase creates
 an isolated remote window, verifies SSH identity, detects the remote platform,
 installs and negotiates a lightweight Lumora helper, and checks the remote
-developer environment and enabled agent providers. It does not yet expose
-remote saved sessions, workspaces, or terminals.
+developer environment and enabled agent providers. Its isolated **Sessions**
+page can also read supported provider-owned session metadata. Remote resume,
+launch, and terminal execution are not available yet.
 
 ## Connect a computer
 
@@ -57,6 +58,28 @@ Provider choices belong to the remote target and do not change local provider
 settings. At least one provider must remain enabled. Saving a provider selection
 starts a new scan, and **Refresh** repeats the scan without reconnecting.
 
+## Browse remote sessions
+
+Open **Sessions** after the target reaches `ready`. Lumora starts this scan only
+when the page is opened or its **Refresh** button is selected, so connecting a
+computer does not also trigger a potentially large session scan. Results are
+grouped by the provider's remote workspace path and include only bounded,
+read-only metadata: native session ID, title, timestamps, workspace path, and
+an all-time token count when the provider exposes one.
+
+Provider catalog coverage is explicit in the page:
+
+| Provider | Remote catalog status |
+| --- | --- |
+| OpenCode | Metadata discovery through the provider CLI |
+| Codex, Claude Code, Gemini CLI, GitHub Copilot CLI, Qwen Code | Adapter pending; shown as **Catalog support pending** |
+
+An installed provider with no available executable is shown as unavailable.
+Unsupported adapters are not reported as an empty successful catalog. Results
+are paginated across bounded helper frames and combined in the main process;
+raw session files and transcript contents never cross the SSH helper protocol.
+This page is informational in the current phase and has no Resume action.
+
 The isolated window follows Lumora's global Appearance settings, including the
 theme, managed background, opacity hierarchy, and surface mosaic. Appearance
 can only be changed in the local window; refocusing an isolated window refreshes
@@ -94,6 +117,13 @@ tokens, or provider session contents.
   scanned. Confirm at least one provider must remain enabled.
 - Install or remove a provider on the remote computer, refresh, and confirm the
   status changes without reconnecting.
+- Open Sessions and confirm the scan begins only after opening the page.
+- With OpenCode installed, confirm sessions are grouped by the remote workspace
+  path and Refresh updates renamed or newly created sessions.
+- Confirm enabled catalog providers without an implemented adapter show
+  **Catalog support pending**, rather than a misleading empty result.
+- Confirm no transcript text, command output, environment value, or helper-only
+  source key appears in the remote window.
 - Disconnect from missing, incompatible, and ready states.
 - Test local/remote OS combinations independently where machines are available.
 - Close Lumora and confirm the SSH channel and helper process stop cleanly.

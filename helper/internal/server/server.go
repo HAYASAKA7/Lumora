@@ -5,9 +5,11 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"strconv"
 
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
+	"github.com/HAYASAKA7/lumora/helper/internal/sessioncatalog"
 	"github.com/HAYASAKA7/lumora/helper/internal/systeminfo"
 )
 
@@ -17,6 +19,43 @@ type Dependencies struct {
 	HelperVersion string
 	SystemInfo    func(string) (systeminfo.Info, error)
 	Discover      func(context.Context, []string) providerprobe.Result
+	SessionScan   func(context.Context, sessioncatalog.Query) sessioncatalog.Result
+}
+
+var sessionProviders = map[string]struct{}{
+	"codex": {}, "claude": {}, "gemini": {}, "opencode": {},
+	"copilot": {}, "qwen": {},
+}
+
+func sessionQuery(payload map[string]any) (sessioncatalog.Query, bool) {
+	if len(payload) != 3 {
+		return sessioncatalog.Query{}, false
+	}
+	provider, ok := payload["provider"].(string)
+	if !ok {
+		return sessioncatalog.Query{}, false
+	}
+	if _, supported := sessionProviders[provider]; !supported {
+		return sessioncatalog.Query{}, false
+	}
+	limitValue, ok := payload["limit"].(float64)
+	limit := int(limitValue)
+	if !ok || limitValue != float64(limit) || limit < 1 || limit > 100 {
+		return sessioncatalog.Query{}, false
+	}
+	cursor := 0
+	if rawCursor := payload["cursor"]; rawCursor != nil {
+		cursorValue, ok := rawCursor.(string)
+		if !ok || len(cursorValue) == 0 || len(cursorValue) > 10 {
+			return sessioncatalog.Query{}, false
+		}
+		parsed, err := strconv.Atoi(cursorValue)
+		if err != nil || parsed < 0 {
+			return sessioncatalog.Query{}, false
+		}
+		cursor = parsed
+	}
+	return sessioncatalog.Query{Provider: provider, Cursor: cursor, Limit: limit}, true
 }
 
 func validRequest(request protocol.Request) bool {
@@ -129,6 +168,20 @@ func responseFor(request protocol.Request, dependencies Dependencies) (protocol.
 		}
 		response.OK = true
 		response.Result = discover(context.Background(), providers)
+	case "session-scan":
+		query, valid := sessionQuery(request.Payload)
+		if !valid {
+			response.Error = &protocol.ResponseError{
+				Code: "INVALID_REQUEST", Message: "The helper request is invalid.",
+			}
+			return response, false
+		}
+		scan := dependencies.SessionScan
+		if scan == nil {
+			scan = sessioncatalog.Scan
+		}
+		response.OK = true
+		response.Result = scan(context.Background(), query)
 	default:
 		response.Error = &protocol.ResponseError{
 			Code: "UNSUPPORTED_OPERATION", Message: "The helper operation is unsupported.",

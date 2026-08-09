@@ -204,6 +204,61 @@ describe('RemoteTargetWindow', () => {
     expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(3);
   });
 
+  it('loads a read-only remote session catalog only when the Sessions page opens', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.0',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex', 'opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [{
+          provider: 'opencode',
+          nativeId: 'session-1',
+          workspacePath: '/srv/lumora',
+          title: 'Repair release workflow',
+          createdAt: '2026-08-05T01:00:00.000Z',
+          updatedAt: '2026-08-05T04:00:00.000Z',
+          lifetimeTokens: 12500
+        }],
+        providers: [{
+          provider: 'codex', status: 'unsupported', sessionCount: 0, invalidCount: 0
+        }, {
+          provider: 'opencode', status: 'ready', sessionCount: 1, invalidCount: 0
+        }]
+      }),
+      disconnectRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    const sessionsTab = await screen.findByRole('tab', { name: 'Sessions' });
+    expect(api.scanRemoteSessions).not.toHaveBeenCalled();
+    fireEvent.click(sessionsTab);
+
+    expect(await screen.findByRole('heading', { name: 'Repair release workflow' }))
+      .toBeInTheDocument();
+    expect(screen.getByText('/srv/lumora')).toBeInTheDocument();
+    expect(screen.getByText('12,500 tokens')).toBeInTheDocument();
+    expect(screen.getByText(/Codex catalog support pending/i)).toBeInTheDocument();
+    expect(screen.getByText(/read-only metadata/i)).toBeInTheDocument();
+    expect(api.scanRemoteSessions).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh sessions' }));
+    await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(2));
+  });
+
   it('keeps connected pages stable and explains when the helper cannot scan yet', async () => {
     const readyWithoutDiscovery = {
       ...summary,

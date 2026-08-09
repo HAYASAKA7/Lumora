@@ -129,6 +129,60 @@ describe('remote helper connection', () => {
     connected.close();
   });
 
+  it('requests one bounded session metadata page without exposing content', async () => {
+    const remote = channel();
+    const written: Buffer[] = [];
+    remote.stdin.on('data', (chunk: Buffer) => written.push(chunk));
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 100
+    });
+    remote.stdout.write(encodeHelperFrame(response({
+      result: {
+        ...response().result as object,
+        capabilities: ['system-info', 'session-scan']
+      }
+    })));
+    const connected = await connecting;
+    const scanning = connected.scanSessionPage('opencode', null, 50);
+    remote.stdout.write(encodeHelperFrame({
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 7,
+      requestId: 'request-2',
+      operation: 'session-scan',
+      ok: true,
+      result: {
+        provider: 'opencode',
+        scannedAt: '2026-08-09T04:03:02.000Z',
+        status: 'ready',
+        sessions: [{
+          nativeId: 'session-1', workspacePath: '/work/lumora',
+          title: 'Remote work', createdAt: '2026-08-08T04:03:02.000Z',
+          updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null,
+          sourceKey: 'opencode:session-1'
+        }],
+        invalidCount: 0,
+        nextCursor: null
+      }
+    }));
+
+    await expect(scanning).resolves.toMatchObject({
+      provider: 'opencode', sessions: [{ nativeId: 'session-1' }]
+    });
+    const requests = createHelperFrameDecoder().push(Buffer.concat(written));
+    expect(requests[1]).toMatchObject({
+      operation: 'session-scan',
+      payload: { provider: 'opencode', cursor: null, limit: 50 }
+    });
+    connected.close();
+  });
+
   it('rejects pending discovery when the connected helper closes', async () => {
     const remote = channel();
     const requestIds = ['request-1', 'request-2'];
