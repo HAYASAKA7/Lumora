@@ -2,10 +2,12 @@ import { z } from 'zod';
 
 import {
   DeveloperToolStatusSchema,
+  LifetimeTokenCountSchema,
   PlatformSchema,
   PROVIDER_IDS,
   ProviderIdSchema
 } from './contracts';
+import { SESSION_PROVIDER_IDS } from './provider-definitions';
 
 export const REMOTE_HELPER_PROTOCOL_VERSION = 1 as const;
 export const REMOTE_HELPER_MAX_CONTROL_FRAME_BYTES = 64 * 1024;
@@ -26,6 +28,11 @@ const RequestIdentitySchema = z.object({
 }).strict();
 
 const EmptyPayloadSchema = z.object({}).strict();
+const SessionProviderIdSchema = ProviderIdSchema.refine(
+  (provider) => SESSION_PROVIDER_IDS.includes(provider),
+  'The provider does not expose a native session catalog.'
+);
+const SessionScanCursorSchema = z.string().regex(/^\d{1,10}$/u).nullable();
 
 function requestSchema<Operation extends 'handshake' | 'system-info' | 'health' | 'shutdown'>(
   operation: Operation
@@ -53,7 +60,15 @@ export const RemoteHelperRequestSchema = z.discriminatedUnion('operation', [
               code: 'custom', message: 'Enabled providers must be unique.'
             });
           }
-        })
+      })
+    })
+  }).strict(),
+  RequestIdentitySchema.extend({
+    operation: z.literal('session-scan'),
+    payload: z.strictObject({
+      provider: SessionProviderIdSchema,
+      cursor: SessionScanCursorSchema,
+      limit: z.number().int().min(1).max(100)
     })
   }).strict()
 ]);
@@ -133,9 +148,61 @@ export const RemoteHelperDiscoveryResponseSchema = ResponseIdentitySchema.extend
   result: RemoteHelperDiscoveryResultSchema
 }).strict();
 
+export const RemoteHelperSessionRecordSchema = z.strictObject({
+  nativeId: z.string().trim().min(1).max(256),
+  workspacePath: z.string().min(1).max(32_768),
+  title: z.string().trim().min(1).max(256),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  lifetimeTokens: LifetimeTokenCountSchema.nullable(),
+  sourceKey: z.string().min(1).max(4_096)
+});
+
+export const RemoteHelperSessionScanResultSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    provider: SessionProviderIdSchema,
+    scannedAt: z.iso.datetime(),
+    status: z.literal('ready'),
+    sessions: z.array(RemoteHelperSessionRecordSchema).max(100),
+    invalidCount: z.number().int().nonnegative(),
+    nextCursor: SessionScanCursorSchema
+  }),
+  z.strictObject({
+    provider: SessionProviderIdSchema,
+    scannedAt: z.iso.datetime(),
+    status: z.literal('unsupported'),
+    sessions: z.tuple([]),
+    invalidCount: z.literal(0),
+    nextCursor: z.null()
+  }),
+  z.strictObject({
+    provider: SessionProviderIdSchema,
+    scannedAt: z.iso.datetime(),
+    status: z.literal('unavailable'),
+    sessions: z.tuple([]),
+    invalidCount: z.literal(0),
+    nextCursor: z.null()
+  }),
+  z.strictObject({
+    provider: SessionProviderIdSchema,
+    scannedAt: z.iso.datetime(),
+    status: z.literal('failed'),
+    sessions: z.tuple([]),
+    invalidCount: z.literal(0),
+    nextCursor: z.null()
+  })
+]);
+
+export const RemoteHelperSessionScanResponseSchema = ResponseIdentitySchema.extend({
+  operation: z.literal('session-scan'),
+  ok: z.literal(true),
+  result: RemoteHelperSessionScanResultSchema
+}).strict();
+
 export const RemoteHelperErrorResponseSchema = ResponseIdentitySchema.extend({
   operation: z.enum([
-    'handshake', 'system-info', 'health', 'shutdown', 'discovery-scan'
+    'handshake', 'system-info', 'health', 'shutdown', 'discovery-scan',
+    'session-scan'
   ]),
   ok: z.literal(false),
   error: z.object({
@@ -154,6 +221,7 @@ export const RemoteHelperResponseSchema = z.union([
   RemoteHelperHealthResponseSchema,
   RemoteHelperShutdownResponseSchema,
   RemoteHelperDiscoveryResponseSchema,
+  RemoteHelperSessionScanResponseSchema,
   RemoteHelperErrorResponseSchema
 ]);
 
@@ -163,4 +231,10 @@ export type RemoteHelperResponse = z.infer<typeof RemoteHelperResponseSchema>;
 export type RemoteHelperSystemInfo = z.infer<typeof RemoteHelperSystemInfoSchema>;
 export type RemoteHelperDiscoveryResult = z.infer<
   typeof RemoteHelperDiscoveryResultSchema
+>;
+export type RemoteHelperSessionRecord = z.infer<
+  typeof RemoteHelperSessionRecordSchema
+>;
+export type RemoteHelperSessionScanResult = z.infer<
+  typeof RemoteHelperSessionScanResultSchema
 >;

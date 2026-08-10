@@ -146,6 +146,20 @@ function repeatedSessions(count: number): CatalogSnapshot['sessions'] {
 }
 
 describe('WorkspacesView', () => {
+  it('supports a read-only remote scope without local workspace controls', () => {
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        scopeLabel="Remote provider folders"
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.getByText('Remote provider folders')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add workspace' })).not.toBeInTheDocument();
+  });
   it('renders only nonzero counts for complete session providers', () => {
     render(
       <WorkspacesView
@@ -330,6 +344,25 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('renders remote session metadata without resume actions', () => {
+    render(
+      <SessionsView
+        {...diagnosticProps}
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onSearchChange={vi.fn()}
+        profiles={[]}
+        provider={null}
+        providerScan={providerScan}
+        queryText=""
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume Catalog implementation' })).not.toBeInTheDocument();
+  });
   it('does not expose session transfer controls', () => {
     render(
       <SessionsView

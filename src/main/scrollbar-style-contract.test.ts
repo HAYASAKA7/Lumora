@@ -19,7 +19,7 @@ function declarationsFor(selector: string): string {
 describe('application scrollbar style contract', () => {
   it('rounds application scrollbars without restyling the xterm viewport', () => {
     const applicationScrollbarSelector =
-      '.app-shell *:not(.xterm-viewport)::-webkit-scrollbar';
+      '.appearance-root *:not(.xterm-viewport)::-webkit-scrollbar';
     const thumbSelector = `${applicationScrollbarSelector}-thumb`;
     const cornerSelector = `${applicationScrollbarSelector}-corner`;
 

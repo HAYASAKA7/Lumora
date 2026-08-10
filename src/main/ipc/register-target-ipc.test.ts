@@ -6,6 +6,7 @@ import {
   type LumoraWindowContext,
   type RemoteTargetSummary
 } from '../../shared/contracts';
+import { RemoteTargetServiceError } from '../remote/remote-target-service';
 import { registerTargetIpc } from './register-target-ipc';
 
 const TARGET_ID = '05f4e306-4af2-4c73-9e0d-706084623645';
@@ -88,9 +89,24 @@ function createHarness(context: LumoraWindowContext) {
       providers: {
         scannedAt: '2026-08-05T04:03:02.000Z', providers: []
       }
+    }),
+    scanSessions: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      sessions: [],
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-09T04:03:02.000Z',
+        workspaces: [],
+        sessions: [],
+        providerStatus: [],
+        providerFacets: [],
+        diagnostics: []
+      }
     })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
+  const beforeProfileMutation = vi.fn().mockResolvedValue(undefined);
   registerTargetIpc({
     ipc: {
       handle(channel, handler) {
@@ -99,9 +115,10 @@ function createHarness(context: LumoraWindowContext) {
     },
     authorize: vi.fn(() => context),
     service,
+    beforeProfileMutation,
     openTargetWindow
   });
-  return { handlers, service, openTargetWindow };
+  return { handlers, service, beforeProfileMutation, openTargetWindow };
 }
 
 const event = { senderFrame: { url: 'app://lumora/index.html' }, sender: { id: 1 } };
@@ -127,6 +144,7 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteProviderPreferencesGet,
       IPC_CHANNELS.remoteProviderPreferencesSave,
       IPC_CHANNELS.remoteDiscoveryScan,
+      IPC_CHANNELS.remoteSessionScan,
       IPC_CHANNELS.remoteTargetWindowOpen
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
@@ -142,6 +160,36 @@ describe('registerTargetIpc', () => {
     })).resolves.toEqual({ opened: true, executionTargetId: TARGET_ID });
     expect(service.create).toHaveBeenCalledOnce();
     expect(openTargetWindow).toHaveBeenCalledWith(TARGET_ID);
+  });
+
+  it('closes the target window before editing or removing a profile', async () => {
+    const { handlers, service, beforeProfileMutation } = createHarness({
+      mode: 'local', executionTargetId: 'local'
+    });
+    const edited = {
+      displayName: 'Renamed build server',
+      route: 'direct' as const,
+      host: 'build.internal',
+      port: 2222,
+      username: 'builder',
+      authentication: { method: 'password' as const }
+    };
+
+    await handlers.get(IPC_CHANNELS.remoteTargetUpdate)!(event, {
+      executionTargetId: TARGET_ID,
+      profile: edited
+    });
+    await handlers.get(IPC_CHANNELS.remoteTargetRemove)!(event, {
+      executionTargetId: TARGET_ID
+    });
+
+    expect(beforeProfileMutation).toHaveBeenCalledTimes(2);
+    expect(beforeProfileMutation).toHaveBeenNthCalledWith(1, TARGET_ID);
+    expect(beforeProfileMutation).toHaveBeenNthCalledWith(2, TARGET_ID);
+    expect(beforeProfileMutation.mock.invocationCallOrder[0]!)
+      .toBeLessThan(service.update.mock.invocationCallOrder[0]!);
+    expect(beforeProfileMutation.mock.invocationCallOrder[1]!)
+      .toBeLessThan(service.remove.mock.invocationCallOrder[0]!);
   });
 
   it('limits a remote window to reading and connecting its own target', async () => {
@@ -175,6 +223,8 @@ describe('registerTargetIpc', () => {
     )).resolves.toEqual({ enabledProviders: ['codex', 'opencode'] });
     await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
+    await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
+      .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     expect(service.connect).toHaveBeenCalledOnce();
     expect(service.getHelperInstallDetails).toHaveBeenCalledWith(TARGET_ID);
     expect(service.installHelper).toHaveBeenCalledWith(TARGET_ID);
@@ -184,7 +234,37 @@ describe('registerTargetIpc', () => {
       { enabledProviders: ['codex', 'opencode'] }
     );
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
     expect(service.remove).not.toHaveBeenCalled();
+  });
+
+  it('preserves only an allowlisted remote connection failure code', async () => {
+    const { handlers, service } = createHarness({
+      mode: 'remote', executionTargetId: TARGET_ID
+    });
+    service.connect.mockRejectedValueOnce(
+      new RemoteTargetServiceError('REMOTE_TARGET_PLATFORM_PROBE_FAILED')
+    );
+
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      credentials: { method: 'password', password: 'memory-only' }
+    })).rejects.toMatchObject({
+      code: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED',
+      message: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED: Lumora could not complete the remote-target operation.'
+    });
+
+    service.connect.mockRejectedValueOnce(
+      Object.assign(new Error('/private/remote/path'), {
+        code: 'PRIVATE_REMOTE_PATH'
+      })
+    );
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      credentials: { method: 'password', password: 'memory-only' }
+    })).rejects.toMatchObject({
+      code: 'REMOTE_TARGET_OPERATION_FAILED'
+    });
   });
 
   it('does not expose target-scoped helper installation to the local window', async () => {
@@ -198,6 +278,8 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteProviderPreferencesGet)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteDiscoveryScan)!(event))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();

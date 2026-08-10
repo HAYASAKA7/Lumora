@@ -103,4 +103,44 @@ describe('target window manager', () => {
     expect(window.close).toHaveBeenCalledOnce();
     expect(contexts.get(44)).toBeNull();
   });
+
+  it('closes only the requested target and unregisters its authority', async () => {
+    const contexts = createWindowContextRegistry();
+    const otherTargetId = '37da69d5-57d5-46ef-b3c6-98db8df20793';
+    const windows = new Map([
+      [TARGET_ID, new FakeWindow(45)],
+      [otherTargetId, new FakeWindow(46)]
+    ]);
+    const manager = createTargetWindowManager({
+      contexts,
+      createWindow: (id) => windows.get(id)!,
+      loadWindow: vi.fn().mockResolvedValue(undefined)
+    });
+    await manager.open(TARGET_ID);
+    await manager.open(otherTargetId);
+
+    manager.close(TARGET_ID);
+    manager.close(TARGET_ID);
+
+    expect(windows.get(TARGET_ID)!.close).toHaveBeenCalledOnce();
+    expect(windows.get(otherTargetId)!.close).not.toHaveBeenCalled();
+    expect(contexts.get(45)).toBeNull();
+    expect(contexts.get(46)).not.toBeNull();
+  });
+
+  it('forgets a target whose window was already destroyed', async () => {
+    const contexts = createWindowContextRegistry();
+    const window = new FakeWindow(47);
+    const manager = createTargetWindowManager({
+      contexts,
+      createWindow: () => window,
+      loadWindow: vi.fn().mockResolvedValue(undefined)
+    });
+    await manager.open(TARGET_ID);
+    window.destroyed = true;
+
+    expect(() => manager.close(TARGET_ID)).not.toThrow();
+    expect(contexts.get(47)).toBeNull();
+    expect(window.close).not.toHaveBeenCalled();
+  });
 });

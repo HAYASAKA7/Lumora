@@ -576,6 +576,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     ipc: ipcMain,
     authorize: authorizeTargetIpc,
     service: remoteTargetRuntime.service,
+    beforeProfileMutation: (executionTargetId) => {
+      targetWindowManager.close(executionTargetId);
+    },
     openTargetWindow: async (executionTargetId) => {
       if (remoteTargetRuntime === null) {
         throw new Error('Remote target storage is unavailable.');
@@ -659,8 +662,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerAppearanceIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
+    authorizeRead: authorizeTargetIpc,
+    authorizeWrite: authorizeLocalIpc,
     service: appearanceBackgroundStore,
+    getAppearanceSettings: () => terminalRuntime!.getGeneralSettings().appearance,
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });

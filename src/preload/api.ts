@@ -1,5 +1,6 @@
 import {
   AppearanceBackgroundStateSchema,
+  AppearancePresentationSchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -35,6 +36,7 @@ import {
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
+  RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
@@ -159,10 +161,18 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.remoteDiscoveryScan);
       return RemoteDiscoverySnapshotSchema.parse(value);
     },
+    async scanRemoteSessions() {
+      const value = await invoke(IPC_CHANNELS.remoteSessionScan);
+      return RemoteSessionCatalogSchema.parse(value);
+    },
     async openRemoteTargetWindow(executionTargetId) {
       const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
       const value = await invoke(IPC_CHANNELS.remoteTargetWindowOpen, request);
       RemoteTargetWindowOpenResultSchema.parse(value);
+    },
+    async getAppearancePresentation() {
+      const value = await invoke(IPC_CHANNELS.appearancePresentationGet);
+      return AppearancePresentationSchema.parse(value);
     },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(

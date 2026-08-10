@@ -16,9 +16,33 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add an explicit Lumora confirmation workflow that installs or safely replaces
   the per-user remote helper, verifies its digest, and negotiates compatibility
   before marking the remote target ready.
-- Add isolated remote **Environment** and **Providers** pages that discover
+- Add isolated remote **Environment** and **Providers** settings that discover
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
+- Add a target-scoped remote Lumora shell with Home, Workspaces, All sessions,
+  and Settings; a normalized read-only catalog; bounded pagination; explicit
+  per-provider coverage; and metadata discovery for Codex, Claude Code,
+  Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code. Remote resume and
+  terminal execution remain unavailable.
+
+### Changed
+
+- Make isolated remote windows use Lumora's global theme, managed background,
+  opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
+- Reuse Lumora's main shell and catalog views after a remote target reaches
+  ready, while keeping the pre-connection and helper setup flow isolated.
+
+### Fixed
+
+- Allow remote connection profiles to be edited and deleted with validated,
+  in-app confirmation workflows and user-safe failure messages.
+- Close a target's isolated window and dispose its active SSH/helper resources
+  before changing or deleting that profile, preventing stale target state.
+- Report remote connection failures as bounded, actionable stages for SSH,
+  platform probing, helper verification, and file transfer without exposing
+  credentials or raw remote diagnostics.
+- Detect unexpected SSH transport closure, release target resources, and keep
+  the current remote page and cached catalog visible with a reconnect banner.
 
 ### Fixed
 
@@ -37,6 +61,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep remote discovery read-only and allowlisted with bounded probes. Remote
   environment variables, credentials, tokens, and provider session contents
   are not returned to the renderer.
+- Keep remote session discovery metadata-only, strip helper-private source keys
+  at the main-process boundary, and bound command output, page size, page count,
+  record count, file enumeration, file reads, provider protocol traffic, and
+  control-frame size.
+- Expose only a read-only appearance projection to isolated remote windows;
+  appearance mutations remain restricted to the local Lumora window.
 
 ## [0.2.3] - 2026-08-03
 

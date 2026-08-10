@@ -23,8 +23,13 @@ describe('remote helper paths', () => {
       temporaryPath: "/home/o'brien/.lumora/helper/0.1.0/.lumora-helper.upload-123.tmp"
     });
     expect(createHelperDirectoryCommand(paths, 'linux')).toContain("o'\"'\"'brien");
-    expect(helperLaunchCommand(paths, 'linux')).toBe(
-      "exec '/home/o'\"'\"'brien/.lumora/helper/0.1.0/lumora-helper'"
+    expect(helperLaunchCommand(paths, 'linux', {
+      homeDirectory: "/home/o'brien",
+      defaultShell: '/bin/zsh'
+    })).toBe(
+      "HOME='/home/o'\"'\"'brien' SHELL='/bin/zsh' " +
+      "LUMORA_LOGIN_SHELL='/bin/zsh' exec " +
+      "'/home/o'\"'\"'brien/.lumora/helper/0.1.0/lumora-helper'"
     );
     expect(createHelperDigestCommand(paths.temporaryPath, 'linux'))
       .toContain("sha256sum -- '/home/o'\"'\"'brien");
@@ -42,7 +47,14 @@ describe('remote helper paths', () => {
       "C:\\Users\\O'Brien\\AppData\\Local\\Lumora\\helper\\0.1.0\\lumora-helper.exe"
     );
     expect(createHelperDirectoryCommand(paths, 'win32')).toContain("O''Brien");
-    expect(helperLaunchCommand(paths, 'win32')).toContain("& 'C:\\Users\\O''Brien");
+    const launch = helperLaunchCommand(paths, 'win32', {
+      homeDirectory: "C:\\Users\\O'Brien",
+      defaultShell: 'powershell.exe'
+    });
+    expect(launch).toContain("$env:HOME = 'C:\\Users\\O''Brien'");
+    expect(launch).toContain("$env:USERPROFILE = 'C:\\Users\\O''Brien'");
+    expect(launch).toContain("$env:LUMORA_LOGIN_SHELL = 'powershell.exe'");
+    expect(launch).toContain("& 'C:\\Users\\O''Brien");
     expect(createHelperDigestCommand(paths.temporaryPath, 'win32'))
       .toContain('Get-FileHash -Algorithm SHA256');
   });

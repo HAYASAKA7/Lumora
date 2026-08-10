@@ -948,11 +948,45 @@ export const RemoteDiscoverySnapshotSchema = z.strictObject({
   providers: ProviderScanResultSchema
 });
 
+export const RemoteSessionMetadataSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  nativeId: z.string().trim().min(1).max(256),
+  workspacePath: z.string().min(1).max(32_768),
+  title: z.string().trim().min(1).max(256),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  lifetimeTokens: LifetimeTokenCountSchema.nullable()
+});
+
+export const RemoteSessionProviderStatusSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  status: z.enum(['ready', 'unavailable', 'unsupported', 'failed']),
+  sessionCount: z.number().int().nonnegative(),
+  invalidCount: z.number().int().nonnegative()
+});
+
+export const RemoteSessionCatalogSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  scannedAt: z.iso.datetime(),
+  sessions: z.array(RemoteSessionMetadataSchema).max(25_000),
+  providers: z.array(RemoteSessionProviderStatusSchema).max(PROVIDER_IDS.length),
+  snapshot: CatalogSnapshotSchema
+});
+
 export type RemoteProviderPreferences = z.infer<
   typeof RemoteProviderPreferencesSchema
 >;
 export type RemoteDiscoverySnapshot = z.infer<
   typeof RemoteDiscoverySnapshotSchema
+>;
+export type RemoteSessionMetadata = z.infer<
+  typeof RemoteSessionMetadataSchema
+>;
+export type RemoteSessionProviderStatus = z.infer<
+  typeof RemoteSessionProviderStatusSchema
+>;
+export type RemoteSessionCatalog = z.infer<
+  typeof RemoteSessionCatalogSchema
 >;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
@@ -1430,6 +1464,15 @@ export type AppearanceBackgroundState = z.infer<
   typeof AppearanceBackgroundStateSchema
 >;
 
+export const AppearancePresentationSchema = z.strictObject({
+  appearance: AppearanceSettingsSchema,
+  background: AppearanceBackgroundStateSchema
+});
+
+export type AppearancePresentation = z.infer<
+  typeof AppearancePresentationSchema
+>;
+
 export const IPC_CHANNELS = {
   targetWindowContextGet: 'lumora:targets:window-context:get',
   remoteTargetList: 'lumora:targets:list',
@@ -1445,6 +1488,7 @@ export const IPC_CHANNELS = {
   remoteProviderPreferencesGet: 'lumora:targets:providers:get',
   remoteProviderPreferencesSave: 'lumora:targets:providers:save',
   remoteDiscoveryScan: 'lumora:targets:discovery:scan',
+  remoteSessionScan: 'lumora:targets:sessions:scan',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1462,6 +1506,7 @@ export const IPC_CHANNELS = {
   trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
+  appearancePresentationGet: 'lumora:appearance:presentation:get',
   appearanceBackgroundGet: 'lumora:appearance:background:get',
   appearanceBackgroundChoose: 'lumora:appearance:background:choose',
   appearanceBackgroundRemove: 'lumora:appearance:background:remove',
@@ -1529,9 +1574,11 @@ export interface LumoraApi {
     preferences: RemoteProviderPreferences
   ): Promise<RemoteProviderPreferences>;
   scanRemoteDiscovery(): Promise<RemoteDiscoverySnapshot>;
+  scanRemoteSessions(): Promise<RemoteSessionCatalog>;
   openRemoteTargetWindow(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<void>;
+  getAppearancePresentation(): Promise<AppearancePresentation>;
   getSystemInfo(): Promise<SystemInfo>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;

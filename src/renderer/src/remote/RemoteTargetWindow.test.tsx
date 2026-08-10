@@ -54,6 +54,98 @@ const discovery = {
 } as const;
 
 describe('RemoteTargetWindow', () => {
+  it('uses the shared Lumora shell and remote-scoped routes after connection', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.0',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [],
+        providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    expect(await screen.findByTestId('lumora-shell')).toBeInTheDocument();
+    for (const route of ['Home', 'Workspaces', 'All sessions', 'Settings']) {
+      expect(screen.getByRole('button', { name: route })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Overview' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the current shell and cached page visible after disconnection', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.0',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [], providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      }),
+      disconnectRemoteTarget: vi.fn().mockResolvedValue({
+        ...readySummary,
+        target: {
+          ...readySummary.target,
+          connectionState: 'offline',
+          capabilities: []
+        }
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByTestId('lumora-shell');
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(await screen.findByRole('heading', { name: 'Workspaces', level: 1 }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /connection to this remote computer was lost/i
+    );
+    expect(screen.getByRole('heading', { name: 'Workspaces', level: 1 }))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reconnect' })).toBeInTheDocument();
+  });
   it('connects its bound target with an ephemeral password and exposes no local controls', async () => {
     const api = {
       listRemoteTargets: vi.fn().mockResolvedValue([summary]),
@@ -90,10 +182,36 @@ describe('RemoteTargetWindow', () => {
       executionTargetId: TARGET_ID,
       credentials: { method: 'password', password: 'memory-only' }
     }));
-    expect(await screen.findByText('/home/builder')).toBeInTheDocument();
+    expect(await screen.findByTestId('lumora-shell')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
     expect(await screen.findByText('v24.0.0')).toBeInTheDocument();
-    expect(screen.queryByText('All sessions')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
+    expect(await screen.findByText('/home/builder')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
+  });
+
+  it('shows a safe actionable connection-stage failure without raw diagnostics', async () => {
+    const failure = new Error(
+      "Error invoking remote method 'lumora:targets:connect': Error: " +
+      'REMOTE_TARGET_PLATFORM_PROBE_FAILED: Lumora could not complete the remote-target operation.'
+    );
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      connectRemoteTarget: vi.fn().mockRejectedValue(failure)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.change(await screen.findByLabelText('SSH password'), {
+      target: { value: 'memory-only' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    expect(await screen.findByText(
+      'SSH connected, but Lumora could not identify the remote operating system. Check that the account can run non-interactive shell commands.'
+    )).toBeInTheDocument();
+    expect(screen.queryByText(/private\/remote\/path/)).not.toBeInTheDocument();
   });
 
   it('requires host verification in the local window before authentication', async () => {
@@ -160,7 +278,8 @@ describe('RemoteTargetWindow', () => {
     dialog = screen.getByRole('dialog', { name: 'Install Lumora helper' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Install helper' }));
     await waitFor(() => expect(api.installRemoteHelper).toHaveBeenCalledWith());
-    expect(await screen.findByText('ready')).toBeInTheDocument();
+    expect(await screen.findByTestId('lumora-shell')).toBeInTheDocument();
+    expect(screen.getByText('SSH helper connected')).toBeInTheDocument();
   });
 
   it('saves target-scoped provider choices and rescans without install controls', async () => {
@@ -187,19 +306,118 @@ describe('RemoteTargetWindow', () => {
     } as unknown as LumoraApi;
 
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
-    fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    expect(await screen.findByRole('tab', { name: 'Providers' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
     expect(await screen.findByText('codex 1.2.3')).toBeInTheDocument();
     expect(screen.getByText(/install or repair CLIs directly on the remote computer/i))
       .toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable OpenCode' }));
+    const openCodeSwitch = screen.getByRole('switch', { name: 'Enable OpenCode' });
+    expect(openCodeSwitch.closest('.settings-switch')).not.toBeNull();
+    fireEvent.click(openCodeSwitch);
     fireEvent.click(screen.getByRole('button', { name: 'Save and scan' }));
 
     await waitFor(() => expect(api.saveRemoteProviderPreferences)
       .toHaveBeenCalledWith({ enabledProviders: ['codex', 'opencode'] }));
     expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(3);
+  });
+
+  it('loads a read-only remote catalog for the shared catalog routes', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.0',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex', 'opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [{
+          provider: 'opencode',
+          nativeId: 'session-1',
+          workspacePath: '/srv/lumora',
+          title: 'Repair release workflow',
+          createdAt: '2026-08-05T01:00:00.000Z',
+          updatedAt: '2026-08-05T04:00:00.000Z',
+          lifetimeTokens: 12500
+        }],
+        providers: [{
+          provider: 'codex', status: 'unsupported', sessionCount: 0, invalidCount: 0
+        }, {
+          provider: 'opencode', status: 'ready', sessionCount: 1, invalidCount: 0
+        }],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [{
+            id: 'a'.repeat(64),
+            displayName: 'lumora',
+            canonicalPath: '/srv/lumora',
+            available: true,
+            origin: 'discovered',
+            sessionCount: 1,
+            providerCounts: { opencode: 1 },
+            lastActivityAt: '2026-08-05T04:00:00.000Z'
+          }],
+          sessions: [{
+            id: 'b'.repeat(64),
+            nativeId: 'session-1',
+            provider: 'opencode',
+            workspaceId: 'a'.repeat(64),
+            title: 'Repair release workflow',
+            createdAt: '2026-08-05T01:00:00.000Z',
+            updatedAt: '2026-08-05T04:00:00.000Z',
+            lifetimeTokens: 12500,
+            lifecycle: 'saved',
+            sourceFreshness: 'current'
+          }],
+          providerStatus: [{
+            provider: 'codex', state: 'unavailable', discoveredCount: 0,
+            unchangedCount: 0, invalidCount: 0
+          }, {
+            provider: 'opencode', state: 'ready', discoveredCount: 1,
+            unchangedCount: 0, invalidCount: 0
+          }],
+          providerFacets: [{ provider: 'opencode', sessionCount: 1 }],
+          diagnostics: [{
+            code: 'CATALOG_PROVIDER_INCOMPATIBLE',
+            provider: 'codex',
+            affectedCount: 0,
+            message: 'Codex remote catalog support is pending.',
+            recovery: 'Use a supported provider on this remote computer.',
+            retryable: false,
+            scannedAt: '2026-08-05T04:03:02.000Z'
+          }]
+        }
+      }),
+      disconnectRemoteTarget: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+
+    expect(await screen.findByText('Repair release workflow')).toBeInTheDocument();
+    expect(screen.getByText('lumora')).toBeInTheDocument();
+    expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
+    expect(screen.getByText(/Codex remote catalog support is pending/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh catalog' }));
+    await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(2));
   });
 
   it('keeps connected pages stable and explains when the helper cannot scan yet', async () => {
@@ -223,7 +441,8 @@ describe('RemoteTargetWindow', () => {
     } as unknown as LumoraApi;
 
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
-    fireEvent.click(await screen.findByRole('tab', { name: 'Environment' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
 
     expect(await screen.findByText(/helper cannot scan providers yet/i))
       .toBeInTheDocument();

@@ -5,6 +5,7 @@ import {
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteProviderPreferencesSchema,
+  RemoteSessionCatalogSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetListSchema,
   RemoteTargetSummarySchema
@@ -113,6 +114,64 @@ describe('remote target API contracts', () => {
     expect(RemoteDiscoverySnapshotSchema.safeParse({
       ...snapshot,
       environmentVariables: { PATH: '/private' }
+    }).success).toBe(false);
+  });
+
+  it('exposes only normalized remote session metadata', () => {
+    const catalog = {
+      executionTargetId: target.id,
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      sessions: [{
+        provider: 'opencode', nativeId: 'session-1',
+        workspacePath: '/work/lumora', title: 'Remote work',
+        createdAt: '2026-08-08T04:03:02.000Z',
+        updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null
+      }],
+      providers: [{
+        provider: 'opencode', status: 'ready', sessionCount: 1,
+        invalidCount: 0
+      }, {
+        provider: 'claude', status: 'unsupported', sessionCount: 0,
+        invalidCount: 0
+      }],
+      snapshot: {
+        refreshedAt: '2026-08-09T04:03:02.000Z',
+        workspaces: [{
+          id: 'a'.repeat(64), displayName: 'lumora',
+          canonicalPath: '/work/lumora', available: true,
+          origin: 'discovered', sessionCount: 1,
+          providerCounts: { opencode: 1 },
+          lastActivityAt: '2026-08-09T04:03:02.000Z'
+        }],
+        sessions: [{
+          id: 'b'.repeat(64), nativeId: 'session-1', provider: 'opencode',
+          workspaceId: 'a'.repeat(64), title: 'Remote work',
+          createdAt: '2026-08-08T04:03:02.000Z',
+          updatedAt: '2026-08-09T04:03:02.000Z', lifetimeTokens: null,
+          lifecycle: 'saved', sourceFreshness: 'current'
+        }],
+        providerStatus: [{
+          provider: 'opencode', state: 'ready', discoveredCount: 1,
+          unchangedCount: 0, invalidCount: 0
+        }, {
+          provider: 'claude', state: 'unavailable', discoveredCount: 0,
+          unchangedCount: 0, invalidCount: 0
+        }],
+        providerFacets: [{ provider: 'opencode', sessionCount: 1 }],
+        diagnostics: []
+      }
+    } as const;
+    expect(RemoteSessionCatalogSchema.parse(catalog)).toEqual(catalog);
+    expect(RemoteSessionCatalogSchema.safeParse({
+      ...catalog,
+      providers: [{
+        provider: 'claude', status: 'failed', sessionCount: 0,
+        invalidCount: 0
+      }]
+    }).success).toBe(true);
+    expect(RemoteSessionCatalogSchema.safeParse({
+      ...catalog,
+      sessions: [{ ...catalog.sessions[0], sourceKey: '/private/session.json' }]
     }).success).toBe(false);
   });
 });

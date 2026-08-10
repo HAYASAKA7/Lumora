@@ -1,0 +1,77 @@
+import type { CSSProperties } from 'react';
+
+import type {
+  AppearanceBackgroundState,
+  AppearanceSettings
+} from '../../../shared/contracts';
+import {
+  buildAppearanceOpacityTiers,
+  formatAppearanceOpacity
+} from './opacity-tiers';
+
+type AppearanceShellStyle = CSSProperties &
+  Partial<Record<`--appearance-${string}`, string>>;
+
+export interface AppearancePresentationStyles {
+  backgroundActive: boolean;
+  backgroundStyle: CSSProperties | undefined;
+  hasSurfaceMosaic: boolean;
+  shellStyle: AppearanceShellStyle | undefined;
+}
+
+const BACKGROUND_POSITIONS: Record<
+  AppearanceSettings['backgroundPosition'],
+  string
+> = {
+  center: 'center',
+  top: 'center top',
+  bottom: 'center bottom',
+  left: 'left center',
+  right: 'right center',
+  'top-left': 'left top',
+  'top-right': 'right top',
+  'bottom-left': 'left bottom',
+  'bottom-right': 'right bottom'
+};
+
+export function buildAppearancePresentation(
+  appearance: AppearanceSettings,
+  background: AppearanceBackgroundState
+): AppearancePresentationStyles {
+  const backgroundActive = appearance.backgroundEnabled && background.available;
+  if (!backgroundActive) {
+    return {
+      backgroundActive: false,
+      backgroundStyle: undefined,
+      hasSurfaceMosaic: false,
+      shellStyle: undefined
+    };
+  }
+
+  const opacity = buildAppearanceOpacityTiers(appearance.surfaceOpacity);
+  return {
+    backgroundActive: true,
+    hasSurfaceMosaic: appearance.surfaceMosaic > 0,
+    shellStyle: {
+      '--appearance-terminal-opacity': `${Math.round(appearance.terminalOpacity * 100)}%`,
+      '--appearance-opacity-recessed': formatAppearanceOpacity(opacity.recessed),
+      '--appearance-opacity-normal': formatAppearanceOpacity(opacity.normal),
+      '--appearance-opacity-raised': formatAppearanceOpacity(opacity.raised),
+      '--appearance-opacity-popup': formatAppearanceOpacity(opacity.popup),
+      '--appearance-opacity-popup-raised': formatAppearanceOpacity(opacity.popupRaised),
+      '--appearance-surface-mosaic': appearance.surfaceMosaic > 0
+        ? `${appearance.surfaceMosaic}px`
+        : undefined
+    },
+    backgroundStyle: {
+      backgroundImage: `url("app://appearance/background?revision=${encodeURIComponent(background.revision)}")`,
+      backgroundPosition: BACKGROUND_POSITIONS[appearance.backgroundPosition],
+      backgroundSize: appearance.backgroundFit === 'original'
+        ? 'auto'
+        : appearance.backgroundFit,
+      filter: `brightness(${appearance.backgroundBrightness}) blur(${appearance.backgroundBlur}px)`,
+      opacity: appearance.backgroundOpacity,
+      transform: appearance.backgroundBlur > 0 ? 'scale(1.04)' : undefined
+    }
+  };
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -49,6 +50,18 @@ type Dependencies struct {
 	Now            func() time.Time
 }
 
+type shellPathProbe struct {
+	Executable string
+	Args       []string
+}
+
+type boundedRunner func(
+	context.Context,
+	string,
+	[]string,
+	time.Duration,
+) (string, error)
+
 func DefaultDependencies() Dependencies {
 	return Dependencies{
 		SearchPaths:    defaultSearchPaths,
@@ -56,6 +69,21 @@ func DefaultDependencies() Dependencies {
 		ProbeVersion:   probeVersion,
 		Now:            time.Now,
 	}
+}
+
+func LocateProvider(ctx context.Context, provider string, dependencies Dependencies) (string, error) {
+	dependencies = withDefaults(dependencies)
+	var command string
+	for _, definition := range Registry {
+		if definition.Provider == provider {
+			command = definition.Command
+			break
+		}
+	}
+	if command == "" {
+		return "", ErrExecutableNotFound
+	}
+	return dependencies.FindExecutable(command, dependencies.SearchPaths(ctx))
 }
 
 func Scan(ctx context.Context, enabled []string, dependencies Dependencies) Result {
@@ -178,25 +206,81 @@ func defaultSearchPaths(ctx context.Context) []string {
 }
 
 func loginShellPaths(ctx context.Context) []string {
-	if runtime.GOOS == "windows" {
+	return collectShellPaths(
+		ctx,
+		shellPathProbes(runtime.GOOS, configuredLoginShell()),
+		string(os.PathListSeparator),
+		runBounded,
+	)
+}
+
+func configuredLoginShell() string {
+	if shell := strings.TrimSpace(os.Getenv("LUMORA_LOGIN_SHELL")); shell != "" {
+		return shell
+	}
+	return strings.TrimSpace(os.Getenv("SHELL"))
+}
+
+func shellPathProbes(platform string, shell string) []shellPathProbe {
+	if platform == "windows" {
+		const command = `Write-Output ('__LUMORA_PATH__' + $env:Path)`
+		args := []string{"-NoLogo", "-NonInteractive", "-Command", command}
+		return []shellPathProbe{
+			{Executable: "powershell.exe", Args: append([]string{}, args...)},
+			{Executable: "pwsh.exe", Args: append([]string{}, args...)},
+		}
+	}
+
+	shell = strings.TrimSpace(shell)
+	if shell == "" || !path.IsAbs(shell) {
 		return nil
 	}
-	shell := strings.TrimSpace(os.Getenv("SHELL"))
-	if shell == "" || !filepath.IsAbs(shell) {
+	family := strings.ToLower(path.Base(shell))
+	var command string
+	if family == "fish" {
+		command = `printf '\n__LUMORA_PATH__%s\n' (string join : $PATH)`
+	} else {
+		command = `printf '\n__LUMORA_PATH__%s\n' "$PATH"`
+	}
+	switch family {
+	case "bash":
+		return []shellPathProbe{
+			{Executable: shell, Args: []string{"-ic", command}},
+			{Executable: shell, Args: []string{"-lc", command}},
+		}
+	case "zsh", "fish", "ksh":
+		return []shellPathProbe{{Executable: shell, Args: []string{"-ilc", command}}}
+	case "sh", "dash":
+		return []shellPathProbe{{Executable: shell, Args: []string{"-lc", command}}}
+	default:
 		return nil
 	}
-	output, err := runBounded(ctx, shell, []string{
-		"-lic", `printf '\n__LUMORA_PATH__%s\n' "$PATH"`,
-	}, pathTimeout)
-	if err != nil {
-		return nil
+}
+
+func collectShellPaths(
+	ctx context.Context,
+	probes []shellPathProbe,
+	separator string,
+	run boundedRunner,
+) []string {
+	groups := make([][]string, 0, len(probes))
+	for _, probe := range probes {
+		output, err := run(ctx, probe.Executable, probe.Args, pathTimeout)
+		if err != nil {
+			continue
+		}
+		index := strings.LastIndex(output, pathSentinel)
+		if index < 0 {
+			continue
+		}
+		pathLine := strings.SplitN(output[index+len(pathSentinel):], "\n", 2)[0]
+		pathLine = strings.TrimSpace(strings.TrimSuffix(pathLine, "\r"))
+		if pathLine == "" || separator == "" {
+			continue
+		}
+		groups = append(groups, strings.Split(pathLine, separator))
 	}
-	index := strings.LastIndex(output, pathSentinel)
-	if index < 0 {
-		return nil
-	}
-	pathLine := strings.SplitN(output[index+len(pathSentinel):], "\n", 2)[0]
-	return filepath.SplitList(strings.TrimSpace(pathLine))
+	return mergeSearchPaths(groups...)
 }
 
 func knownUserPaths() []string {
@@ -204,26 +288,36 @@ func knownUserPaths() []string {
 	if home == "" {
 		return nil
 	}
-	if runtime.GOOS == "windows" {
+	return knownSearchPaths(runtime.GOOS, home, strings.TrimSpace(os.Getenv("LOCALAPPDATA")))
+}
+
+func knownSearchPaths(platform string, home string, localAppData string) []string {
+	if platform == "windows" {
 		paths := []string{
 			filepath.Join(home, "AppData", "Roaming", "npm"),
 			filepath.Join(home, ".local", "bin"),
 		}
-		if localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localAppData != "" {
+		if localAppData = strings.TrimSpace(localAppData); localAppData != "" {
 			paths = append(paths, filepath.Join(localAppData, "Programs"))
 		}
 		return paths
 	}
-	return []string{
+
+	paths := []string{
 		filepath.Join(home, ".local", "bin"),
 		filepath.Join(home, "bin"),
-		"/usr/local/bin",
-		"/opt/homebrew/bin",
+		filepath.Clean("/usr/local/bin"),
+		filepath.Clean("/usr/bin"),
+		filepath.Clean("/bin"),
 	}
+	if platform == "darwin" {
+		paths = append(paths, filepath.Clean("/opt/homebrew/bin"))
+	}
+	return paths
 }
 
 func findExecutableInPaths(command string, paths []string) (string, error) {
-	if command == "" || strings.ContainsAny(command, `/\\\x00\r\n`) {
+	if command == "" || strings.ContainsAny(command, "/\\\x00\r\n") {
 		return "", ErrExecutableNotFound
 	}
 	names := []string{command}

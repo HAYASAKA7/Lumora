@@ -6,6 +6,7 @@ import {
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
   RemoteDiscoverySnapshotSchema,
+  RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
   RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
@@ -18,7 +19,14 @@ import {
   type LumoraWindowContext,
   type RemoteExecutionTargetId
 } from '../../shared/contracts';
-import type { RemoteTargetService } from '../remote/remote-target-service';
+import {
+  RemoteTargetErrorCodeSchema,
+  type RemoteTargetErrorCode
+} from '../../shared/remote-target-errors';
+import {
+  RemoteTargetServiceError,
+  type RemoteTargetService
+} from '../remote/remote-target-service';
 import type { IpcAuthorizer, TargetAwareIpcEvent } from './ipc-access';
 
 interface IpcRegistrar {
@@ -38,15 +46,16 @@ interface RegisterTargetIpcDependencies {
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
-    'scanDiscovery'>;
+    'scanDiscovery' | 'scanSessions'>;
+  beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
 
 export class RemoteTargetIpcError extends Error {
-  readonly code = 'REMOTE_TARGET_OPERATION_FAILED';
-
-  constructor() {
-    super('Lumora could not complete the remote-target operation.');
+  constructor(
+    readonly code: RemoteTargetErrorCode = 'REMOTE_TARGET_OPERATION_FAILED'
+  ) {
+    super(`${code}: Lumora could not complete the remote-target operation.`);
     this.name = 'RemoteTargetIpcError';
   }
 }
@@ -79,6 +88,10 @@ async function protectedOperation<T>(operation: () => T | Promise<T>): Promise<T
     return await operation();
   } catch (error) {
     if (error instanceof RemoteTargetIpcError) throw error;
+    if (error instanceof RemoteTargetServiceError) {
+      const parsed = RemoteTargetErrorCodeSchema.safeParse(error.code);
+      if (parsed.success) throw new RemoteTargetIpcError(parsed.data);
+    }
     throw new RemoteTargetIpcError();
   }
 }
@@ -87,6 +100,7 @@ export function registerTargetIpc({
   ipc,
   authorize,
   service,
+  beforeProfileMutation,
   openTargetWindow
 }: RegisterTargetIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.targetWindowContextGet, async (event) =>
@@ -113,8 +127,9 @@ export function registerTargetIpc({
   ipc.handle(IPC_CHANNELS.remoteTargetUpdate, async (event, input) => {
     const context = authorize(event);
     requireLocal(context);
-    return protectedOperation(() => {
+    return protectedOperation(async () => {
       const request = RemoteTargetUpdateRequestSchema.parse(input);
+      await beforeProfileMutation(request.executionTargetId);
       return RemoteTargetSummarySchema.parse(
         service.update(request.executionTargetId, request.profile)
       );
@@ -124,8 +139,9 @@ export function registerTargetIpc({
   ipc.handle(IPC_CHANNELS.remoteTargetRemove, async (event, input) => {
     const context = authorize(event);
     requireLocal(context);
-    return protectedOperation(() => {
+    return protectedOperation(async () => {
       const request = RemoteTargetIdRequestSchema.parse(input);
+      await beforeProfileMutation(request.executionTargetId);
       service.remove(request.executionTargetId);
       return RemoteTargetRemovalResultSchema.parse({ removed: true });
     });
@@ -215,6 +231,13 @@ export function registerTargetIpc({
     const context = authorize(event);
     return protectedOperation(async () => RemoteDiscoverySnapshotSchema.parse(
       await service.scanDiscovery(requireRemote(context))
+    ));
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteSessionScan, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(async () => RemoteSessionCatalogSchema.parse(
+      await service.scanSessions(requireRemote(context))
     ));
   });
 

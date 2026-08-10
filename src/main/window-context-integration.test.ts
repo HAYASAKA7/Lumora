@@ -12,6 +12,8 @@ describe('main window execution target binding', () => {
     expect(mainSource).toContain("mode: 'local'");
     expect(mainSource).toContain('executionTargetId: LOCAL_EXECUTION_TARGET_ID');
     expect(mainSource).toContain('windowContexts.unregister(startupBackgroundActivityId)');
-    expect(mainSource.match(/authorize: authorizeLocalIpc/g)).toHaveLength(8);
+    expect(mainSource.match(/authorize: authorizeLocalIpc/g)).toHaveLength(7);
+    expect(mainSource).toContain('authorizeRead: authorizeTargetIpc');
+    expect(mainSource).toContain('authorizeWrite: authorizeLocalIpc');
   });
 });
