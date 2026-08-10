@@ -57,6 +57,7 @@ or window state.
 | `npm run benchmark:terminal` | Compare batched and per-fragment terminal output processing |
 | `npm run build` | Build main, preload, and renderer bundles into `out/` |
 | `npm run helper:test` | Run the lightweight remote-helper Go tests |
+| `npm run helper:ensure` | Reuse or build the current verified development helper bundle |
 | `npm run helper:build` | Cross-compile and verify all supported helper artifacts |
 | `npm run package:dir` | Create an unpacked native application in `dist/` |
 | `npm run package` | Build the native package configured for the host OS |

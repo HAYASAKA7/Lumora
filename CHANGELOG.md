@@ -40,6 +40,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Ensure `npm run dev` builds a missing or stale verified remote-helper bundle
+  before Electron starts, while reusing an already current bundle in subsequent
+  development launches and isolated worktrees.
 - Allow remote connection profiles to be edited and deleted with validated,
   in-app confirmation workflows and user-safe failure messages.
 - Close a target's isolated window and dispose its active SSH/helper resources
