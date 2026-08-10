@@ -3,9 +3,10 @@
 Remote computers are an experimental Lumora feature. The current phase creates
 an isolated remote window, verifies SSH identity, detects the remote platform,
 installs and negotiates a lightweight Lumora helper, and checks the remote
-developer environment and enabled agent providers. Its isolated **Sessions**
-page can also read supported provider-owned session metadata. Remote resume,
-launch, and terminal execution are not available yet.
+developer environment and enabled agent providers. After connection, the
+window becomes a target-scoped Lumora shell with **Home**, **Workspaces**,
+**All sessions**, and **Settings**. Remote resume, launch, and terminal
+execution are not available yet.
 
 ## Connect a computer
 
@@ -24,56 +25,6 @@ the remote computer.
 
 Passwords and passphrases are connection-only values. Lumora does not save or
 log them.
-
-## Full remote shell design
-
-The isolated target page is a connection gate, not the permanent remote user
-interface. Before a target is ready, it owns host verification, credentials,
-connection progress, helper inspection, and confirmed helper installation.
-After the helper handshake succeeds, the same window transitions into Lumora's
-existing application shell instead of rendering a separate card-style app.
-
-The remote shell reuses the local shell's sidebar, top bar, scrolling content
-region, status bar, appearance presentation, responsive layout, cards, and
-catalog views. Target mode supplies a scoped route manifest and data adapter;
-it does not copy or fork the visual components. This keeps local and remote UI
-fixes aligned.
-
-Remote primary navigation contains:
-
-- **Home** for target status and recent remote sessions.
-- **Workspaces** for provider-owned workspace groupings on that computer.
-- **All sessions** for the target-scoped session catalog.
-- **Settings** for remote-capable configuration only.
-
-**Terminal profiles** and local remote-computer management are omitted. The
-remote settings manifest can contain **Providers**, **Environment**,
-**Launch**, **Security**, and **Transfer**, but it exposes a category only when
-the target-scoped backend for that category is functional. The first shared
-shell therefore includes Providers, Environment, and connection Security;
-Launch and Transfer appear with their remote execution and file-operation
-phases rather than as empty placeholders. Categories that would only mutate the
-local Lumora installation are not shown. Global appearance remains controlled
-by the local window and is applied read-only to every remote shell.
-
-All remote routes use the execution target ID bound to the BrowserWindow by the
-main process. Renderer requests cannot select another target, enumerate local
-catalog data, or call local-only mutation APIs. Remote helper responses are
-normalized into the same view models consumed by existing Lumora cards while
-remaining target-scoped.
-
-If SSH or the helper disconnects after the shell is visible, Lumora keeps the
-current route and last bounded catalog snapshot on screen. A prominent
-enhanced-color reconnect banner marks the data as stale, blocks remote
-mutations, and provides the primary **Reconnect** action. Successful
-reconnection dismisses the banner and refreshes the active route. Authentication
-or helper confirmation can reopen inside the connection workflow without
-discarding the shell's navigation state.
-
-The remote window must occupy its complete BrowserWindow and use the shell's
-single scrolling content region. Connection-gate content may scroll within the
-full window when its contents exceed the available height; it must not be
-presented as a fixed, clipped component.
 
 ## Activate the helper
 
@@ -99,10 +50,11 @@ open inbound port; communication stays inside the existing SSH channel.
 
 ## Check the remote environment
 
-After the target reaches `ready`, use the isolated window's **Environment** and
-**Providers** pages. Lumora checks remote Node.js, npm, and only the providers
-enabled for that target. Results include the resolved executable path and
-version when available.
+After the target reaches `ready`, open **Settings**, then use its
+**Environment** and **Providers** categories. Lumora checks remote Node.js, npm,
+and only the providers enabled for that target. Results include the resolved
+executable path and version when available. **Security** contains the target's
+platform, architecture, home directory, shell, and connection controls.
 
 Provider choices belong to the remote target and do not change local provider
 settings. At least one provider must remain enabled. Saving a provider selection
@@ -110,30 +62,40 @@ starts a new scan, and **Refresh** repeats the scan without reconnecting.
 
 ## Browse remote sessions
 
-Open **Sessions** after the target reaches `ready`. Lumora starts this scan only
-when the page is opened or its **Refresh** button is selected, so connecting a
-computer does not also trigger a potentially large session scan. Results are
-grouped by the provider's remote workspace path and include only bounded,
-read-only metadata: native session ID, title, timestamps, workspace path, and
-an all-time token count when the provider exposes one.
+After the target reaches `ready`, Lumora performs one bounded catalog scan for
+the connected shell. **Home** shows recent remote sessions, **Workspaces**
+groups them by provider-owned remote paths, and **All sessions** provides the
+same search and provider filtering used by local Lumora. **Refresh catalog**
+repeats the scan. The catalog includes only read-only metadata: native session
+ID, title, timestamps, workspace path, and an all-time token count when the
+provider exposes one.
 
 Provider catalog coverage is explicit in the page:
 
 | Provider | Remote catalog status |
 | --- | --- |
-| OpenCode | Metadata discovery through the provider CLI |
-| Codex, Claude Code, Gemini CLI, GitHub Copilot CLI, Qwen Code | Adapter pending; shown as **Catalog support pending** |
+| Codex | Native app-server thread metadata |
+| OpenCode | Bounded database query with native list fallback |
+| Claude Code | Bounded provider-owned project recording metadata |
+| Gemini CLI | Bounded provider-owned project chat metadata |
+| GitHub Copilot CLI | Bounded event or legacy workspace metadata |
+| Qwen Code | Bounded provider-owned project recording metadata |
 
 An installed provider with no available executable is shown as unavailable.
 Unsupported adapters are not reported as an empty successful catalog. Results
 are paginated across bounded helper frames and combined in the main process;
 raw session files and transcript contents never cross the SSH helper protocol.
-This page is informational in the current phase and has no Resume action.
+These pages are informational in the current phase and have no Resume action.
 
 The isolated window follows Lumora's global Appearance settings, including the
 theme, managed background, opacity hierarchy, and surface mosaic. Appearance
 can only be changed in the local window; refocusing an isolated window refreshes
 its read-only presentation.
+
+If the SSH transport closes after the shell has opened, Lumora releases the
+remote helper and file-transfer resources, marks the target offline, and keeps
+the current page and cached catalog visible. An emphasized reconnect banner is
+shown instead of replacing the shell with a blank connection page.
 
 Discovery is read-only. Lumora does not install, update, or repair Node.js, npm,
 or agent CLIs on the remote computer. Perform those operations on the remote
@@ -167,14 +129,19 @@ tokens, or provider session contents.
   scanned. Confirm at least one provider must remain enabled.
 - Install or remove a provider on the remote computer, refresh, and confirm the
   status changes without reconnecting.
-- Open Sessions and confirm the scan begins only after opening the page.
-- With OpenCode installed, confirm sessions are grouped by the remote workspace
-  path and Refresh updates renamed or newly created sessions.
-- Confirm enabled catalog providers without an implemented adapter show
-  **Catalog support pending**, rather than a misleading empty result.
+- Confirm a ready connection transitions into the shared Lumora shell with
+  Home, Workspaces, All sessions, and Settings, without Terminal profiles or
+  local Remote-computer management.
+- With each enabled session provider installed, confirm Home recent sessions,
+  workspace grouping, All sessions filtering, and Refresh catalog update
+  renamed or new sessions.
+- Confirm a provider-wide scan failure is shown separately from an unavailable
+  executable or a successful empty catalog, without blocking other providers.
 - Confirm no transcript text, command output, environment value, or helper-only
   source key appears in the remote window.
 - Disconnect from missing, incompatible, and ready states.
+- Drop the SSH transport after opening a catalog page and confirm the page and
+  cached data remain visible under the reconnect banner.
 - Test local/remote OS combinations independently where machines are available.
 - Close Lumora and confirm the SSH channel and helper process stop cleanly.
 - Change global Appearance settings, refocus the isolated window, and confirm

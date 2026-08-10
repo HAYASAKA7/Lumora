@@ -21,13 +21,34 @@ import type {
   RemoteTargetSummary
 } from '../../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
+import {
+  CatalogHomeSummary,
+  SessionsView,
+  WorkspacesView,
+  type CatalogViewStatus
+} from '../catalog/CatalogViews';
+import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
+import {
+  LumoraShell,
+  type LumoraShellAppearance
+} from '../shell/LumoraShell';
+import {
+  readSidebarExpanded,
+  writeSidebarExpanded
+} from '../sidebar/sidebar-preference';
+import {
+  readRemoteTargetErrorCode,
+  type RemoteTargetErrorCode
+} from '../../../shared/remote-target-errors';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
   api?: LumoraApi;
+  appearance?: LumoraShellAppearance;
 }
 
-type RemotePage = 'overview' | 'environment' | 'providers' | 'sessions';
+type RemotePage = 'home' | 'workspaces' | 'sessions' | 'settings';
+type RemoteSettingsCategory = 'providers' | 'environment' | 'security';
 type DiscoveryStatus =
   | { state: 'idle' }
   | { state: 'loading' }
@@ -41,6 +62,36 @@ type SessionCatalogStatus =
   | { state: 'unsupported' }
   | { state: 'error' };
 
+const DEFAULT_REMOTE_APPEARANCE: LumoraShellAppearance = {
+  backgroundActive: false,
+  backgroundStyle: undefined,
+  hasSurfaceMosaic: false,
+  shellStyle: undefined,
+  theme: 'lumora'
+};
+
+const REMOTE_ROUTES = [
+  {
+    id: 'home', label: 'Home', icon: 'home', eyebrow: 'Remote computer',
+    description: 'Review the connected target and its most recent provider sessions.'
+  },
+  {
+    id: 'workspaces', label: 'Workspaces', icon: 'workspace',
+    eyebrow: 'Remote workspace index',
+    description: 'Browse provider-owned workspace groupings discovered on this computer.'
+  },
+  {
+    id: 'sessions', label: 'All sessions', icon: 'sessions',
+    eyebrow: 'Remote session catalog',
+    description: 'Search bounded, read-only session metadata from this computer.'
+  },
+  {
+    id: 'settings', label: 'Settings', icon: 'settings',
+    eyebrow: 'Remote settings',
+    description: 'Configure target-scoped providers and inspect this connection.'
+  }
+] as const;
+
 const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
   ready: 'Detected',
   not_found: 'Not found',
@@ -52,6 +103,31 @@ const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   not_found: 'Not found',
   probe_failed: 'Probe failed'
 };
+
+const REMOTE_CONNECTION_ERROR_MESSAGES: Record<RemoteTargetErrorCode, string> = {
+  REMOTE_TARGET_AUTHENTICATION_FAILED:
+    'SSH authentication failed. Check the profile username and enter the same credential that works in a native SSH client.',
+  REMOTE_TARGET_HOST_KEY_CHANGED:
+    'The remote computer identity changed. Return to local Lumora and verify its host fingerprint before reconnecting.',
+  REMOTE_TARGET_SSH_TIMEOUT:
+    'The SSH connection timed out. Check that the remote computer is reachable and its SSH service is responding.',
+  REMOTE_TARGET_SSH_CONNECTION_FAILED:
+    'Lumora could not establish the SSH connection. Check the host, port, SSH service, and network route.',
+  REMOTE_TARGET_PLATFORM_PROBE_FAILED:
+    'SSH connected, but Lumora could not identify the remote operating system. Check that the account can run non-interactive shell commands.',
+  REMOTE_TARGET_HELPER_BUNDLE_FAILED:
+    'SSH connected, but Lumora could not verify a helper for this operating system and architecture. Rebuild the helper bundle or use a packaged Lumora build.',
+  REMOTE_TARGET_FILE_TRANSFER_FAILED:
+    'SSH connected, but Lumora could not open the remote file-transfer service. Check that the SSH server has SFTP enabled.',
+  REMOTE_TARGET_HELPER_INSPECTION_FAILED:
+    'SSH connected, but Lumora could not inspect the remote helper installation. Check the remote account permissions and try again.',
+  REMOTE_TARGET_OPERATION_FAILED:
+    'Lumora could not connect to this remote computer. Check the profile and try again.'
+};
+
+function remoteConnectionErrorMessage(error: unknown): string {
+  return REMOTE_CONNECTION_ERROR_MESSAGES[readRemoteTargetErrorCode(error)];
+}
 
 function endpoint(summary: RemoteTargetSummary): string {
   const profile = summary.profile;
@@ -65,21 +141,6 @@ function canonicalProviders(providers: readonly ProviderId[]): ProviderId[] {
   return PROVIDER_DEFINITIONS
     .map(({ provider }) => provider)
     .filter((provider) => selected.has(provider));
-}
-
-function providerName(provider: ProviderId): string {
-  return PROVIDER_DEFINITIONS.find(
-    (definition) => definition.provider === provider
-  )?.displayName ?? provider;
-}
-
-function workspaceName(workspacePath: string): string {
-  const segments = workspacePath.split(/[\\/]/).filter(Boolean);
-  return segments.at(-1) ?? workspacePath;
-}
-
-function formatTokenCount(tokens: number): string {
-  return `${new Intl.NumberFormat().format(tokens)} tokens`;
 }
 
 function ToolCard({
@@ -184,13 +245,25 @@ function ProviderCard({
 
 export function RemoteTargetWindow({
   executionTargetId,
-  api = window.lumora
+  api = window.lumora,
+  appearance = DEFAULT_REMOTE_APPEARANCE
 }: RemoteTargetWindowProps) {
   const [summary, setSummary] = useState<RemoteTargetSummary | null>(null);
   const [details, setDetails] = useState<RemoteTargetConnectionDetails | null>(null);
   const [helperInstall, setHelperInstall] = useState<RemoteHelperInstallDetails | null>(null);
   const [showHelperInstall, setShowHelperInstall] = useState(false);
-  const [page, setPage] = useState<RemotePage>('overview');
+  const [page, setPage] = useState<RemotePage>('home');
+  const [settingsCategory, setSettingsCategory] =
+    useState<RemoteSettingsCategory>('providers');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [sessionProvider, setSessionProvider] = useState<ProviderId | null>(null);
+  const [dismissedDiagnostics, setDismissedDiagnostics] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [sidebarExpanded, setSidebarExpanded] = useState(() =>
+    readSidebarExpanded(window)
+  );
   const [preferences, setPreferences] = useState<RemoteProviderPreferences | null>(null);
   const [draftProviders, setDraftProviders] = useState<ProviderId[]>([]);
   const [discovery, setDiscovery] = useState<DiscoveryStatus>({ state: 'idle' });
@@ -201,7 +274,12 @@ export function RemoteTargetWindow({
   const [busy, setBusy] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shellOpened, setShellOpened] = useState(false);
   const autoScannedKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    writeSidebarExpanded(window, sidebarExpanded);
+  }, [sidebarExpanded]);
 
   useEffect(() => {
     let active = true;
@@ -265,7 +343,10 @@ export function RemoteTargetWindow({
   }, [loadRemoteState, summary]);
 
   useEffect(() => {
-    if (page !== 'sessions' || summary?.target.connectionState !== 'ready') return;
+    if (
+      !['home', 'workspaces', 'sessions'].includes(page) ||
+      summary?.target.connectionState !== 'ready'
+    ) return;
     if (sessionCatalog.state !== 'idle') return;
     if (!summary.target.capabilities.includes('session-scan')) {
       setSessionCatalog({ state: 'unsupported' });
@@ -273,6 +354,34 @@ export function RemoteTargetWindow({
     }
     void refreshSessions();
   }, [page, refreshSessions, sessionCatalog.state, summary]);
+
+  useEffect(() => {
+    if (summary?.target.connectionState === 'ready') setShellOpened(true);
+  }, [summary?.target.connectionState]);
+
+  useEffect(() => {
+    if (!shellOpened) return;
+    let active = true;
+    const refreshConnectionState = () => {
+      void api.listRemoteTargets().then(
+        (targets) => {
+          if (!active) return;
+          const current = targets.find(
+            ({ target }) => target.id === executionTargetId
+          );
+          if (current !== undefined) setSummary(current);
+        },
+        () => undefined
+      );
+    };
+    const interval = window.setInterval(refreshConnectionState, 4_000);
+    window.addEventListener('focus', refreshConnectionState);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshConnectionState);
+    };
+  }, [api, executionTargetId, shellOpened]);
 
   if (summary === null) {
     return (
@@ -300,8 +409,6 @@ export function RemoteTargetWindow({
   const connected = summary.target.connectionState === 'ready';
   const discoverySupported = connected &&
     summary.target.capabilities.includes('provider-scan');
-  const sessionScanSupported = connected &&
-    summary.target.capabilities.includes('session-scan');
   const helperPending = summary.target.connectionState === 'helper-missing' ||
     summary.target.connectionState === 'helper-incompatible';
   const providerResults = discovery.state === 'ready'
@@ -341,8 +448,8 @@ export function RemoteTargetWindow({
       } else {
         setHelperInstall(null);
       }
-    } catch {
-      setError('Lumora could not connect. Check the SSH credentials and try again.');
+    } catch (connectionError) {
+      setError(remoteConnectionErrorMessage(connectionError));
     } finally {
       setBusy(false);
     }
@@ -357,11 +464,6 @@ export function RemoteTargetWindow({
       setDetails(null);
       setHelperInstall(null);
       setShowHelperInstall(false);
-      setPage('overview');
-      setPreferences(null);
-      setDraftProviders([]);
-      setDiscovery({ state: 'idle' });
-      setSessionCatalog({ state: 'idle' });
       autoScannedKey.current = null;
     } catch {
       setError('Lumora could not disconnect this remote computer cleanly.');
@@ -417,7 +519,7 @@ export function RemoteTargetWindow({
   };
 
   const renderOverview = () => (
-    <section className="remote-window-panel" role="tabpanel">
+    <section className="remote-window-panel">
       <dl className="remote-facts">
         <div><dt>Platform</dt><dd>{summary.target.platform}</dd></div>
         <div><dt>Architecture</dt><dd>{summary.target.architecture}</dd></div>
@@ -490,7 +592,7 @@ export function RemoteTargetWindow({
   );
 
   const renderEnvironment = () => (
-    <section className="remote-window-panel" role="tabpanel">
+    <section className="remote-window-panel">
       <div className="remote-panel-heading">
         <div>
           <p className="card-label">Remote prerequisites</p>
@@ -531,7 +633,7 @@ export function RemoteTargetWindow({
   );
 
   const renderProviders = () => (
-    <section className="remote-window-panel" role="tabpanel">
+    <section className="remote-window-panel">
       <div className="remote-panel-heading">
         <div>
           <p className="card-label">Target-scoped selection</p>
@@ -587,115 +689,213 @@ export function RemoteTargetWindow({
     </section>
   );
 
-  const renderSessions = () => {
-    const workspaces = sessionCatalog.state === 'ready'
-      ? Array.from(sessionCatalog.catalog.sessions.reduce((groups, session) => {
-        const current = groups.get(session.workspacePath) ?? [];
-        current.push(session);
-        groups.set(session.workspacePath, current);
-        return groups;
-      }, new Map<string, RemoteSessionCatalog['sessions']>()))
-      : [];
-
+  const renderRemoteSettings = () => {
+    const categories = [
+      { id: 'providers' as const, label: 'Providers' },
+      { id: 'environment' as const, label: 'Environment' },
+      { id: 'security' as const, label: 'Security' }
+    ];
     return (
-      <section className="remote-window-panel" role="tabpanel">
-        <div className="remote-panel-heading">
-          <div>
-            <p className="card-label">Remote catalog</p>
-            <h2>Sessions</h2>
-            <p>
-              Read-only metadata from enabled providers on this remote computer.
-            </p>
-          </div>
-          <button
-            aria-label="Refresh sessions"
-            className="refresh-button"
-            disabled={!sessionScanSupported || sessionCatalog.state === 'loading'}
-            onClick={() => void refreshSessions()}
-          >{sessionCatalog.state === 'loading' ? 'Scanning…' : 'Refresh'}</button>
+      <div className="settings-layout">
+        <div
+          aria-label="Settings categories"
+          className="settings-category-tabs"
+          role="tablist"
+        >
+          {categories.map((category) => (
+            <button
+              aria-controls={`remote-settings-panel-${category.id}`}
+              aria-selected={settingsCategory === category.id}
+              className="settings-category-tab"
+              id={`remote-settings-tab-${category.id}`}
+              key={category.id}
+              onClick={() => setSettingsCategory(category.id)}
+              role="tab"
+              tabIndex={settingsCategory === category.id ? 0 : -1}
+              type="button"
+            >
+              {category.label}
+            </button>
+          ))}
         </div>
-
-        {sessionCatalog.state === 'loading' && (
-          <p className="remote-discovery-message" aria-live="polite">
-            Scanning enabled providers for remote sessions…
-          </p>
-        )}
-        {sessionCatalog.state === 'unsupported' && (
-          <p className="inline-notice warning">
-            Remote session discovery requires the current Lumora helper.
-            Reconnect this target from Overview to update it.
-          </p>
-        )}
-        {sessionCatalog.state === 'error' && (
-          <p className="inline-notice error">
-            Lumora could not scan remote sessions. The SSH connection remains open.
-          </p>
-        )}
-        {sessionCatalog.state === 'ready' && (
-          <>
-            <div className="remote-session-provider-status" aria-label="Provider catalog status">
-              {sessionCatalog.catalog.providers.map((provider) => (
-                <article className={`remote-provider-summary state-${provider.status}`} key={provider.provider}>
-                  <p>{providerName(provider.provider)} {{
-                    ready: `${provider.sessionCount} session${provider.sessionCount === 1 ? '' : 's'}`,
-                    unavailable: 'provider unavailable',
-                    unsupported: 'catalog support pending'
-                  }[provider.status]}</p>
-                  {provider.invalidCount > 0 && (
-                    <span>{provider.invalidCount} invalid record{provider.invalidCount === 1 ? '' : 's'} skipped</span>
-                  )}
-                </article>
-              ))}
-            </div>
-
-            {workspaces.length === 0 ? (
-              <div className="remote-session-empty">
-                <h3>No remote sessions found</h3>
-                <p>Only enabled providers with supported catalogs are included.</p>
-              </div>
-            ) : (
-              <div className="remote-workspace-list">
-                {workspaces.map(([workspacePath, sessions]) => (
-                  <section className="remote-workspace-group" key={workspacePath}>
-                    <header>
-                      <div>
-                        <p className="card-label">Workspace</p>
-                        <h3>{workspaceName(workspacePath)}</h3>
-                        <p>{workspacePath}</p>
-                      </div>
-                      <span>{sessions.length}</span>
-                    </header>
-                    <div className="remote-session-grid">
-                      {sessions.map((session) => (
-                        <article className="remote-session-card" key={`${session.provider}:${session.nativeId}`}>
-                          <div>
-                            <p className="card-label">{providerName(session.provider)}</p>
-                            <h3>{session.title}</h3>
-                          </div>
-                          <dl>
-                            <div>
-                              <dt>Updated</dt>
-                              <dd>{new Date(session.updatedAt).toLocaleString()}</dd>
-                            </div>
-                            {session.lifetimeTokens !== null && (
-                              <div>
-                                <dt>Usage</dt>
-                                <dd>{formatTokenCount(session.lifetimeTokens)}</dd>
-                              </div>
-                            )}
-                          </dl>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
+        <section
+          aria-labelledby={`remote-settings-tab-${settingsCategory}`}
+          className="settings-category-panel"
+          id={`remote-settings-panel-${settingsCategory}`}
+          role="tabpanel"
+        >
+          {settingsCategory === 'providers'
+            ? renderProviders()
+            : settingsCategory === 'environment'
+              ? renderEnvironment()
+              : renderOverview()}
+        </section>
+      </div>
     );
   };
+
+  if (connected || shellOpened) {
+    const activeRoute = REMOTE_ROUTES.find((route) => route.id === page)!;
+    const providerScan = discovery.state === 'ready'
+      ? discovery.snapshot.providers
+      : null;
+    const baseCatalogStatus: CatalogViewStatus = sessionCatalog.state === 'ready'
+      ? { state: 'ready', snapshot: sessionCatalog.catalog.snapshot }
+      : sessionCatalog.state === 'error' || sessionCatalog.state === 'unsupported'
+        ? { state: 'error' }
+        : { state: 'loading' };
+    const filteredCatalogStatus: CatalogViewStatus =
+      baseCatalogStatus.state !== 'ready'
+        ? baseCatalogStatus
+        : {
+            state: 'ready',
+            snapshot: {
+              ...baseCatalogStatus.snapshot,
+              sessions: baseCatalogStatus.snapshot.sessions.filter((session) => {
+                if (sessionProvider !== null && session.provider !== sessionProvider) {
+                  return false;
+                }
+                const query = sessionSearch.trim().toLocaleLowerCase();
+                if (query.length === 0) return true;
+                const workspace = baseCatalogStatus.snapshot.workspaces.find(
+                  (candidate) => candidate.id === session.workspaceId
+                );
+                return [
+                  session.title,
+                  workspace?.displayName ?? '',
+                  workspace?.canonicalPath ?? ''
+                ].some((value) => value.toLocaleLowerCase().includes(query));
+              })
+            }
+          };
+    const main = page === 'home' ? (
+      <CatalogHomeSummary
+        profiles={[]}
+        providerScan={providerScan}
+        providerSummary={
+          providerScan === null
+            ? 'Scanning remote providers'
+            : `${providerScan.providers.filter((provider) => provider.state === 'ready').length} of ${providerScan.providers.length} providers ready`
+        }
+        status={baseCatalogStatus}
+      />
+    ) : page === 'workspaces' ? (
+      selectedWorkspaceId === null ? (
+        <WorkspacesView
+          isRefreshing={sessionCatalog.state === 'loading'}
+          onOpenWorkspace={setSelectedWorkspaceId}
+          onRefresh={() => void refreshSessions()}
+          scopeLabel="Remote provider folders"
+          status={baseCatalogStatus}
+        />
+      ) : (
+        <WorkspaceSessionsView
+          isRefreshing={sessionCatalog.state === 'loading'}
+          onBack={() => setSelectedWorkspaceId(null)}
+          onRefresh={() => void refreshSessions()}
+          onRetry={() => void refreshSessions()}
+          operationError={null}
+          profiles={[]}
+          providerScan={providerScan}
+          status={baseCatalogStatus}
+          workspaceId={selectedWorkspaceId}
+        />
+      )
+    ) : page === 'sessions' ? (
+      <SessionsView
+        dismissedDiagnosticIds={dismissedDiagnostics}
+        isRefreshing={sessionCatalog.state === 'loading'}
+        onDismissDiagnostic={(identity) => setDismissedDiagnostics((current) => {
+          const next = new Set(current);
+          next.add(identity);
+          return next;
+        })}
+        onProviderChange={setSessionProvider}
+        onRefresh={() => void refreshSessions()}
+        onSearchChange={setSessionSearch}
+        profiles={[]}
+        provider={sessionProvider}
+        providerScan={providerScan}
+        queryText={sessionSearch}
+        showInformationalNotices
+        status={filteredCatalogStatus}
+      />
+    ) : renderRemoteSettings();
+
+    return (
+      <LumoraShell
+        activeRouteId={page}
+        appearance={appearance}
+        banner={!connected ? (
+          <section className="remote-reconnect-banner" role="alert">
+            <div>
+              <strong>The connection to this remote computer was lost.</strong>
+              <span>Your current page and cached catalog remain available.</span>
+            </div>
+            <button
+              className="refresh-button"
+              onClick={() => {
+                setError(null);
+                setShellOpened(false);
+              }}
+              type="button"
+            >Reconnect</button>
+          </section>
+        ) : null}
+        main={<div className="route-surface">{main}</div>}
+        onNavigate={(route) => {
+          setPage(route);
+          if (route !== 'workspaces') setSelectedWorkspaceId(null);
+        }}
+        onToggleSidebar={() => setSidebarExpanded((current) => !current)}
+        pageHeader={{
+          description: activeRoute.description,
+          eyebrow: activeRoute.eyebrow,
+          label: activeRoute.label
+        }}
+        primaryNavigation={{
+          ariaLabel: 'Primary navigation',
+          label: 'Remote',
+          routes: REMOTE_ROUTES
+        }}
+        sidebarExpanded={sidebarExpanded}
+        statusBar={
+          <footer className="status-bar" role="status" aria-live="polite">
+            <div className="status-cluster">
+              <span className="status-item status-ready">
+                <span className="status-dot" aria-hidden="true" />
+                {summary.target.platform} · {summary.target.architecture}
+              </span>
+              <span className="status-item">{summary.target.displayName}</span>
+            </div>
+            <div className="status-cluster status-cluster-secondary">
+              <span className="status-item">Remote read-only catalog</span>
+              <span className="status-divider" aria-hidden="true" />
+              <span className="status-item">
+                {connected ? 'SSH helper connected' : 'Connection unavailable'}
+              </span>
+            </div>
+          </footer>
+        }
+        topbar={{
+          context: endpoint(summary),
+          kicker: 'Remote Lumora',
+          actions: (
+            connected ? (
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => void disconnect()}
+                type="button"
+              >
+                {busy ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            ) : undefined
+          )
+        }}
+      />
+    );
+  }
 
   return (
     <main className="remote-window-shell">
@@ -711,32 +911,7 @@ export function RemoteTargetWindow({
           </span>
         </header>
 
-        <nav aria-label="Remote sections" className="remote-window-nav" role="tablist">
-          {(['overview', 'environment', 'providers', 'sessions'] as const).map((item) => (
-            <button
-              aria-selected={page === item}
-              className={`remote-window-tab${page === item ? ' is-active' : ''}`}
-              disabled={item !== 'overview' && !connected}
-              key={item}
-              onClick={() => setPage(item)}
-              role="tab"
-              type="button"
-            >{{
-              overview: 'Overview',
-              environment: 'Environment',
-              providers: 'Providers',
-              sessions: 'Sessions'
-            }[item]}</button>
-          ))}
-        </nav>
-
-        {page === 'overview'
-          ? renderOverview()
-          : page === 'environment'
-            ? renderEnvironment()
-            : page === 'providers'
-              ? renderProviders()
-              : renderSessions()}
+        {renderOverview()}
 
         <footer className="remote-phase-note">
           Environment, providers, and session metadata stay isolated to this target.

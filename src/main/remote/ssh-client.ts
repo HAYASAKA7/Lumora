@@ -228,6 +228,7 @@ export interface ConnectedRemoteSshClient {
   execute: RemoteCommandExecutor;
   openExec(command: string): Promise<RemoteExecChannel>;
   openFileTransfer(): Promise<RemoteFileTransfer>;
+  onClose(listener: () => void): () => void;
   close(): void;
 }
 
@@ -256,7 +257,9 @@ function remoteOperationFailed(): RemoteSshError {
 }
 
 function isMissingFile(error: Error): boolean {
-  return 'code' in error && (error as Error & { code?: unknown }).code === 'ENOENT';
+  if (!('code' in error)) return false;
+  const code = (error as Error & { code?: unknown }).code;
+  return code === 'ENOENT' || code === 2;
 }
 
 function createRemoteFileTransfer(sftp: SftpAdapter): RemoteFileTransfer {
@@ -432,6 +435,23 @@ export function createRemoteSshClient(
           settled = true;
           dependencies.clearTimeout(timeout);
           let connectionClosed = false;
+          const closeListeners = new Set<() => void>();
+          const notifyCloseListener = (listener: () => void) => {
+            try {
+              listener();
+            } catch {
+              // Native transport events must never surface consumer failures.
+            }
+          };
+          const handleTransportClose = () => {
+            if (connectionClosed) return;
+            connectionClosed = true;
+            const listeners = [...closeListeners];
+            closeListeners.clear();
+            for (const listener of listeners) notifyCloseListener(listener);
+          };
+          client.on('close', handleTransportClose);
+          client.on('error', handleTransportClose);
           resolve({
             execute: commandExecutor(client, dependencies),
             openExec(command) {
@@ -502,9 +522,20 @@ export function createRemoteSshClient(
                 });
               });
             },
+            onClose(listener) {
+              if (connectionClosed) {
+                notifyCloseListener(listener);
+                return () => undefined;
+              }
+              closeListeners.add(listener);
+              return () => closeListeners.delete(listener);
+            },
             close() {
               if (connectionClosed) return;
               connectionClosed = true;
+              closeListeners.clear();
+              client.removeListener('close', handleTransportClose);
+              client.removeListener('error', handleTransportClose);
               client.end();
             }
           });

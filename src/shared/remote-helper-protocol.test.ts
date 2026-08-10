@@ -71,6 +71,17 @@ describe('remote helper protocol contracts', () => {
         nextCursor: null
       }
     })).toMatchObject({ result: { status: 'unavailable' } });
+    expect(RemoteHelperSessionScanResponseSchema.parse({
+      ...response,
+      result: {
+        provider: 'claude',
+        scannedAt: '2026-08-09T04:03:02.000Z',
+        status: 'failed',
+        sessions: [],
+        invalidCount: 0,
+        nextCursor: null
+      }
+    })).toMatchObject({ result: { status: 'failed' } });
     expect(JSON.stringify(response)).not.toContain('transcript');
     expect(RemoteHelperSessionScanResponseSchema.safeParse({
       ...response,

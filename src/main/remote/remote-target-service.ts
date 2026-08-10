@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import {
   RemoteConnectionProfileInputSchema,
@@ -9,6 +9,7 @@ import {
   RemoteTargetCredentialsSchema,
   PROVIDER_IDS,
   type ExecutionTarget,
+  type CatalogSnapshot,
   type ProviderId,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
@@ -19,6 +20,7 @@ import {
   SESSION_PROVIDER_IDS,
   providerDefinition
 } from '../../shared/provider-definitions';
+import type { RemoteTargetErrorCode } from '../../shared/remote-target-errors';
 import type { RemotePlatformFacts } from './platform-probe';
 import { probeRemotePlatform } from './platform-probe';
 import {
@@ -38,6 +40,7 @@ import {
 } from './helper-remote-paths';
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSshClient } from './ssh-client';
+import { RemoteSshError } from './ssh-errors';
 
 type RemoteTarget = Extract<ExecutionTarget, { kind: 'remote' }>;
 
@@ -122,12 +125,43 @@ interface CreateRemoteTargetServiceOptions {
 }
 
 export class RemoteTargetServiceError extends Error {
-  readonly code = 'REMOTE_TARGET_CONNECTION_FAILED';
-
-  constructor() {
+  constructor(
+    readonly code: RemoteTargetErrorCode = 'REMOTE_TARGET_OPERATION_FAILED'
+  ) {
     super('Lumora could not connect to the remote computer.');
     this.name = 'RemoteTargetServiceError';
   }
+}
+
+type RemoteConnectionStage =
+  | 'ssh'
+  | 'platform'
+  | 'helper-bundle'
+  | 'file-transfer'
+  | 'helper-inspection';
+
+function connectionFailureCode(
+  stage: RemoteConnectionStage,
+  error: unknown
+): RemoteTargetErrorCode {
+  if (stage === 'platform') return 'REMOTE_TARGET_PLATFORM_PROBE_FAILED';
+  if (stage === 'helper-bundle') return 'REMOTE_TARGET_HELPER_BUNDLE_FAILED';
+  if (stage === 'file-transfer') return 'REMOTE_TARGET_FILE_TRANSFER_FAILED';
+  if (stage === 'helper-inspection') {
+    return 'REMOTE_TARGET_HELPER_INSPECTION_FAILED';
+  }
+  if (error instanceof RemoteSshError) {
+    if (
+      error.code === 'AUTHENTICATION_MISMATCH' ||
+      error.code === 'AUTHENTICATION_FAILED' ||
+      error.code === 'SSH_AGENT_UNAVAILABLE'
+    ) return 'REMOTE_TARGET_AUTHENTICATION_FAILED';
+    if (error.code === 'HOST_KEY_CHANGED') {
+      return 'REMOTE_TARGET_HOST_KEY_CHANGED';
+    }
+    if (error.code === 'SSH_TIMEOUT') return 'REMOTE_TARGET_SSH_TIMEOUT';
+  }
+  return 'REMOTE_TARGET_SSH_CONNECTION_FAILED';
 }
 
 export interface RemoteHelperInstallDetails {
@@ -140,12 +174,137 @@ export interface RemoteHelperInstallDetails {
 interface ActiveRemoteTarget {
   generation: number;
   ssh: ConnectedRemoteSshClient;
+  removeCloseListener: (() => void) | null;
   files: Awaited<ReturnType<ConnectedRemoteSshClient['openFileTransfer']>>;
   facts: RemotePlatformFacts;
   artifact: VerifiedRemoteHelperArtifact;
   paths: RemoteHelperPaths;
   inspection: RemoteHelperInspection;
   helper: ConnectedRemoteHelper | null;
+}
+
+function stableRemoteCatalogId(...parts: string[]): string {
+  return createHash('sha256').update(parts.join('\0')).digest('hex');
+}
+
+function remoteWorkspaceName(workspacePath: string): string {
+  const segments = workspacePath.split(/[\\/]+/).filter(Boolean);
+  return segments.at(-1) ?? workspacePath;
+}
+
+function normalizeRemoteCatalog(
+  executionTargetId: RemoteExecutionTargetId,
+  scannedAt: string,
+  sessions: readonly {
+    provider: ProviderId;
+    nativeId: string;
+    workspacePath: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    lifetimeTokens: number | null;
+  }[],
+  providers: readonly {
+    provider: ProviderId;
+    status: 'ready' | 'unavailable' | 'unsupported' | 'failed';
+    sessionCount: number;
+    invalidCount: number;
+  }[]
+): CatalogSnapshot {
+  const workspaceSessions = new Map<string, typeof sessions[number][]>();
+  for (const session of sessions) {
+    const entries = workspaceSessions.get(session.workspacePath) ?? [];
+    entries.push(session);
+    workspaceSessions.set(session.workspacePath, entries);
+  }
+
+  const workspaces = [...workspaceSessions.entries()].map(
+    ([canonicalPath, entries]) => {
+      const providerCounts: Partial<Record<ProviderId, number>> = {};
+      for (const entry of entries) {
+        providerCounts[entry.provider] = (providerCounts[entry.provider] ?? 0) + 1;
+      }
+      return {
+        id: stableRemoteCatalogId(
+          executionTargetId,
+          'workspace',
+          canonicalPath
+        ),
+        displayName: remoteWorkspaceName(canonicalPath),
+        canonicalPath,
+        available: true,
+        origin: 'discovered' as const,
+        sessionCount: entries.length,
+        providerCounts,
+        lastActivityAt: entries.reduce<string | null>(
+          (latest, entry) => latest === null || entry.updatedAt > latest
+            ? entry.updatedAt
+            : latest,
+          null
+        )
+      };
+    }
+  ).sort(
+    (left, right) =>
+      (right.lastActivityAt ?? '').localeCompare(left.lastActivityAt ?? '') ||
+      left.canonicalPath.localeCompare(right.canonicalPath)
+  );
+  const workspaceIds = new Map(
+    workspaces.map((workspace) => [workspace.canonicalPath, workspace.id])
+  );
+
+  return {
+    refreshedAt: scannedAt,
+    workspaces,
+    sessions: sessions.map((session) => ({
+      id: stableRemoteCatalogId(
+        executionTargetId,
+        session.provider,
+        session.nativeId
+      ),
+      nativeId: session.nativeId,
+      provider: session.provider,
+      workspaceId: workspaceIds.get(session.workspacePath)!,
+      title: session.title,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      lifetimeTokens: session.lifetimeTokens,
+      lifecycle: 'saved' as const,
+      sourceFreshness: 'current' as const
+    })),
+    providerStatus: providers.map((provider) => ({
+      provider: provider.provider,
+      state: provider.status === 'ready' ? 'ready' as const : 'unavailable' as const,
+      discoveredCount: provider.sessionCount,
+      unchangedCount: 0,
+      invalidCount: provider.invalidCount
+    })),
+    providerFacets: providers
+      .filter((provider) => provider.sessionCount > 0)
+      .map((provider) => ({
+        provider: provider.provider,
+        sessionCount: provider.sessionCount
+      })),
+    diagnostics: providers
+      .filter((provider) => provider.status !== 'ready')
+      .map((provider) => ({
+        code: 'CATALOG_PROVIDER_UNAVAILABLE' as const,
+        provider: provider.provider,
+        affectedCount: provider.sessionCount,
+        message: provider.status === 'unsupported'
+          ? `${providerDefinition(provider.provider).displayName} remote catalog support is pending.`
+          : provider.status === 'failed'
+            ? `${providerDefinition(provider.provider).displayName} remote catalog scan failed.`
+            : `${providerDefinition(provider.provider).displayName} is unavailable on this remote computer.`,
+        recovery: provider.status === 'unsupported'
+          ? 'Use a provider with remote catalog support or check a future Lumora release.'
+          : provider.status === 'failed'
+            ? `Retry the scan or update ${providerDefinition(provider.provider).displayName} on the remote computer.`
+            : 'Install or enable the provider on the remote computer, then refresh.',
+        retryable: provider.status !== 'unsupported',
+        scannedAt
+      }))
+  };
 }
 
 function remoteTarget(value: ExecutionTarget | null): RemoteTarget {
@@ -180,6 +339,8 @@ export function createRemoteTargetService({
 
   const disposeActive = (active: ActiveRemoteTarget | undefined) => {
     if (active === undefined) return;
+    active.removeCloseListener?.();
+    active.removeCloseListener = null;
     active.helper?.close();
     active.files.close();
     active.ssh.close();
@@ -217,7 +378,10 @@ export function createRemoteTargetService({
     active: ActiveRemoteTarget
   ): Promise<RemoteTargetConnectionDetails> => {
     const channel = await active.ssh.openExec(
-      helperLaunchCommand(active.paths, active.artifact.platform)
+      helperLaunchCommand(active.paths, active.artifact.platform, {
+        homeDirectory: active.facts.homeDirectory,
+        defaultShell: active.facts.defaultShell
+      })
     );
     const helper = await connectHelper({
       channel,
@@ -320,7 +484,7 @@ export function createRemoteTargetService({
     const seenCursors = new Set<string>();
     let cursor: string | null = null;
     let invalidCount = 0;
-    let status: 'ready' | 'unavailable' | 'unsupported' = 'ready';
+    let status: 'ready' | 'unavailable' | 'unsupported' | 'failed' = 'ready';
 
     for (let page = 0; page < 250; page += 1) {
       const result = await helper.scanSessionPage(provider, cursor, 100);
@@ -448,14 +612,17 @@ export function createRemoteTargetService({
       targets.updateRemoteConnection(id, { connectionState: 'connecting' });
       let connected: ConnectedRemoteSshClient | null = null;
       let files: ActiveRemoteTarget['files'] | null = null;
+      let stage: RemoteConnectionStage = 'ssh';
       try {
         targets.updateRemoteConnection(id, { connectionState: 'authenticating' });
         connected = await ssh.connect(profile, credentials);
+        stage = 'platform';
         const facts = await probe(connected.execute);
         if (
           facts.platform === 'unknown' ||
           facts.architecture === 'unknown'
         ) throw new Error('Unsupported remote helper target.');
+        stage = 'helper-bundle';
         const artifact = await resolveHelperArtifact(facts);
         const paths = createHelperPaths({
           platform: facts.platform,
@@ -463,7 +630,9 @@ export function createRemoteTargetService({
           helperVersion: artifact.helperVersion,
           temporaryId: randomUUID()
         });
+        stage = 'file-transfer';
         files = await connected.openFileTransfer();
+        stage = 'helper-inspection';
         const inspection = await inspectHelper({
           files,
           execute: connected.execute,
@@ -473,6 +642,7 @@ export function createRemoteTargetService({
         const active: ActiveRemoteTarget = {
           generation: nextGeneration++,
           ssh: connected,
+          removeCloseListener: null,
           files,
           facts,
           artifact,
@@ -481,6 +651,15 @@ export function createRemoteTargetService({
           helper: null
         };
         activeTargets.set(id, active);
+        active.removeCloseListener = connected.onClose(() => {
+          if (activeTargets.get(id) !== active) return;
+          activeTargets.delete(id);
+          active.removeCloseListener?.();
+          active.removeCloseListener = null;
+          active.helper?.close();
+          active.files.close();
+          targets.updateRemoteConnection(id, { connectionState: 'offline' });
+        });
         targets.updateRemoteConnection(id, {
           connectionState: inspection.status === 'missing'
             ? 'helper-missing'
@@ -506,11 +685,11 @@ export function createRemoteTargetService({
           });
           return connectionDetails(id, facts);
         }
-      } catch {
+      } catch (error) {
         files?.close();
         connected?.close();
         targets.updateRemoteConnection(id, { connectionState: 'error' });
-        throw new RemoteTargetServiceError();
+        throw new RemoteTargetServiceError(connectionFailureCode(stage, error));
       }
     },
 
@@ -619,18 +798,21 @@ export function createRemoteTargetService({
           results.push(await scanProviderSessions(active.helper, provider));
         }
         const scannedAt = clock().toISOString();
+        const sessions = results
+          .flatMap((result) => result.sessions)
+          .sort(
+            (left, right) =>
+              right.updatedAt.localeCompare(left.updatedAt) ||
+              left.provider.localeCompare(right.provider) ||
+              left.nativeId.localeCompare(right.nativeId)
+          );
+        const providerStatus = results.map((result) => result.provider);
         const catalog = RemoteSessionCatalogSchema.parse({
           executionTargetId: id,
           scannedAt,
-          sessions: results
-            .flatMap((result) => result.sessions)
-            .sort(
-              (left, right) =>
-                right.updatedAt.localeCompare(left.updatedAt) ||
-                left.provider.localeCompare(right.provider) ||
-                left.nativeId.localeCompare(right.nativeId)
-            ),
-          providers: results.map((result) => result.provider)
+          sessions,
+          providers: providerStatus,
+          snapshot: normalizeRemoteCatalog(id, scannedAt, sessions, providerStatus)
         });
         targets.updateRemoteConnection(id, { lastScannedAt: scannedAt });
         return catalog;

@@ -3,12 +3,136 @@ package providerprobe
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
 	"time"
 )
+
+func TestFindExecutableInPathsAcceptsSafeCommandNames(t *testing.T) {
+	directory := t.TempDir()
+	for _, command := range []string{"node", "npm", "codex", "cursor-agent"} {
+		filename := command
+		if runtime.GOOS == "windows" {
+			filename += ".exe"
+		}
+		candidate := filepath.Join(directory, filename)
+		if err := os.WriteFile(candidate, []byte("executable"), 0o755); err != nil {
+			t.Fatalf("create %s fixture: %v", command, err)
+		}
+
+		found, err := findExecutableInPaths(command, []string{directory})
+		if err != nil {
+			t.Fatalf("safe command %q was rejected: %v", command, err)
+		}
+		want, err := filepath.Abs(candidate)
+		if err != nil {
+			t.Fatalf("resolve %s fixture: %v", command, err)
+		}
+		if found != filepath.Clean(want) {
+			t.Fatalf("unexpected %s path: %q", command, found)
+		}
+	}
+}
+
+func TestFindExecutableInPathsRejectsPathsAndControlCharacters(t *testing.T) {
+	for _, command := range []string{"sub/node", `sub\node`, "node\x00evil", "node\revil", "node\nevil"} {
+		if _, err := findExecutableInPaths(command, []string{t.TempDir()}); !errors.Is(err, ErrExecutableNotFound) {
+			t.Fatalf("unsafe command %q was accepted: %v", command, err)
+		}
+	}
+}
+
+func TestConfiguredLoginShellPrefersLumoraLaunchHint(t *testing.T) {
+	t.Setenv("SHELL", "/bin/inherited")
+	t.Setenv("LUMORA_LOGIN_SHELL", "/bin/remote-login")
+
+	if got := configuredLoginShell(); got != "/bin/remote-login" {
+		t.Fatalf("unexpected login shell: %q", got)
+	}
+
+	t.Setenv("LUMORA_LOGIN_SHELL", "")
+	if got := configuredLoginShell(); got != "/bin/inherited" {
+		t.Fatalf("unexpected inherited login shell: %q", got)
+	}
+}
+
+func TestShellPathProbesMirrorNativeShellStartupModes(t *testing.T) {
+	bash := shellPathProbes("linux", "/bin/bash")
+	if len(bash) != 2 || !reflect.DeepEqual(bash[0].Args[:1], []string{"-ic"}) ||
+		!reflect.DeepEqual(bash[1].Args[:1], []string{"-lc"}) {
+		t.Fatalf("unexpected bash probes: %#v", bash)
+	}
+
+	zsh := shellPathProbes("darwin", "/bin/zsh")
+	if len(zsh) != 1 || !reflect.DeepEqual(zsh[0].Args[:1], []string{"-ilc"}) {
+		t.Fatalf("unexpected zsh probes: %#v", zsh)
+	}
+
+	windows := shellPathProbes("windows", "powershell.exe")
+	if len(windows) != 2 || windows[0].Executable != "powershell.exe" ||
+		windows[1].Executable != "pwsh.exe" {
+		t.Fatalf("unexpected Windows probes: %#v", windows)
+	}
+}
+
+func TestCollectShellPathsPrefersInteractiveAndAcceptsStartupNoise(t *testing.T) {
+	probes := shellPathProbes("linux", "/bin/bash")
+	paths := collectShellPaths(
+		context.Background(),
+		probes,
+		":",
+		func(_ context.Context, _ string, args []string, _ time.Duration) (string, error) {
+			if args[0] == "-ic" {
+				return "profile noise\n" + pathSentinel + "/home/user/.nvm/current/bin:/usr/bin\n", nil
+			}
+			return pathSentinel + "/home/user/bin:/usr/local/bin:/usr/bin\n", nil
+		},
+	)
+	want := []string{
+		filepath.Clean("/home/user/.nvm/current/bin"),
+		filepath.Clean("/usr/bin"),
+		filepath.Clean("/home/user/bin"),
+		filepath.Clean("/usr/local/bin"),
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("unexpected recovered paths: %#v", paths)
+	}
+}
+
+func TestCollectShellPathsParsesWindowsPathListsPortably(t *testing.T) {
+	paths := collectShellPaths(
+		context.Background(),
+		[]shellPathProbe{{Executable: "powershell.exe", Args: []string{"-Command", "probe"}}},
+		";",
+		func(context.Context, string, []string, time.Duration) (string, error) {
+			return pathSentinel + `C:\Users\builder\AppData\Local\fnm;C:\Program Files\nodejs` + "\n", nil
+		},
+	)
+	want := []string{
+		`C:\Users\builder\AppData\Local\fnm`,
+		`C:\Program Files\nodejs`,
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("unexpected Windows paths: %#v", paths)
+	}
+}
+
+func TestKnownSearchPathsIncludeStandardLinuxExecutableDirectories(t *testing.T) {
+	paths := knownSearchPaths("linux", "/home/work", "")
+	want := []string{
+		filepath.Clean("/home/work/.local/bin"),
+		filepath.Clean("/home/work/bin"),
+		filepath.Clean("/usr/local/bin"),
+		filepath.Clean("/usr/bin"),
+		filepath.Clean("/bin"),
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("unexpected Linux fallback paths: %#v", paths)
+	}
+}
 
 func TestScanFiltersProvidersAndIsolatesProbeFailures(t *testing.T) {
 	paths := []string{filepath.Clean("/opt/lumora/bin"), filepath.Clean("/usr/bin")}

@@ -101,6 +101,13 @@ export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
         />
       )}
         <RemoteTargetWindow
+          appearance={{
+            backgroundActive: presentation.backgroundActive,
+            backgroundStyle: undefined,
+            hasSurfaceMosaic: presentation.hasSurfaceMosaic,
+            shellStyle: presentation.shellStyle,
+            theme: appearance.appearance.theme
+          }}
           api={api}
           executionTargetId={context.executionTargetId}
         />

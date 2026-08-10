@@ -101,7 +101,7 @@ func TestScanOpenCodeFallsBackToLegacyListAndRejectsTranscriptFields(t *testing.
 
 func TestScanReturnsUnsupportedWithoutRunningCommands(t *testing.T) {
 	result := ScanWithDependencies(context.Background(), Query{
-		Provider: "claude", Cursor: 0, Limit: 50,
+		Provider: "aider", Cursor: 0, Limit: 50,
 	}, Dependencies{
 		LocateProvider: func(context.Context, string) (string, error) {
 			t.Fatal("unsupported provider must not be located")
@@ -124,5 +124,91 @@ func TestScanReturnsUnavailableWhenImplementedProviderIsNotInstalled(t *testing.
 	})
 	if result.Status != "unavailable" || len(result.Sessions) != 0 {
 		t.Fatalf("unexpected unavailable result: %#v", result)
+	}
+}
+
+func TestCatalogKeepsSnapshotAcrossPagesAndRefreshesFromFirstPage(t *testing.T) {
+	calls := 0
+	now := time.Date(2026, 8, 10, 5, 0, 0, 0, time.UTC)
+	catalog := NewCatalog(Dependencies{
+		LocateProvider: func(context.Context, string) (string, error) {
+			return "/usr/bin/codex", nil
+		},
+		ProviderScanners: map[string]ProviderScanner{
+			"codex": func(context.Context, string, Dependencies) ([]Session, int, error) {
+				calls++
+				return []Session{
+					{NativeID: "first", WorkspacePath: "/work/a", Title: "First", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano), SourceKey: "codex:first"},
+					{NativeID: "second", WorkspacePath: "/work/b", Title: "Second", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano), SourceKey: "codex:second"},
+				}, 0, nil
+			},
+		},
+		Now: func() time.Time { return now.Add(time.Duration(calls) * time.Minute) },
+	})
+
+	first := catalog.Scan(context.Background(), Query{Provider: "codex", Cursor: 0, Limit: 1})
+	second := catalog.Scan(context.Background(), Query{Provider: "codex", Cursor: 1, Limit: 1})
+	if calls != 1 {
+		t.Fatalf("later pages must use one immutable snapshot, got %d scans", calls)
+	}
+	if first.ScannedAt != second.ScannedAt || len(second.Sessions) != 1 || second.Sessions[0].NativeID != "second" {
+		t.Fatalf("pagination did not preserve the snapshot: first=%#v second=%#v", first, second)
+	}
+
+	refreshed := catalog.Scan(context.Background(), Query{Provider: "codex", Cursor: 0, Limit: 1})
+	if calls != 2 || refreshed.ScannedAt == first.ScannedAt {
+		t.Fatalf("cursor zero must refresh the snapshot: calls=%d first=%q refreshed=%q", calls, first.ScannedAt, refreshed.ScannedAt)
+	}
+}
+
+func TestCatalogSeparatesFailedUnavailableAndUnsupportedProviders(t *testing.T) {
+	now := time.Date(2026, 8, 10, 5, 0, 0, 0, time.UTC)
+	catalog := NewCatalog(Dependencies{
+		LocateProvider: func(_ context.Context, provider string) (string, error) {
+			if provider == "claude" {
+				return "", errors.New("not installed")
+			}
+			return "/usr/bin/" + provider, nil
+		},
+		ProviderScanners: map[string]ProviderScanner{
+			"codex": func(context.Context, string, Dependencies) ([]Session, int, error) {
+				return nil, 0, errors.New("malformed provider response")
+			},
+			"claude": func(context.Context, string, Dependencies) ([]Session, int, error) {
+				t.Fatal("an unavailable provider must not be scanned")
+				return nil, 0, nil
+			},
+		},
+		Now: func() time.Time { return now },
+	})
+
+	if result := catalog.Scan(context.Background(), Query{Provider: "codex", Limit: 50}); result.Status != "failed" {
+		t.Fatalf("unexpected failed result: %#v", result)
+	}
+	if result := catalog.Scan(context.Background(), Query{Provider: "claude", Limit: 50}); result.Status != "unavailable" {
+		t.Fatalf("unexpected unavailable result: %#v", result)
+	}
+	if result := catalog.Scan(context.Background(), Query{Provider: "amp", Limit: 50}); result.Status != "unsupported" {
+		t.Fatalf("unexpected unsupported result: %#v", result)
+	}
+}
+
+func TestCatalogRejectsAdapterRecordsOutsideTheProtocolBoundary(t *testing.T) {
+	now := time.Date(2026, 8, 10, 5, 0, 0, 0, time.UTC)
+	catalog := NewCatalog(Dependencies{
+		LocateProvider: func(context.Context, string) (string, error) { return "/usr/bin/codex", nil },
+		ProviderScanners: map[string]ProviderScanner{
+			"codex": func(context.Context, string, Dependencies) ([]Session, int, error) {
+				return []Session{
+					{NativeID: "safe", WorkspacePath: "/work/safe", Title: "Safe", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano), SourceKey: "codex:safe"},
+					{NativeID: "unsafe", WorkspacePath: "relative/private", Title: "Unsafe", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano), SourceKey: "codex:unsafe"},
+				}, 0, nil
+			},
+		},
+		Now: func() time.Time { return now },
+	})
+	result := catalog.Scan(context.Background(), Query{Provider: "codex", Limit: 50})
+	if result.Status != "ready" || result.InvalidCount != 1 || len(result.Sessions) != 1 || result.Sessions[0].NativeID != "safe" {
+		t.Fatalf("unsafe adapter output crossed the helper boundary: %#v", result)
 	}
 }

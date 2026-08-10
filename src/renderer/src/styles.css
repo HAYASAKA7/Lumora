@@ -4796,6 +4796,10 @@ button {
   display: grid;
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   place-items: start center;
   padding: clamp(20px, 5vw, 64px);
   overflow: auto;
@@ -4824,6 +4828,42 @@ button {
   overflow: hidden;
   color: var(--text);
   background: var(--navy-950);
+}
+
+.remote-window-root > .app-shell,
+.remote-window-root > .remote-window-shell {
+  width: 100%;
+  height: 100%;
+}
+
+.remote-reconnect-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--warning) 58%, var(--line));
+  border-radius: 11px;
+  box-shadow: var(--panel-shadow-soft);
+}
+
+.remote-reconnect-banner > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.remote-reconnect-banner span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.remote-reconnect-banner > button {
+  margin-left: auto;
 }
 
 .has-appearance-background.has-surface-mosaic .remote-window-card {

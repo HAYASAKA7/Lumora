@@ -48,7 +48,15 @@ describe('createLumoraApi', () => {
       executionTargetId: snapshot.executionTargetId,
       scannedAt: '2026-08-09T04:03:02.000Z',
       sessions: [],
-      providers: []
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-09T04:03:02.000Z',
+        workspaces: [],
+        sessions: [],
+        providerStatus: [],
+        providerFacets: [],
+        diagnostics: []
+      }
     } as const;
     const api = createLumoraApi(async (channel, ...args) => {
       invocations.push({ channel, args });

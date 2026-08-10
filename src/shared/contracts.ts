@@ -960,7 +960,7 @@ export const RemoteSessionMetadataSchema = z.strictObject({
 
 export const RemoteSessionProviderStatusSchema = z.strictObject({
   provider: ProviderIdSchema,
-  status: z.enum(['ready', 'unavailable', 'unsupported']),
+  status: z.enum(['ready', 'unavailable', 'unsupported', 'failed']),
   sessionCount: z.number().int().nonnegative(),
   invalidCount: z.number().int().nonnegative()
 });
@@ -969,7 +969,8 @@ export const RemoteSessionCatalogSchema = z.strictObject({
   executionTargetId: RemoteExecutionTargetIdSchema,
   scannedAt: z.iso.datetime(),
   sessions: z.array(RemoteSessionMetadataSchema).max(25_000),
-  providers: z.array(RemoteSessionProviderStatusSchema).max(PROVIDER_IDS.length)
+  providers: z.array(RemoteSessionProviderStatusSchema).max(PROVIDER_IDS.length),
+  snapshot: CatalogSnapshotSchema
 });
 
 export type RemoteProviderPreferences = z.infer<

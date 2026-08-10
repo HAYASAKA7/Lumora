@@ -8,7 +8,6 @@ import {
   type ReactNode
 } from 'react';
 
-import lumoraBrandMarkUrl from '../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import startupPosterUrl from './assets/lumora-startup-final.png';
 import startupVideoUrl from './assets/lumora-startup.mp4';
 import {
@@ -59,6 +58,11 @@ import {
   readSidebarExpanded,
   writeSidebarExpanded
 } from './sidebar/sidebar-preference';
+import {
+  LumoraShell,
+  NavigationIcon as Icon,
+  type NavigationIconName
+} from './shell/LumoraShell';
 import { StartupOverlay } from './startup/StartupOverlay';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
@@ -74,7 +78,7 @@ import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
-import { Tooltip, TooltipProvider } from './ui/Tooltip';
+import { TooltipProvider } from './ui/Tooltip';
 
 type RouteId =
   | 'home'
@@ -100,17 +104,7 @@ interface RouteDefinition {
   shortcut: NavigationShortcutKey | null;
 }
 
-type IconName =
-  | 'home'
-  | 'workspace'
-  | 'sessions'
-  | 'terminal'
-  | 'remote'
-  | 'settings'
-  | 'activity'
-  | 'attention'
-  | 'history'
-  | 'scan';
+type IconName = NavigationIconName;
 
 type SystemStatus =
   | { state: 'loading' }
@@ -215,36 +209,6 @@ const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   darwin: 'macOS',
   linux: 'Linux'
 };
-
-function Icon({ name }: { name: IconName }): ReactNode {
-  const paths: Record<IconName, ReactNode> = {
-    home: <path d="M3.5 9.3 10 3.8l6.5 5.5v7.2a1 1 0 0 1-1 1h-4v-5h-3v5h-4a1 1 0 0 1-1-1Z" />,
-    workspace: <path d="M2.5 5.5h5l1.5 2h8.5v8a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5Zm0 2h15" />,
-    sessions: <path d="M5 4.5h10M5 10h10M5 15.5h7M2.5 4.5h.1M2.5 10h.1M2.5 15.5h.1" />,
-    terminal: <path d="m4 6 3.5 4L4 14m6 0h6" />,
-    remote: <path d="M3 5.5h14v9H3Zm3 12h8M10 14.5v3M6.5 9.5h7" />,
-    settings: <path d="M10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm6.2 3a6 6 0 0 0-.1-1l1.6-1.3-1.8-3.1-2 .8a7 7 0 0 0-1.8-1L11.8 2H8.2l-.3 2.4a7 7 0 0 0-1.8 1l-2-.8-1.8 3.1L3.9 9a6 6 0 0 0 0 2l-1.6 1.3 1.8 3.1 2-.8a7 7 0 0 0 1.8 1l.3 2.4h3.6l.3-2.4a7 7 0 0 0 1.8-1l2 .8 1.8-3.1-1.6-1.3a6 6 0 0 0 .1-1Z" />,
-    activity: <path d="M2 11h3l2-5 3.2 9 2.2-6 1.4 2H18" />,
-    attention: <path d="M10 3 2.8 16h14.4Zm0 5v3.5m0 2.5v.1" />,
-    history: <path d="M4.2 6.4A7 7 0 1 1 3 12m0-5.5v4h4M10 6v4l2.8 1.8" />,
-    scan: <path d="M3 7V4a1 1 0 0 1 1-1h3m6 0h3a1 1 0 0 1 1 1v3m0 6v3a1 1 0 0 1-1 1h-3m-6 0H4a1 1 0 0 1-1-1v-3M6 10h8" />
-  };
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon"
-      fill="none"
-      viewBox="0 0 20 20"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-    >
-      {paths[name]}
-    </svg>
-  );
-}
 
 function providerSummary(status: ProviderScanStatus): string {
   if (status.state === 'loading') {
@@ -1380,109 +1344,61 @@ function AppContent(): ReactNode {
 
   return (
     <>
-    <div
-      aria-hidden={startupPresentationActive ? true : undefined}
-      className={`appearance-root app-shell${sidebarExpanded ? '' : ' sidebar-collapsed'}${appearanceBackgroundActive ? ' has-appearance-background' : ''}${appearancePresentation.hasSurfaceMosaic ? ' has-surface-mosaic' : ''}${terminalActive ? ' terminal-active' : ''}`}
-      data-theme={resolvedTheme}
-      style={appearanceShellStyle}
-    >
-      {appearanceBackgroundStyle === undefined ? null : (
-        <div
-          aria-hidden="true"
-          className="appearance-background-layer"
-          style={appearanceBackgroundStyle}
-        />
-      )}
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-
-      <aside className="sidebar">
-        <Tooltip
-          content={sidebarExpanded ? null : sidebarToggleLabel}
-          shortcut={sidebarToggleShortcut}
-        >
-          <button
-            aria-expanded={sidebarExpanded}
-            aria-label={sidebarToggleLabel}
-            className="brand"
-            data-lumora-command
-            onClick={() => setSidebarExpanded((expanded) => !expanded)}
-            tabIndex={-1}
-            type="button"
-          >
-            <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
-            <span className="brand-copy">
-              <strong>Lumora</strong>
-              <small>Agent workspace manager</small>
-            </span>
-          </button>
-        </Tooltip>
-
-        <nav className="primary-nav" aria-label="Primary navigation">
-          <p className="nav-label">
-            <span className="nav-label-text">Workspace</span>
-            <span aria-hidden="true" className="nav-label-divider" />
-          </p>
-          {PRIMARY_ROUTES.map((route) => (
-            <Tooltip
-              content={sidebarExpanded ? null : route.label}
-              key={route.id}
-              shortcut={
-                shortcutPlatform === null || route.shortcut === null
-                  ? undefined
-                  : formatShortcutChord(
-                      keyboardSettings[route.shortcut],
-                      shortcutPlatform
-                    )
-              }
-            >
-              <button
-                aria-current={
-                  !terminalActive && activeRouteId === route.id ? 'page' : undefined
-                }
-                className="nav-item"
-                data-lumora-command
-                onClick={() => navigateToRoute(route.id)}
-                tabIndex={-1}
-                type="button"
-              >
-                <Icon name={route.icon} />
-                <span className="nav-item-label">{route.label}</span>
-              </button>
-            </Tooltip>
-          ))}
-        </nav>
-
-        <nav aria-label="Remote access" className="sidebar-remote-nav">
-          <Tooltip content={sidebarExpanded ? null : REMOTE_ROUTE.label}>
-            <button
-              aria-current={
-                !terminalActive && activeRouteId === REMOTE_ROUTE.id
-                  ? 'page'
-                  : undefined
-              }
-              className="nav-item"
-              data-lumora-command
-              onClick={() => navigateToRoute(REMOTE_ROUTE.id)}
-              tabIndex={-1}
-              type="button"
-            >
-              <Icon name={REMOTE_ROUTE.icon} />
-              <span className="nav-item-label">{REMOTE_ROUTE.label}</span>
-            </button>
-          </Tooltip>
-        </nav>
-
-      </aside>
-
-      <div className="workspace-frame">
-        <header className="topbar">
-          <div>
-            <p className="topbar-kicker">Local control plane</p>
-            <p className="topbar-context">Private by default · Native provider sessions</p>
-          </div>
-          <div aria-label="Session actions" className="topbar-actions" role="group">
+      <LumoraShell
+        activeRouteId={activeRouteId}
+        appearance={{
+          backgroundActive: appearanceBackgroundActive,
+          backgroundStyle: appearanceBackgroundStyle,
+          hasSurfaceMosaic: appearancePresentation.hasSurfaceMosaic,
+          shellStyle: appearanceShellStyle,
+          theme: resolvedTheme
+        }}
+        ariaHidden={startupPresentationActive ? true : undefined}
+        className={terminalActive ? 'terminal-active' : ''}
+        hidePageHeader={terminalActive}
+        mainClassName={terminalActive ? 'terminal-main-content' : ''}
+        mainRef={mainContentRef}
+        navigationActive={!terminalActive}
+        onNavigate={navigateToRoute}
+        onToggleSidebar={() => setSidebarExpanded((expanded) => !expanded)}
+        pageHeader={{
+          description: activeRoute.description,
+          eyebrow: activeRoute.eyebrow,
+          label: activeRoute.label
+        }}
+        primaryNavigation={{
+          ariaLabel: 'Primary navigation',
+          label: 'Workspace',
+          routes: PRIMARY_ROUTES.map((route) => ({
+            id: route.id,
+            icon: route.icon,
+            label: route.label,
+            shortcut:
+              shortcutPlatform === null || route.shortcut === null
+                ? undefined
+                : formatShortcutChord(
+                    keyboardSettings[route.shortcut],
+                    shortcutPlatform
+                  )
+          }))
+        }}
+        secondaryNavigation={{
+          label: 'Remote access',
+          routes: [
+            {
+              id: REMOTE_ROUTE.id,
+              icon: REMOTE_ROUTE.icon,
+              label: REMOTE_ROUTE.label
+            }
+          ]
+        }}
+        sidebarExpanded={sidebarExpanded}
+        sidebarToggleShortcut={sidebarToggleShortcut}
+        topbar={{
+          context: 'Private by default · Native provider sessions',
+          kicker: 'Local control plane',
+          actions: (
+            <>
             {activeRuntimeId === null && liveRuntimes.length > 0 ? (
               <button className="secondary-button" data-lumora-command onClick={openLiveTerminals} tabIndex={-1} type="button">
                 Open terminals
@@ -1511,23 +1427,11 @@ function AppContent(): ReactNode {
                 New session
               </button>
             ) : null}
-          </div>
-        </header>
-
-        <main
-          className={`main-content${terminalActive ? ' terminal-main-content' : ''}`}
-          id="main-content"
-          ref={mainContentRef}
-          tabIndex={-1}
-        >
-          {terminalActive ? null : (
-            <header className="page-header">
-              <p className="eyebrow">{activeRoute.eyebrow}</p>
-              <h1>{activeRoute.label}</h1>
-              <p className="page-description">{activeRoute.description}</p>
-            </header>
-          )}
-
+            </>
+          )
+        }}
+        main={
+          <>
           {catalogOperationError === null ? null : (
             <div className="catalog-operation-error" role="alert">
               {catalogOperationError}
@@ -1684,12 +1588,12 @@ function AppContent(): ReactNode {
               />
             </div>
           ) : null}
-        </main>
-
-        <SystemStatusBar status={systemStatus} />
-      </div>
-
-      {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
+          </>
+        }
+        statusBar={<SystemStatusBar status={systemStatus} />}
+        floatingContent={
+          <>
+          {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
         <RuntimeSwitcher
           runtimes={runtimeSwitcherRuntimes}
           selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
@@ -1741,7 +1645,9 @@ function AppContent(): ReactNode {
           workspaces={visibleCatalogStatus.snapshot.workspaces}
         />
       ) : null}
-    </div>
+          </>
+        }
+      />
       <StartupOverlay
         onDismissed={dismissStartupPresentation}
         posterSrc={startupPosterUrl}

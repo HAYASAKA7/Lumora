@@ -191,6 +191,10 @@ func responseFor(request protocol.Request, dependencies Dependencies) (protocol.
 }
 
 func Serve(reader io.Reader, writer io.Writer, dependencies Dependencies) error {
+	if dependencies.SessionScan == nil {
+		catalog := sessioncatalog.NewCatalog(sessioncatalog.Dependencies{})
+		dependencies.SessionScan = catalog.Scan
+	}
 	for {
 		var request protocol.Request
 		if err := protocol.ReadFrame(reader, &request); err != nil {

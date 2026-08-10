@@ -149,4 +149,50 @@ describe('remote SSH client', () => {
     }));
     expect(client.destroy).toHaveBeenCalledOnce();
   });
+
+  it('notifies active consumers when an established SSH transport closes', async () => {
+    const client = new FakeClient();
+    const ssh = createRemoteSshClient({
+      createClient: () => client,
+      readPrivateKey: vi.fn(),
+      resolveSshConfigHost: vi.fn(),
+      agentSocket: null
+    });
+    const connecting = ssh.connect(
+      profile({ method: 'password' }),
+      { method: 'password', password: 'not-logged' }
+    );
+    await vi.waitFor(() => expect(client.connectConfig).not.toBeNull());
+    client.emit('ready');
+    const connected = await connecting;
+    const onClose = vi.fn();
+    connected.onClose(onClose);
+
+    client.emit('close');
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('contains close-listener failures and continues notifying consumers', async () => {
+    const client = new FakeClient();
+    const ssh = createRemoteSshClient({
+      createClient: () => client,
+      readPrivateKey: vi.fn(),
+      resolveSshConfigHost: vi.fn(),
+      agentSocket: null
+    });
+    const connecting = ssh.connect(
+      profile({ method: 'password' }),
+      { method: 'password', password: 'not-logged' }
+    );
+    await vi.waitFor(() => expect(client.connectConfig).not.toBeNull());
+    client.emit('ready');
+    const connected = await connecting;
+    const laterListener = vi.fn();
+    connected.onClose(() => { throw new Error('private listener failure'); });
+    connected.onClose(laterListener);
+
+    expect(() => client.emit('close')).not.toThrow();
+    expect(laterListener).toHaveBeenCalledOnce();
+  });
 });

@@ -92,6 +92,24 @@ const profile: TerminalProfile = {
 };
 
 describe('WorkspaceSessionsView', () => {
+  it('renders a read-only remote workspace without resume overlays', () => {
+    render(
+      <WorkspaceSessionsView
+        isRefreshing={false}
+        onBack={vi.fn()}
+        onRefresh={vi.fn()}
+        onRetry={vi.fn()}
+        operationError={null}
+        profiles={[]}
+        providerScan={providerScan}
+        status={{ state: 'ready', snapshot }}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(screen.getByText('Workspace drill-down')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume Workspace drill-down' })).not.toBeInTheDocument();
+  });
   it('does not expose session transfer controls', () => {
     render(
       <WorkspaceSessionsView

@@ -34,8 +34,9 @@ interface WorkspacesViewProps {
   status: CatalogViewStatus;
   isRefreshing: boolean;
   onRefresh(): void;
-  onAddWorkspace(): void;
+  onAddWorkspace?: (() => void) | undefined;
   onOpenWorkspace(workspaceId: string): void;
+  scopeLabel?: string | undefined;
 }
 
 const WorkspaceCard = memo(function WorkspaceCard({
@@ -98,7 +99,8 @@ export function WorkspacesView({
   isRefreshing,
   onRefresh,
   onAddWorkspace,
-  onOpenWorkspace
+  onOpenWorkspace,
+  scopeLabel = 'Canonical local folders'
 }: WorkspacesViewProps): ReactNode {
   const workspaces =
     status.state === 'ready' ? status.snapshot.workspaces : [];
@@ -141,7 +143,7 @@ export function WorkspacesView({
     <section className="catalog-panel" aria-labelledby="workspace-list-title">
       <div className="catalog-toolbar">
         <div>
-          <p className="card-label">Canonical local folders</p>
+          <p className="card-label">{scopeLabel}</p>
           <h2 id="workspace-list-title">
             {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
           </h2>
@@ -157,15 +159,17 @@ export function WorkspacesView({
           >
             {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
           </button>
-          <button
-            className="refresh-button"
-            onClick={onAddWorkspace}
-            data-lumora-command
-            tabIndex={-1}
-            type="button"
-          >
-            Add workspace
-          </button>
+          {onAddWorkspace === undefined ? null : (
+            <button
+              className="refresh-button"
+              onClick={onAddWorkspace}
+              data-lumora-command
+              tabIndex={-1}
+              type="button"
+            >
+              Add workspace
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,7 +215,7 @@ interface SessionsViewProps {
   onProviderChange(value: ProviderId | null): void;
   onDismissDiagnostic(identity: string): void;
   onRefresh(): void;
-  onResume(session: SessionSummary): void;
+  onResume?: ((session: SessionSummary) => void) | undefined;
 }
 
 function diagnosticIdentity(
@@ -231,37 +235,43 @@ const SessionRow = memo(function SessionRow({
   workspace: WorkspaceSummary | undefined;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
-  onResume(session: SessionSummary): void;
+  onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
-  const disabledReason = resolveSessionResumeDisabledReason({
-    session,
-    workspace,
-    providerScan,
-    profiles
-  });
+  const disabledReason = onResume === undefined
+    ? null
+    : resolveSessionResumeDisabledReason({
+        session,
+        workspace,
+        providerScan,
+        profiles
+      });
   return (
     <Tooltip content={disabledReason} multiline>
       <tr
         aria-description={disabledReason ?? undefined}
         className={`session-row${
-          disabledReason === null ? '' : ' session-row-unavailable'
+          onResume === undefined || disabledReason === null
+            ? ''
+            : ' session-row-unavailable'
         }`}
       >
       <td>
-        <Tooltip
-          content={disabledReason === null ? 'Resume this session' : null}
-        >
-          <button
-            aria-description={disabledReason ?? 'Resume this session'}
-            aria-label={`Resume ${session.title}`}
-            className="session-row-action"
-            disabled={disabledReason !== null}
-            onClick={() => onResume(session)}
-            data-lumora-command
-            tabIndex={-1}
-            type="button"
-          />
-        </Tooltip>
+        {onResume === undefined ? null : (
+          <Tooltip
+            content={disabledReason === null ? 'Resume this session' : null}
+          >
+            <button
+              aria-description={disabledReason ?? 'Resume this session'}
+              aria-label={`Resume ${session.title}`}
+              className="session-row-action"
+              disabled={disabledReason !== null}
+              onClick={() => onResume(session)}
+              data-lumora-command
+              tabIndex={-1}
+              type="button"
+            />
+          </Tooltip>
+        )}
         <strong>{session.title}</strong>
       </td>
       <td>
@@ -511,7 +521,7 @@ export function CatalogHomeSummary({
   profiles: readonly TerminalProfile[];
   runtimes?: readonly RuntimeSummary[];
   onRecover?(runtime: RuntimeSummary): void;
-  onResume(session: SessionSummary): void;
+  onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   if (status.state === 'loading') {
     return (
@@ -628,12 +638,14 @@ export function CatalogHomeSummary({
           <ul className="recent-session-list">
             {recentSessions.map((session) => {
               const workspace = workspaces.get(session.workspaceId);
-              const disabledReason = resolveSessionResumeDisabledReason({
-                session,
-                workspace,
-                providerScan,
-                profiles
-              });
+              const disabledReason = onResume === undefined
+                ? null
+                : resolveSessionResumeDisabledReason({
+                    session,
+                    workspace,
+                    providerScan,
+                    profiles
+                  });
               return (
                 <li key={session.id}>
                   <span className="recent-session-copy">
@@ -658,19 +670,21 @@ export function CatalogHomeSummary({
                       )}
                     </span>
                   </span>
-                  <Tooltip content={disabledReason ?? 'Resume this session'}>
-                    <button
-                      aria-description={disabledReason ?? 'Resume this session'}
-                      className="text-button recent-session-resume"
-                      disabled={disabledReason !== null}
-                      onClick={() => onResume(session)}
-                      data-lumora-command
-                      tabIndex={-1}
-                      type="button"
-                    >
-                      Resume
-                    </button>
-                  </Tooltip>
+                  {onResume === undefined ? null : (
+                    <Tooltip content={disabledReason ?? 'Resume this session'}>
+                      <button
+                        aria-description={disabledReason ?? 'Resume this session'}
+                        className="text-button recent-session-resume"
+                        disabled={disabledReason !== null}
+                        onClick={() => onResume(session)}
+                        data-lumora-command
+                        tabIndex={-1}
+                        type="button"
+                      >
+                        Resume
+                      </button>
+                    </Tooltip>
+                  )}
                 </li>
               );
             })}

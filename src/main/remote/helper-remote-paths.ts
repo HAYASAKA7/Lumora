@@ -70,13 +70,23 @@ export function createHelperDirectoryCommand(
 
 export function helperLaunchCommand(
   paths: RemoteHelperPaths,
-  platform: RemotePlatform
+  platform: RemotePlatform,
+  environment: {
+    homeDirectory: string;
+    defaultShell: string;
+  }
 ): string {
   if (platform === 'win32') {
     return `powershell -NoProfile -NonInteractive -Command ` +
-      `"& ${quotePowerShell(paths.executablePath)}"`;
+      `"$env:HOME = ${quotePowerShell(environment.homeDirectory)}; ` +
+      `$env:USERPROFILE = ${quotePowerShell(environment.homeDirectory)}; ` +
+      `$env:LUMORA_LOGIN_SHELL = ${quotePowerShell(environment.defaultShell)}; ` +
+      `& ${quotePowerShell(paths.executablePath)}"`;
   }
-  return `exec ${quotePosix(paths.executablePath)}`;
+  return `HOME=${quotePosix(environment.homeDirectory)} ` +
+    `SHELL=${quotePosix(environment.defaultShell)} ` +
+    `LUMORA_LOGIN_SHELL=${quotePosix(environment.defaultShell)} ` +
+    `exec ${quotePosix(paths.executablePath)}`;
 }
 
 export function createHelperDigestCommand(

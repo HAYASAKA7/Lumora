@@ -182,6 +182,14 @@ export const RemoteHelperSessionScanResultSchema = z.discriminatedUnion('status'
     sessions: z.tuple([]),
     invalidCount: z.literal(0),
     nextCursor: z.null()
+  }),
+  z.strictObject({
+    provider: SessionProviderIdSchema,
+    scannedAt: z.iso.datetime(),
+    status: z.literal('failed'),
+    sessions: z.tuple([]),
+    invalidCount: z.literal(0),
+    nextCursor: z.null()
   })
 ]);
 

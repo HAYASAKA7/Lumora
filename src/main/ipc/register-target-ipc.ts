@@ -19,7 +19,14 @@ import {
   type LumoraWindowContext,
   type RemoteExecutionTargetId
 } from '../../shared/contracts';
-import type { RemoteTargetService } from '../remote/remote-target-service';
+import {
+  RemoteTargetErrorCodeSchema,
+  type RemoteTargetErrorCode
+} from '../../shared/remote-target-errors';
+import {
+  RemoteTargetServiceError,
+  type RemoteTargetService
+} from '../remote/remote-target-service';
 import type { IpcAuthorizer, TargetAwareIpcEvent } from './ipc-access';
 
 interface IpcRegistrar {
@@ -45,10 +52,10 @@ interface RegisterTargetIpcDependencies {
 }
 
 export class RemoteTargetIpcError extends Error {
-  readonly code = 'REMOTE_TARGET_OPERATION_FAILED';
-
-  constructor() {
-    super('Lumora could not complete the remote-target operation.');
+  constructor(
+    readonly code: RemoteTargetErrorCode = 'REMOTE_TARGET_OPERATION_FAILED'
+  ) {
+    super(`${code}: Lumora could not complete the remote-target operation.`);
     this.name = 'RemoteTargetIpcError';
   }
 }
@@ -81,6 +88,10 @@ async function protectedOperation<T>(operation: () => T | Promise<T>): Promise<T
     return await operation();
   } catch (error) {
     if (error instanceof RemoteTargetIpcError) throw error;
+    if (error instanceof RemoteTargetServiceError) {
+      const parsed = RemoteTargetErrorCodeSchema.safeParse(error.code);
+      if (parsed.success) throw new RemoteTargetIpcError(parsed.data);
+    }
     throw new RemoteTargetIpcError();
   }
 }

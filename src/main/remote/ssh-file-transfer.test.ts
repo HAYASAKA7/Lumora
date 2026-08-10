@@ -118,6 +118,16 @@ describe('remote SSH helper transport', () => {
     client.sftpClient.stat.mockImplementationOnce((_path, callback) => callback(missing));
     const second = await ssh.openFileTransfer();
     await expect(second.stat('/missing')).resolves.toEqual({ exists: false, size: null });
+
+    const sftpMissing = Object.assign(new Error('No such file'), { code: 2 });
+    client.sftpClient.stat.mockImplementationOnce(
+      (_path, callback) => callback(sftpMissing)
+    );
+    const third = await ssh.openFileTransfer();
+    await expect(third.stat('/missing-over-sftp')).resolves.toEqual({
+      exists: false,
+      size: null
+    });
   });
 
   it('rejects operations after transport closure with sanitized errors', async () => {

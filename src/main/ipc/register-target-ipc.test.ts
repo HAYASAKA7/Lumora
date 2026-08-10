@@ -6,6 +6,7 @@ import {
   type LumoraWindowContext,
   type RemoteTargetSummary
 } from '../../shared/contracts';
+import { RemoteTargetServiceError } from '../remote/remote-target-service';
 import { registerTargetIpc } from './register-target-ipc';
 
 const TARGET_ID = '05f4e306-4af2-4c73-9e0d-706084623645';
@@ -93,7 +94,15 @@ function createHarness(context: LumoraWindowContext) {
       executionTargetId: TARGET_ID,
       scannedAt: '2026-08-09T04:03:02.000Z',
       sessions: [],
-      providers: []
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-09T04:03:02.000Z',
+        workspaces: [],
+        sessions: [],
+        providerStatus: [],
+        providerFacets: [],
+        diagnostics: []
+      }
     })
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
@@ -227,6 +236,35 @@ describe('registerTargetIpc', () => {
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
     expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
     expect(service.remove).not.toHaveBeenCalled();
+  });
+
+  it('preserves only an allowlisted remote connection failure code', async () => {
+    const { handlers, service } = createHarness({
+      mode: 'remote', executionTargetId: TARGET_ID
+    });
+    service.connect.mockRejectedValueOnce(
+      new RemoteTargetServiceError('REMOTE_TARGET_PLATFORM_PROBE_FAILED')
+    );
+
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      credentials: { method: 'password', password: 'memory-only' }
+    })).rejects.toMatchObject({
+      code: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED',
+      message: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED: Lumora could not complete the remote-target operation.'
+    });
+
+    service.connect.mockRejectedValueOnce(
+      Object.assign(new Error('/private/remote/path'), {
+        code: 'PRIVATE_REMOTE_PATH'
+      })
+    );
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      credentials: { method: 'password', password: 'memory-only' }
+    })).rejects.toMatchObject({
+      code: 'REMOTE_TARGET_OPERATION_FAILED'
+    });
   });
 
   it('does not expose target-scoped helper installation to the local window', async () => {

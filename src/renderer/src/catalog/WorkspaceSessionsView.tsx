@@ -30,7 +30,7 @@ interface WorkspaceSessionsViewProps {
   onBack(): void;
   onRefresh(): void;
   onRetry(): void;
-  onResume(session: SessionSummary): void;
+  onResume?: ((session: SessionSummary) => void) | undefined;
   operationError: string | null;
 }
 
@@ -45,20 +45,24 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   workspace: WorkspaceSummary;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
-  onResume(session: SessionSummary): void;
+  onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
-  const disabledReason = resolveSessionResumeDisabledReason({
-    session,
-    workspace,
-    providerScan,
-    profiles
-  });
+  const disabledReason = onResume === undefined
+    ? null
+    : resolveSessionResumeDisabledReason({
+        session,
+        workspace,
+        providerScan,
+        profiles
+      });
   return (
     <Tooltip content={disabledReason} multiline>
       <article
         aria-description={disabledReason ?? undefined}
         className={`workspace-session-card${
-          disabledReason === null ? '' : ' workspace-session-card-unavailable'
+          onResume === undefined || disabledReason === null
+            ? ''
+            : ' workspace-session-card-unavailable'
         }`}
       >
       <div className="workspace-session-copy">
@@ -87,20 +91,22 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
           )}
         </div>
       </div>
-        <Tooltip
-          content={disabledReason === null ? 'Resume this session' : null}
-        >
-          <button
-            aria-description={disabledReason ?? 'Resume this session'}
-            aria-label={`Resume ${session.title}`}
-            className="workspace-session-action"
-            disabled={disabledReason !== null}
-            onClick={() => onResume(session)}
-            data-lumora-command
-            tabIndex={-1}
-            type="button"
-          />
-        </Tooltip>
+        {onResume === undefined ? null : (
+          <Tooltip
+            content={disabledReason === null ? 'Resume this session' : null}
+          >
+            <button
+              aria-description={disabledReason ?? 'Resume this session'}
+              aria-label={`Resume ${session.title}`}
+              className="workspace-session-action"
+              disabled={disabledReason !== null}
+              onClick={() => onResume(session)}
+              data-lumora-command
+              tabIndex={-1}
+              type="button"
+            />
+          </Tooltip>
+        )}
       </article>
     </Tooltip>
   );

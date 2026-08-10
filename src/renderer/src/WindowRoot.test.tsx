@@ -63,6 +63,82 @@ describe('WindowRoot', () => {
     });
   });
 
+  it('passes the global presentation into the connected shared shell', async () => {
+    const api = {
+      getWindowContext: vi.fn().mockResolvedValue({
+        mode: 'remote', executionTargetId: TARGET_ID
+      }),
+      getAppearancePresentation: vi.fn().mockResolvedValue({
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance,
+          theme: 'dark',
+          backgroundEnabled: true,
+          surfaceMosaic: 7
+        },
+        background: { available: true, revision: '1720000000000-4096' }
+      }),
+      listRemoteTargets: vi.fn().mockResolvedValue([{
+        target: {
+          id: TARGET_ID,
+          kind: 'remote',
+          displayName: 'Linux build server',
+          platform: 'linux',
+          architecture: 'x64',
+          connectionState: 'ready',
+          helperVersion: '0.3.0',
+          protocolVersion: 1,
+          capabilities: ['provider-scan', 'session-scan'],
+          lastConnectedAt: '2026-08-05T04:03:02.000Z',
+          lastScannedAt: null
+        },
+        profile: {
+          executionTargetId: TARGET_ID,
+          displayName: 'Linux build server',
+          route: 'direct',
+          host: 'linux.internal',
+          port: 22,
+          username: 'builder',
+          sshConfigHost: null,
+          authentication: { method: 'password' },
+          verifiedHostFingerprint: 'SHA256:test',
+          createdAt: '2026-08-04T09:00:00.000Z',
+          updatedAt: '2026-08-04T09:00:00.000Z'
+        }
+      }]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        environment: {
+          checkedAt: '2026-08-05T04:03:02.000Z',
+          node: { state: 'not_found', executablePath: null, version: null },
+          npm: { state: 'not_found', executablePath: null, version: null }
+        },
+        providers: { scannedAt: '2026-08-05T04:03:02.000Z', providers: [] }
+      }),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [],
+        providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      })
+    } as unknown as LumoraApi;
+
+    render(<WindowRoot api={api} />);
+
+    const shell = await screen.findByTestId('lumora-shell');
+    expect(shell).toHaveAttribute('data-theme', 'dark');
+    expect(shell).toHaveClass('has-appearance-background', 'has-surface-mosaic');
+    expect(shell.getAttribute('style')).toContain('--appearance-surface-mosaic: 7px');
+  });
+
   it('refreshes global appearance when a remote window regains focus', async () => {
     const getAppearancePresentation = vi.fn()
       .mockResolvedValueOnce({

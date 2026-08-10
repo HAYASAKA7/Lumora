@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -51,9 +52,28 @@ type Result struct {
 }
 
 type Dependencies struct {
-	LocateProvider func(context.Context, string) (string, error)
-	RunCommand     func(context.Context, string, []string) ([]byte, error)
-	Now            func() time.Time
+	LocateProvider   func(context.Context, string) (string, error)
+	RunCommand       func(context.Context, string, []string) ([]byte, error)
+	Now              func() time.Time
+	HomeDirectory    func() (string, error)
+	Getenv           func(string) string
+	ListCodexThreads func(context.Context, string) ([]CodexThread, int, error)
+	ProviderScanners map[string]ProviderScanner
+}
+
+type ProviderScanner func(context.Context, string, Dependencies) ([]Session, int, error)
+
+type catalogSnapshot struct {
+	status       string
+	sessions     []Session
+	invalidCount int
+	scannedAt    time.Time
+}
+
+type Catalog struct {
+	dependencies Dependencies
+	mu           sync.Mutex
+	snapshots    map[string]catalogSnapshot
 }
 
 func defaultDependencies() Dependencies {
@@ -61,8 +81,21 @@ func defaultDependencies() Dependencies {
 		LocateProvider: func(ctx context.Context, provider string) (string, error) {
 			return providerprobe.LocateProvider(ctx, provider, providerprobe.DefaultDependencies())
 		},
-		RunCommand: runBoundedCommand,
-		Now:        time.Now,
+		RunCommand:       runBoundedCommand,
+		Now:              time.Now,
+		HomeDirectory:    os.UserHomeDir,
+		Getenv:           os.Getenv,
+		ListCodexThreads: listCodexThreads,
+		ProviderScanners: map[string]ProviderScanner{
+			"codex":  scanCodex,
+			"claude": scanClaude,
+			"gemini": scanGemini,
+			"opencode": func(ctx context.Context, executable string, dependencies Dependencies) ([]Session, int, error) {
+				return scanOpenCode(ctx, executable, dependencies.RunCommand)
+			},
+			"copilot": scanCopilot,
+			"qwen":    scanQwen,
+		},
 	}
 }
 
@@ -76,6 +109,18 @@ func withDefaults(dependencies Dependencies) Dependencies {
 	}
 	if dependencies.Now == nil {
 		dependencies.Now = defaults.Now
+	}
+	if dependencies.HomeDirectory == nil {
+		dependencies.HomeDirectory = defaults.HomeDirectory
+	}
+	if dependencies.Getenv == nil {
+		dependencies.Getenv = defaults.Getenv
+	}
+	if dependencies.ListCodexThreads == nil {
+		dependencies.ListCodexThreads = defaults.ListCodexThreads
+	}
+	if dependencies.ProviderScanners == nil {
+		dependencies.ProviderScanners = defaults.ProviderScanners
 	}
 	return dependencies
 }
@@ -94,24 +139,90 @@ func unavailable(provider string, now time.Time) Result {
 	}
 }
 
+func failed(provider string, now time.Time) Result {
+	return Result{
+		Provider: provider, ScannedAt: now.UTC().Format(time.RFC3339Nano),
+		Status: "failed", Sessions: []Session{}, InvalidCount: 0,
+	}
+}
+
+func NewCatalog(dependencies Dependencies) *Catalog {
+	return &Catalog{
+		dependencies: withDefaults(dependencies),
+		snapshots:    map[string]catalogSnapshot{},
+	}
+}
+
 func Scan(ctx context.Context, query Query) Result {
-	return ScanWithDependencies(ctx, query, defaultDependencies())
+	return NewCatalog(defaultDependencies()).Scan(ctx, query)
 }
 
 func ScanWithDependencies(ctx context.Context, query Query, dependencies Dependencies) Result {
-	dependencies = withDefaults(dependencies)
-	if query.Provider != "opencode" {
-		return unsupported(query.Provider, dependencies.Now())
+	return NewCatalog(dependencies).Scan(ctx, query)
+}
+
+func (catalog *Catalog) Scan(ctx context.Context, query Query) Result {
+	catalog.mu.Lock()
+	defer catalog.mu.Unlock()
+
+	scanner, implemented := catalog.dependencies.ProviderScanners[query.Provider]
+	if !implemented {
+		return unsupported(query.Provider, catalog.dependencies.Now())
 	}
-	executable, err := dependencies.LocateProvider(ctx, query.Provider)
-	if err != nil || strings.TrimSpace(executable) == "" {
-		return unavailable(query.Provider, dependencies.Now())
+	snapshot, exists := catalog.snapshots[query.Provider]
+	if query.Cursor == 0 || !exists {
+		scannedAt := catalog.dependencies.Now()
+		executable, err := catalog.dependencies.LocateProvider(ctx, query.Provider)
+		if err != nil || strings.TrimSpace(executable) == "" {
+			snapshot = catalogSnapshot{status: "unavailable", sessions: []Session{}, scannedAt: scannedAt}
+		} else {
+			sessions, invalid, scanErr := scanner(ctx, executable, catalog.dependencies)
+			if scanErr != nil {
+				snapshot = catalogSnapshot{status: "failed", sessions: []Session{}, scannedAt: scannedAt}
+			} else {
+				sessions, rejected := sanitizeSessions(sessions)
+				invalid += rejected
+				snapshot = catalogSnapshot{
+					status: "ready", sessions: append([]Session{}, sessions...),
+					invalidCount: invalid, scannedAt: scannedAt,
+				}
+			}
+		}
+		catalog.snapshots[query.Provider] = snapshot
 	}
-	sessions, invalid, err := scanOpenCode(ctx, executable, dependencies.RunCommand)
-	if err != nil {
-		return unsupported(query.Provider, dependencies.Now())
+	if snapshot.status != "ready" {
+		switch snapshot.status {
+		case "unavailable":
+			return unavailable(query.Provider, snapshot.scannedAt)
+		case "failed":
+			return failed(query.Provider, snapshot.scannedAt)
+		default:
+			return unsupported(query.Provider, snapshot.scannedAt)
+		}
 	}
-	return page(query, sessions, invalid, dependencies.Now())
+	return page(query, snapshot.sessions, snapshot.invalidCount, snapshot.scannedAt)
+}
+
+func sanitizeSessions(sessions []Session) ([]Session, int) {
+	const maxSafeInteger = int64(9_007_199_254_740_991)
+	safe := make([]Session, 0, len(sessions))
+	rejected := 0
+	for _, session := range sessions {
+		created, createdErr := time.Parse(time.RFC3339Nano, session.CreatedAt)
+		updated, updatedErr := time.Parse(time.RFC3339Nano, session.UpdatedAt)
+		validTokens := session.LifetimeTokens == nil ||
+			(*session.LifetimeTokens >= 0 && *session.LifetimeTokens <= maxSafeInteger)
+		if strings.TrimSpace(session.NativeID) == "" || len(session.NativeID) > 256 ||
+			!isPortableAbsolutePath(session.WorkspacePath) || len(session.WorkspacePath) > 32_768 ||
+			strings.TrimSpace(session.Title) == "" || len([]rune(session.Title)) > 256 ||
+			createdErr != nil || updatedErr != nil || created.After(updated) ||
+			!validTokens || len(session.SourceKey) < 1 || len(session.SourceKey) > 4_096 {
+			rejected++
+			continue
+		}
+		safe = append(safe, session)
+	}
+	return safe, rejected
 }
 
 func page(query Query, sessions []Session, invalid int, now time.Time) Result {

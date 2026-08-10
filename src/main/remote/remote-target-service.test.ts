@@ -6,7 +6,12 @@ import type {
   RemoteConnectionProfile,
   RemoteTargetCredentials
 } from '../../shared/contracts';
+import type { RemoteHelperSessionScanResult } from '../../shared/remote-helper-protocol';
 import { createRemoteTargetService } from './remote-target-service';
+import {
+  RemoteSshError,
+  type RemoteSshErrorCode
+} from './ssh-errors';
 
 const TARGET_ID = 'b032eb7d-70d0-4b78-b8ce-f228458b44e3';
 
@@ -56,10 +61,16 @@ function createHarness() {
     save: vi.fn(() => storedProfile),
     trustHostKey: vi.fn(() => storedProfile)
   };
+  let closeListener: (() => void) | null = null;
   const connected = {
     execute: vi.fn(),
     openExec: vi.fn().mockResolvedValue({}),
     openFileTransfer: vi.fn().mockResolvedValue({ close: vi.fn() }),
+    onClose: vi.fn((listener: () => void) => {
+      closeListener = listener;
+      return () => { if (closeListener === listener) closeListener = null; };
+    }),
+    triggerClose: () => closeListener?.(),
     close: vi.fn()
   };
   const ssh = {
@@ -126,7 +137,10 @@ function createHarness() {
         executablePath: null, version: null
       }]
     }),
-    scanSessionPage: vi.fn(async (provider: ProviderId, cursor: string | null) => {
+    scanSessionPage: vi.fn(async (
+      provider: ProviderId,
+      cursor: string | null
+    ): Promise<RemoteHelperSessionScanResult> => {
       if (provider === 'codex') {
         return {
           provider,
@@ -159,7 +173,7 @@ function createHarness() {
     close: vi.fn()
   };
   const providerPreferences = {
-    get: vi.fn(() => ['codex', 'opencode'] as const),
+    get: vi.fn((): readonly ProviderId[] => ['codex', 'opencode']),
     save: vi.fn((_id, providers: readonly ProviderId[]) => [...providers])
   };
   const connectHelper = vi.fn().mockResolvedValue(helper);
@@ -223,7 +237,7 @@ describe('remote target service', () => {
   });
 
   it('connects through the verified profile, probes the platform, and persists safe state', async () => {
-    const { service, targets, ssh, probePlatform } = createHarness();
+    const { service, targets, ssh, probePlatform, connected } = createHarness();
     const credentials: RemoteTargetCredentials = {
       method: 'password',
       password: 'memory-only'
@@ -266,8 +280,26 @@ describe('remote target service', () => {
       ]);
     expect(ssh.connect).toHaveBeenCalledWith(storedProfile, credentials);
     expect(probePlatform).toHaveBeenCalledWith(expect.any(Function));
+    expect(connected.openExec).toHaveBeenCalledWith(
+      "HOME='/home/builder' SHELL='/bin/bash' " +
+      "LUMORA_LOGIN_SHELL='/bin/bash' exec " +
+      "'/home/builder/.lumora/helper/0.1.0/lumora-helper'"
+    );
     expect(JSON.stringify(targets.updateRemoteConnection.mock.calls))
       .not.toContain('memory-only');
+  });
+
+  it('marks an active target offline when its SSH transport closes unexpectedly', async () => {
+    const harness = createHarness();
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    harness.connected.triggerClose();
+
+    expect(harness.service.get(TARGET_ID).target.connectionState).toBe('offline');
+    expect(harness.helper.close).toHaveBeenCalledOnce();
+    expect(harness.files.close).toHaveBeenCalledOnce();
   });
 
   it('scans only target-enabled providers and normalizes helper results', async () => {
@@ -329,7 +361,7 @@ describe('remote target service', () => {
 
     const catalog = await harness.service.scanSessions(TARGET_ID);
 
-    expect(catalog).toEqual({
+    expect(catalog).toMatchObject({
       executionTargetId: TARGET_ID,
       scannedAt: '2026-08-04T08:00:00.000Z',
       sessions: [{
@@ -357,6 +389,51 @@ describe('remote target service', () => {
       ['opencode', '1', 100]
     ]);
     expect(JSON.stringify(catalog)).not.toContain('/private/opencode');
+    expect(catalog.snapshot.workspaces).toHaveLength(2);
+    expect(catalog.snapshot.sessions).toHaveLength(2);
+    expect(catalog.snapshot.workspaces.every(
+      (workspace) => /^[a-f0-9]{64}$/.test(workspace.id)
+    )).toBe(true);
+    expect(catalog.snapshot.sessions.every(
+      (session) => /^[a-f0-9]{64}$/.test(session.id)
+    )).toBe(true);
+    expect(catalog.snapshot.sessions[0]).toMatchObject({
+      nativeId: 'session-1', provider: 'opencode',
+      lifecycle: 'saved', sourceFreshness: 'current'
+    });
+    expect(catalog.snapshot.providerFacets).toEqual([
+      { provider: 'opencode', sessionCount: 2 }
+    ]);
+  });
+
+  it('reports an installed provider scan failure as retryable', async () => {
+    const harness = createHarness();
+    harness.providerPreferences.get.mockReturnValue(['codex']);
+    harness.helper.scanSessionPage.mockResolvedValue({
+      provider: 'codex',
+      scannedAt: '2026-08-09T04:03:02.000Z',
+      status: 'failed',
+      sessions: [],
+      invalidCount: 0,
+      nextCursor: null
+    });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(catalog.providers).toEqual([{
+      provider: 'codex', status: 'failed', sessionCount: 0, invalidCount: 0
+    }]);
+    expect(catalog.snapshot.diagnostics).toEqual([
+      expect.objectContaining({
+        provider: 'codex',
+        message: 'Codex remote catalog scan failed.',
+        recovery: 'Retry the scan or update Codex on the remote computer.',
+        retryable: true
+      })
+    ]);
   });
 
   it('keeps authenticated SSH available when the helper is missing', async () => {
@@ -412,22 +489,86 @@ describe('remote target service', () => {
     }));
   });
 
-  it('closes a partially connected client and stores only a generic error state', async () => {
+  it.each([
+    ['AUTHENTICATION_MISMATCH', 'REMOTE_TARGET_AUTHENTICATION_FAILED'],
+    ['AUTHENTICATION_FAILED', 'REMOTE_TARGET_AUTHENTICATION_FAILED'],
+    ['SSH_AGENT_UNAVAILABLE', 'REMOTE_TARGET_AUTHENTICATION_FAILED'],
+    ['HOST_KEY_CHANGED', 'REMOTE_TARGET_HOST_KEY_CHANGED'],
+    ['SSH_TIMEOUT', 'REMOTE_TARGET_SSH_TIMEOUT'],
+    ['HOST_KEY_UNAVAILABLE', 'REMOTE_TARGET_SSH_CONNECTION_FAILED'],
+    ['SSH_CONNECTION_FAILED', 'REMOTE_TARGET_SSH_CONNECTION_FAILED'],
+    ['SSH_OUTPUT_LIMIT', 'REMOTE_TARGET_SSH_CONNECTION_FAILED']
+  ] as const)(
+    'maps the SSH %s failure to %s without exposing its message',
+    async (sshCode: RemoteSshErrorCode, expectedCode) => {
+      const harness = createHarness();
+      harness.ssh.connect.mockRejectedValueOnce(
+        new RemoteSshError(sshCode, '/private/ssh/diagnostic')
+      );
+
+      const failure = await harness.service.connect(TARGET_ID, {
+        method: 'password', password: 'memory-only'
+      }).catch((error: unknown) => error);
+
+      expect(failure).toMatchObject({
+        code: expectedCode,
+        message: 'Lumora could not connect to the remote computer.'
+      });
+      expect(JSON.stringify(failure)).not.toContain('/private/ssh/diagnostic');
+    }
+  );
+
+  it('identifies a platform-probe failure and closes the SSH client', async () => {
     const harness = createHarness();
     harness.probePlatform.mockRejectedValueOnce(new Error('/private/remote/path'));
 
-    await expect(harness.service.connect(TARGET_ID, {
+    const failure = await harness.service.connect(TARGET_ID, {
       method: 'password',
       password: 'memory-only'
-    })).rejects.toMatchObject({
-      code: 'REMOTE_TARGET_CONNECTION_FAILED',
+    }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      code: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED',
       message: 'Lumora could not connect to the remote computer.'
     });
+    expect(JSON.stringify(failure)).not.toContain('/private/remote/path');
     expect(harness.connected.close).toHaveBeenCalledOnce();
     expect(harness.targets.updateRemoteConnection).toHaveBeenLastCalledWith(
       TARGET_ID,
       { connectionState: 'error' }
     );
+  });
+
+  it.each([
+    ['helper bundle', 'REMOTE_TARGET_HELPER_BUNDLE_FAILED'],
+    ['file transfer', 'REMOTE_TARGET_FILE_TRANSFER_FAILED'],
+    ['helper inspection', 'REMOTE_TARGET_HELPER_INSPECTION_FAILED']
+  ] as const)('identifies a %s connection-stage failure', async (stage, expectedCode) => {
+    const harness = createHarness();
+    if (stage === 'helper bundle') {
+      harness.resolveHelperArtifact.mockRejectedValueOnce(
+        new Error('/private/helper/bundle')
+      );
+    } else if (stage === 'file transfer') {
+      harness.connected.openFileTransfer.mockRejectedValueOnce(
+        new Error('/private/sftp/subsystem')
+      );
+    } else {
+      harness.inspectHelper.mockRejectedValueOnce(
+        new Error('/private/helper/install')
+      );
+    }
+
+    const failure = await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      code: expectedCode,
+      message: 'Lumora could not connect to the remote computer.'
+    });
+    expect(JSON.stringify(failure)).not.toContain('/private/');
+    expect(harness.connected.close).toHaveBeenCalledOnce();
   });
 
   it('disconnects idempotently and closes all clients during shutdown', async () => {
