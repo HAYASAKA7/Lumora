@@ -9,6 +9,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { resolveRuntimeRecovery } from './runtime-recovery';
 import { useLaunchPreflight } from './useLaunchPreflight';
@@ -210,19 +211,22 @@ export function RuntimeRecoveryDialog({
         </dl>
 
         <div className="launch-fields resume-launch-fields">
-          <label>
+          <div className="select-field">
             <span>Terminal profile</span>
-            <select
+            <SelectMenu
               disabled={starting}
-              onChange={(event) => setProfileId(event.currentTarget.value)}
+              label="Terminal profile"
+              onChange={setProfileId}
+              options={[
+                { value: '', label: 'Configured default' },
+                ...availableProfiles.map((profile) => ({
+                  value: profile.id,
+                  label: profile.name
+                }))
+              ]}
               value={profileId}
-            >
-              <option value="">Configured default</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>{profile.name}</option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
         </div>
 
         <LaunchReadiness

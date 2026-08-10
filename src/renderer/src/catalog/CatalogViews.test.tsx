@@ -458,6 +458,7 @@ describe('SessionsView', () => {
       />
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Provider' }));
     expect(
       screen.getByRole('option', { name: 'Gemini CLI (2)' })
     ).toBeInTheDocument();
@@ -640,9 +641,8 @@ describe('SessionsView', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'catalog' }
     });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Provider' }), {
-      target: { value: 'codex' }
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Provider' }));
+    fireEvent.click(screen.getByRole('option', { name: /Codex/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Refresh catalog' }));
 
     expect(onSearchChange).toHaveBeenCalledWith('catalog');

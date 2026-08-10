@@ -198,11 +198,13 @@ describe('ResumeSessionDialog', () => {
     expect(screen.getByRole('textbox', {
       name: 'Start prompt (optional)'
     })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Terminal profile' })).toHaveTextContent(
+      'Configured default'
+    );
     expect(
       screen.queryByRole('button', { name: 'Prepare launch' })
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox', {
+    expect(screen.queryByRole('button', {
       name: 'Resume with provider'
     })).not.toBeInTheDocument();
 
@@ -361,11 +363,12 @@ describe('ResumeSessionDialog', () => {
     fireEvent.click(screen.getByRole('radio', {
       name: 'Start a new session from this context'
     }));
-    const provider = screen.getByRole('combobox', {
+    const provider = screen.getByRole('button', {
       name: 'Start with provider'
     });
-    expect(provider).toHaveValue('codex');
-    fireEvent.change(provider, { target: { value: 'claude' } });
+    expect(provider).toHaveTextContent('Codex');
+    fireEvent.click(provider);
+    fireEvent.click(screen.getByRole('option', { name: 'Claude Code' }));
     expect(screen.getByRole('textbox', {
       name: 'Start prompt (optional)'
     })).toBeVisible();
@@ -480,7 +483,7 @@ describe('ResumeSessionDialog', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Resume session' }));
     expect(
-      screen.getByRole('combobox', { name: 'Terminal profile' })
+      screen.getByRole('button', { name: 'Terminal profile' })
     ).toBeDisabled();
 
     rerender(<ResumeSessionDialog {...props} providerScan={null} />);
@@ -510,10 +513,8 @@ describe('ResumeSessionDialog', () => {
     renderDialog({ prepareLaunch });
     expect(await screen.findByText('resume native-thread')).toBeInTheDocument();
 
-    fireEvent.change(
-      screen.getByRole('combobox', { name: 'Terminal profile' }),
-      { target: { value: alternateProfile.id } }
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal profile' }));
+    fireEvent.click(screen.getByRole('option', { name: alternateProfile.name }));
 
     expect(screen.queryByText('resume native-thread')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume session' })).toBeDisabled();

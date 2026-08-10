@@ -23,6 +23,26 @@ function Harness() {
   );
 }
 
+function AccessibleHarness() {
+  const [value, setValue] = useState<(typeof options)[number]['value']>(
+    'direct'
+  );
+  return (
+    <>
+      <p id="route-help">Choose how Lumora connects.</p>
+      <SelectMenu<(typeof options)[number]['value']>
+        ariaDescribedBy="route-help"
+        className="route-menu"
+        disabled
+        label="Connection route"
+        onChange={setValue}
+        options={options}
+        value={value}
+      />
+    </>
+  );
+}
+
 describe('SelectMenu', () => {
   it('supports keyboard selection without opening a native browser menu', () => {
     render(<Harness />);
@@ -46,5 +66,29 @@ describe('SelectMenu', () => {
     expect(listbox).toBeInTheDocument();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('forwards field accessibility and layout hooks to its trigger', () => {
+    render(<AccessibleHarness />);
+
+    const trigger = screen.getByRole('button', { name: 'Connection route' });
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute('aria-describedby', 'route-help');
+    expect(trigger.closest('.select-menu')).toHaveClass('route-menu');
+  });
+
+  it('supports Home, End, and Escape without moving focus from the trigger', () => {
+    render(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'Connection route' });
+    trigger.focus();
+
+    fireEvent.keyDown(trigger, { key: 'End' });
+    expect(screen.getByRole('option', {
+      name: 'OpenSSH config alias'
+    })).toHaveClass('is-active');
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 });

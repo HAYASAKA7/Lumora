@@ -40,6 +40,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Standardize dropdowns across local and remote catalogs, session workflows,
+  settings, terminal profiles, and transfers on Lumora's overlay menu, and use
+  a Lumora confirmation dialog when opening terminal links.
+
 - Ensure `npm run dev` builds a missing or stale verified remote-helper bundle
   before Electron starts, while reusing an already current bundle in subsequent
   development launches and isolated worktrees.

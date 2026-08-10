@@ -14,6 +14,7 @@ import {
   TERMINAL_INTERRUPT_CONFIRMATION_MS
 } from './terminal-interrupt-guard';
 import { encodeTerminalNativeKey } from './terminal-native-key';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface ManagedTerminalProps {
   api?: LumoraApi;
@@ -79,6 +80,7 @@ export function ManagedTerminal({
   const interruptTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [interruptArmed, setInterruptArmed] = useState(false);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
   activeRef.current = active;
   platformRef.current = platform;
   themeRef.current = { theme, backgroundOpacity };
@@ -113,14 +115,7 @@ export function ManagedTerminal({
           ),
           linkHandler: {
             activate: (_event, uri) => {
-              const confirmed = window.confirm(
-                `Open this link in your default browser?\n\n${uri}`
-              );
-              if (!confirmed || !alive) return;
-              setError(null);
-              void api.openTerminalLink(uri).catch(() => {
-                if (alive) setError('The terminal link could not be opened.');
-              });
+              if (alive) setPendingLink(uri);
             }
           }
         });
@@ -483,6 +478,25 @@ export function ManagedTerminal({
         ref={container}
         style={{ blockSize: TERMINAL_BLOCK_SIZE }}
       />
+      {pendingLink === null ? null : (
+        <ConfirmDialog
+          confirmLabel="Open link"
+          description={pendingLink}
+          heading="Open external link?"
+          onCancel={() => {
+            setPendingLink(null);
+            terminalRef.current?.focus();
+          }}
+          onConfirm={() => {
+            const uri = pendingLink;
+            setPendingLink(null);
+            setError(null);
+            void api.openTerminalLink(uri).catch(() => {
+              setError('The terminal link could not be opened.');
+            }).finally(() => terminalRef.current?.focus());
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -2437,8 +2437,8 @@ describe('App', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'New session' });
     expect(
-      within(dialog).getByRole('combobox', { name: 'Workspace' })
-    ).toHaveValue(otherWorkspace.id);
+      within(dialog).getByRole('button', { name: 'Workspace' })
+    ).toHaveTextContent(otherWorkspace.displayName);
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenCalledWith(
         expect.objectContaining({ workspaceId: otherWorkspace.id })
@@ -2455,8 +2455,8 @@ describe('App', () => {
       name: 'New session'
     });
     expect(
-      within(homeDialog).getByRole('combobox', { name: 'Workspace' })
-    ).toHaveValue(readyCatalog.workspaces[0]!.id);
+      within(homeDialog).getByRole('button', { name: 'Workspace' })
+    ).toHaveTextContent(readyCatalog.workspaces[0]!.displayName);
   });
 
   it('shows platform and architecture after system information resolves', async () => {
@@ -2978,9 +2978,8 @@ describe('App', () => {
     await waitFor(() =>
       expect(getCatalog).toHaveBeenCalledWith({ text: 'catalog', provider: null })
     );
-    fireEvent.change(screen.getByRole('combobox', { name: 'Provider' }), {
-      target: { value: 'claude' }
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Provider' }));
+    fireEvent.click(screen.getByRole('option', { name: /Claude Code/ }));
     await waitFor(() =>
       expect(getCatalog).toHaveBeenCalledWith({
         text: 'catalog',
@@ -2988,7 +2987,9 @@ describe('App', () => {
       })
     );
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Provider' })).toHaveValue('')
+      expect(screen.getByRole('button', { name: 'Provider' })).toHaveTextContent(
+        'All providers'
+      )
     );
     await waitFor(() =>
       expect(getCatalog).toHaveBeenCalledWith({

@@ -1,4 +1,5 @@
 import type { GeneralSettings } from '../../../shared/contracts';
+import { SelectMenu } from '../ui/SelectMenu';
 
 interface GeneralSettingsPanelProps {
   settings: GeneralSettings;
@@ -127,30 +128,28 @@ export function GeneralSettingsPanel({
         </span>
       </label>
 
-      <label className="general-setting-card">
+      <div className="general-setting-card general-setting-card-control">
         <span className="general-setting-copy">
           <strong>Temporary handoff retention</strong>
           <span id="general-handoff-retention-description">
             Automatically delete Lumora's managed session copies after this time.
           </span>
         </span>
-        <select
-          aria-describedby="general-handoff-retention-description"
-          aria-label="Temporary handoff retention"
+        <SelectMenu
+          ariaDescribedBy="general-handoff-retention-description"
           disabled={saving || !settings.crossAgentWorkflowEnabled}
-          onChange={(event) => onChange({
+          label="Temporary handoff retention"
+          onChange={(value) => onChange({
             ...settings,
-            crossAgentHandoffRetentionDays: Number(event.currentTarget.value)
+            crossAgentHandoffRetentionDays: Number(value)
           })}
-          value={settings.crossAgentHandoffRetentionDays}
-        >
-          {[1, 7, 30, 60, 90, 180, 365].map((days) => (
-            <option key={days} value={days}>
-              {days === 1 ? '1 day' : `${days} days`}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={[1, 7, 30, 60, 90, 180, 365].map((days) => ({
+            value: String(days),
+            label: days === 1 ? '1 day' : `${days} days`
+          }))}
+          value={String(settings.crossAgentHandoffRetentionDays)}
+        />
+      </div>
 
       {saveError === null ? null : (
         <p className="general-setting-error" role="alert">

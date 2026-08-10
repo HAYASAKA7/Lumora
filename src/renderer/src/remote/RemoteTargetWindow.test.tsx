@@ -648,9 +648,8 @@ describe('RemoteTargetWindow', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Launch' }));
     await screen.findByText('Launch defaults');
-    fireEvent.change(screen.getByLabelText('Codex command mode'), {
-      target: { value: 'custom' }
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Codex command mode' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom command' }));
     fireEvent.change(screen.getByLabelText('Codex command'), {
       target: { value: 'codexp --remote-profile' }
     });

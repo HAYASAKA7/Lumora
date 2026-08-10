@@ -4,6 +4,7 @@ import type {
   ShellFamily,
   TerminalProfile
 } from '../../../shared/contracts';
+import { SelectMenu } from '../ui/SelectMenu';
 
 type ProfileStatus =
   | { state: 'loading' }
@@ -166,19 +167,18 @@ export function TerminalProfiles({
             value={name}
           />
         </label>
-        <label>
+        <div className="select-field">
           <span>Shell family</span>
-          <select
-            onChange={(event) =>
-              setShellFamily(event.currentTarget.value as ShellFamily)
-            }
+          <SelectMenu
+            label="Shell family"
+            onChange={(value) => setShellFamily(value as ShellFamily)}
+            options={SHELL_FAMILIES.map((family) => ({
+              value: family,
+              label: family
+            }))}
             value={shellFamily}
-          >
-            {SHELL_FAMILIES.map((family) => (
-              <option key={family} value={family}>{family}</option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
         <label>
           <span>Absolute executable path</span>
           <input

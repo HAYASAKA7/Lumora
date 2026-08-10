@@ -20,10 +20,14 @@ interface SelectMenuProps<Value extends string> {
   onChange(value: Value): void;
   options: readonly SelectMenuOption<Value>[];
   value: Value;
+  ariaDescribedBy?: string;
+  className?: string;
   disabled?: boolean;
 }
 
 export function SelectMenu<Value extends string>({
+  ariaDescribedBy,
+  className,
   disabled = false,
   label,
   onChange,
@@ -149,9 +153,13 @@ export function SelectMenu<Value extends string>({
   };
 
   return (
-    <div className="select-menu" ref={rootRef}>
+    <div
+      className={`select-menu${className === undefined ? '' : ` ${className}`}`}
+      ref={rootRef}
+    >
       <button
         aria-controls={open ? listboxId : undefined}
+        aria-describedby={ariaDescribedBy}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={label}

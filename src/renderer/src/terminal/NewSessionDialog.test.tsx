@@ -135,8 +135,8 @@ describe('NewSessionDialog', () => {
       />
     );
 
-    expect(screen.getByRole('combobox', { name: 'Workspace' })).toHaveValue(
-      otherWorkspace.id
+    expect(screen.getByRole('button', { name: 'Workspace' })).toHaveTextContent(
+      otherWorkspace.displayName
     );
     await waitFor(() =>
       expect(prepareLaunch).toHaveBeenCalledWith(
@@ -157,8 +157,8 @@ describe('NewSessionDialog', () => {
       />
     );
 
-    expect(screen.getByRole('combobox', { name: 'Workspace' })).toHaveValue(
-      workspace.id
+    expect(screen.getByRole('button', { name: 'Workspace' })).toHaveTextContent(
+      workspace.displayName
     );
     const dialog = screen.getByRole('dialog', { name: 'New session' });
     expect(dialog).toHaveClass('new-session-launch-dialog');
@@ -193,11 +193,11 @@ describe('NewSessionDialog', () => {
     const promptInput = screen.getByRole('textbox', {
       name: 'Start prompt (optional)'
     });
-    const profileSelect = screen.getByRole('combobox', {
+    const profileSelect = screen.getByRole('button', {
       name: 'Terminal profile'
     });
     const promptField = promptInput.closest('label');
-    expect(profileSelect).toHaveValue('');
+    expect(profileSelect).toHaveTextContent('Configured default');
     expect(promptField).toHaveClass('new-session-start-prompt');
     expect(
       profileSelect.compareDocumentPosition(promptInput) &
@@ -529,9 +529,8 @@ describe('NewSessionDialog', () => {
         rows: 30
       })
     );
-    expect(screen.getByRole('option', { name: 'Gemini CLI' })).toHaveValue(
-      'gemini'
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Provider' }));
+    expect(screen.getByRole('option', { name: 'Gemini CLI' })).toBeInTheDocument();
   });
 
   it('does not start an obsolete token when eligibility changes during trust', async () => {
@@ -575,7 +574,7 @@ describe('NewSessionDialog', () => {
       expect(screen.getByRole('button', { name: 'Start session' })).toBeEnabled()
     );
     fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
-    expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Provider' })).toBeDisabled();
 
     rerender(<NewSessionDialog {...props} providerScan={null} />);
     expect(
@@ -585,7 +584,7 @@ describe('NewSessionDialog', () => {
     await screen.findByRole('checkbox', {
       name: 'I trust this workspace and want to run the provider here'
     });
-    expect(screen.getByRole('combobox', { name: 'Provider' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Provider' })).toBeDisabled();
     expect(
       screen.getByRole('button', { name: 'Starting terminal' })
     ).toBeDisabled();
@@ -601,7 +600,7 @@ describe('NewSessionDialog', () => {
 
     expect(startRuntime).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Provider' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Provider' })).toBeEnabled()
     );
   });
 

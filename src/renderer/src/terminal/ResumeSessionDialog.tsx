@@ -18,6 +18,7 @@ import {
   hasVerifiedStartPromptSupport,
   supportsNativeForkVersion
 } from '../../../shared/provider-definitions';
+import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
@@ -345,25 +346,19 @@ export function ResumeSessionDialog({
 
         <div className="launch-fields resume-launch-fields">
           {continuation === 'new' && newSessionDestinations.length > 1 ? (
-            <label>
+            <div className="select-field">
               <span>Start with provider</span>
-              <select
+              <SelectMenu
                 disabled={starting}
-                onChange={(event) => setDestinationProvider(
-                  event.currentTarget.value as ProviderId
-                )}
+                label="Start with provider"
+                onChange={(value) => setDestinationProvider(value as ProviderId)}
+                options={newSessionDestinations.map((installation) => ({
+                  value: installation.provider,
+                  label: installation.displayName
+                }))}
                 value={destinationProvider}
-              >
-                {newSessionDestinations.map((installation) => (
-                  <option
-                    key={installation.provider}
-                    value={installation.provider}
-                  >
-                    {installation.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </div>
           ) : null}
           {supportsStartPrompt ? (
             <label>
@@ -378,21 +373,22 @@ export function ResumeSessionDialog({
               />
             </label>
           ) : null}
-          <label>
+          <div className="select-field">
             <span>Terminal profile</span>
-            <select
+            <SelectMenu
               disabled={starting}
-              onChange={(event) => setProfileId(event.currentTarget.value)}
+              label="Terminal profile"
+              onChange={setProfileId}
+              options={[
+                { value: '', label: 'Configured default' },
+                ...availableProfiles.map((profile) => ({
+                  value: profile.id,
+                  label: profile.name
+                }))
+              ]}
               value={profileId}
-            >
-              <option value="">Configured default</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
         </div>
 
         {isNativeFork ? (

@@ -37,7 +37,7 @@ describe('GeneralSettingsPanel', () => {
     expect(screen.getByRole('switch', {
       name: 'Keep Lumora running after closing the window'
     })).not.toBeChecked();
-    expect(screen.getByRole('combobox', {
+    expect(screen.getByRole('button', {
       name: 'Temporary handoff retention'
     })).toBeDisabled();
     expect(

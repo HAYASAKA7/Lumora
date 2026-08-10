@@ -134,12 +134,10 @@ describe('SessionTransferExportSelection', () => {
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'Ready Codex session' })
     );
-    fireEvent.change(
-      screen.getByRole('combobox', {
-        name: 'Filter export sessions by provider'
-      }),
-      { target: { value: 'opencode' } }
-    );
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Filter export sessions by provider'
+    }));
+    fireEvent.click(screen.getByRole('option', { name: 'OpenCode' }));
 
     expect(
       screen.queryByRole('checkbox', { name: 'Ready Codex session' })

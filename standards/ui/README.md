@@ -30,7 +30,9 @@ shell.
 Dropdowns, tooltips, and other transient option surfaces must overlay content.
 They must be portaled outside the dialog's scrolling body, positioned against
 their trigger, clamped to the viewport, and must not add dialog height or
-scroll range. Native browser `title` tooltips are forbidden.
+scroll range. Use `SelectMenu` for every dropdown and a Lumora dialog for every
+confirmation; browser-native `select`, `confirm`, `alert`, `prompt`, and
+`title` tooltip UI are forbidden.
 
 ## Interaction and accessibility
 
@@ -52,7 +54,8 @@ its fixed workspace. UI changes must not recreate or interrupt a PTY.
 - Tooltips: `src/renderer/src/ui/Tooltip.tsx`
 - Overlay selector: `src/renderer/src/ui/SelectMenu.tsx`
 - Themes and surfaces: `src/renderer/src/appearance/`
-- Contract tests: `src/renderer/src/terminal/dialog-style-contract.test.tsx`
+- Dialog contract tests: `src/renderer/src/terminal/dialog-style-contract.test.tsx`
+- Native-popup contract: `src/renderer/src/ui/native-popup-contract.test.tsx`
 
 ## Review checklist
 

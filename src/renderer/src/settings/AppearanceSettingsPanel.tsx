@@ -5,6 +5,7 @@ import type {
   AppearanceSettings,
   GeneralSettings
 } from '../../../shared/contracts';
+import { SelectMenu } from '../ui/SelectMenu';
 
 interface AppearanceSettingsPanelProps {
   background: AppearanceBackgroundState;
@@ -216,40 +217,44 @@ export function AppearanceSettingsPanel({
             suffix="%"
             value={Math.round(settings.appearance.terminalOpacity * 100)}
           />
-          <label className="appearance-select-control">
+          <div className="appearance-select-control">
             <span>Image fit</span>
-            <select
+            <SelectMenu
               disabled={saving || !background.available}
-              onChange={(event) => updateAppearance({
-                backgroundFit: event.currentTarget.value as AppearanceSettings['backgroundFit']
+              label="Image fit"
+              onChange={(value) => updateAppearance({
+                backgroundFit: value as AppearanceSettings['backgroundFit']
               })}
+              options={[
+                { value: 'cover', label: 'Fill window' },
+                { value: 'contain', label: 'Fit inside' },
+                { value: 'original', label: 'Original size' }
+              ]}
               value={settings.appearance.backgroundFit}
-            >
-              <option value="cover">Fill window</option>
-              <option value="contain">Fit inside</option>
-              <option value="original">Original size</option>
-            </select>
-          </label>
-          <label className="appearance-select-control">
+            />
+          </div>
+          <div className="appearance-select-control">
             <span>Image position</span>
-            <select
+            <SelectMenu
               disabled={saving || !background.available}
-              onChange={(event) => updateAppearance({
-                backgroundPosition: event.currentTarget.value as AppearanceSettings['backgroundPosition']
+              label="Image position"
+              onChange={(value) => updateAppearance({
+                backgroundPosition: value as AppearanceSettings['backgroundPosition']
               })}
+              options={[
+                { value: 'center', label: 'Center' },
+                { value: 'top', label: 'Top' },
+                { value: 'bottom', label: 'Bottom' },
+                { value: 'left', label: 'Left' },
+                { value: 'right', label: 'Right' },
+                { value: 'top-left', label: 'Top left' },
+                { value: 'top-right', label: 'Top right' },
+                { value: 'bottom-left', label: 'Bottom left' },
+                { value: 'bottom-right', label: 'Bottom right' }
+              ]}
               value={settings.appearance.backgroundPosition}
-            >
-              <option value="center">Center</option>
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="top-left">Top left</option>
-              <option value="top-right">Top right</option>
-              <option value="bottom-left">Bottom left</option>
-              <option value="bottom-right">Bottom right</option>
-            </select>
-          </label>
+            />
+          </div>
         </div>
 
         {backgroundError === null ? null : (
