@@ -37,6 +37,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ready, while keeping the pre-connection and helper setup flow isolated. The
   shared new/resume dialogs, terminal tabs, viewport, details, clipboard,
   shortcut capture, and stop behavior are reused in the remote shell.
+- Restore remote Lumora windows from their own shared window size and make them
+  honor the global **Start with a maximized window** preference just like the
+  local window.
 
 ### Fixed
 

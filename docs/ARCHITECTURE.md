@@ -302,7 +302,11 @@ It stores:
 - managed runtime and reconciliation history; and
 - non-sensitive transfer history plus the last export and import directories.
 
-Window size and maximized state are stored separately in `window-state.json`.
+Window size and maximized state are stored outside SQLite. The local window uses
+`window-state.json`; remote target windows share `remote-window-state.json` so
+their geometry remains independent from the local window while staying
+consistent between remote connections. Both paths apply the global startup
+maximization preference and clamp restored bounds to an available display.
 Development builds append `-dev` to the default application-data path so they
 do not share data with an installed package.
 

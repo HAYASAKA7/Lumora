@@ -141,11 +141,40 @@ describe('window-state main-process integration', () => {
     );
   });
 
+  it('restores and tracks remote windows independently with the global startup preference', () => {
+    expect(source).toContain(
+      "join(app.getPath('userData'), 'remote-window-state.json')"
+    );
+    expect(source).toContain('createSharedWindowStateManager({');
+
+    const targetManager = source.indexOf(
+      'const targetWindowManager = createTargetWindowManager({'
+    );
+    const targetWindow = source.indexOf('new BrowserWindow(', targetManager);
+    const targetManagerEnd = source.indexOf(
+      'function createApplicationTray()',
+      targetManager
+    );
+    const targetWindowSource = source.slice(targetManager, targetManagerEnd);
+
+    expect(targetManager).toBeGreaterThan(-1);
+    expect(targetWindow).toBeGreaterThan(targetManager);
+    expect(targetWindowSource).toContain('remoteWindowStateManager.restore(');
+    expect(targetWindowSource).toContain(
+      'terminalRuntime?.getGeneralSettings().startMaximized'
+    );
+    expect(targetWindowSource).toContain('restore.normalBounds');
+    expect(targetWindowSource).toContain('remoteWindowStateManager.track(');
+    expect(targetWindowSource).toContain('window.maximize()');
+    expect(targetWindowSource).toContain("window.once('closed'");
+  });
+
   it('includes final window persistence in orderly asynchronous shutdown', () => {
     expect(source).toContain('function flushWindowState()');
     expect(source).toContain('activeWindowStateManager?.dispose()');
     expect(source).toContain('await Promise.all([');
     expect(source).toContain('flushWindowState()');
+    expect(source).toContain('flushRemoteWindowState()');
     expect(source.indexOf('await Promise.all([')).toBeLessThan(
       source.lastIndexOf('app.quit()')
     );

@@ -92,8 +92,10 @@ import {
 } from './windows-taskbar';
 import {
   applyStartupMaximization,
+  createSharedWindowStateManager,
   createWindowStateManager,
   loadWindowRestore,
+  type SharedWindowStateManager,
   type WindowStateManager
 } from './window-state';
 import { resolveWindowCloseAction } from './window-close-policy';
@@ -196,6 +198,7 @@ let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
+let remoteWindowStateManager: SharedWindowStateManager | null = null;
 let activeStartupBackgroundActivity:
   | StartupBackgroundActivityController
   | null = null;
@@ -364,6 +367,12 @@ function flushWindowState(): Promise<void> {
   return queueWindowStateFlush(flush);
 }
 
+function flushRemoteWindowState(): Promise<void> {
+  const manager = remoteWindowStateManager;
+  remoteWindowStateManager = null;
+  return manager?.dispose() ?? Promise.resolve();
+}
+
 const mainWindowCreation = createSingleWindowCreationGate({
   canCreate: () => !shutdownStarted && mainWindow === null,
   prepare: prepareMainWindow,
@@ -373,10 +382,30 @@ const mainWindowCreation = createSingleWindowCreationGate({
 const targetWindowManager = createTargetWindowManager({
   contexts: windowContexts,
   createWindow: () => {
-    const window = new BrowserWindow(createSecureWindowOptions(
-      preloadPath,
-      windowIconPath
-    ));
+    if (remoteWindowStateManager === null) {
+      throw new Error('Remote window state management is unavailable.');
+    }
+    const restore = remoteWindowStateManager.restore(
+      screen.getAllDisplays().map((display) => display.workArea),
+      terminalRuntime?.getGeneralSettings().startMaximized ?? true
+    );
+    const window = new BrowserWindow({
+      ...createSecureWindowOptions(
+        preloadPath,
+        windowIconPath
+      ),
+      ...(restore.normalBounds === null ? {} : restore.normalBounds)
+    });
+    const trackedWindowState = remoteWindowStateManager.track(
+      window,
+      restore.normalBounds ?? window.getBounds()
+    );
+    if (restore.maximized) {
+      window.maximize();
+    }
+    window.once('closed', () => {
+      void trackedWindowState.dispose();
+    });
     configurePackagedWindowsTaskbarWindow(window, {
       platform,
       packaged: app.isPackaged,
@@ -482,6 +511,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     onGeneralSettingsSaved: (settings) =>
       providerPolicy.replace(settings.enabledProviders)
+  });
+  remoteWindowStateManager = await createSharedWindowStateManager({
+    statePath: join(app.getPath('userData'), 'remote-window-state.json'),
+    workAreas: screen.getAllDisplays().map((display) => display.workArea)
   });
   providerPolicy.replace(terminalRuntime.getGeneralSettings().enabledProviders);
   transferRuntime = await createSessionTransferRuntime({
@@ -757,7 +790,8 @@ app.on('before-quit', (event) => {
         await Promise.all([
           runtime?.shutdown() ?? Promise.resolve(),
           remoteRuntime?.close() ?? Promise.resolve(),
-          flushWindowState()
+          flushWindowState(),
+          flushRemoteWindowState()
         ]);
         if (remoteTargetRuntime === remoteRuntime) {
           remoteTargetRuntime = null;
