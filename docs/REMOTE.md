@@ -2,11 +2,10 @@
 
 Remote computers are an experimental Lumora feature. The current phase creates
 an isolated remote window, verifies SSH identity, detects the remote platform,
-installs and negotiates a lightweight Lumora helper, and checks the remote
-developer environment and enabled agent providers. After connection, the
-window becomes a target-scoped Lumora shell with **Home**, **Workspaces**,
-**All sessions**, and **Settings**. Remote resume, launch, and terminal
-execution are not available yet.
+installs and negotiates a lightweight Lumora helper, checks the remote
+developer environment and enabled agent providers, and opens target-scoped
+SSH terminals. After connection, the window becomes a target-scoped Lumora
+shell with **Home**, **Workspaces**, **All sessions**, and **Settings**.
 
 ## Connect a computer
 
@@ -85,7 +84,31 @@ An installed provider with no available executable is shown as unavailable.
 Unsupported adapters are not reported as an empty successful catalog. Results
 are paginated across bounded helper frames and combined in the main process;
 raw session files and transcript contents never cross the SSH helper protocol.
-These pages are informational in the current phase and have no Resume action.
+Session cards expose exact same-provider resume, and the remote top bar exposes
+New session when an available workspace exists. Both workflows use the shared
+Lumora confirmation dialogs and open a managed terminal without leaving the
+isolated remote window.
+
+## Start and resume remote sessions
+
+Remote new-session and exact-resume workflows are available for Codex, Claude
+Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code when the provider
+is enabled and detected on the target. A launch refreshes the remote catalog,
+revalidates the provider executable and workspace in the main process, and asks
+for trust before starting in an untrusted remote workspace.
+
+Open **Settings > Launch** inside the remote window to choose detected or
+custom command mode for each enabled provider. These commands belong only to
+that remote computer. For example, a target can launch Codex through a shell
+alias or wrapper while local Lumora continues to use the detected `codex`
+executable. A blank custom command is never sent.
+
+Each session runs in its own SSH PTY. Lumora keeps terminal tabs mounted across
+remote navigation, forwards input and resize events, supports the shared stop
+workflow, reconciles newly created provider sessions back into the remote
+catalog, and closes resources safely on disconnect or application shutdown.
+Remote cross-agent handoff, provider-native fork, and cross-device transfer are
+not mapped onto resume and remain unavailable in this experimental phase.
 
 The isolated window follows Lumora's global Appearance settings, including the
 theme, managed background, opacity hierarchy, and surface mosaic. Appearance
@@ -137,6 +160,14 @@ tokens, or provider session contents.
   renamed or new sessions.
 - Confirm a provider-wide scan failure is shown separately from an unavailable
   executable or a successful empty catalog, without blocking other providers.
+- For each available managed provider, start a new session, enter interactive
+  input, resize its terminal, switch tabs, stop or exit it, and confirm the new
+  native session appears after catalog refresh.
+- Resume an existing session from Home, a workspace, and All sessions; confirm
+  the provider opens the exact native session rather than creating a second
+  one.
+- Set a target-specific custom start command under **Settings > Launch** and
+  confirm the remote provider uses it while local Lumora settings are unchanged.
 - Confirm no transcript text, command output, environment value, or helper-only
   source key appears in the remote window.
 - Disconnect from missing, incompatible, and ready states.

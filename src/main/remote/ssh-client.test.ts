@@ -48,6 +48,47 @@ class FakeClient extends EventEmitter implements SshClientAdapter {
   }
 }
 
+class FakePtyChannel extends EventEmitter {
+  readonly stderr = new EventEmitter();
+  readonly write = vi.fn();
+  readonly setWindow = vi.fn();
+  readonly signal = vi.fn();
+  readonly close = vi.fn();
+  readonly destroy = vi.fn();
+}
+
+class FakePtyClient extends FakeClient {
+  readonly channel = new FakePtyChannel();
+  command: string | null = null;
+  options: Record<string, unknown> | null = null;
+
+  execPty(
+    command: string,
+    options: Record<string, unknown>,
+    callback: (error: Error | undefined, channel: any) => void
+  ): void {
+    this.command = command;
+    this.options = options;
+    callback(undefined, this.channel);
+  }
+}
+
+async function connectReady(client: FakeClient) {
+  const ssh = createRemoteSshClient({
+    createClient: () => client,
+    readPrivateKey: vi.fn(),
+    resolveSshConfigHost: vi.fn(),
+    agentSocket: null
+  });
+  const connecting = ssh.connect(
+    profile({ method: 'password' }),
+    { method: 'password', password: 'not-logged' }
+  );
+  await vi.waitFor(() => expect(client.connectConfig).not.toBeNull());
+  client.emit('ready');
+  return connecting;
+}
+
 describe('remote SSH client', () => {
   it('formats host keys as stable SHA-256 fingerprints', () => {
     expect(fingerprintSshHostKey(Buffer.from('lumora-host-key'))).toMatch(
@@ -194,5 +235,96 @@ describe('remote SSH client', () => {
 
     expect(() => client.emit('close')).not.toThrow();
     expect(laterListener).toHaveBeenCalledOnce();
+  });
+
+  it('opens an interactive PTY channel with the requested terminal size', async () => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 132,
+      rows: 41
+    });
+
+    expect(client.command).toBe('remote command');
+    expect(client.options).toEqual({
+      pty: {
+        term: 'xterm-256color',
+        cols: 132,
+        rows: 41,
+        width: 0,
+        height: 0
+      }
+    });
+    expect(channel.pid).toBeNull();
+  });
+
+  it('forwards PTY output and resizes using SSH row-column ordering', async () => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 80,
+      rows: 24
+    });
+    const onData = vi.fn();
+    channel.onData(onData);
+
+    client.channel.emit('data', Buffer.from('hello'));
+    channel.resize(140, 50);
+
+    expect(onData).toHaveBeenCalledWith('hello');
+    expect(client.channel.setWindow).toHaveBeenCalledWith(50, 140, 0, 0);
+  });
+
+  it('forwards writes and reports the optional remote exit code once', async () => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 80,
+      rows: 24
+    });
+    const onExit = vi.fn();
+    channel.onExit(onExit);
+
+    channel.write('prompt');
+    client.channel.emit('exit', 7);
+    client.channel.emit('close');
+
+    expect(client.channel.write).toHaveBeenCalledWith('prompt');
+    expect(onExit).toHaveBeenCalledOnce();
+    expect(onExit).toHaveBeenCalledWith({ exitCode: 7 });
+  });
+
+  it('maps a missing SSH exit status to null and suppresses late operations', async () => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 80,
+      rows: 24
+    });
+    const onExit = vi.fn();
+    channel.onExit(onExit);
+
+    client.channel.emit('close');
+    expect(() => channel.write('late')).not.toThrow();
+    expect(() => channel.resize(100, 30)).not.toThrow();
+
+    expect(client.channel.write).not.toHaveBeenCalled();
+    expect(client.channel.setWindow).not.toHaveBeenCalled();
+    expect(onExit).toHaveBeenCalledWith({ exitCode: null });
+  });
+
+  it('terminates an active remote PTY idempotently', async () => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 80,
+      rows: 24
+    });
+
+    channel.kill();
+    channel.kill();
+
+    expect(client.channel.close).toHaveBeenCalledOnce();
   });
 });

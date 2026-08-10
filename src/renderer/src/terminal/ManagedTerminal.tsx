@@ -4,6 +4,7 @@ import '@xterm/xterm/css/xterm.css';
 import type {
   RuntimeEvent,
   RuntimeSummary,
+  LumoraApi,
   SystemInfo
 } from '../../../shared/contracts';
 import { classifyTerminalClipboardKey } from './terminal-clipboard';
@@ -13,8 +14,10 @@ import {
   TERMINAL_INTERRUPT_CONFIRMATION_MS
 } from './terminal-interrupt-guard';
 import { encodeTerminalNativeKey } from './terminal-native-key';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface ManagedTerminalProps {
+  api?: LumoraApi;
   active: boolean;
   backgroundOpacity?: number;
   focusRequestKey?: number;
@@ -57,6 +60,7 @@ function isRuntimeLive(runtime: RuntimeSummary): boolean {
 }
 
 export function ManagedTerminal({
+  api = window.lumora,
   active,
   backgroundOpacity = 1,
   focusRequestKey = 0,
@@ -76,6 +80,7 @@ export function ManagedTerminal({
   const interruptTimerRef = useRef<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [interruptArmed, setInterruptArmed] = useState(false);
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
   activeRef.current = active;
   platformRef.current = platform;
   themeRef.current = { theme, backgroundOpacity };
@@ -110,14 +115,7 @@ export function ManagedTerminal({
           ),
           linkHandler: {
             activate: (_event, uri) => {
-              const confirmed = window.confirm(
-                `Open this link in your default browser?\n\n${uri}`
-              );
-              if (!confirmed || !alive) return;
-              setError(null);
-              void window.lumora.openTerminalLink(uri).catch(() => {
-                if (alive) setError('The terminal link could not be opened.');
-              });
+              if (alive) setPendingLink(uri);
             }
           }
         });
@@ -130,7 +128,7 @@ export function ManagedTerminal({
         const pasteClipboardText = () => {
           if (!alive || !acceptingInputRef.current) return;
           setError(null);
-          void window.lumora.readClipboardText().then(
+          void api.readClipboardText().then(
             (text) => {
               if (!alive || text.length === 0) return;
               terminal.paste(text);
@@ -171,7 +169,7 @@ export function ManagedTerminal({
           clearExitFallback();
           clearInterruptGuard();
           setError(null);
-          void window.lumora.terminateRuntime(runtime.id).then(
+          void api.terminateRuntime(runtime.id).then(
             (nextRuntime) => {
               if (!alive) return;
               observedRuntimeEnded = !isRuntimeLive(nextRuntime);
@@ -213,7 +211,7 @@ export function ManagedTerminal({
           const queuedWrite = inputWriteChain.then(async () => {
             for (const chunk of chunks) {
               if (!alive || !acceptingInputRef.current) return;
-              await window.lumora.writeRuntime({
+              await api.writeRuntime({
                 runtimeId: runtime.id,
                 data: chunk
               });
@@ -330,7 +328,7 @@ export function ManagedTerminal({
           if (action === 'copy') {
             const selected = terminal.getSelection();
             if (selected.length > 0) {
-              void window.lumora.writeClipboardText(selected).catch(() => {
+              void api.writeClipboardText(selected).catch(() => {
                 if (alive) setError('Selected text could not be copied.');
               });
             }
@@ -347,7 +345,7 @@ export function ManagedTerminal({
         });
         const resize = terminal.onResize(({ cols, rows }) => {
           if (!acceptingInputRef.current) return;
-          void window.lumora.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);
+          void api.resizeRuntime({ runtimeId: runtime.id, cols, rows }).catch(() => undefined);
         });
         let attached = false;
         let outputSequence = 0;
@@ -359,7 +357,7 @@ export function ManagedTerminal({
           outputSequence = event.sequence;
           writeTerminalOutput(event.data);
         };
-        const unsubscribe = window.lumora.onRuntimeEvent((event) => {
+        const unsubscribe = api.onRuntimeEvent((event) => {
           if (event.runtimeId !== runtime.id) return;
           if (event.type === 'output') {
             if (attached) writeOutput(event);
@@ -404,7 +402,7 @@ export function ManagedTerminal({
           terminal.dispose();
         };
 
-        void window.lumora.attachRuntime(runtime.id).then(
+        void api.attachRuntime(runtime.id).then(
           (attachment) => {
             if (!alive) return;
             if (attachment.snapshot.length > 0) {
@@ -442,7 +440,7 @@ export function ManagedTerminal({
       fitAddonRef.current = null;
       dispose();
     };
-  }, [runtime.id, onRuntimeChange, clearInterruptGuard]);
+  }, [api, runtime.id, onRuntimeChange, clearInterruptGuard]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -480,6 +478,25 @@ export function ManagedTerminal({
         ref={container}
         style={{ blockSize: TERMINAL_BLOCK_SIZE }}
       />
+      {pendingLink === null ? null : (
+        <ConfirmDialog
+          confirmLabel="Open link"
+          description={pendingLink}
+          heading="Open external link?"
+          onCancel={() => {
+            setPendingLink(null);
+            terminalRef.current?.focus();
+          }}
+          onConfirm={() => {
+            const uri = pendingLink;
+            setPendingLink(null);
+            setError(null);
+            void api.openTerminalLink(uri).catch(() => {
+              setError('The terminal link could not be opened.');
+            }).finally(() => terminalRef.current?.focus());
+          }}
+        />
+      )}
     </div>
   );
 }

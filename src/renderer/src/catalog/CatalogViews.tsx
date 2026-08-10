@@ -21,6 +21,7 @@ import {
 } from '../../../shared/provider-definitions';
 import { formatLifetimeTokens } from './session-usage';
 import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
+import { SelectMenu } from '../ui/SelectMenu';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -378,26 +379,23 @@ export function SessionsView({
             value={queryText}
           />
         </label>
-        <label className="filter-control">
+        <div className="filter-control">
           <span>Provider</span>
-          <select
-            onChange={(event) =>
-              onProviderChange(
-                event.currentTarget.value === ''
-                  ? null
-                  : (event.currentTarget.value as ProviderId)
-              )
+          <SelectMenu
+            label="Provider"
+            onChange={(value) =>
+              onProviderChange(value === '' ? null : value as ProviderId)
             }
+            options={[
+              { value: '', label: 'All providers' },
+              ...snapshot.providerFacets.map(({ provider, sessionCount }) => ({
+                value: provider,
+                label: `${providerDefinition(provider).displayName} (${sessionCount})`
+              }))
+            ]}
             value={provider ?? ''}
-          >
-            <option value="">All providers</option>
-            {snapshot.providerFacets.map(({ provider, sessionCount }) => (
-              <option key={provider} value={provider}>
-                {providerDefinition(provider).displayName} ({sessionCount})
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
         <button
           className="secondary-button"
           disabled={isRefreshing}

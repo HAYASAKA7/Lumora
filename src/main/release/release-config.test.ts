@@ -58,6 +58,12 @@ describe('release packaging configuration', () => {
 
     expect(packageJson.name).toBe('lumora');
     expect(packageJson.author).toBe('HAYASAKA7');
+    expect(packageJson.scripts.predev).toBe(
+      'npm run helper:ensure && install-electron --no'
+    );
+    expect(packageJson.scripts['helper:ensure']).toBe(
+      'node scripts/helper/ensure-helper.cjs'
+    );
     expect(packageJson.scripts['package:dir']).toBe(
       'npm run helper:build && npm run build && electron-builder --dir'
     );

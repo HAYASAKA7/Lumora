@@ -244,7 +244,6 @@ describe('ManagedTerminal', () => {
   it('opens confirmed terminal hyperlinks through the Lumora bridge', async () => {
     const openTerminalLink = vi.fn().mockResolvedValue(undefined);
     installLumora({ openTerminalLink });
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(
       <ManagedTerminal
         active
@@ -263,19 +262,18 @@ describe('ManagedTerminal', () => {
         'https://example.com/docs'
       );
     });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open link' }));
 
     await waitFor(() =>
       expect(openTerminalLink).toHaveBeenCalledWith(
         'https://example.com/docs'
       )
     );
-    expect(confirm).toHaveBeenCalledOnce();
   });
 
   it('does not open a terminal hyperlink when confirmation is declined', async () => {
     const openTerminalLink = vi.fn().mockResolvedValue(undefined);
     installLumora({ openTerminalLink });
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(
       <ManagedTerminal
         active
@@ -294,6 +292,7 @@ describe('ManagedTerminal', () => {
         'https://example.com/docs'
       );
     });
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     expect(openTerminalLink).not.toHaveBeenCalled();
   });
@@ -302,7 +301,6 @@ describe('ManagedTerminal', () => {
     installLumora({
       openTerminalLink: vi.fn().mockRejectedValue(new Error('open failed'))
     });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(
       <ManagedTerminal
         active
@@ -321,6 +319,7 @@ describe('ManagedTerminal', () => {
         'https://example.com/docs'
       );
     });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open link' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
       'The terminal link could not be opened.'

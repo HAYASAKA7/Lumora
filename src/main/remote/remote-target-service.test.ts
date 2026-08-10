@@ -7,6 +7,7 @@ import type {
   RemoteTargetCredentials
 } from '../../shared/contracts';
 import type { RemoteHelperSessionScanResult } from '../../shared/remote-helper-protocol';
+import { RemoteHelperConnectionError } from './helper-connection';
 import { createRemoteTargetService } from './remote-target-service';
 import {
   RemoteSshError,
@@ -43,7 +44,9 @@ const storedTarget: Extract<ExecutionTarget, { kind: 'remote' }> = {
   lastScannedAt: null
 };
 
-function createHarness() {
+function createHarness(options: {
+  createSessionRuntime?: (...args: any[]) => any;
+} = {}) {
   let target = storedTarget;
   const targets = {
     list: vi.fn(() => [target]),
@@ -188,6 +191,9 @@ function createHarness() {
     inspectHelper,
     installHelper,
     connectHelper,
+    ...(options.createSessionRuntime === undefined
+      ? {}
+      : { createSessionRuntime: options.createSessionRuntime }),
     providerPreferences,
     clock,
     createTargetId: () => TARGET_ID
@@ -213,14 +219,14 @@ describe('remote target service', () => {
       method: 'password', password: 'memory-only'
     });
 
-    expect(harness.service.update(TARGET_ID, {
+    await expect(harness.service.update(TARGET_ID, {
       displayName: 'Renamed build server',
       route: 'direct',
       host: 'build.internal',
       port: 2222,
       username: 'builder',
       authentication: { method: 'password' }
-    })).toMatchObject({ target: { connectionState: 'offline' } });
+    })).resolves.toMatchObject({ target: { connectionState: 'offline' } });
 
     expect(harness.helper.close).toHaveBeenCalledOnce();
     expect(harness.files.close).toHaveBeenCalledOnce();
@@ -290,7 +296,16 @@ describe('remote target service', () => {
   });
 
   it('marks an active target offline when its SSH transport closes unexpectedly', async () => {
-    const harness = createHarness();
+    const removeRuntimeListener = vi.fn();
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn(() => removeRuntimeListener),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn()
+    };
+    const harness = createHarness({
+      createSessionRuntime: vi.fn(() => sessionRuntime)
+    });
     await harness.service.connect(TARGET_ID, {
       method: 'password', password: 'memory-only'
     });
@@ -300,6 +315,9 @@ describe('remote target service', () => {
     expect(harness.service.get(TARGET_ID).target.connectionState).toBe('offline');
     expect(harness.helper.close).toHaveBeenCalledOnce();
     expect(harness.files.close).toHaveBeenCalledOnce();
+    expect(removeRuntimeListener).toHaveBeenCalledOnce();
+    expect(sessionRuntime.close).toHaveBeenCalledOnce();
+    expect(sessionRuntime.shutdown).not.toHaveBeenCalled();
   });
 
   it('scans only target-enabled providers and normalizes helper results', async () => {
@@ -404,6 +422,79 @@ describe('remote target service', () => {
     expect(catalog.snapshot.providerFacets).toEqual([
       { provider: 'opencode', sessionCount: 2 }
     ]);
+  });
+
+  it('composes one target-owned session runtime and synchronizes scanned catalog state', async () => {
+    let runtimeListener: ((event: any) => void) | null = null;
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn((listener: (event: any) => void) => {
+        runtimeListener = listener;
+        return () => { runtimeListener = null; };
+      }),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn()
+    };
+    const createSessionRuntime = vi.fn(() => sessionRuntime);
+    const harness = createHarness({ createSessionRuntime });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(createSessionRuntime).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      platform: 'linux',
+      defaultShell: '/bin/bash',
+      ssh: harness.connected
+    });
+    expect(sessionRuntime.updateCatalog).toHaveBeenCalledWith(catalog);
+    expect(harness.service.resolveSessionRuntime(TARGET_ID)).toBe(sessionRuntime);
+
+    const onEvent = vi.fn();
+    harness.service.subscribeSessionRuntimeEvents(onEvent);
+    const event = {
+      type: 'output',
+      runtimeId: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      sequence: 1,
+      data: 'remote output'
+    };
+    (runtimeListener as ((event: any) => void) | null)?.(event);
+    expect(onEvent).toHaveBeenCalledWith(TARGET_ID, event);
+  });
+
+  it('waits for remote terminal shutdown before closing the SSH transport', async () => {
+    let finishShutdown!: () => void;
+    const shutdownPending = new Promise<void>((resolve) => {
+      finishShutdown = resolve;
+    });
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+      shutdown: vi.fn(() => shutdownPending),
+      close: vi.fn()
+    };
+    const harness = createHarness({
+      createSessionRuntime: vi.fn(() => sessionRuntime)
+    });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const disconnecting = harness.service.disconnect(TARGET_ID);
+    await Promise.resolve();
+
+    expect(sessionRuntime.shutdown).toHaveBeenCalledOnce();
+    expect(harness.connected.close).not.toHaveBeenCalled();
+    expect(sessionRuntime.close).not.toHaveBeenCalled();
+
+    finishShutdown();
+    await expect(disconnecting).resolves.toMatchObject({
+      target: { connectionState: 'offline' }
+    });
+    expect(sessionRuntime.close).toHaveBeenCalledOnce();
+    expect(harness.connected.close).toHaveBeenCalledOnce();
   });
 
   it('reports an installed provider scan failure as retryable', async () => {
@@ -575,10 +666,10 @@ describe('remote target service', () => {
     const { service, connected, targets } = createHarness();
     await service.connect(TARGET_ID, { method: 'password', password: 'secret' });
 
-    expect(service.disconnect(TARGET_ID)).toMatchObject({
+    await expect(service.disconnect(TARGET_ID)).resolves.toMatchObject({
       target: { connectionState: 'offline' }
     });
-    expect(service.disconnect(TARGET_ID)).toMatchObject({
+    await expect(service.disconnect(TARGET_ID)).resolves.toMatchObject({
       target: { connectionState: 'offline' }
     });
     expect(connected.close).toHaveBeenCalledOnce();
@@ -586,7 +677,31 @@ describe('remote target service', () => {
       TARGET_ID,
       { connectionState: 'offline' }
     );
-    expect(service.close).not.toThrow();
-    expect(service.close).not.toThrow();
+    await expect(service.close()).resolves.toBeUndefined();
+    await expect(service.close()).resolves.toBeUndefined();
+  });
+
+  it('returns a retryable provider diagnostic when a helper session scan times out', async () => {
+    const harness = createHarness();
+    harness.providerPreferences.get.mockReturnValue(['codex']);
+    harness.helper.scanSessionPage.mockRejectedValue(
+      new RemoteHelperConnectionError('HELPER_TIMEOUT')
+    );
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(catalog.providers).toEqual([{
+      provider: 'codex', status: 'failed', sessionCount: 0, invalidCount: 0
+    }]);
+    expect(catalog.snapshot.diagnostics).toEqual([
+      expect.objectContaining({
+        provider: 'codex',
+        message: 'Codex remote catalog scan failed.',
+        retryable: true
+      })
+    ]);
   });
 });

@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { LumoraApi } from '../../../shared/contracts';
+import {
+  DEFAULT_KEYBOARD_SETTINGS,
+  type LumoraApi
+} from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
 
 const TARGET_ID = '5377f5df-cc8c-42a3-bde1-b8764387b802';
@@ -53,7 +56,64 @@ const discovery = {
   }
 } as const;
 
+function runtimeApiDefaults() {
+  return {
+    getTerminalProfiles: vi.fn().mockResolvedValue([]),
+    listRuntimes: vi.fn().mockResolvedValue([]),
+    getGeneralSettings: vi.fn().mockResolvedValue({
+      enabledProviders: ['codex']
+    }),
+    getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
+    onRuntimeEvent: vi.fn(() => () => undefined)
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => { resolve = complete; });
+  return { promise, resolve };
+}
+
 describe('RemoteTargetWindow', () => {
+  it('waits for remote discovery before scanning sessions on the shared helper channel', async () => {
+    const discoveryPending = deferred<typeof discovery>();
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn(() => discoveryPending.promise),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [], providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledOnce());
+    expect(api.scanRemoteSessions).not.toHaveBeenCalled();
+
+    discoveryPending.resolve(discovery);
+    await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledOnce());
+  });
+
   it('uses the shared Lumora shell and remote-scoped routes after connection', async () => {
     const readySummary = {
       ...summary,
@@ -418,6 +478,283 @@ describe('RemoteTargetWindow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh catalog' }));
     await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(2));
+  });
+
+  it('opens the shared new-session workflow with target-owned profiles and IPC', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const workspace = {
+      id: 'a'.repeat(64),
+      displayName: 'lumora',
+      canonicalPath: '/srv/lumora',
+      available: true,
+      origin: 'discovered' as const,
+      sessionCount: 0,
+      providerCounts: {},
+      lastActivityAt: null
+    };
+    const profile = {
+      id: 'c'.repeat(64),
+      kind: 'detected' as const,
+      name: 'Remote SSH PTY',
+      shellFamily: 'bash' as const,
+      executablePath: '/bin/bash',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise(() => undefined));
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [],
+        providers: [{
+          provider: 'codex', status: 'ready', sessionCount: 0, invalidCount: 0
+        }],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [workspace], sessions: [],
+          providerStatus: [{
+            provider: 'codex', state: 'ready', discoveredCount: 0,
+            unchangedCount: 0, invalidCount: 0
+          }],
+          providerFacets: [], diagnostics: []
+        }
+      }),
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      listRuntimes: vi.fn().mockResolvedValue([]),
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      onRuntimeEvent: vi.fn(() => () => undefined),
+      prepareLaunch
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New session' }));
+    expect(await screen.findByRole('dialog', { name: 'New session' }))
+      .toBeInTheDocument();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'new',
+      workspaceId: workspace.id,
+      provider: 'codex',
+      startPrompt: '',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+  });
+
+  it('opens an exact same-provider remote resume through the shared workflow', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const workspace = {
+      id: 'a'.repeat(64),
+      displayName: 'lumora',
+      canonicalPath: '/srv/lumora',
+      available: true,
+      origin: 'discovered' as const,
+      sessionCount: 1,
+      providerCounts: { codex: 1 },
+      lastActivityAt: '2026-08-05T04:00:00.000Z'
+    };
+    const session = {
+      id: 'b'.repeat(64),
+      nativeId: 'codex-remote-session',
+      provider: 'codex' as const,
+      workspaceId: workspace.id,
+      title: 'Resume this remote session',
+      createdAt: '2026-08-05T01:00:00.000Z',
+      updatedAt: '2026-08-05T04:00:00.000Z',
+      lifetimeTokens: 12_500,
+      lifecycle: 'saved' as const,
+      sourceFreshness: 'current' as const
+    };
+    const profile = {
+      id: 'c'.repeat(64),
+      kind: 'detected' as const,
+      name: 'Remote SSH PTY',
+      shellFamily: 'bash' as const,
+      executablePath: '/bin/bash',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise(() => undefined));
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [{
+          provider: session.provider,
+          nativeId: session.nativeId,
+          workspacePath: workspace.canonicalPath,
+          title: session.title,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          lifetimeTokens: session.lifetimeTokens
+        }],
+        providers: [{
+          provider: 'codex', status: 'ready', sessionCount: 1, invalidCount: 0
+        }],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [workspace],
+          sessions: [session],
+          providerStatus: [{
+            provider: 'codex', state: 'ready', discoveredCount: 1,
+            unchangedCount: 0, invalidCount: 0
+          }],
+          providerFacets: [{ provider: 'codex', sessionCount: 1 }],
+          diagnostics: []
+        }
+      }),
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex'],
+        crossAgentWorkflowEnabled: false
+      }),
+      prepareLaunch
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'All sessions' }));
+    fireEvent.click(await screen.findByRole('button', {
+      name: `Resume ${session.title}`
+    }));
+    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+      .toBeInTheDocument();
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith({
+      strategy: 'resume',
+      sessionId: session.id,
+      startPrompt: '',
+      terminalProfileId: null,
+      cols: 100,
+      rows: 30
+    }));
+  });
+
+  it('stores custom provider commands in the remote target launch settings', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const saveLaunchSettingsLayer = vi.fn().mockResolvedValue([]);
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
+      saveLaunchSettingsLayer
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Launch' }));
+    await screen.findByText('Launch defaults');
+    fireEvent.click(screen.getByRole('button', { name: 'Codex command mode' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom command' }));
+    fireEvent.change(screen.getByLabelText('Codex command'), {
+      target: { value: 'codexp --remote-profile' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save launch settings' }));
+
+    await waitFor(() => expect(saveLaunchSettingsLayer).toHaveBeenCalledWith({
+      scope: 'global',
+      targetId: 'global',
+      settings: {
+        providerCommands: { codex: 'codexp --remote-profile' }
+      }
+    }));
+  });
+
+  it('captures Lumora navigation shortcuts before remote PTY input', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [], providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      }),
+      getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByRole('heading', { name: 'Home', level: 1 });
+    await waitFor(() => expect(api.getKeyboardSettings).toHaveBeenCalledOnce());
+    const ptyInput = document.createElement('textarea');
+    ptyInput.className = 'xterm-helper-textarea';
+    document.body.append(ptyInput);
+
+    fireEvent.keyDown(ptyInput, {
+      code: 'Digit3', key: '3', ctrlKey: true
+    });
+
+    expect(await screen.findByRole('heading', {
+      name: 'All sessions', level: 1
+    })).toBeInTheDocument();
+    ptyInput.remove();
   });
 
   it('keeps connected pages stable and explains when the helper cannot scan yet', async () => {

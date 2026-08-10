@@ -200,8 +200,8 @@ describe('RuntimeRecoveryDialog', () => {
       screen.getByRole('region', { name: 'Launch readiness' })
     ).toBeInTheDocument();
     expect(screen.getAllByText('Resume saved session')).toHaveLength(2);
-    expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
-      ''
+    expect(screen.getByRole('button', { name: 'Terminal profile' })).toHaveTextContent(
+      'Configured default'
     );
     expect(screen.getByText(/cannot reattach the previous terminal/i)).toBeInTheDocument();
     expect(
@@ -255,8 +255,8 @@ describe('RuntimeRecoveryDialog', () => {
   it('keeps configured default when the previous profile is unavailable', () => {
     renderDialog({ profiles: [recommendedProfile] });
 
-    expect(screen.getByRole('combobox', { name: 'Terminal profile' })).toHaveValue(
-      ''
+    expect(screen.getByRole('button', { name: 'Terminal profile' })).toHaveTextContent(
+      'Configured default'
     );
   });
 
@@ -347,7 +347,7 @@ describe('RuntimeRecoveryDialog', () => {
       screen.getByRole('button', { name: 'Resume saved session' })
     );
     expect(
-      screen.getByRole('combobox', { name: 'Terminal profile' })
+      screen.getByRole('button', { name: 'Terminal profile' })
     ).toBeDisabled();
 
     rerender(

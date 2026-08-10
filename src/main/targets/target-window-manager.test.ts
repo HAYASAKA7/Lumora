@@ -7,7 +7,12 @@ import { createTargetWindowManager } from './target-window-manager';
 const TARGET_ID = '1a84cc80-7c76-4660-8b6b-d081d888ec39';
 
 class FakeWindow extends EventEmitter {
-  private readonly contents: { id: number; isDestroyed(): boolean };
+  private readonly contents: {
+    id: number;
+    isDestroyed(): boolean;
+    send(channel: string, payload: unknown): void;
+  };
+  readonly send = vi.fn();
   readonly show = vi.fn();
   readonly focus = vi.fn();
   readonly restore = vi.fn();
@@ -22,11 +27,16 @@ class FakeWindow extends EventEmitter {
     super();
     this.contents = {
       id: senderId,
-      isDestroyed: () => this.destroyed
+      isDestroyed: () => this.destroyed,
+      send: this.send
     };
   }
 
-  get webContents(): { id: number; isDestroyed(): boolean } {
+  get webContents(): {
+    id: number;
+    isDestroyed(): boolean;
+    send(channel: string, payload: unknown): void;
+  } {
     if (this.destroyed) {
       throw new Error('Object has been destroyed');
     }
@@ -142,5 +152,29 @@ describe('target window manager', () => {
     expect(() => manager.close(TARGET_ID)).not.toThrow();
     expect(contexts.get(47)).toBeNull();
     expect(window.close).not.toHaveBeenCalled();
+  });
+
+  it('sends target-scoped events only to the matching live window', async () => {
+    const contexts = createWindowContextRegistry();
+    const otherTargetId = '37da69d5-57d5-46ef-b3c6-98db8df20793';
+    const windows = new Map([
+      [TARGET_ID, new FakeWindow(48)],
+      [otherTargetId, new FakeWindow(49)]
+    ]);
+    const manager = createTargetWindowManager({
+      contexts,
+      createWindow: (id) => windows.get(id)!,
+      loadWindow: vi.fn().mockResolvedValue(undefined)
+    });
+    await manager.open(TARGET_ID);
+    await manager.open(otherTargetId);
+
+    manager.send(TARGET_ID, 'lumora:terminal:runtime:event', { type: 'output' });
+
+    expect(windows.get(TARGET_ID)!.send).toHaveBeenCalledWith(
+      'lumora:terminal:runtime:event',
+      { type: 'output' }
+    );
+    expect(windows.get(otherTargetId)!.send).not.toHaveBeenCalled();
   });
 });

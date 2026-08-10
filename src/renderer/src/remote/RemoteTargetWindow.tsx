@@ -8,6 +8,9 @@ import {
 
 import type {
   DeveloperToolStatus,
+  GeneralSettings,
+  KeyboardSettings,
+  LaunchPreview,
   LumoraApi,
   ProviderId,
   ProviderInstallation,
@@ -18,7 +21,15 @@ import type {
   RemoteSessionCatalog,
   RemoteTargetConnectionDetails,
   RemoteTargetCredentials,
-  RemoteTargetSummary
+  RemoteTargetSummary,
+  RuntimeSummary,
+  SessionSummary,
+  TerminalProfile,
+  WorkspaceSummary
+} from '../../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  DEFAULT_KEYBOARD_SETTINGS
 } from '../../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
 import {
@@ -28,6 +39,8 @@ import {
   type CatalogViewStatus
 } from '../catalog/CatalogViews';
 import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
+import { terminalThemeFor } from '../appearance/theme';
+import { LaunchSettingsPanel } from '../settings/LaunchSettingsPanel';
 import {
   LumoraShell,
   type LumoraShellAppearance
@@ -40,6 +53,10 @@ import {
   readRemoteTargetErrorCode,
   type RemoteTargetErrorCode
 } from '../../../shared/remote-target-errors';
+import { NewSessionDialog } from '../terminal/NewSessionDialog';
+import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
+import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
+import { keyboardEventMatchesChord } from '../keyboard/shortcut';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -48,7 +65,18 @@ interface RemoteTargetWindowProps {
 }
 
 type RemotePage = 'home' | 'workspaces' | 'sessions' | 'settings';
-type RemoteSettingsCategory = 'providers' | 'environment' | 'security';
+type RemoteSettingsCategory =
+  | 'providers'
+  | 'environment'
+  | 'launch'
+  | 'security';
+interface NewSessionIntent {
+  initialWorkspaceId: string | null;
+}
+interface ResumeIntent {
+  session: SessionSummary;
+  workspace: WorkspaceSummary;
+}
 type DiscoveryStatus =
   | { state: 'idle' }
   | { state: 'loading' }
@@ -83,7 +111,7 @@ const REMOTE_ROUTES = [
   {
     id: 'sessions', label: 'All sessions', icon: 'sessions',
     eyebrow: 'Remote session catalog',
-    description: 'Search bounded, read-only session metadata from this computer.'
+    description: 'Search and resume provider-owned sessions from this computer.'
   },
   {
     id: 'settings', label: 'Settings', icon: 'settings',
@@ -275,6 +303,24 @@ export function RemoteTargetWindow({
   const [savingProviders, setSavingProviders] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shellOpened, setShellOpened] = useState(false);
+  const [terminalProfiles, setTerminalProfiles] = useState<TerminalProfile[]>([]);
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettings>({
+    ...DEFAULT_GENERAL_SETTINGS,
+    crossAgentWorkflowEnabled: false
+  });
+  const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings>(
+    DEFAULT_KEYBOARD_SETTINGS
+  );
+  const [runtimes, setRuntimes] = useState<RuntimeSummary[]>([]);
+  const [openRuntimeIds, setOpenRuntimeIds] = useState<string[]>([]);
+  const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+  const [launchPreviews, setLaunchPreviews] = useState(
+    () => new Map<string, LaunchPreview>()
+  );
+  const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
+  const [newSessionIntent, setNewSessionIntent] =
+    useState<NewSessionIntent | null>(null);
+  const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const autoScannedKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -348,16 +394,238 @@ export function RemoteTargetWindow({
       summary?.target.connectionState !== 'ready'
     ) return;
     if (sessionCatalog.state !== 'idle') return;
+    if (
+      summary.target.capabilities.includes('provider-scan') &&
+      (discovery.state === 'idle' || discovery.state === 'loading')
+    ) return;
     if (!summary.target.capabilities.includes('session-scan')) {
       setSessionCatalog({ state: 'unsupported' });
       return;
     }
     void refreshSessions();
-  }, [page, refreshSessions, sessionCatalog.state, summary]);
+  }, [discovery.state, page, refreshSessions, sessionCatalog.state, summary]);
 
   useEffect(() => {
     if (summary?.target.connectionState === 'ready') setShellOpened(true);
   }, [summary?.target.connectionState]);
+
+  const updateRuntime = useCallback((runtime: RuntimeSummary) => {
+    setRuntimes((current) => {
+      const existing = current.findIndex((item) => item.id === runtime.id);
+      if (existing === -1) return [runtime, ...current];
+      const next = [...current];
+      next[existing] = runtime;
+      return next;
+    });
+  }, []);
+
+  const activateRuntime = useCallback((runtimeId: string) => {
+    setOpenRuntimeIds((current) =>
+      current.includes(runtimeId) ? current : [...current, runtimeId]
+    );
+    setActiveRuntimeId(runtimeId);
+  }, []);
+
+  const closeRuntimeTab = useCallback((runtimeId: string) => {
+    setOpenRuntimeIds((current) => {
+      const next = current.filter((id) => id !== runtimeId);
+      setActiveRuntimeId((active) =>
+        active === runtimeId ? (next[0] ?? null) : active
+      );
+      return next;
+    });
+  }, []);
+
+  const openLiveTerminals = useCallback(() => {
+    const liveIds = runtimes
+      .filter((runtime) =>
+        runtime.state === 'launching' || runtime.state === 'running'
+      )
+      .map((runtime) => runtime.id);
+    if (liveIds.length === 0) return;
+    setOpenRuntimeIds((current) => [
+      ...current,
+      ...liveIds.filter((id) => !current.includes(id))
+    ]);
+    setActiveRuntimeId((current) =>
+      current !== null && liveIds.includes(current) ? current : liveIds[0]!
+    );
+    setTerminalFocusRequestKey((current) => current + 1);
+  }, [runtimes]);
+
+  useEffect(() => {
+    if (summary?.target.connectionState !== 'ready') return;
+    if (
+      typeof api.getTerminalProfiles !== 'function' ||
+      typeof api.listRuntimes !== 'function' ||
+      typeof api.getGeneralSettings !== 'function' ||
+      typeof api.onRuntimeEvent !== 'function'
+    ) return;
+    let active = true;
+    void Promise.all([
+      api.getTerminalProfiles(),
+      api.listRuntimes(),
+      api.getGeneralSettings(),
+      typeof api.getKeyboardSettings === 'function'
+        ? api.getKeyboardSettings()
+        : Promise.resolve(DEFAULT_KEYBOARD_SETTINGS)
+    ]).then(
+      ([profiles, runtimeValues, settings, shortcuts]) => {
+        if (!active) return;
+        setTerminalProfiles(profiles);
+        setGeneralSettings({
+          ...settings,
+          crossAgentWorkflowEnabled: false
+        });
+        setKeyboardSettings(shortcuts);
+        setRuntimes(runtimeValues);
+        const liveIds = runtimeValues
+          .filter((runtime) =>
+            runtime.state === 'launching' || runtime.state === 'running'
+          )
+          .map((runtime) => runtime.id);
+        setOpenRuntimeIds(liveIds);
+        setActiveRuntimeId((current) =>
+          current !== null && liveIds.includes(current)
+            ? current
+            : (liveIds[0] ?? null)
+        );
+      },
+      () => {
+        if (active) {
+          setError('Lumora could not load the remote terminal runtime.');
+        }
+      }
+    );
+    const unsubscribe = api.onRuntimeEvent((event) => {
+      if (event.type !== 'state') return;
+      updateRuntime(event.runtime);
+      if (
+        event.runtime.state === 'completed' ||
+        event.runtime.state === 'failed' ||
+        event.runtime.state === 'runtime_lost'
+      ) {
+        closeRuntimeTab(event.runtimeId);
+        void refreshSessions();
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [
+    api,
+    closeRuntimeTab,
+    refreshSessions,
+    summary?.target.connectionState,
+    updateRuntime
+  ]);
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.shortcut-recorder[aria-pressed="true"]') !== null
+      ) return;
+      if (event.repeat) return;
+
+      if (keyboardEventMatchesChord(event, keyboardSettings.toggleSidebar)) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSidebarExpanded((current) => !current);
+        return;
+      }
+      if (keyboardEventMatchesChord(event, keyboardSettings.openTerminals)) {
+        const hasLiveRuntime = runtimes.some((runtime) =>
+          runtime.state === 'launching' || runtime.state === 'running'
+        );
+        if (!hasLiveRuntime) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openLiveTerminals();
+        return;
+      }
+      if (keyboardEventMatchesChord(event, keyboardSettings.terminalSwitcher)) {
+        if (openRuntimeIds.length === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const currentIndex = activeRuntimeId === null
+          ? -1
+          : openRuntimeIds.indexOf(activeRuntimeId);
+        activateRuntime(
+          openRuntimeIds[(currentIndex + 1) % openRuntimeIds.length]!
+        );
+        setTerminalFocusRequestKey((current) => current + 1);
+        return;
+      }
+
+      const routeShortcuts: ReadonlyArray<
+        readonly [KeyboardSettings['openHome'], RemotePage, RemoteSettingsCategory?]
+      > = [
+        [keyboardSettings.openHome, 'home'],
+        [keyboardSettings.openWorkspaces, 'workspaces'],
+        [keyboardSettings.openSessions, 'sessions'],
+        [keyboardSettings.openProfiles, 'settings', 'launch'],
+        [keyboardSettings.openSettings, 'settings', 'providers'],
+        [keyboardSettings.openSettingsAlias, 'settings', 'providers']
+      ];
+      const destination = routeShortcuts.find(([shortcut]) =>
+        keyboardEventMatchesChord(event, shortcut)
+      );
+      if (destination === undefined) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPage(destination[1]);
+      setActiveRuntimeId(null);
+      setSelectedWorkspaceId(null);
+      if (destination[2] !== undefined) setSettingsCategory(destination[2]);
+    };
+
+    window.addEventListener('keydown', keydown, true);
+    return () => window.removeEventListener('keydown', keydown, true);
+  }, [
+    activeRuntimeId,
+    activateRuntime,
+    keyboardSettings,
+    openLiveTerminals,
+    openRuntimeIds,
+    runtimes
+  ]);
+
+  const handleRuntimeStarted = useCallback((
+    runtime: RuntimeSummary,
+    preview: LaunchPreview
+  ) => {
+    updateRuntime(runtime);
+    setLaunchPreviews((current) => {
+      const next = new Map(current);
+      next.set(runtime.id, preview);
+      return next;
+    });
+    activateRuntime(runtime.id);
+    setNewSessionIntent(null);
+    setResumeIntent(null);
+    setTerminalFocusRequestKey((current) => current + 1);
+  }, [activateRuntime, updateRuntime]);
+
+  const reorderRuntimeTab = useCallback((
+    runtimeId: string,
+    destinationIndex: number
+  ) => {
+    setOpenRuntimeIds((current) => {
+      const sourceIndex = current.indexOf(runtimeId);
+      if (
+        sourceIndex === -1 ||
+        destinationIndex < 0 ||
+        destinationIndex >= current.length ||
+        sourceIndex === destinationIndex
+      ) return current;
+      const next = [...current];
+      next.splice(sourceIndex, 1);
+      next.splice(destinationIndex, 0, runtimeId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!shellOpened) return;
@@ -693,6 +961,7 @@ export function RemoteTargetWindow({
     const categories = [
       { id: 'providers' as const, label: 'Providers' },
       { id: 'environment' as const, label: 'Environment' },
+      { id: 'launch' as const, label: 'Launch' },
       { id: 'security' as const, label: 'Security' }
     ];
     return (
@@ -728,6 +997,26 @@ export function RemoteTargetWindow({
             ? renderProviders()
             : settingsCategory === 'environment'
               ? renderEnvironment()
+              : settingsCategory === 'launch'
+                ? (
+                  <LaunchSettingsPanel
+                    api={api}
+                    enabledProviders={
+                      preferences?.enabledProviders ?? draftProviders
+                    }
+                    profiles={terminalProfiles}
+                    sessions={
+                      sessionCatalog.state === 'ready'
+                        ? sessionCatalog.catalog.snapshot.sessions
+                        : []
+                    }
+                    workspaces={
+                      sessionCatalog.state === 'ready'
+                        ? sessionCatalog.catalog.snapshot.workspaces
+                        : []
+                    }
+                  />
+                )
               : renderOverview()}
         </section>
       </div>
@@ -768,15 +1057,35 @@ export function RemoteTargetWindow({
               })
             }
           };
+    const catalogSnapshot = baseCatalogStatus.state === 'ready'
+      ? baseCatalogStatus.snapshot
+      : null;
+    const resumeSession = (session: SessionSummary) => {
+      const workspace = catalogSnapshot?.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace === undefined) return;
+      setNewSessionIntent(null);
+      setResumeIntent({ session, workspace });
+    };
+    const openRuntimes = openRuntimeIds
+      .map((id) => runtimes.find((runtime) => runtime.id === id))
+      .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
+    const liveRuntimes = runtimes.filter((runtime) =>
+      runtime.state === 'launching' || runtime.state === 'running'
+    );
+    const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
     const main = page === 'home' ? (
       <CatalogHomeSummary
-        profiles={[]}
+        onResume={resumeSession}
+        profiles={terminalProfiles}
         providerScan={providerScan}
         providerSummary={
           providerScan === null
             ? 'Scanning remote providers'
             : `${providerScan.providers.filter((provider) => provider.state === 'ready').length} of ${providerScan.providers.length} providers ready`
         }
+        runtimes={runtimes}
         status={baseCatalogStatus}
       />
     ) : page === 'workspaces' ? (
@@ -793,9 +1102,10 @@ export function RemoteTargetWindow({
           isRefreshing={sessionCatalog.state === 'loading'}
           onBack={() => setSelectedWorkspaceId(null)}
           onRefresh={() => void refreshSessions()}
+          onResume={resumeSession}
           onRetry={() => void refreshSessions()}
           operationError={null}
-          profiles={[]}
+          profiles={terminalProfiles}
           providerScan={providerScan}
           status={baseCatalogStatus}
           workspaceId={selectedWorkspaceId}
@@ -812,8 +1122,9 @@ export function RemoteTargetWindow({
         })}
         onProviderChange={setSessionProvider}
         onRefresh={() => void refreshSessions()}
+        onResume={resumeSession}
         onSearchChange={setSessionSearch}
-        profiles={[]}
+        profiles={terminalProfiles}
         provider={sessionProvider}
         providerScan={providerScan}
         queryText={sessionSearch}
@@ -842,7 +1153,45 @@ export function RemoteTargetWindow({
             >Reconnect</button>
           </section>
         ) : null}
-        main={<div className="route-surface">{main}</div>}
+        className={terminalActive ? 'terminal-active' : ''}
+        hidePageHeader={terminalActive}
+        main={(
+          <>
+            <div className="route-surface" hidden={terminalActive}>{main}</div>
+            {openRuntimes.length > 0 ? (
+              <div className="terminal-surface" hidden={!terminalActive}>
+                <TerminalWorkspace
+                  activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
+                  api={api}
+                  backgroundOpacity={
+                    appearance.backgroundActive
+                      ? generalSettings.appearance.terminalOpacity
+                      : 1
+                  }
+                  focusRequestKey={terminalFocusRequestKey}
+                  onActivate={activateRuntime}
+                  onReorder={reorderRuntimeTab}
+                  onRuntimeChange={updateRuntime}
+                  platform={
+                    summary.target.platform === 'unknown'
+                      ? 'linux'
+                      : summary.target.platform
+                  }
+                  previews={launchPreviews}
+                  runtimes={openRuntimes}
+                  theme={terminalThemeFor(
+                    appearance.theme,
+                    generalSettings.appearance.lightTerminalInLightMode
+                  )}
+                  visible={terminalActive}
+                  workspaces={catalogSnapshot?.workspaces ?? []}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
+        mainClassName={terminalActive ? 'terminal-main-content' : ''}
+        navigationActive={!terminalActive}
         onNavigate={(route) => {
           setPage(route);
           if (route !== 'workspaces') setSelectedWorkspaceId(null);
@@ -869,7 +1218,9 @@ export function RemoteTargetWindow({
               <span className="status-item">{summary.target.displayName}</span>
             </div>
             <div className="status-cluster status-cluster-secondary">
-              <span className="status-item">Remote read-only catalog</span>
+              <span className="status-item">
+                {liveRuntimes.length} remote {liveRuntimes.length === 1 ? 'agent' : 'agents'}
+              </span>
               <span className="status-divider" aria-hidden="true" />
               <span className="status-item">
                 {connected ? 'SSH helper connected' : 'Connection unavailable'}
@@ -882,17 +1233,74 @@ export function RemoteTargetWindow({
           kicker: 'Remote Lumora',
           actions: (
             connected ? (
-              <button
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => void disconnect()}
-                type="button"
-              >
-                {busy ? 'Disconnecting…' : 'Disconnect'}
-              </button>
+              <>
+                {!terminalActive && liveRuntimes.length > 0 ? (
+                  <button
+                    className="secondary-button"
+                    onClick={openLiveTerminals}
+                    type="button"
+                  >Open terminals</button>
+                ) : null}
+                {!terminalActive && catalogSnapshot?.workspaces.some(
+                  (workspace) => workspace.available
+                ) ? (
+                  <button
+                    className="refresh-button"
+                    onClick={() => {
+                      setResumeIntent(null);
+                      setNewSessionIntent({
+                        initialWorkspaceId:
+                          page === 'workspaces' ? selectedWorkspaceId : null
+                      });
+                    }}
+                    type="button"
+                  >New session</button>
+                ) : null}
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void disconnect()}
+                  type="button"
+                >
+                  {busy ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              </>
             ) : undefined
           )
         }}
+        floatingContent={(
+          <>
+            {newSessionIntent !== null && catalogSnapshot !== null ? (
+              <NewSessionDialog
+                api={api}
+                initialWorkspaceId={newSessionIntent.initialWorkspaceId}
+                onClose={() => setNewSessionIntent(null)}
+                onStarted={handleRuntimeStarted}
+                profiles={terminalProfiles}
+                providerScan={providerScan}
+                workspaces={catalogSnapshot.workspaces}
+              />
+            ) : null}
+            {resumeIntent !== null ? (
+              <ResumeSessionDialog
+                api={api}
+                generalSettings={{
+                  ...generalSettings,
+                  crossAgentWorkflowEnabled: false
+                }}
+                onClose={() => setResumeIntent(null)}
+                onStarted={handleRuntimeStarted}
+                profiles={terminalProfiles}
+                providerScan={providerScan}
+                session={resumeIntent.session}
+                sourceSessionActive={liveRuntimes.some(
+                  (runtime) => runtime.sessionId === resumeIntent.session.id
+                )}
+                workspace={resumeIntent.workspace}
+              />
+            ) : null}
+          </>
+        )}
       />
     );
   }
@@ -914,8 +1322,8 @@ export function RemoteTargetWindow({
         {renderOverview()}
 
         <footer className="remote-phase-note">
-          Environment, providers, and session metadata stay isolated to this target.
-          Remote terminals arrive in a later phase.
+          Environment, providers, launch settings, sessions, and terminals stay
+          isolated to this target.
         </footer>
       </section>
       {showHelperInstall && helperInstall !== null && (

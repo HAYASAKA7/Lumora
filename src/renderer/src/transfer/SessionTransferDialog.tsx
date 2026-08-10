@@ -20,6 +20,7 @@ import {
   reduceImportFlow
 } from './session-transfer-state';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { SelectMenu } from '../ui/SelectMenu';
 
 interface SessionTransferDialogProps {
   selection: SessionTransferArchiveSelection;
@@ -358,7 +359,7 @@ export function SessionTransferDialog({
               </div>
               <div className="transfer-workspace-list">
                 {inspection.workspaces.map((source) => (
-                  <label
+                  <div
                     className="transfer-field transfer-workspace-field"
                     key={source.sourceWorkspaceKey}
                   >
@@ -366,29 +367,27 @@ export function SessionTransferDialog({
                       {source.displayName} · {sessionCountLabel(source.sessionCount)}
                     </span>
                     <OverflowTooltip content={source.originalPath}><small>{source.originalPath}</small></OverflowTooltip>
-                    <select
-                      aria-label={`${source.displayName} workspace destination`}
+                    <SelectMenu
                       disabled={busy}
-                      onChange={(event) => {
-                        const destination = event.currentTarget.value || null;
+                      label={`${source.displayName} workspace destination`}
+                      onChange={(value) => {
+                        const destination = value || null;
                         setWorkspaceMappings((current) => {
                           const next = new Map(current);
                           next.set(source.sourceWorkspaceKey, destination);
                           return next;
                         });
                       }}
-                      value={
-                        workspaceMappings.get(source.sourceWorkspaceKey) ?? ''
-                      }
-                    >
-                      <option value="">Skip this workspace</option>
-                      {availableWorkspaces.map((workspace) => (
-                        <option key={workspace.id} value={workspace.id}>
-                          {workspace.displayName} — {workspace.canonicalPath}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      options={[
+                        { value: '', label: 'Skip this workspace' },
+                        ...availableWorkspaces.map((workspace) => ({
+                          value: workspace.id,
+                          label: `${workspace.displayName} — ${workspace.canonicalPath}`
+                        }))
+                      ]}
+                      value={workspaceMappings.get(source.sourceWorkspaceKey) ?? ''}
+                    />
+                  </div>
                 ))}
               </div>
             </div>

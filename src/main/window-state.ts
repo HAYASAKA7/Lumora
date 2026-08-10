@@ -191,6 +191,19 @@ export interface WindowStateManager {
   dispose(): Promise<void>;
 }
 
+export interface SharedWindowStateManager {
+  restore(
+    workAreas: readonly WindowBounds[],
+    startMaximized: boolean
+  ): WindowRestoreDecision;
+  track(
+    window: TrackedWindow,
+    initialNormalBounds: WindowBounds
+  ): WindowStateManager;
+  flush(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
 export function createWindowStateManager({
   window,
   statePath,
@@ -298,4 +311,178 @@ export function createWindowStateManager({
   };
 
   return { flush, dispose };
+}
+
+export async function createSharedWindowStateManager({
+  statePath,
+  workAreas,
+  fileSystem = { readFile, writeFile, rename },
+  reportError = (message, error) => console.error(message, error),
+  debounceMs = 250
+}: {
+  statePath: string;
+  workAreas: readonly WindowBounds[];
+  fileSystem?: WindowStateFileSystem;
+  reportError?: (message: string, error: unknown) => void;
+  debounceMs?: number;
+}): Promise<SharedWindowStateManager> {
+  const loaded = await loadWindowRestore({
+    statePath,
+    workAreas,
+    fileSystem,
+    reportError
+  });
+  let latestState: PersistedWindowState | null =
+    loaded.normalBounds === null
+      ? null
+      : {
+          version: 1,
+          normalBounds: { ...loaded.normalBounds },
+          maximized: loaded.maximized
+        };
+  let dirty = false;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let writeQueue = Promise.resolve();
+  let disposal: Promise<void> | null = null;
+  const tracked = new Map<
+    TrackedWindow,
+    {
+      captureGeometry: () => void;
+      captureMaximized: () => void;
+    }
+  >();
+
+  const queueWrite = (): Promise<void> => {
+    if (!dirty || latestState === null) {
+      return writeQueue;
+    }
+
+    dirty = false;
+    const snapshot = JSON.stringify(latestState);
+    const temporaryPath = `${statePath}.tmp`;
+    writeQueue = writeQueue
+      .then(async () => {
+        await fileSystem.writeFile(temporaryPath, snapshot, 'utf8');
+        await fileSystem.rename(temporaryPath, statePath);
+      })
+      .catch((error: unknown) => {
+        reportError(
+          `Unable to persist Lumora window state at ${statePath}.`,
+          error
+        );
+      });
+    return writeQueue;
+  };
+
+  const scheduleWrite = (): void => {
+    dirty = true;
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      void queueWrite();
+    }, debounceMs);
+  };
+
+  const flush = (): Promise<void> => {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    return queueWrite();
+  };
+
+  const track = (
+    window: TrackedWindow,
+    initialNormalBounds: WindowBounds
+  ): WindowStateManager => {
+    if (disposal !== null) {
+      throw new Error('Cannot track a window after state management ended.');
+    }
+
+    latestState = {
+      version: 1,
+      normalBounds: { ...initialNormalBounds },
+      maximized: window.isMaximized()
+    };
+
+    const captureGeometry = (): void => {
+      const maximized = window.isMaximized();
+      if (!maximized && !window.isMinimized() && !window.isFullScreen()) {
+        latestState = {
+          version: 1,
+          normalBounds: { ...window.getBounds() },
+          maximized
+        };
+      } else if (latestState !== null) {
+        latestState = { ...latestState, maximized };
+      }
+      scheduleWrite();
+    };
+    const captureMaximized = (): void => {
+      if (latestState !== null) {
+        latestState = {
+          ...latestState,
+          maximized: window.isMaximized()
+        };
+      }
+      scheduleWrite();
+    };
+    const geometryEvents = ['move', 'resize'] as const;
+    const maximizationEvents = ['maximize', 'unmaximize'] as const;
+    for (const event of geometryEvents) {
+      window.on(event, captureGeometry);
+    }
+    for (const event of maximizationEvents) {
+      window.on(event, captureMaximized);
+    }
+    tracked.set(window, { captureGeometry, captureMaximized });
+
+    let trackedDisposal: Promise<void> | null = null;
+    const dispose = (): Promise<void> => {
+      if (trackedDisposal !== null) {
+        return trackedDisposal;
+      }
+      const listeners = tracked.get(window);
+      if (listeners !== undefined) {
+        for (const event of geometryEvents) {
+          window.off(event, listeners.captureGeometry);
+        }
+        for (const event of maximizationEvents) {
+          window.off(event, listeners.captureMaximized);
+        }
+        tracked.delete(window);
+      }
+      trackedDisposal = flush();
+      return trackedDisposal;
+    };
+    return { flush, dispose };
+  };
+
+  const dispose = (): Promise<void> => {
+    if (disposal !== null) {
+      return disposal;
+    }
+    for (const [window, listeners] of tracked) {
+      window.off('move', listeners.captureGeometry);
+      window.off('resize', listeners.captureGeometry);
+      window.off('maximize', listeners.captureMaximized);
+      window.off('unmaximize', listeners.captureMaximized);
+    }
+    tracked.clear();
+    disposal = flush();
+    return disposal;
+  };
+
+  return {
+    restore: (currentWorkAreas, startMaximized) =>
+      applyStartupMaximization(
+        resolveWindowRestore(latestState, currentWorkAreas),
+        startMaximized
+      ),
+    track,
+    flush,
+    dispose
+  };
 }

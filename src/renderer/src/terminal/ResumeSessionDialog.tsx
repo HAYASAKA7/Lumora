@@ -4,6 +4,7 @@ import type {
   LaunchPrepareRequest,
   LaunchPreview,
   GeneralSettings,
+  LumoraApi,
   ProviderId,
   ProviderScanResult,
   RuntimeSummary,
@@ -17,10 +18,12 @@ import {
   hasVerifiedStartPromptSupport,
   supportsNativeForkVersion
 } from '../../../shared/provider-definitions';
+import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
 interface ResumeSessionDialogProps {
+  api?: LumoraApi;
   session: SessionSummary;
   workspace: WorkspaceSummary;
   generalSettings: GeneralSettings;
@@ -32,6 +35,7 @@ interface ResumeSessionDialogProps {
 }
 
 export function ResumeSessionDialog({
+  api = window.lumora,
   session,
   workspace,
   generalSettings,
@@ -189,7 +193,7 @@ export function ResumeSessionDialog({
       supportsStartPrompt
     ]
   );
-  const preflight = useLaunchPreflight(request);
+  const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
 
   useEffect(() => {
@@ -220,7 +224,7 @@ export function ResumeSessionDialog({
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
-          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          await api.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
           if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
@@ -237,7 +241,7 @@ export function ResumeSessionDialog({
         }
       }
       try {
-        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);
       } catch {
@@ -342,25 +346,19 @@ export function ResumeSessionDialog({
 
         <div className="launch-fields resume-launch-fields">
           {continuation === 'new' && newSessionDestinations.length > 1 ? (
-            <label>
+            <div className="select-field">
               <span>Start with provider</span>
-              <select
+              <SelectMenu
                 disabled={starting}
-                onChange={(event) => setDestinationProvider(
-                  event.currentTarget.value as ProviderId
-                )}
+                label="Start with provider"
+                onChange={(value) => setDestinationProvider(value as ProviderId)}
+                options={newSessionDestinations.map((installation) => ({
+                  value: installation.provider,
+                  label: installation.displayName
+                }))}
                 value={destinationProvider}
-              >
-                {newSessionDestinations.map((installation) => (
-                  <option
-                    key={installation.provider}
-                    value={installation.provider}
-                  >
-                    {installation.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </div>
           ) : null}
           {supportsStartPrompt ? (
             <label>
@@ -375,21 +373,22 @@ export function ResumeSessionDialog({
               />
             </label>
           ) : null}
-          <label>
+          <div className="select-field">
             <span>Terminal profile</span>
-            <select
+            <SelectMenu
               disabled={starting}
-              onChange={(event) => setProfileId(event.currentTarget.value)}
+              label="Terminal profile"
+              onChange={setProfileId}
+              options={[
+                { value: '', label: 'Configured default' },
+                ...availableProfiles.map((profile) => ({
+                  value: profile.id,
+                  label: profile.name
+                }))
+              ]}
               value={profileId}
-            >
-              <option value="">Configured default</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.name}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
         </div>
 
         {isNativeFork ? (

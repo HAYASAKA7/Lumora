@@ -1492,13 +1492,8 @@ button {
   font-weight: 700;
 }
 
-.appearance-select-control select {
+.appearance-select-control .select-menu {
   width: 100%;
-  padding: 8px 10px;
-  color: var(--text);
-  background: var(--control-surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
 }
 
 :root[data-theme='dark'] .developer-tool-card,
@@ -1574,17 +1569,16 @@ button {
   line-height: 1.5;
 }
 
-.general-setting-card > select {
+.general-setting-card > .select-menu {
   flex: 0 0 auto;
   min-width: 112px;
-  padding: 8px 10px;
-  color: var(--text);
-  background: var(--control-surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
 }
 
-.general-setting-card > select:disabled {
+.general-setting-card-control {
+  cursor: default;
+}
+
+.general-setting-card > .select-menu:has(button:disabled) {
   cursor: not-allowed;
   opacity: 0.58;
 }
@@ -1750,6 +1744,7 @@ button {
 }
 
 .launch-settings-editor label,
+.launch-settings-editor .select-field,
 .launch-settings-commands fieldset {
   display: grid;
   gap: 7px;
@@ -2981,7 +2976,8 @@ button {
   align-self: start;
 }
 
-.profile-form label {
+.profile-form label,
+.profile-form .select-field {
   display: grid;
   gap: 6px;
   margin: 16px 0;
@@ -2991,6 +2987,15 @@ button {
 }
 
 .launch-fields label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.launch-fields .select-field {
   display: grid;
   gap: 6px;
   margin: 0;
@@ -4233,7 +4238,8 @@ button {
   background: var(--surface-subtle);
 }
 
-.transfer-export-selection-toolbar > label {
+.transfer-export-selection-toolbar > label,
+.transfer-export-selection-toolbar > .select-field {
   display: grid;
   gap: 6px;
   min-width: min(240px, 100%);
@@ -4241,8 +4247,16 @@ button {
   font-size: 0.72rem;
 }
 
-.transfer-export-selection-toolbar select {
+.transfer-export-selection-toolbar .select-menu {
   width: 100%;
+}
+
+.confirm-dialog {
+  width: min(480px, 100%);
+}
+
+.confirm-dialog-description {
+  overflow-wrap: anywhere;
 }
 
 .transfer-export-selection-summary {

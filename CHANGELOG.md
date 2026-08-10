@@ -20,20 +20,44 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
 - Add a target-scoped remote Lumora shell with Home, Workspaces, All sessions,
-  and Settings; a normalized read-only catalog; bounded pagination; explicit
-  per-provider coverage; and metadata discovery for Codex, Claude Code,
-  Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code. Remote resume and
-  terminal execution remain unavailable.
+  and Settings; a normalized metadata-only catalog; bounded pagination;
+  explicit per-provider coverage; and metadata discovery for Codex, Claude
+  Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code.
+- Add SSH PTY-backed remote terminals with new-session and exact same-provider
+  resume for all six session-managed providers on Windows, macOS, and Linux
+  targets.
+- Add target-scoped provider start-command customization under remote
+  **Settings > Launch**, isolated from local Lumora launch settings.
 
 ### Changed
 
 - Make isolated remote windows use Lumora's global theme, managed background,
   opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
 - Reuse Lumora's main shell and catalog views after a remote target reaches
-  ready, while keeping the pre-connection and helper setup flow isolated.
+  ready, while keeping the pre-connection and helper setup flow isolated. The
+  shared new/resume dialogs, terminal tabs, viewport, details, clipboard,
+  shortcut capture, and stop behavior are reused in the remote shell.
+- Restore remote Lumora windows from their own shared window size and make them
+  honor the global **Start with a maximized window** preference just like the
+  local window.
 
 ### Fixed
 
+- Standardize dropdowns across local and remote catalogs, session workflows,
+  settings, terminal profiles, and transfers on Lumora's overlay menu, and use
+  a Lumora confirmation dialog when opening terminal links.
+- Let remotely discovered npm and provider wrappers resolve companion runtimes
+  from their installation directory when reading versions.
+- Serialize automatic remote discovery and session scans over the helper
+  channel, and report recoverable provider scan failures inside the catalog
+  instead of raising a generic remote-target IPC error.
+- Compare provider session timestamps chronologically during catalog
+  synchronization so resumed sessions remain valid when providers change ISO
+  timestamp precision.
+
+- Ensure `npm run dev` builds a missing or stale verified remote-helper bundle
+  before Electron starts, while reusing an already current bundle in subsequent
+  development launches and isolated worktrees.
 - Allow remote connection profiles to be edited and deleted with validated,
   in-app confirmation workflows and user-safe failure messages.
 - Close a target's isolated window and dispose its active SSH/helper resources
@@ -43,8 +67,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   credentials or raw remote diagnostics.
 - Detect unexpected SSH transport closure, release target resources, and keep
   the current remote page and cached catalog visible with a reconnect banner.
-
-### Fixed
+- Reconcile newly started remote provider sessions back to their native catalog
+  identity and safely handle repeated close, late PTY events, missing exit
+  codes, disconnect, profile mutation, and application shutdown.
 
 - Stop superseded launch-preflight requests from surfacing as terminal IPC
   failures while keeping their launch tokens unusable.
@@ -65,6 +90,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   at the main-process boundary, and bound command output, page size, page count,
   record count, file enumeration, file reads, provider protocol traffic, and
   control-frame size.
+- Resolve remote launch authority from the immutable sender-window target,
+  validate absolute provider/workspace paths and shell arguments in the main
+  process, and deliver PTY events only to that target's isolated window.
 - Expose only a read-only appearance projection to isolated remote windows;
   appearance mutations remain restricted to the local Lumora window.
 

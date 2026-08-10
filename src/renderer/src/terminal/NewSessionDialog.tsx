@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LaunchPrepareRequest,
   LaunchPreview,
+  LumoraApi,
   ProviderId,
   ProviderScanResult,
   RuntimeSummary,
@@ -10,10 +11,12 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { hasVerifiedStartPromptSupport } from '../../../shared/provider-definitions';
+import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
 interface NewSessionDialogProps {
+  api?: LumoraApi;
   initialWorkspaceId?: string | null;
   workspaces: readonly WorkspaceSummary[];
   profiles: readonly TerminalProfile[];
@@ -23,6 +26,7 @@ interface NewSessionDialogProps {
 }
 
 export function NewSessionDialog({
+  api = window.lumora,
   initialWorkspaceId = null,
   workspaces,
   profiles,
@@ -117,7 +121,7 @@ export function NewSessionDialog({
       : null,
     [canPrepare, profileId, provider, startPrompt, supportsStartPrompt, workspaceId]
   );
-  const preflight = useLaunchPreflight(request);
+  const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
 
   useEffect(() => {
@@ -148,7 +152,7 @@ export function NewSessionDialog({
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
-          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          await api.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
           if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
@@ -165,7 +169,7 @@ export function NewSessionDialog({
         }
       }
       try {
-        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);
       } catch {
@@ -198,31 +202,48 @@ export function NewSessionDialog({
 
         <div className="dialog-body">
         <div className="launch-fields">
-          <label>
+          <div className="select-field">
             <span>Workspace</span>
-            <select disabled={starting} onChange={(event) => setWorkspaceId(event.currentTarget.value)} value={workspaceId}>
-              {availableWorkspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>{workspace.displayName}</option>
-              ))}
-            </select>
-          </label>
-          <label>
+            <SelectMenu
+              disabled={starting}
+              label="Workspace"
+              onChange={setWorkspaceId}
+              options={availableWorkspaces.map((workspace) => ({
+                value: workspace.id,
+                label: workspace.displayName
+              }))}
+              value={workspaceId}
+            />
+          </div>
+          <div className="select-field">
             <span>Provider</span>
-            <select disabled={starting} onChange={(event) => setProvider(event.currentTarget.value as ProviderId)} value={provider}>
-              {readyProviders.map((installation) => (
-                <option key={installation.provider} value={installation.provider}>{installation.displayName}</option>
-              ))}
-            </select>
-          </label>
-          <label>
+            <SelectMenu
+              disabled={starting}
+              label="Provider"
+              onChange={(value) => setProvider(value as ProviderId)}
+              options={readyProviders.map((installation) => ({
+                value: installation.provider,
+                label: installation.displayName
+              }))}
+              value={provider}
+            />
+          </div>
+          <div className="select-field">
             <span>Terminal profile</span>
-            <select disabled={starting} onChange={(event) => setProfileId(event.currentTarget.value)} value={profileId}>
-              <option value="">Configured default</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>{profile.name}</option>
-              ))}
-            </select>
-          </label>
+            <SelectMenu
+              disabled={starting}
+              label="Terminal profile"
+              onChange={setProfileId}
+              options={[
+                { value: '', label: 'Configured default' },
+                ...availableProfiles.map((profile) => ({
+                  value: profile.id,
+                  label: profile.name
+                }))
+              ]}
+              value={profileId}
+            />
+          </div>
           {supportsStartPrompt ? (
             <label className="new-session-start-prompt">
               <span>Start prompt (optional)</span>

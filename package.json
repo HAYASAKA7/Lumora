@@ -10,7 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "predev": "install-electron --no",
+    "predev": "npm run helper:ensure && install-electron --no",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "package:dir": "npm run helper:build && npm run build && electron-builder --dir",
@@ -24,6 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "helper:test": "node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...",
+    "helper:ensure": "node scripts/helper/ensure-helper.cjs",
     "helper:build": "node scripts/helper/build-helper.cjs"
   },
   "dependencies": {

@@ -1,0 +1,69 @@
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+
+interface ConfirmDialogProps {
+  cancelLabel?: string;
+  confirmLabel: string;
+  description: ReactNode;
+  heading: string;
+  onCancel(): void;
+  onConfirm(): void;
+}
+
+export function ConfirmDialog({
+  cancelLabel = 'Cancel',
+  confirmLabel,
+  description,
+  heading,
+  onCancel,
+  onConfirm
+}: ConfirmDialogProps): ReactNode {
+  const titleId = useId();
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    cancelRef.current?.focus();
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onCancel();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
+
+  return createPortal(
+    <div className="dialog-backdrop" role="presentation">
+      <section
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="new-session-dialog confirm-dialog"
+        role="dialog"
+      >
+        <header>
+          <div>
+            <p className="card-label">Confirmation</p>
+            <h2 id={titleId}>{heading}</h2>
+          </div>
+        </header>
+        <div className="dialog-body">
+          <p className="card-description confirm-dialog-description">{description}</p>
+        </div>
+        <footer className="modal-actions">
+          <button
+            className="secondary-button"
+            onClick={onCancel}
+            ref={cancelRef}
+            type="button"
+          >
+            {cancelLabel}
+          </button>
+          <button className="refresh-button" onClick={onConfirm} type="button">
+            {confirmLabel}
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.querySelector('.app-shell') ?? document.body
+  );
+}

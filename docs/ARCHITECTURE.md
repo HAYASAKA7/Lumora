@@ -107,9 +107,18 @@ replacement upload has passed verification and the user confirmed replacement.
 
 The helper uses length-prefixed, schema-validated frames with bounded payloads,
 timeouts, generation-bound request IDs, and an initial compatibility handshake.
-The current capabilities are limited to system information and allowlisted
-provider discovery; session operations and PTY streaming remain later remote
-phases.
+The helper capabilities cover system information, allowlisted provider
+discovery, and bounded provider-owned session metadata. Interactive execution
+does not turn the helper into a daemon: the Electron main process opens a
+separate SSH PTY channel for each authorized remote runtime, while the helper
+continues to own only bounded discovery.
+
+Remote launch preparation resolves the target from the immutable sender-window
+context, refreshes target-scoped discovery and catalog state, and revalidates
+the provider executable, workspace, native session identity, start command,
+and workspace trust in the main process. Target-specific launch settings live
+in the target's terminal repository. Runtime events are routed only to the
+matching isolated window; local windows never subscribe to remote PTY output.
 
 ## Provider model
 
@@ -293,7 +302,11 @@ It stores:
 - managed runtime and reconciliation history; and
 - non-sensitive transfer history plus the last export and import directories.
 
-Window size and maximized state are stored separately in `window-state.json`.
+Window size and maximized state are stored outside SQLite. The local window uses
+`window-state.json`; remote target windows share `remote-window-state.json` so
+their geometry remains independent from the local window while staying
+consistent between remote connections. Both paths apply the global startup
+maximization preference and clamp restored bounds to an available display.
 Development builds append `-dev` to the default application-data path so they
 do not share data with an installed package.
 

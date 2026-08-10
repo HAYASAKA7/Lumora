@@ -13,6 +13,7 @@ import {
 } from '../catalog/progressive-list';
 import { formatLifetimeTokens } from '../catalog/session-usage';
 import { Tooltip } from '../ui/Tooltip';
+import { SelectMenu } from '../ui/SelectMenu';
 import { useSessionExportSelection } from './useSessionExportSelection';
 
 const SESSION_BATCH_SIZE = 40;
@@ -104,23 +105,21 @@ export function SessionTransferExportSelection({
       </header>
 
       <div className="transfer-export-selection-toolbar">
-        <label>
+        <div className="select-field">
           <span>Provider</span>
-          <select
-            aria-label="Filter export sessions by provider"
-            onChange={(event) =>
-              setProvider(event.target.value as ProviderId | 'all')
-            }
+          <SelectMenu
+            label="Filter export sessions by provider"
+            onChange={(value) => setProvider(value as ProviderId | 'all')}
+            options={[
+              { value: 'all', label: 'All providers' },
+              ...providerIds.map((providerId) => ({
+                value: providerId,
+                label: providerDefinition(providerId).displayName
+              }))
+            ]}
             value={provider}
-          >
-            <option value="all">All providers</option>
-            {providerIds.map((providerId) => (
-              <option key={providerId} value={providerId}>
-                {providerDefinition(providerId).displayName}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </div>
         <div className="session-export-provider-options">
           {providerIds.map((providerId) => {
             const eligible =

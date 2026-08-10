@@ -61,6 +61,10 @@ interface LaunchServiceDependencies {
   handoffService: Pick<HandoffService, 'reserve' | 'materialize'>;
   platform: SystemInfo['platform'];
   env: Environment;
+  buildEnvironment?(
+    env: Environment,
+    profile: TerminalProfile
+  ): Record<string, string | undefined>;
   clock?: () => Date;
   createToken?: () => string;
 }
@@ -396,7 +400,10 @@ export class LaunchService {
     if (profile === null) {
       throw new TerminalLaunchError('TERMINAL_PROFILE_UNAVAILABLE');
     }
-    const environment = environmentWithProfile(this.dependencies.env, profile);
+    const environment = this.dependencies.buildEnvironment?.(
+      this.dependencies.env,
+      profile
+    ) ?? environmentWithProfile(this.dependencies.env, profile);
     const command = resolved.command;
     let reconciliationBaselineNativeIds: string[] | null = null;
     if (

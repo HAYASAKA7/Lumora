@@ -58,7 +58,8 @@ describe('probeRemotePlatform', () => {
           architecture: 'AMD64',
           homeDirectory: 'C:\\Users\\builder',
           helperBaseDirectory: 'C:\\Users\\builder\\AppData\\Local',
-          defaultShell: 'powershell.exe'
+          defaultShell:
+            'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
         }),
         stderr: ''
       });
@@ -68,12 +69,16 @@ describe('probeRemotePlatform', () => {
       architecture: 'x64',
       homeDirectory: 'C:\\Users\\builder',
       helperBaseDirectory: 'C:\\Users\\builder\\AppData\\Local',
-      defaultShell: 'powershell.exe'
+      defaultShell:
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
     });
     expect(execute.mock.calls[1]).toEqual([
       WINDOWS_PLATFORM_PROBE_COMMAND,
       { maxOutputBytes: MAX_PLATFORM_PROBE_OUTPUT_BYTES, timeoutMs: 10_000 }
     ]);
+    expect(WINDOWS_PLATFORM_PROBE_COMMAND).toContain(
+      '(Get-Command powershell.exe -ErrorAction Stop).Source'
+    );
   });
 
   it('rejects successful but malformed and oversized probe output', async () => {

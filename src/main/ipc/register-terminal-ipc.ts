@@ -47,7 +47,7 @@ interface IpcRegistrar {
   ): void;
 }
 
-type TerminalIpcRuntime = Pick<
+export type TerminalIpcRuntime = Pick<
   TerminalRuntime,
   | 'getProfiles'
   | 'saveProfile'

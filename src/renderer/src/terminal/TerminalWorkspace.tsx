@@ -9,14 +9,17 @@ import {
 
 import type {
   LaunchPreview,
+  LumoraApi,
   RuntimeSummary,
   SystemInfo,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { ManagedTerminal } from './ManagedTerminal';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
+import { providerDefinition } from '../../../shared/provider-definitions';
 
 interface TerminalWorkspaceProps {
+  api?: LumoraApi;
   backgroundOpacity?: number;
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
@@ -43,6 +46,7 @@ interface TabDrag {
 const TAB_DRAG_THRESHOLD = 5;
 
 export function TerminalWorkspace({
+  api = window.lumora,
   backgroundOpacity = 1,
   runtimes,
   activeRuntimeId,
@@ -97,7 +101,7 @@ export function TerminalWorkspace({
   const workspace = workspaces.find((item) => item.id === runtime.workspaceId);
   const isLive = runtime.state === 'launching' || runtime.state === 'running';
   const stopping = stoppingRuntimeIds.has(runtime.id);
-  const providerName = runtime.provider === 'codex' ? 'Codex' : 'Claude Code';
+  const providerName = providerDefinition(runtime.provider).displayName;
 
   const handleTabPointerDown = (
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -210,7 +214,7 @@ export function TerminalWorkspace({
         return next;
       });
     };
-    void window.lumora.terminateRuntime(runtimeId).then(
+    void api.terminateRuntime(runtimeId).then(
       (value) => {
         onRuntimeChange(value);
         clearStopping();
@@ -278,7 +282,7 @@ export function TerminalWorkspace({
             >
               <span>{item.displayName}</span>
               <small>
-                {item.provider === 'codex' ? 'Codex' : 'Claude Code'} ·{' '}
+                {providerDefinition(item.provider).displayName} ·{' '}
                 {item.state}
               </small>
             </button>
@@ -325,6 +329,7 @@ export function TerminalWorkspace({
           >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
+              api={api}
               backgroundOpacity={backgroundOpacity}
               focusRequestKey={focusRequestKey}
               platform={platform}

@@ -5,12 +5,14 @@ import type {
   LaunchSettingsLayerInput,
   LaunchSettingsScope,
   LaunchSettingsValue,
+  LumoraApi,
   ProviderId,
   SessionSummary,
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
+import { SelectMenu } from '../ui/SelectMenu';
 
 type CommandMode = 'inherit' | 'detected' | 'custom';
 type ProfileChoice = 'inherit' | 'automatic' | string;
@@ -84,11 +86,13 @@ function targetOptions(
 }
 
 export function LaunchSettingsPanel({
+  api = window.lumora,
   enabledProviders = ALL_PROVIDERS,
   profiles,
   sessions,
   workspaces
 }: {
+  api?: LumoraApi;
   enabledProviders?: readonly ProviderId[];
   profiles: readonly TerminalProfile[];
   sessions: readonly SessionSummary[];
@@ -107,7 +111,7 @@ export function LaunchSettingsPanel({
 
   useEffect(() => {
     let active = true;
-    void window.lumora.getLaunchSettingsLayers().then(
+    void api.getLaunchSettingsLayers().then(
       (values) => {
         if (!active) return;
         setLayers(values);
@@ -122,7 +126,7 @@ export function LaunchSettingsPanel({
     return () => {
       active = false;
     };
-  }, []);
+  }, [api]);
 
   const options = useMemo(
     () => targetOptions(scope, enabledProviders, workspaces, sessions),
@@ -235,7 +239,7 @@ export function LaunchSettingsPanel({
     if (targetId === '') return;
     setSaving(true);
     setError(null);
-    void window.lumora.saveLaunchSettingsLayer(inputFor(settings)).then(
+    void api.saveLaunchSettingsLayer(inputFor(settings)).then(
       (values) => {
         setLayers(values);
         setSaving(false);
@@ -267,53 +271,52 @@ export function LaunchSettingsPanel({
       ) : (
         <div className="launch-settings-editor">
           <div className="launch-settings-scope">
-            <label>
+            <div className="select-field">
               <span>Settings scope</span>
-              <select
-                aria-label="Settings scope"
-                onChange={(event) =>
-                  setScope(event.currentTarget.value as LaunchSettingsScope)
-                }
+              <SelectMenu
+                label="Settings scope"
+                onChange={(value) => setScope(value as LaunchSettingsScope)}
+                options={[
+                  { value: 'global', label: 'Global' },
+                  { value: 'provider', label: 'Provider' },
+                  { value: 'workspace', label: 'Workspace' },
+                  { value: 'session', label: 'Session' }
+                ]}
                 value={scope}
-              >
-                <option value="global">Global</option>
-                <option value="provider">Provider</option>
-                <option value="workspace">Workspace</option>
-                <option value="session">Session</option>
-              </select>
-            </label>
+              />
+            </div>
             {scope === 'global' ? null : (
-              <label>
+              <div className="select-field">
                 <span>Scope target</span>
-                <select
-                  aria-label="Scope target"
-                  onChange={(event) => setTargetId(event.currentTarget.value)}
+                <SelectMenu
+                  label="Scope target"
+                  onChange={setTargetId}
+                  options={options.map((option) => ({
+                    value: option.id,
+                    label: option.label
+                  }))}
                   value={targetId}
-                >
-                  {options.map((option) => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
+                />
+              </div>
             )}
           </div>
 
-          <label>
+          <div className="select-field">
             <span>Default terminal profile</span>
-            <select
-              aria-label="Default terminal profile"
-              onChange={(event) => setProfileChoice(event.currentTarget.value)}
+            <SelectMenu
+              label="Default terminal profile"
+              onChange={setProfileChoice}
+              options={[
+                { value: 'inherit', label: 'Inherit' },
+                { value: 'automatic', label: 'Automatic recommended' },
+                ...profiles.map((profile) => ({
+                  value: profile.id,
+                  label: `${profile.name}${profile.available ? '' : ' (unavailable)'}`
+                }))
+              ]}
               value={profileChoice}
-            >
-              <option value="inherit">Inherit</option>
-              <option value="automatic">Automatic recommended</option>
-              {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.name}{profile.available ? '' : ' (unavailable)'}
-                </option>
-              ))}
-            </select>
-          </label>
+            />
+          </div>
 
           <div className="launch-settings-commands">
             {applicableProviders.map((provider) => {
@@ -322,12 +325,12 @@ export function LaunchSettingsPanel({
               return (
                 <fieldset key={provider}>
                   <legend>{label} start command</legend>
-                  <label>
+                  <div className="select-field">
                     <span>Mode</span>
-                    <select
-                      aria-label={`${label} command mode`}
-                      onChange={(event) => {
-                        const mode = event.currentTarget.value as CommandMode;
+                    <SelectMenu
+                      label={`${label} command mode`}
+                      onChange={(value) => {
+                        const mode = value as CommandMode;
                         setCommands((current) => ({
                           ...current,
                           [provider]: {
@@ -336,13 +339,14 @@ export function LaunchSettingsPanel({
                           }
                         }));
                       }}
+                      options={[
+                        { value: 'inherit', label: 'Inherit' },
+                        { value: 'detected', label: 'Use detected CLI' },
+                        { value: 'custom', label: 'Custom command' }
+                      ]}
                       value={draft.mode}
-                    >
-                      <option value="inherit">Inherit</option>
-                      <option value="detected">Use detected CLI</option>
-                      <option value="custom">Custom command</option>
-                    </select>
-                  </label>
+                    />
+                  </div>
                   {draft.mode !== 'custom' ? null : (
                     <label>
                       <span>Command</span>

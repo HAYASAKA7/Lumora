@@ -22,6 +22,7 @@ import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
   PlatformSchema,
+  RemoteExecutionTargetIdSchema,
   TrayResumeSessionRequestSchema
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
@@ -91,8 +92,10 @@ import {
 } from './windows-taskbar';
 import {
   applyStartupMaximization,
+  createSharedWindowStateManager,
   createWindowStateManager,
   loadWindowRestore,
+  type SharedWindowStateManager,
   type WindowStateManager
 } from './window-state';
 import { resolveWindowCloseAction } from './window-close-policy';
@@ -193,7 +196,9 @@ let terminalRuntime: TerminalRuntime | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
+let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
+let remoteWindowStateManager: SharedWindowStateManager | null = null;
 let activeStartupBackgroundActivity:
   | StartupBackgroundActivityController
   | null = null;
@@ -362,6 +367,12 @@ function flushWindowState(): Promise<void> {
   return queueWindowStateFlush(flush);
 }
 
+function flushRemoteWindowState(): Promise<void> {
+  const manager = remoteWindowStateManager;
+  remoteWindowStateManager = null;
+  return manager?.dispose() ?? Promise.resolve();
+}
+
 const mainWindowCreation = createSingleWindowCreationGate({
   canCreate: () => !shutdownStarted && mainWindow === null,
   prepare: prepareMainWindow,
@@ -371,10 +382,30 @@ const mainWindowCreation = createSingleWindowCreationGate({
 const targetWindowManager = createTargetWindowManager({
   contexts: windowContexts,
   createWindow: () => {
-    const window = new BrowserWindow(createSecureWindowOptions(
-      preloadPath,
-      windowIconPath
-    ));
+    if (remoteWindowStateManager === null) {
+      throw new Error('Remote window state management is unavailable.');
+    }
+    const restore = remoteWindowStateManager.restore(
+      screen.getAllDisplays().map((display) => display.workArea),
+      terminalRuntime?.getGeneralSettings().startMaximized ?? true
+    );
+    const window = new BrowserWindow({
+      ...createSecureWindowOptions(
+        preloadPath,
+        windowIconPath
+      ),
+      ...(restore.normalBounds === null ? {} : restore.normalBounds)
+    });
+    const trackedWindowState = remoteWindowStateManager.track(
+      window,
+      restore.normalBounds ?? window.getBounds()
+    );
+    if (restore.maximized) {
+      window.maximize();
+    }
+    window.once('closed', () => {
+      void trackedWindowState.dispose();
+    });
     configurePackagedWindowsTaskbarWindow(window, {
       platform,
       packaged: app.isPackaged,
@@ -480,6 +511,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     onGeneralSettingsSaved: (settings) =>
       providerPolicy.replace(settings.enabledProviders)
+  });
+  remoteWindowStateManager = await createSharedWindowStateManager({
+    statePath: join(app.getPath('userData'), 'remote-window-state.json'),
+    workAreas: screen.getAllDisplays().map((display) => display.workArea)
   });
   providerPolicy.replace(terminalRuntime.getGeneralSettings().enabledProviders);
   transferRuntime = await createSessionTransferRuntime({
@@ -671,9 +706,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
-    resolveRuntime: (context) =>
-      executionTargetGateway.resolve(context).terminal,
+    authorize: authorizeTargetIpc,
+    resolveRuntime: (context) => {
+      if (context.executionTargetId === LOCAL_EXECUTION_TARGET_ID) {
+        return executionTargetGateway.resolve(context).terminal;
+      }
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      return remoteTargetRuntime.service.resolveSessionRuntime(
+        RemoteExecutionTargetIdSchema.parse(context.executionTargetId)
+      );
+    },
     subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
@@ -686,6 +730,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  unsubscribeRemoteTerminalEvents =
+    remoteTargetRuntime.service.subscribeSessionRuntimeEvents(
+      (executionTargetId, event) => {
+        targetWindowManager.send(
+          executionTargetId,
+          IPC_CHANNELS.runtimeEvent,
+          event
+        );
+      }
+    );
 
   await mainWindowCreation.ensureCreated();
   createApplicationTray();
@@ -719,6 +773,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   shutdownStarted = true;
   const runtime = terminalRuntime;
+  const remoteRuntime = remoteTargetRuntime;
   const transfer = transferRuntime;
   void (async () => {
     try {
@@ -734,8 +789,13 @@ app.on('before-quit', (event) => {
       try {
         await Promise.all([
           runtime?.shutdown() ?? Promise.resolve(),
-          flushWindowState()
+          remoteRuntime?.close() ?? Promise.resolve(),
+          flushWindowState(),
+          flushRemoteWindowState()
         ]);
+        if (remoteTargetRuntime === remoteRuntime) {
+          remoteTargetRuntime = null;
+        }
       } catch (error) {
         shutdownErrors.push(error);
       }
@@ -746,8 +806,10 @@ app.on('before-quit', (event) => {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
     } finally {
       targetWindowManager.closeAll();
-      remoteTargetRuntime?.close();
+      void remoteTargetRuntime?.close();
       remoteTargetRuntime = null;
+      unsubscribeRemoteTerminalEvents?.();
+      unsubscribeRemoteTerminalEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
       runtime?.close();
@@ -763,8 +825,10 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {
   targetWindowManager.closeAll();
-  remoteTargetRuntime?.close();
+  void remoteTargetRuntime?.close();
   remoteTargetRuntime = null;
+  unsubscribeRemoteTerminalEvents?.();
+  unsubscribeRemoteTerminalEvents = null;
   trayController?.dispose();
   trayController = null;
   unsubscribeTerminalEvents?.();

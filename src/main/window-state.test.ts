@@ -11,6 +11,7 @@ import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
   applyStartupMaximization,
+  createSharedWindowStateManager,
   createWindowStateManager,
   loadWindowRestore,
   parseWindowState,
@@ -552,5 +553,117 @@ describe('createWindowStateManager', () => {
     expect(reportError).toHaveBeenCalledOnce();
     expect(reportError.mock.calls[0]?.[1]).toBe(writeError);
     await expect(manager.dispose()).resolves.toBeUndefined();
+  });
+});
+
+describe('createSharedWindowStateManager', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('restores shared remote bounds while applying the current startup preference', async () => {
+    const fileSystem = createWritingFileSystem();
+    fileSystem.readFile.mockResolvedValue(JSON.stringify({
+      ...validState,
+      maximized: false
+    }));
+    const manager = await createSharedWindowStateManager({
+      statePath: 'remote-window-state.json',
+      workAreas: [primaryWorkArea],
+      fileSystem
+    });
+
+    expect(manager.restore([primaryWorkArea], true)).toEqual({
+      normalBounds: validState.normalBounds,
+      maximized: true,
+      source: 'saved'
+    });
+    expect(manager.restore([primaryWorkArea], false)).toEqual({
+      normalBounds: validState.normalBounds,
+      maximized: false,
+      source: 'saved'
+    });
+
+    await manager.dispose();
+  });
+
+  it('persists the latest event across tracked remote windows through one queue', async () => {
+    const fileSystem = createWritingFileSystem();
+    fileSystem.readFile.mockRejectedValue(
+      Object.assign(new Error('missing'), { code: 'ENOENT' })
+    );
+    const manager = await createSharedWindowStateManager({
+      statePath: 'remote-window-state.json',
+      workAreas: [primaryWorkArea],
+      fileSystem,
+      debounceMs: 25
+    });
+    const firstWindow = createFakeWindow();
+    const secondWindow = createFakeWindow({
+      x: 220,
+      y: 140,
+      width: 1000,
+      height: 700
+    });
+    const first = manager.track(firstWindow, firstWindow.getBounds());
+    const second = manager.track(secondWindow, secondWindow.getBounds());
+    const latestBounds = { x: 300, y: 180, width: 1120, height: 760 };
+
+    firstWindow.setBounds({ x: 40, y: 40, width: 900, height: 650 });
+    firstWindow.emit('resize');
+    secondWindow.setBounds(latestBounds);
+    secondWindow.emit('move');
+    secondWindow.setMaximized(true);
+    secondWindow.emit('maximize');
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(fileSystem.writeFile).toHaveBeenCalledOnce();
+    expect(writtenState(fileSystem)).toEqual({
+      version: 1,
+      normalBounds: latestBounds,
+      maximized: true
+    });
+    expect(manager.restore([primaryWorkArea], false)).toMatchObject({
+      normalBounds: latestBounds,
+      maximized: false,
+      source: 'saved'
+    });
+
+    await first.dispose();
+    expect(firstWindow.listenerCount('resize')).toBe(0);
+    expect(secondWindow.listenerCount('resize')).toBe(1);
+    await second.dispose();
+    await manager.dispose();
+  });
+
+  it('preserves the latest normal bounds during transient remote window states', async () => {
+    const fileSystem = createWritingFileSystem();
+    fileSystem.readFile.mockResolvedValue(JSON.stringify(validState));
+    const manager = await createSharedWindowStateManager({
+      statePath: 'remote-window-state.json',
+      workAreas: [primaryWorkArea],
+      fileSystem
+    });
+    const window = createFakeWindow(validState.normalBounds);
+    const tracked = manager.track(window, validState.normalBounds);
+
+    window.setMaximized(true);
+    window.setBounds(primaryWorkArea);
+    window.emit('maximize');
+    window.emit('resize');
+    window.setMinimized(true);
+    window.emit('move');
+    window.setMinimized(false);
+    window.setFullScreen(true);
+    window.emit('resize');
+    await manager.flush();
+
+    expect(writtenState(fileSystem)).toEqual({
+      version: 1,
+      normalBounds: validState.normalBounds,
+      maximized: true
+    });
+
+    await tracked.dispose();
+    await manager.dispose();
   });
 });

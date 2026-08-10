@@ -51,6 +51,11 @@ const workspaceLayer: LaunchSettingsLayer = {
   updatedAt: '2026-07-13T00:00:00.000Z'
 };
 
+function choose(label: string, option: string): void {
+  fireEvent.click(screen.getByRole('button', { name: label }));
+  fireEvent.click(screen.getByRole('option', { name: option }));
+}
+
 describe('LaunchSettingsPanel', () => {
   it('hydrates and saves a workspace layer without conflating inherit and null', async () => {
     const saveLaunchSettingsLayer = vi.fn(async () => [workspaceLayer]);
@@ -71,23 +76,19 @@ describe('LaunchSettingsPanel', () => {
     );
 
     await screen.findByText('Launch defaults');
-    fireEvent.change(screen.getByLabelText('Settings scope'), {
-      target: { value: 'workspace' }
-    });
+    choose('Settings scope', 'Workspace');
     await waitFor(() =>
-      expect(screen.getByLabelText('Scope target')).toHaveValue(workspace.id)
+      expect(screen.getByLabelText('Scope target')).toHaveTextContent(workspace.displayName)
     );
-    expect(screen.getByLabelText('Default terminal profile')).toHaveValue(
-      'automatic'
+    expect(screen.getByLabelText('Default terminal profile')).toHaveTextContent(
+      'Automatic recommended'
     );
-    expect(screen.getByLabelText('Codex command mode')).toHaveValue('custom');
+    expect(screen.getByLabelText('Codex command mode')).toHaveTextContent('Custom command');
     expect(screen.getByLabelText('Codex command')).toHaveValue(
       'workspace-codex'
     );
 
-    fireEvent.change(screen.getByLabelText('Claude Code command mode'), {
-      target: { value: 'detected' }
-    });
+    choose('Claude Code command mode', 'Use detected CLI');
     fireEvent.click(
       screen.getByRole('button', { name: 'Save launch settings' })
     );
@@ -125,9 +126,7 @@ describe('LaunchSettingsPanel', () => {
     );
 
     await screen.findByText('Launch defaults');
-    fireEvent.change(screen.getByLabelText('Settings scope'), {
-      target: { value: 'session' }
-    });
+    choose('Settings scope', 'Session');
     await screen.findByLabelText('Codex command mode');
     expect(
       screen.queryByLabelText('Claude Code command mode')
@@ -160,16 +159,13 @@ describe('LaunchSettingsPanel', () => {
     );
 
     await screen.findByText('Launch defaults');
-    fireEvent.change(screen.getByLabelText('Settings scope'), {
-      target: { value: 'provider' }
-    });
+    choose('Settings scope', 'Provider');
 
+    fireEvent.click(screen.getByRole('button', { name: 'Scope target' }));
     expect(
       screen.getByRole('option', { name: 'Gemini CLI' })
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Scope target'), {
-      target: { value: 'gemini' }
-    });
+    fireEvent.click(screen.getByRole('option', { name: 'Gemini CLI' }));
     expect(
       await screen.findByLabelText('Gemini CLI command mode')
     ).toBeInTheDocument();
@@ -198,9 +194,8 @@ describe('LaunchSettingsPanel', () => {
       screen.queryByLabelText('Claude Code command mode')
     ).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Settings scope'), {
-      target: { value: 'provider' }
-    });
+    choose('Settings scope', 'Provider');
+    fireEvent.click(screen.getByRole('button', { name: 'Scope target' }));
     expect(screen.getByRole('option', { name: 'Codex' })).toBeInTheDocument();
     expect(
       screen.queryByRole('option', { name: 'Claude Code' })
@@ -240,9 +235,7 @@ describe('LaunchSettingsPanel', () => {
     );
 
     await screen.findByText('Editing saved global layer.');
-    fireEvent.change(screen.getByLabelText('Default terminal profile'), {
-      target: { value: 'automatic' }
-    });
+    choose('Default terminal profile', 'Automatic recommended');
     fireEvent.click(
       screen.getByRole('button', { name: 'Save launch settings' })
     );
