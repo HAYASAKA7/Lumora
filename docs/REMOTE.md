@@ -25,6 +25,56 @@ the remote computer.
 Passwords and passphrases are connection-only values. Lumora does not save or
 log them.
 
+## Full remote shell design
+
+The isolated target page is a connection gate, not the permanent remote user
+interface. Before a target is ready, it owns host verification, credentials,
+connection progress, helper inspection, and confirmed helper installation.
+After the helper handshake succeeds, the same window transitions into Lumora's
+existing application shell instead of rendering a separate card-style app.
+
+The remote shell reuses the local shell's sidebar, top bar, scrolling content
+region, status bar, appearance presentation, responsive layout, cards, and
+catalog views. Target mode supplies a scoped route manifest and data adapter;
+it does not copy or fork the visual components. This keeps local and remote UI
+fixes aligned.
+
+Remote primary navigation contains:
+
+- **Home** for target status and recent remote sessions.
+- **Workspaces** for provider-owned workspace groupings on that computer.
+- **All sessions** for the target-scoped session catalog.
+- **Settings** for remote-capable configuration only.
+
+**Terminal profiles** and local remote-computer management are omitted. The
+remote settings manifest can contain **Providers**, **Environment**,
+**Launch**, **Security**, and **Transfer**, but it exposes a category only when
+the target-scoped backend for that category is functional. The first shared
+shell therefore includes Providers, Environment, and connection Security;
+Launch and Transfer appear with their remote execution and file-operation
+phases rather than as empty placeholders. Categories that would only mutate the
+local Lumora installation are not shown. Global appearance remains controlled
+by the local window and is applied read-only to every remote shell.
+
+All remote routes use the execution target ID bound to the BrowserWindow by the
+main process. Renderer requests cannot select another target, enumerate local
+catalog data, or call local-only mutation APIs. Remote helper responses are
+normalized into the same view models consumed by existing Lumora cards while
+remaining target-scoped.
+
+If SSH or the helper disconnects after the shell is visible, Lumora keeps the
+current route and last bounded catalog snapshot on screen. A prominent
+enhanced-color reconnect banner marks the data as stale, blocks remote
+mutations, and provides the primary **Reconnect** action. Successful
+reconnection dismisses the banner and refreshes the active route. Authentication
+or helper confirmation can reopen inside the connection workflow without
+discarding the shell's navigation state.
+
+The remote window must occupy its complete BrowserWindow and use the shell's
+single scrolling content region. Connection-gate content may scroll within the
+full window when its contents exceed the available height; it must not be
+presented as a fixed, clipped component.
+
 ## Activate the helper
 
 After SSH authentication, Lumora probes the remote operating system and
