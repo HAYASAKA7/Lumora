@@ -48,6 +48,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Serialize automatic remote discovery and session scans over the helper
   channel, and report recoverable provider scan failures inside the catalog
   instead of raising a generic remote-target IPC error.
+- Compare provider session timestamps chronologically during catalog
+  synchronization so resumed sessions remain valid when providers change ISO
+  timestamp precision.
 
 - Ensure `npm run dev` builds a missing or stale verified remote-helper bundle
   before Electron starts, while reusing an already current bundle in subsequent

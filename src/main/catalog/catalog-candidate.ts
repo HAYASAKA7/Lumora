@@ -40,9 +40,12 @@ export const CatalogCandidateSchema = z
       fingerprint: CatalogSourceFingerprintSchema.nullable()
     })
   })
-  .refine((candidate) => candidate.createdAt <= candidate.updatedAt, {
-    message: 'Session creation time cannot be after its update time.'
-  });
+  .refine(
+    (candidate) => Date.parse(candidate.createdAt) <= Date.parse(candidate.updatedAt),
+    {
+      message: 'Session creation time cannot be after its update time.'
+    }
+  );
 
 export type CatalogSourceFingerprint = z.infer<
   typeof CatalogSourceFingerprintSchema
