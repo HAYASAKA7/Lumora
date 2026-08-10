@@ -14,7 +14,9 @@ import {
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
   type RemoteExecutionTargetId,
-  type RemoteTargetCredentials
+  type RemoteTargetCredentials,
+  type RuntimeEvent,
+  type SystemInfo
 } from '../../shared/contracts';
 import {
   SESSION_PROVIDER_IDS,
@@ -41,6 +43,7 @@ import {
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSshClient } from './ssh-client';
 import { RemoteSshError } from './ssh-errors';
+import type { RemoteSessionRuntime } from './remote-session-runtime';
 
 type RemoteTarget = Extract<ExecutionTarget, { kind: 'remote' }>;
 
@@ -119,6 +122,12 @@ interface CreateRemoteTargetServiceOptions {
   inspectHelper?: typeof inspectRemoteHelper;
   installHelper?: typeof installRemoteHelper;
   connectHelper?: typeof connectRemoteHelper;
+  createSessionRuntime?(input: {
+    executionTargetId: RemoteExecutionTargetId;
+    platform: SystemInfo['platform'];
+    defaultShell: string;
+    ssh: ConnectedRemoteSshClient;
+  }): RemoteSessionRuntime;
   providerPreferences?: ProviderPreferenceRepository;
   clock?: () => Date;
   createTargetId?: () => string;
@@ -181,6 +190,8 @@ interface ActiveRemoteTarget {
   paths: RemoteHelperPaths;
   inspection: RemoteHelperInspection;
   helper: ConnectedRemoteHelper | null;
+  sessionRuntime: RemoteSessionRuntime | null;
+  removeSessionRuntimeListener: (() => void) | null;
 }
 
 function stableRemoteCatalogId(...parts: string[]): string {
@@ -326,6 +337,7 @@ export function createRemoteTargetService({
   inspectHelper = inspectRemoteHelper,
   installHelper: performHelperInstall = installRemoteHelper,
   connectHelper = connectRemoteHelper,
+  createSessionRuntime,
   providerPreferences = {
     get: () => [...PROVIDER_IDS],
     save: (_id, providers) => [...providers]
@@ -334,16 +346,32 @@ export function createRemoteTargetService({
   createTargetId = () => randomUUID()
 }: CreateRemoteTargetServiceOptions) {
   const activeTargets = new Map<RemoteExecutionTargetId, ActiveRemoteTarget>();
+  const sessionRuntimeListeners = new Set<(
+    executionTargetId: RemoteExecutionTargetId,
+    event: RuntimeEvent
+  ) => void>();
   let nextGeneration = 1;
   let closed = false;
 
-  const disposeActive = (active: ActiveRemoteTarget | undefined) => {
+  const disposeActive = async (
+    active: ActiveRemoteTarget | undefined
+  ): Promise<void> => {
     if (active === undefined) return;
     active.removeCloseListener?.();
     active.removeCloseListener = null;
     active.helper?.close();
-    active.files.close();
-    active.ssh.close();
+    active.helper = null;
+    active.removeSessionRuntimeListener?.();
+    active.removeSessionRuntimeListener = null;
+    const sessionRuntime = active.sessionRuntime;
+    active.sessionRuntime = null;
+    try {
+      await sessionRuntime?.shutdown();
+    } finally {
+      sessionRuntime?.close();
+      active.files.close();
+      active.ssh.close();
+    }
   };
 
   const summary = (id: RemoteExecutionTargetId): RemoteTargetSummary => {
@@ -355,11 +383,13 @@ export function createRemoteTargetService({
     return { target, profile };
   };
 
-  const disconnect = (input: RemoteExecutionTargetId): RemoteTargetSummary => {
+  const disconnect = async (
+    input: RemoteExecutionTargetId
+  ): Promise<RemoteTargetSummary> => {
     const id = RemoteExecutionTargetIdSchema.parse(input);
     const active = activeTargets.get(id);
     activeTargets.delete(id);
-    disposeActive(active);
+    await disposeActive(active);
     targets.updateRemoteConnection(id, { connectionState: 'offline' });
     return summary(id);
   };
@@ -390,6 +420,26 @@ export function createRemoteTargetService({
       expectedArchitecture: active.artifact.architecture
     });
     active.helper = helper;
+    active.sessionRuntime ??= createSessionRuntime?.({
+      executionTargetId: id,
+      platform: active.artifact.platform,
+      defaultShell: active.facts.defaultShell,
+      ssh: active.ssh
+    }) ?? null;
+    if (
+      active.sessionRuntime !== null &&
+      active.removeSessionRuntimeListener === null
+    ) {
+      active.removeSessionRuntimeListener = active.sessionRuntime.subscribe((event) => {
+        for (const listener of sessionRuntimeListeners) {
+          try {
+            listener(id, event);
+          } catch {
+            // Runtime delivery must isolate consumer failures.
+          }
+        }
+      });
+    }
     const supportedCapabilities = helper.info.capabilities.filter(
       (capability): capability is RemoteTarget['capabilities'][number] =>
         capability !== 'system-info'
@@ -566,25 +616,25 @@ export function createRemoteTargetService({
       return summary(id);
     },
 
-    update(
+    async update(
       input: RemoteExecutionTargetId,
       profileInput: RemoteConnectionProfileInput
-    ): RemoteTargetSummary {
+    ): Promise<RemoteTargetSummary> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const profile = RemoteConnectionProfileInputSchema.parse(profileInput);
       const active = activeTargets.get(id);
       activeTargets.delete(id);
-      disposeActive(active);
+      await disposeActive(active);
       targets.updateRemoteConnection(id, { connectionState: 'offline' });
       profiles.save(id, profile, clock());
       return summary(id);
     },
 
-    remove(input: RemoteExecutionTargetId): void {
+    async remove(input: RemoteExecutionTargetId): Promise<void> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const active = activeTargets.get(id);
       activeTargets.delete(id);
-      disposeActive(active);
+      await disposeActive(active);
       targets.deleteRemote(id);
     },
 
@@ -608,7 +658,7 @@ export function createRemoteTargetService({
       const profile = summary(id).profile;
       const former = activeTargets.get(id);
       activeTargets.delete(id);
-      disposeActive(former);
+      await disposeActive(former);
       targets.updateRemoteConnection(id, { connectionState: 'connecting' });
       let connected: ConnectedRemoteSshClient | null = null;
       let files: ActiveRemoteTarget['files'] | null = null;
@@ -648,7 +698,9 @@ export function createRemoteTargetService({
           artifact,
           paths,
           inspection,
-          helper: null
+          helper: null,
+          sessionRuntime: null,
+          removeSessionRuntimeListener: null
         };
         activeTargets.set(id, active);
         active.removeCloseListener = connected.onClose(() => {
@@ -657,6 +709,11 @@ export function createRemoteTargetService({
           active.removeCloseListener?.();
           active.removeCloseListener = null;
           active.helper?.close();
+          active.helper = null;
+          active.removeSessionRuntimeListener?.();
+          active.removeSessionRuntimeListener = null;
+          active.sessionRuntime?.close();
+          active.sessionRuntime = null;
           active.files.close();
           targets.updateRemoteConnection(id, { connectionState: 'offline' });
         });
@@ -814,6 +871,7 @@ export function createRemoteTargetService({
           providers: providerStatus,
           snapshot: normalizeRemoteCatalog(id, scannedAt, sessions, providerStatus)
         });
+        active.sessionRuntime?.updateCatalog(catalog);
         targets.updateRemoteConnection(id, { lastScannedAt: scannedAt });
         return catalog;
       } catch (error) {
@@ -822,16 +880,34 @@ export function createRemoteTargetService({
       }
     },
 
+    resolveSessionRuntime(input: RemoteExecutionTargetId) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const runtime = activeTargets.get(id)?.sessionRuntime ?? null;
+      if (runtime === null) throw new RemoteTargetServiceError();
+      return runtime;
+    },
+
+    subscribeSessionRuntimeEvents(listener: (
+      executionTargetId: RemoteExecutionTargetId,
+      event: RuntimeEvent
+    ) => void) {
+      sessionRuntimeListeners.add(listener);
+      return () => sessionRuntimeListeners.delete(listener);
+    },
+
     disconnect,
 
-    close(): void {
+    async close(): Promise<void> {
       if (closed) return;
       closed = true;
+      const disposing: Promise<void>[] = [];
       for (const [id, active] of activeTargets) {
-        disposeActive(active);
+        disposing.push(disposeActive(active));
         targets.updateRemoteConnection(id, { connectionState: 'offline' });
       }
       activeTargets.clear();
+      sessionRuntimeListeners.clear();
+      await Promise.allSettled(disposing);
     }
   };
 }

@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { Client, type ClientChannel, type ConnectConfig } from 'ssh2';
+import {
+  Client,
+  type ClientChannel,
+  type ConnectConfig,
+  type ExecOptions
+} from 'ssh2';
 
 import {
   RemoteConnectionProfileSchema,
@@ -38,6 +43,11 @@ export interface SshClientAdapter {
   connect(config: Record<string, unknown>): void;
   exec(
     command: string,
+    callback: (error: Error | undefined, channel: ClientChannel) => void
+  ): void;
+  execPty?(
+    command: string,
+    options: ExecOptions,
     callback: (error: Error | undefined, channel: ClientChannel) => void
   ): void;
   sftp?(callback: (error: Error | undefined, sftp: SftpAdapter) => void): void;
@@ -227,6 +237,10 @@ function commandExecutor(
 export interface ConnectedRemoteSshClient {
   execute: RemoteCommandExecutor;
   openExec(command: string): Promise<RemoteExecChannel>;
+  openPtyExec(
+    command: string,
+    size: { cols: number; rows: number }
+  ): Promise<RemotePtyChannel>;
   openFileTransfer(): Promise<RemoteFileTransfer>;
   onClose(listener: () => void): () => void;
   close(): void;
@@ -237,6 +251,17 @@ export interface RemoteExecChannel {
   stdout: NodeJS.ReadableStream;
   stderr: NodeJS.ReadableStream;
   close(): void;
+}
+
+export interface RemotePtyChannel {
+  readonly pid: null;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  kill(): void;
+  onData(listener: (data: string) => void): { dispose(): void };
+  onExit(listener: (event: { exitCode: number | null }) => void): {
+    dispose(): void;
+  };
 }
 
 export interface RemoteFileTransfer {
@@ -318,11 +343,78 @@ function createRemoteFileTransfer(sftp: SftpAdapter): RemoteFileTransfer {
   };
 }
 
+function createRemotePtyChannel(channel: ClientChannel): RemotePtyChannel {
+  let closed = false;
+  let exitCode: number | null = null;
+  let exitReported = false;
+  const dataListeners = new Set<(data: string) => void>();
+  const exitListeners = new Set<(event: { exitCode: number | null }) => void>();
+  const reportExit = () => {
+    if (exitReported) return;
+    exitReported = true;
+    closed = true;
+    const event = { exitCode };
+    for (const listener of [...exitListeners]) {
+      try {
+        listener(event);
+      } catch {
+        // Native transport events must never surface consumer failures.
+      }
+    }
+    dataListeners.clear();
+    exitListeners.clear();
+  };
+  channel.on('data', (chunk: Buffer | string) => {
+    if (closed) return;
+    const data = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : chunk;
+    for (const listener of [...dataListeners]) listener(data);
+  });
+  channel.on('exit', (code: number | null) => {
+    exitCode = Number.isSafeInteger(code) ? code : null;
+  });
+  channel.on('close', reportExit);
+  channel.on('error', reportExit);
+
+  return {
+    pid: null,
+    write(data) {
+      if (!closed) channel.write(data);
+    },
+    resize(cols, rows) {
+      if (!closed) channel.setWindow(rows, cols, 0, 0);
+    },
+    kill() {
+      if (closed) return;
+      closed = true;
+      channel.close();
+    },
+    onData(listener) {
+      if (!closed) dataListeners.add(listener);
+      return { dispose: () => dataListeners.delete(listener) };
+    },
+    onExit(listener) {
+      if (exitReported) {
+        listener({ exitCode });
+        return { dispose: () => undefined };
+      }
+      exitListeners.add(listener);
+      return { dispose: () => exitListeners.delete(listener) };
+    }
+  };
+}
+
 export function createRemoteSshClient(
   input: Partial<SshClientDependencies> = {}
 ) {
   const dependencies: SshClientDependencies = {
-    createClient: input.createClient ?? (() => new Client() as unknown as SshClientAdapter),
+    createClient: input.createClient ?? (() => {
+      const client = new Client();
+      const adapter = client as unknown as SshClientAdapter;
+      adapter.execPty = (command, options, callback) => {
+        client.exec(command, options, callback);
+      };
+      return adapter;
+    }),
     readPrivateKey: input.readPrivateKey ?? ((path) => readFile(path)),
     resolveSshConfigHost: input.resolveSshConfigHost ??
       createOpenSshConfigResolver(),
@@ -489,6 +581,44 @@ export function createRemoteSshClient(
                       channel.destroy();
                     }
                   });
+                });
+              });
+            },
+            openPtyExec(command, size) {
+              if (connectionClosed || client.execPty === undefined) {
+                return Promise.reject(remoteOperationFailed());
+              }
+              return new Promise<RemotePtyChannel>((resolveChannel, rejectChannel) => {
+                let opened = false;
+                const openTimeout = dependencies.setTimeout(() => {
+                  if (opened) return;
+                  opened = true;
+                  rejectChannel(new RemoteSshError(
+                    'SSH_TIMEOUT',
+                    'The remote terminal channel timed out.'
+                  ));
+                }, DEFAULT_CONNECTION_TIMEOUT_MS);
+                client.execPty!(command, {
+                  pty: {
+                    term: 'xterm-256color',
+                    cols: size.cols,
+                    rows: size.rows,
+                    width: 0,
+                    height: 0
+                  }
+                }, (error, channel) => {
+                  if (opened) {
+                    channel?.destroy();
+                    return;
+                  }
+                  opened = true;
+                  dependencies.clearTimeout(openTimeout);
+                  if (connectionClosed || error !== undefined) {
+                    channel?.destroy();
+                    rejectChannel(remoteOperationFailed());
+                    return;
+                  }
+                  resolveChannel(createRemotePtyChannel(channel));
                 });
               });
             },

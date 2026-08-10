@@ -6,7 +6,8 @@ Lumora will discover provider-owned sessions on a connected remote computer for
 the same six providers that have complete local session management: Codex,
 Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code. The remote
 catalog remains read-only in this phase. It does not create a Lumora-owned
-session format and does not add remote resume or terminal launch.
+session format. The catalog layer remains metadata-only; the separate remote
+runtime consumes its validated identities for exact resume and terminal launch.
 
 ## Architecture
 

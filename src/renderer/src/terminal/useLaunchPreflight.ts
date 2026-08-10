@@ -8,7 +8,8 @@ import {
 
 import type {
   LaunchPrepareRequest,
-  LaunchPreview
+  LaunchPreview,
+  LumoraApi
 } from '../../../shared/contracts';
 
 export type LaunchPreflightStatus =
@@ -37,7 +38,8 @@ const IDLE_STATE: StoredPreflightState = {
 };
 
 export function useLaunchPreflight(
-  request: LaunchPrepareRequest | null
+  request: LaunchPrepareRequest | null,
+  api: Pick<LumoraApi, 'prepareLaunch'> = window.lumora
 ): LaunchPreflightResult {
   const requestKey = request === null ? null : JSON.stringify(request);
   const generation = useRef(0);
@@ -63,7 +65,7 @@ export function useLaunchPreflight(
       status: 'preparing',
       preview: null
     });
-    void window.lumora.prepareLaunch(request).then(
+    void api.prepareLaunch(request).then(
       (preview) => {
         if (generation.current !== currentGeneration) return;
         setStored({ requestKey, status: 'ready', preview });
@@ -79,7 +81,7 @@ export function useLaunchPreflight(
         generation.current += 1;
       }
     };
-  }, [requestKey, retryVersion]);
+  }, [api, requestKey, retryVersion]);
 
   const retry = useCallback(() => {
     if (requestKey === null) return;

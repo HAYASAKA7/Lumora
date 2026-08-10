@@ -59,7 +59,7 @@ const launchSpec: LaunchSpec = {
 };
 
 class FakePty implements PtyProcess {
-  readonly pid = 4321;
+  constructor(readonly pid: number | null = 4321) {}
   readonly writes: string[] = [];
   readonly resizes: Array<[number, number]> = [];
   killed = false;
@@ -134,8 +134,9 @@ function harness(options: {
   exitDuringWait?: number;
   exitOnWaitCall?: number;
   exitOnWaitCode?: number;
+  remote?: boolean;
 } = {}) {
-  const pty = new FakePty();
+  const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
   const stored: RuntimeSummary[] = [];
   const repository = {
@@ -166,7 +167,7 @@ function harness(options: {
   const startReconciliation = vi.fn();
   let waitCallCount = 0;
   let spawnCount = 0;
-  const spawn = vi.fn((_options: PtySpawnOptions) => {
+  const spawn = vi.fn(async (_options: PtySpawnOptions) => {
     if (options.spawnError !== undefined) throw options.spawnError;
     const current = ptys[spawnCount] ?? new FakePty();
     if (ptys[spawnCount] === undefined) ptys.push(current);
@@ -174,12 +175,18 @@ function harness(options: {
     return current;
   });
   let runtimeIdCount = 0;
+  const resolveInvocation = vi.fn(() => ({
+    executablePath: launchSpec.executablePath,
+    args: [...launchSpec.args],
+    env: {}
+  }));
   const host = new RuntimeHost({
     repository,
     consumeLaunch: vi.fn(async () => options.launch ?? launchSpec),
     spawn,
     startReconciliation,
     platform: options.platform ?? 'linux',
+    ...(options.remote ? { resolveInvocation } : {}),
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => {
       const suffix = runtimeIdCount === 0 ? 'abc' : 'abd';
@@ -196,10 +203,37 @@ function harness(options: {
       }
     })
   });
-  return { host, pty, ptys, repository, spawn, startReconciliation };
+  return {
+    host,
+    pty,
+    ptys,
+    repository,
+    spawn,
+    startReconciliation,
+    resolveInvocation
+  };
 }
 
 describe('RuntimeHost', () => {
+  it('awaits an asynchronous remote PTY and preserves its nullable pid', async () => {
+    const { host, spawn, resolveInvocation } = harness({ remote: true });
+
+    const runtime = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+
+    expect(runtime.pid).toBeNull();
+    expect(resolveInvocation).toHaveBeenCalledOnce();
+    expect(spawn).toHaveBeenCalledWith({
+      executablePath: launchSpec.executablePath,
+      args: launchSpec.args,
+      env: {},
+      cwd: launchSpec.workingDirectory,
+      cols: launchSpec.cols,
+      rows: launchSpec.rows
+    });
+  });
+
   it('persists launch transitions and forwards input and resize', async () => {
     const { host, pty, repository, spawn, startReconciliation } = harness();
     const events: RuntimeEvent[] = [];

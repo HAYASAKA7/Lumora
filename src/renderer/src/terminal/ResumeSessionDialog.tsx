@@ -4,6 +4,7 @@ import type {
   LaunchPrepareRequest,
   LaunchPreview,
   GeneralSettings,
+  LumoraApi,
   ProviderId,
   ProviderScanResult,
   RuntimeSummary,
@@ -21,6 +22,7 @@ import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
 interface ResumeSessionDialogProps {
+  api?: LumoraApi;
   session: SessionSummary;
   workspace: WorkspaceSummary;
   generalSettings: GeneralSettings;
@@ -32,6 +34,7 @@ interface ResumeSessionDialogProps {
 }
 
 export function ResumeSessionDialog({
+  api = window.lumora,
   session,
   workspace,
   generalSettings,
@@ -189,7 +192,7 @@ export function ResumeSessionDialog({
       supportsStartPrompt
     ]
   );
-  const preflight = useLaunchPreflight(request);
+  const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
 
   useEffect(() => {
@@ -220,7 +223,7 @@ export function ResumeSessionDialog({
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
-          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          await api.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
           if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
@@ -237,7 +240,7 @@ export function ResumeSessionDialog({
         }
       }
       try {
-        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);
       } catch {

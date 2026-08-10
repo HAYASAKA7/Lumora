@@ -20,17 +20,23 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remote Node.js, npm, and target-enabled agent CLIs with paths, versions,
   manual refresh, and per-target provider preferences.
 - Add a target-scoped remote Lumora shell with Home, Workspaces, All sessions,
-  and Settings; a normalized read-only catalog; bounded pagination; explicit
-  per-provider coverage; and metadata discovery for Codex, Claude Code,
-  Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code. Remote resume and
-  terminal execution remain unavailable.
+  and Settings; a normalized metadata-only catalog; bounded pagination;
+  explicit per-provider coverage; and metadata discovery for Codex, Claude
+  Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code.
+- Add SSH PTY-backed remote terminals with new-session and exact same-provider
+  resume for all six session-managed providers on Windows, macOS, and Linux
+  targets.
+- Add target-scoped provider start-command customization under remote
+  **Settings > Launch**, isolated from local Lumora launch settings.
 
 ### Changed
 
 - Make isolated remote windows use Lumora's global theme, managed background,
   opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
 - Reuse Lumora's main shell and catalog views after a remote target reaches
-  ready, while keeping the pre-connection and helper setup flow isolated.
+  ready, while keeping the pre-connection and helper setup flow isolated. The
+  shared new/resume dialogs, terminal tabs, viewport, details, clipboard,
+  shortcut capture, and stop behavior are reused in the remote shell.
 
 ### Fixed
 
@@ -43,8 +49,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   credentials or raw remote diagnostics.
 - Detect unexpected SSH transport closure, release target resources, and keep
   the current remote page and cached catalog visible with a reconnect banner.
-
-### Fixed
+- Reconcile newly started remote provider sessions back to their native catalog
+  identity and safely handle repeated close, late PTY events, missing exit
+  codes, disconnect, profile mutation, and application shutdown.
 
 - Stop superseded launch-preflight requests from surfacing as terminal IPC
   failures while keeping their launch tokens unusable.
@@ -65,6 +72,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   at the main-process boundary, and bound command output, page size, page count,
   record count, file enumeration, file reads, provider protocol traffic, and
   control-frame size.
+- Resolve remote launch authority from the immutable sender-window target,
+  validate absolute provider/workspace paths and shell arguments in the main
+  process, and deliver PTY events only to that target's isolated window.
 - Expose only a read-only appearance projection to isolated remote windows;
   appearance mutations remain restricted to the local Lumora window.
 

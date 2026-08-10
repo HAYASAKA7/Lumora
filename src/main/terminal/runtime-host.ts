@@ -32,7 +32,7 @@ export interface Disposable {
 }
 
 export interface PtyProcess {
-  readonly pid: number;
+  readonly pid: number | null;
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
@@ -65,7 +65,11 @@ interface RuntimeRepository {
 interface RuntimeHostDependencies {
   repository: RuntimeRepository;
   consumeLaunch(token: string): Promise<LaunchSpec>;
-  spawn(options: PtySpawnOptions): PtyProcess;
+  spawn(options: PtySpawnOptions): PtyProcess | Promise<PtyProcess>;
+  resolveInvocation?(spec: LaunchSpec): Pick<
+    PtySpawnOptions,
+    'executablePath' | 'args' | 'env'
+  >;
   startReconciliation(request: ReconciliationRequest): void;
   platform: SystemInfo['platform'];
   clock?: () => Date;
@@ -127,6 +131,9 @@ export class RuntimeHost {
   private readonly createRuntimeId: () => string;
   private readonly wait: (milliseconds: number) => Promise<void>;
   private readonly scheduleOutputFlush: (callback: () => void) => void;
+  private readonly resolveInvocation: NonNullable<
+    RuntimeHostDependencies['resolveInvocation']
+  >;
 
   constructor(private readonly dependencies: RuntimeHostDependencies) {
     this.clock = dependencies.clock ?? (() => new Date());
@@ -134,6 +141,15 @@ export class RuntimeHost {
     this.wait = dependencies.wait ?? defaultWait;
     this.scheduleOutputFlush =
       dependencies.scheduleOutputFlush ?? queueMicrotask;
+    this.resolveInvocation = dependencies.resolveInvocation ?? ((spec) =>
+      resolvePtyInvocation({
+        platform: this.dependencies.platform,
+        executablePath: spec.executablePath,
+        args: spec.args,
+        command: spec.command,
+        env: spec.environment,
+        terminalProfile: spec.terminalProfile
+      }));
   }
 
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
@@ -177,15 +193,8 @@ export class RuntimeHost {
 
     let process: PtyProcess;
     try {
-      const invocation = resolvePtyInvocation({
-        platform: this.dependencies.platform,
-        executablePath: spec.executablePath,
-        args: spec.args,
-        command: spec.command,
-        env: spec.environment,
-        terminalProfile: spec.terminalProfile
-      });
-      process = this.dependencies.spawn({
+      const invocation = this.resolveInvocation(spec);
+      process = await this.dependencies.spawn({
         ...invocation,
         cwd: spec.workingDirectory,
         cols: spec.cols,

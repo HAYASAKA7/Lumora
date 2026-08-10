@@ -8,6 +8,7 @@ import { RemoteProviderPreferenceRepository } from '../storage/remote-provider-p
 import type { RemotePlatformFacts } from './platform-probe';
 import { resolveRemoteHelperArtifact } from './helper-artifact-resolver';
 import type { ConnectedRemoteSshClient } from './ssh-client';
+import { createRemoteSessionRuntime } from './remote-session-runtime';
 import {
   createRemoteTargetService,
   type RemoteTargetService
@@ -26,7 +27,7 @@ interface CreateRemoteTargetRuntimeOptions {
 
 export interface RemoteTargetRuntime {
   service: RemoteTargetService;
-  close(): void;
+  close(): Promise<void>;
 }
 
 export function createRemoteTargetRuntime({
@@ -48,7 +49,8 @@ export function createRemoteTargetRuntime({
   targets.resetRemoteConnectionStates();
   const profiles = new RemoteConnectionProfileRepository(database);
   const providerPreferences = new RemoteProviderPreferenceRepository(database);
-  const service = createRemoteTargetService({
+  let service!: RemoteTargetService;
+  service = createRemoteTargetService({
     targets,
     profiles,
     providerPreferences,
@@ -56,6 +58,23 @@ export function createRemoteTargetRuntime({
     ...(createTargetId === undefined ? {} : { createTargetId }),
     ...(ssh === undefined ? {} : { ssh }),
     ...(probePlatform === undefined ? {} : { probePlatform }),
+    createSessionRuntime: ({
+      executionTargetId,
+      platform,
+      defaultShell,
+      ssh: connectedSsh
+    }) => createRemoteSessionRuntime({
+      database,
+      executionTargetId,
+      platform,
+      defaultShell,
+      scanDiscovery: () => service.scanDiscovery(executionTargetId),
+      scanSessions: () => service.scanSessions(executionTargetId),
+      enabledProviders: () =>
+        service.getProviderPreferences(executionTargetId).enabledProviders,
+      openPty: (command, size) => connectedSsh.openPtyExec(command, size),
+      ...(clock === undefined ? {} : { clock })
+    }),
     resolveHelperArtifact: (facts) => {
       if (facts.platform === 'unknown' || facts.architecture === 'unknown') {
         throw new Error('The remote helper target is unsupported.');
@@ -71,11 +90,14 @@ export function createRemoteTargetRuntime({
 
   return {
     service,
-    close() {
+    async close() {
       if (closed) return;
       closed = true;
-      service.close();
-      database.close();
+      try {
+        await service.close();
+      } finally {
+        database.close();
+      }
     }
   };
 }

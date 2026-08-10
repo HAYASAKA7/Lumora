@@ -5,6 +5,7 @@ import type {
   LaunchSettingsLayerInput,
   LaunchSettingsScope,
   LaunchSettingsValue,
+  LumoraApi,
   ProviderId,
   SessionSummary,
   TerminalProfile,
@@ -84,11 +85,13 @@ function targetOptions(
 }
 
 export function LaunchSettingsPanel({
+  api = window.lumora,
   enabledProviders = ALL_PROVIDERS,
   profiles,
   sessions,
   workspaces
 }: {
+  api?: LumoraApi;
   enabledProviders?: readonly ProviderId[];
   profiles: readonly TerminalProfile[];
   sessions: readonly SessionSummary[];
@@ -107,7 +110,7 @@ export function LaunchSettingsPanel({
 
   useEffect(() => {
     let active = true;
-    void window.lumora.getLaunchSettingsLayers().then(
+    void api.getLaunchSettingsLayers().then(
       (values) => {
         if (!active) return;
         setLayers(values);
@@ -122,7 +125,7 @@ export function LaunchSettingsPanel({
     return () => {
       active = false;
     };
-  }, []);
+  }, [api]);
 
   const options = useMemo(
     () => targetOptions(scope, enabledProviders, workspaces, sessions),
@@ -235,7 +238,7 @@ export function LaunchSettingsPanel({
     if (targetId === '') return;
     setSaving(true);
     setError(null);
-    void window.lumora.saveLaunchSettingsLayer(inputFor(settings)).then(
+    void api.saveLaunchSettingsLayer(inputFor(settings)).then(
       (values) => {
         setLayers(values);
         setSaving(false);

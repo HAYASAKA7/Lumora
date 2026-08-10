@@ -8,6 +8,7 @@ export interface TargetWindowLike {
   webContents: {
     id: number;
     isDestroyed(): boolean;
+    send(channel: string, payload: unknown): void;
   };
   isDestroyed(): boolean;
   isMinimized(): boolean;
@@ -88,6 +89,20 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
 
   return {
     open,
+    send(
+      input: RemoteExecutionTargetId,
+      channel: string,
+      payload: unknown
+    ): void {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const window = windows.get(id);
+      if (
+        window === undefined ||
+        window.isDestroyed() ||
+        window.webContents.isDestroyed()
+      ) return;
+      window.webContents.send(channel, payload);
+    },
     close(input: RemoteExecutionTargetId): void {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const window = windows.get(id);

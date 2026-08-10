@@ -49,8 +49,8 @@ function createHarness(context: LumoraWindowContext) {
     list: vi.fn(() => [summary]),
     get: vi.fn(() => summary),
     create: vi.fn(() => summary),
-    update: vi.fn(() => summary),
-    remove: vi.fn(),
+    update: vi.fn().mockResolvedValue(summary),
+    remove: vi.fn().mockResolvedValue(undefined),
     observeHostKey: vi.fn().mockResolvedValue({
       executionTargetId: TARGET_ID,
       fingerprint: 'SHA256:57qsnZ7C9rC8S3dftMDSqdHcpZ+PZfNclRBfXZXp0mM'
@@ -61,7 +61,7 @@ function createHarness(context: LumoraWindowContext) {
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash'
     }),
-    disconnect: vi.fn(() => summary),
+    disconnect: vi.fn().mockResolvedValue(summary),
     getHelperInstallDetails: vi.fn(() => ({
       status: 'missing' as const,
       helperVersion: '0.1.0',

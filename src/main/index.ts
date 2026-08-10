@@ -22,6 +22,7 @@ import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
   PlatformSchema,
+  RemoteExecutionTargetIdSchema,
   TrayResumeSessionRequestSchema
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
@@ -193,6 +194,7 @@ let terminalRuntime: TerminalRuntime | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
+let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let activeStartupBackgroundActivity:
   | StartupBackgroundActivityController
@@ -671,9 +673,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
-    resolveRuntime: (context) =>
-      executionTargetGateway.resolve(context).terminal,
+    authorize: authorizeTargetIpc,
+    resolveRuntime: (context) => {
+      if (context.executionTargetId === LOCAL_EXECUTION_TARGET_ID) {
+        return executionTargetGateway.resolve(context).terminal;
+      }
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      return remoteTargetRuntime.service.resolveSessionRuntime(
+        RemoteExecutionTargetIdSchema.parse(context.executionTargetId)
+      );
+    },
     subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
     sendRuntimeEvent: (event) => {
@@ -686,6 +697,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  unsubscribeRemoteTerminalEvents =
+    remoteTargetRuntime.service.subscribeSessionRuntimeEvents(
+      (executionTargetId, event) => {
+        targetWindowManager.send(
+          executionTargetId,
+          IPC_CHANNELS.runtimeEvent,
+          event
+        );
+      }
+    );
 
   await mainWindowCreation.ensureCreated();
   createApplicationTray();
@@ -719,6 +740,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   shutdownStarted = true;
   const runtime = terminalRuntime;
+  const remoteRuntime = remoteTargetRuntime;
   const transfer = transferRuntime;
   void (async () => {
     try {
@@ -734,8 +756,12 @@ app.on('before-quit', (event) => {
       try {
         await Promise.all([
           runtime?.shutdown() ?? Promise.resolve(),
+          remoteRuntime?.close() ?? Promise.resolve(),
           flushWindowState()
         ]);
+        if (remoteTargetRuntime === remoteRuntime) {
+          remoteTargetRuntime = null;
+        }
       } catch (error) {
         shutdownErrors.push(error);
       }
@@ -746,8 +772,10 @@ app.on('before-quit', (event) => {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
     } finally {
       targetWindowManager.closeAll();
-      remoteTargetRuntime?.close();
+      void remoteTargetRuntime?.close();
       remoteTargetRuntime = null;
+      unsubscribeRemoteTerminalEvents?.();
+      unsubscribeRemoteTerminalEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
       runtime?.close();
@@ -763,8 +791,10 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {
   targetWindowManager.closeAll();
-  remoteTargetRuntime?.close();
+  void remoteTargetRuntime?.close();
   remoteTargetRuntime = null;
+  unsubscribeRemoteTerminalEvents?.();
+  unsubscribeRemoteTerminalEvents = null;
   trayController?.dispose();
   trayController = null;
   unsubscribeTerminalEvents?.();

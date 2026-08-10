@@ -131,7 +131,7 @@ export function registerTargetIpc({
       const request = RemoteTargetUpdateRequestSchema.parse(input);
       await beforeProfileMutation(request.executionTargetId);
       return RemoteTargetSummarySchema.parse(
-        service.update(request.executionTargetId, request.profile)
+        await service.update(request.executionTargetId, request.profile)
       );
     });
   });
@@ -142,7 +142,7 @@ export function registerTargetIpc({
     return protectedOperation(async () => {
       const request = RemoteTargetIdRequestSchema.parse(input);
       await beforeProfileMutation(request.executionTargetId);
-      service.remove(request.executionTargetId);
+      await service.remove(request.executionTargetId);
       return RemoteTargetRemovalResultSchema.parse({ removed: true });
     });
   });
@@ -184,11 +184,11 @@ export function registerTargetIpc({
 
   ipc.handle(IPC_CHANNELS.remoteTargetDisconnect, async (event, input) => {
     const context = authorize(event);
-    return protectedOperation(() => {
+    return protectedOperation(async () => {
       const request = RemoteTargetIdRequestSchema.parse(input);
       requireTargetScope(context, request.executionTargetId);
       return RemoteTargetSummarySchema.parse(
-        service.disconnect(request.executionTargetId)
+        await service.disconnect(request.executionTargetId)
       );
     });
   });

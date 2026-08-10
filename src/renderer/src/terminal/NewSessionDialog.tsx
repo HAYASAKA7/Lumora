@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   LaunchPrepareRequest,
   LaunchPreview,
+  LumoraApi,
   ProviderId,
   ProviderScanResult,
   RuntimeSummary,
@@ -14,6 +15,7 @@ import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 
 interface NewSessionDialogProps {
+  api?: LumoraApi;
   initialWorkspaceId?: string | null;
   workspaces: readonly WorkspaceSummary[];
   profiles: readonly TerminalProfile[];
@@ -23,6 +25,7 @@ interface NewSessionDialogProps {
 }
 
 export function NewSessionDialog({
+  api = window.lumora,
   initialWorkspaceId = null,
   workspaces,
   profiles,
@@ -117,7 +120,7 @@ export function NewSessionDialog({
       : null,
     [canPrepare, profileId, provider, startPrompt, supportsStartPrompt, workspaceId]
   );
-  const preflight = useLaunchPreflight(request);
+  const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
 
   useEffect(() => {
@@ -148,7 +151,7 @@ export function NewSessionDialog({
       let confirmedPreview = preview;
       if (!preview.workspaceTrusted) {
         try {
-          await window.lumora.trustWorkspaceForLaunch(preview.launchToken);
+          await api.trustWorkspaceForLaunch(preview.launchToken);
           confirmedPreview = { ...preview, workspaceTrusted: true };
         } catch {
           if (!preflight.isCurrentLaunchToken(preview.launchToken)) {
@@ -165,7 +168,7 @@ export function NewSessionDialog({
         }
       }
       try {
-        const runtime = await window.lumora.startRuntime(preview.launchToken);
+        const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);
       } catch {

@@ -19,8 +19,9 @@ export const POSIX_PLATFORM_PROBE_COMMAND = [
 export const WINDOWS_PLATFORM_PROBE_COMMAND =
   `powershell -NoProfile -NonInteractive -Command ` +
   `"[Console]::OutputEncoding=[Text.Encoding]::UTF8; ` +
+  `$shell=(Get-Command powershell.exe -ErrorAction Stop).Source;` +
   `$value=[ordered]@{platform='win32';architecture=$env:PROCESSOR_ARCHITECTURE;` +
-  `homeDirectory=$HOME;helperBaseDirectory=$env:LOCALAPPDATA;defaultShell='powershell.exe'};` +
+  `homeDirectory=$HOME;helperBaseDirectory=$env:LOCALAPPDATA;defaultShell=$shell};` +
   `$value|ConvertTo-Json -Compress"`;
 
 export interface RemoteCommandResult {

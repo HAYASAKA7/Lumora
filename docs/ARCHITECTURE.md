@@ -107,9 +107,18 @@ replacement upload has passed verification and the user confirmed replacement.
 
 The helper uses length-prefixed, schema-validated frames with bounded payloads,
 timeouts, generation-bound request IDs, and an initial compatibility handshake.
-The current capabilities are limited to system information and allowlisted
-provider discovery; session operations and PTY streaming remain later remote
-phases.
+The helper capabilities cover system information, allowlisted provider
+discovery, and bounded provider-owned session metadata. Interactive execution
+does not turn the helper into a daemon: the Electron main process opens a
+separate SSH PTY channel for each authorized remote runtime, while the helper
+continues to own only bounded discovery.
+
+Remote launch preparation resolves the target from the immutable sender-window
+context, refreshes target-scoped discovery and catalog state, and revalidates
+the provider executable, workspace, native session identity, start command,
+and workspace trust in the main process. Target-specific launch settings live
+in the target's terminal repository. Runtime events are routed only to the
+matching isolated window; local windows never subscribe to remote PTY output.
 
 ## Provider model
 
