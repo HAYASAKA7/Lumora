@@ -269,6 +269,36 @@ func TestCommandSpecUsesFixedPowerShellBridgeForWindowsWrappers(t *testing.T) {
 	}
 }
 
+func TestRunBoundedMakesExecutableCompanionsAvailableOnPath(t *testing.T) {
+	directory := t.TempDir()
+	probeName := "npm"
+	companionName := "lumora-companion"
+	probeContents := "#!/bin/sh\nlumora-companion\n"
+	companionContents := "#!/bin/sh\necho 10.9.4\n"
+	if runtime.GOOS == "windows" {
+		probeName += ".cmd"
+		companionName += ".cmd"
+		probeContents = "@echo off\r\nlumora-companion.cmd\r\n"
+		companionContents = "@echo off\r\necho 10.9.4\r\n"
+	}
+	probe := filepath.Join(directory, probeName)
+	companion := filepath.Join(directory, companionName)
+	if err := os.WriteFile(probe, []byte(probeContents), 0o755); err != nil {
+		t.Fatalf("create probe fixture: %v", err)
+	}
+	if err := os.WriteFile(companion, []byte(companionContents), 0o755); err != nil {
+		t.Fatalf("create companion fixture: %v", err)
+	}
+
+	output, err := runBounded(context.Background(), probe, nil, 2*time.Second)
+	if err != nil {
+		t.Fatalf("probe could not resolve its companion: %v", err)
+	}
+	if output != "10.9.4" {
+		t.Fatalf("unexpected probe output: %q", output)
+	}
+}
+
 func value(input *string) string {
 	if input == nil {
 		return ""

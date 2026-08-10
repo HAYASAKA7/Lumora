@@ -7,6 +7,7 @@ import type {
   RemoteTargetCredentials
 } from '../../shared/contracts';
 import type { RemoteHelperSessionScanResult } from '../../shared/remote-helper-protocol';
+import { RemoteHelperConnectionError } from './helper-connection';
 import { createRemoteTargetService } from './remote-target-service';
 import {
   RemoteSshError,
@@ -678,5 +679,29 @@ describe('remote target service', () => {
     );
     await expect(service.close()).resolves.toBeUndefined();
     await expect(service.close()).resolves.toBeUndefined();
+  });
+
+  it('returns a retryable provider diagnostic when a helper session scan times out', async () => {
+    const harness = createHarness();
+    harness.providerPreferences.get.mockReturnValue(['codex']);
+    harness.helper.scanSessionPage.mockRejectedValue(
+      new RemoteHelperConnectionError('HELPER_TIMEOUT')
+    );
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(catalog.providers).toEqual([{
+      provider: 'codex', status: 'failed', sessionCount: 0, invalidCount: 0
+    }]);
+    expect(catalog.snapshot.diagnostics).toEqual([
+      expect.objectContaining({
+        provider: 'codex',
+        message: 'Codex remote catalog scan failed.',
+        retryable: true
+      })
+    ]);
   });
 });

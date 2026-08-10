@@ -68,7 +68,52 @@ function runtimeApiDefaults() {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => { resolve = complete; });
+  return { promise, resolve };
+}
+
 describe('RemoteTargetWindow', () => {
+  it('waits for remote discovery before scanning sessions on the shared helper channel', async () => {
+    const discoveryPending = deferred<typeof discovery>();
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn(() => discoveryPending.promise),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [], providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledOnce());
+    expect(api.scanRemoteSessions).not.toHaveBeenCalled();
+
+    discoveryPending.resolve(discovery);
+    await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledOnce());
+  });
+
   it('uses the shared Lumora shell and remote-scoped routes after connection', async () => {
     const readySummary = {
       ...summary,

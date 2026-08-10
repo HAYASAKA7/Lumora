@@ -43,6 +43,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Standardize dropdowns across local and remote catalogs, session workflows,
   settings, terminal profiles, and transfers on Lumora's overlay menu, and use
   a Lumora confirmation dialog when opening terminal links.
+- Let remotely discovered npm and provider wrappers resolve companion runtimes
+  from their installation directory when reading versions.
+- Serialize automatic remote discovery and session scans over the helper
+  channel, and report recoverable provider scan failures inside the catalog
+  instead of raising a generic remote-target IPC error.
 
 - Ensure `npm run dev` builds a missing or stale verified remote-helper bundle
   before Electron starts, while reusing an already current bundle in subsequent

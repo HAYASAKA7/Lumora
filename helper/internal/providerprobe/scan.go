@@ -380,6 +380,7 @@ func runBounded(
 	defer cancel()
 	commandPath, commandArgs := commandSpec(executable, args)
 	command := exec.CommandContext(ctx, commandPath, commandArgs...)
+	command.Env = environmentWithExecutableDirectory(executable)
 	output := &boundedBuffer{}
 	command.Stdout = output
 	command.Stderr = output
@@ -396,6 +397,27 @@ func runBounded(
 		return "", errors.New("probe output exceeded limit")
 	}
 	return strings.TrimSpace(output.buffer.String()), nil
+}
+
+func environmentWithExecutableDirectory(executable string) []string {
+	environment := os.Environ()
+	directory := filepath.Dir(executable)
+	for index, variable := range environment {
+		key, value, found := strings.Cut(variable, "=")
+		if !found || !isPathEnvironmentKey(key) {
+			continue
+		}
+		environment[index] = key + "=" + directory + string(os.PathListSeparator) + value
+		return environment
+	}
+	return append(environment, "PATH="+directory)
+}
+
+func isPathEnvironmentKey(key string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(key, "PATH")
+	}
+	return key == "PATH"
 }
 
 func commandSpec(executable string, args []string) (string, []string) {

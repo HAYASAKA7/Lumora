@@ -394,12 +394,16 @@ export function RemoteTargetWindow({
       summary?.target.connectionState !== 'ready'
     ) return;
     if (sessionCatalog.state !== 'idle') return;
+    if (
+      summary.target.capabilities.includes('provider-scan') &&
+      (discovery.state === 'idle' || discovery.state === 'loading')
+    ) return;
     if (!summary.target.capabilities.includes('session-scan')) {
       setSessionCatalog({ state: 'unsupported' });
       return;
     }
     void refreshSessions();
-  }, [page, refreshSessions, sessionCatalog.state, summary]);
+  }, [discovery.state, page, refreshSessions, sessionCatalog.state, summary]);
 
   useEffect(() => {
     if (summary?.target.connectionState === 'ready') setShellOpened(true);

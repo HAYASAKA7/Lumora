@@ -27,6 +27,7 @@ import type { RemotePlatformFacts } from './platform-probe';
 import { probeRemotePlatform } from './platform-probe';
 import {
   connectRemoteHelper,
+  RemoteHelperConnectionError,
   type ConnectedRemoteHelper
 } from './helper-connection';
 import type { VerifiedRemoteHelperArtifact } from './helper-artifact-resolver';
@@ -850,9 +851,37 @@ export function createRemoteTargetService({
       const enabled = new Set(providerPreferences.get(id));
       const providers = SESSION_PROVIDER_IDS.filter((provider) => enabled.has(provider));
       try {
-        const results = [];
-        for (const provider of providers) {
-          results.push(await scanProviderSessions(active.helper, provider));
+        const results: Awaited<ReturnType<typeof scanProviderSessions>>[] = [];
+        for (let index = 0; index < providers.length; index += 1) {
+          const provider = providers[index]!;
+          try {
+            results.push(await scanProviderSessions(active.helper, provider));
+          } catch (error) {
+            if (!(error instanceof RemoteHelperConnectionError) ||
+              error.code === 'HELPER_INCOMPATIBLE') {
+              throw error;
+            }
+            results.push({
+              sessions: [],
+              provider: {
+                provider, status: 'failed', sessionCount: 0, invalidCount: 0
+              }
+            });
+            if (error.code === 'HELPER_TIMEOUT') {
+              for (const pendingProvider of providers.slice(index + 1)) {
+                results.push({
+                  sessions: [],
+                  provider: {
+                    provider: pendingProvider,
+                    status: 'failed',
+                    sessionCount: 0,
+                    invalidCount: 0
+                  }
+                });
+              }
+              break;
+            }
+          }
         }
         const scannedAt = clock().toISOString();
         const sessions = results
