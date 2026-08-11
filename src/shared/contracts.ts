@@ -36,6 +36,7 @@ export const ExecutionTargetArchitectureSchema = z.enum([
 ]);
 export const ExecutionTargetCapabilitySchema = z.enum([
   'provider-scan',
+  'provider-lifecycle',
   'session-scan',
   'pty',
   'persistent-runtime'
@@ -51,7 +52,7 @@ export const ExecutionTargetSchema = z.discriminatedUnion('kind', [
     connectionState: z.literal('local'),
     helperVersion: z.null(),
     protocolVersion: z.null(),
-    capabilities: z.array(ExecutionTargetCapabilitySchema).max(4),
+    capabilities: z.array(ExecutionTargetCapabilitySchema).max(5),
     lastConnectedAt: z.null(),
     lastScannedAt: z.iso.datetime().nullable()
   }),
@@ -73,7 +74,7 @@ export const ExecutionTargetSchema = z.discriminatedUnion('kind', [
     ]),
     helperVersion: z.string().trim().min(1).max(64).nullable(),
     protocolVersion: z.number().int().nonnegative().nullable(),
-    capabilities: z.array(ExecutionTargetCapabilitySchema).max(4),
+    capabilities: z.array(ExecutionTargetCapabilitySchema).max(5),
     lastConnectedAt: z.iso.datetime().nullable(),
     lastScannedAt: z.iso.datetime().nullable()
   })

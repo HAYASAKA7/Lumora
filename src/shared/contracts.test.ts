@@ -106,7 +106,9 @@ describe('execution target contracts', () => {
         connectionState: 'local',
         helperVersion: null,
         protocolVersion: null,
-        capabilities: ['provider-scan', 'session-scan', 'pty'],
+        capabilities: [
+          'provider-scan', 'provider-lifecycle', 'session-scan', 'pty'
+        ],
         lastConnectedAt: null,
         lastScannedAt: null
       }).id

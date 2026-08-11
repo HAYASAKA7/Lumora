@@ -23,7 +23,8 @@ import {
   LOCAL_EXECUTION_TARGET_ID,
   PlatformSchema,
   RemoteExecutionTargetIdSchema,
-  TrayResumeSessionRequestSchema
+  TrayResumeSessionRequestSchema,
+  type ProviderId
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
 import { AppearanceBackgroundStore } from './appearance/appearance-background-store';
@@ -657,9 +658,40 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   registerProviderIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
-    resolveServices: (context) =>
-      executionTargetGateway.resolve(context).providers,
+    authorize: authorizeTargetIpc,
+    resolveServices: (context) => {
+      if (context.executionTargetId === LOCAL_EXECUTION_TARGET_ID) {
+        return executionTargetGateway.resolve(context).providers;
+      }
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      const executionTargetId = RemoteExecutionTargetIdSchema.parse(
+        context.executionTargetId
+      );
+      return {
+        registry: {
+          scan: async () => (
+            await remoteTargetRuntime!.service.scanDiscovery(executionTargetId)
+          ).providers
+        },
+        updates: {
+          check: () => remoteTargetRuntime!.service.checkProviderUpdates(
+            executionTargetId
+          ),
+          install: (provider: ProviderId) =>
+            remoteTargetRuntime!.service.installProvider(
+              executionTargetId,
+              provider
+            ),
+          update: (provider: ProviderId) =>
+            remoteTargetRuntime!.service.updateProvider(
+              executionTargetId,
+              provider
+            )
+        }
+      };
+    },
     openExternal: (url) => shell.openExternal(url),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });

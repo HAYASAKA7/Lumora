@@ -11,6 +11,10 @@ describe('remote target application integration', () => {
     expect(mainSource).toContain('registerTargetIpc({');
     expect(mainSource).toContain('remoteTargetRuntime.service.get(executionTargetId)');
     expect(mainSource).toContain('targetWindowManager.open(executionTargetId)');
+    expect(mainSource).toContain('authorize: authorizeTargetIpc');
+    expect(mainSource).toContain('service.checkProviderUpdates(');
+    expect(mainSource).toContain('service.installProvider(');
+    expect(mainSource).toContain('service.updateProvider(');
   });
 
   it('closes target windows and SSH clients during application shutdown', () => {
