@@ -23,6 +23,19 @@ describe('remote target application integration', () => {
     expect(shutdown).toContain('remoteTargetRuntime?.close()');
   });
 
+  it('publishes authoritative lifecycle updates to local and target windows', () => {
+    expect(mainSource).toContain(
+      'remoteTargetRuntime.service.subscribeLifecycle((event) => {'
+    );
+    expect(mainSource).toContain(
+      'mainWindow.webContents.send(IPC_CHANNELS.remoteLifecycleEvent, event)'
+    );
+    expect(mainSource).toContain(
+      'IPC_CHANNELS.remoteLifecycleEvent,\n        event'
+    );
+    expect(mainSource).toContain('unsubscribeRemoteLifecycleEvents?.()');
+  });
+
   it('stops startup composition during shutdown and handles initialization failures', () => {
     const startup = mainSource.slice(
       mainSource.indexOf('if (hasSingleInstanceLock)')

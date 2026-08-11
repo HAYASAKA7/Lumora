@@ -41,6 +41,16 @@ const summary = {
   }
 } as const satisfies RemoteTargetSummary;
 
+const lifecycleSnapshot = {
+  summary,
+  generation: 0,
+  discovery: null,
+  catalog: null,
+  discoveryState: 'idle' as const,
+  catalogState: 'idle' as const,
+  activeTerminalCount: 0
+};
+
 type Handler = (event: unknown, ...args: unknown[]) => Promise<unknown>;
 
 function createHarness(context: LumoraWindowContext) {
@@ -48,6 +58,8 @@ function createHarness(context: LumoraWindowContext) {
   const service = {
     list: vi.fn(() => [summary]),
     get: vi.fn(() => summary),
+    listLifecycleSnapshots: vi.fn(() => [lifecycleSnapshot]),
+    getLifecycleSnapshot: vi.fn(() => lifecycleSnapshot),
     create: vi.fn(() => summary),
     update: vi.fn().mockResolvedValue(summary),
     remove: vi.fn().mockResolvedValue(undefined),
@@ -156,6 +168,7 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteTargetObserveHost,
       IPC_CHANNELS.remoteTargetTrustHost,
       IPC_CHANNELS.remoteTargetConnect,
+      IPC_CHANNELS.remoteLifecycleList,
       IPC_CHANNELS.remoteCredentialStatus,
       IPC_CHANNELS.remoteCredentialForget,
       IPC_CHANNELS.remoteAutoConnectPreferenceSave,
@@ -221,6 +234,8 @@ describe('registerTargetIpc', () => {
 
     await expect(handlers.get(IPC_CHANNELS.remoteTargetList)!(event))
       .resolves.toEqual([summary]);
+    await expect(handlers.get(IPC_CHANNELS.remoteLifecycleList)!(event))
+      .resolves.toEqual([lifecycleSnapshot]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: TARGET_ID,
       mode: 'manual',
@@ -267,6 +282,7 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     expect(service.connect).toHaveBeenCalledTimes(3);
+    expect(service.getLifecycleSnapshot).toHaveBeenCalledWith(TARGET_ID);
     expect(service.connect).toHaveBeenCalledWith(TARGET_ID, {
       executionTargetId: TARGET_ID,
       mode: 'remembered'

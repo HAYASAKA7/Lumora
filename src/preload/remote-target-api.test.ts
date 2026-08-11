@@ -33,6 +33,16 @@ const summary = {
   }
 } as const;
 
+const lifecycleSnapshot = {
+  summary,
+  generation: 0,
+  discovery: null,
+  catalog: null,
+  discoveryState: 'idle',
+  catalogState: 'idle',
+  activeTerminalCount: 0
+} as const;
+
 describe('remote target preload API', () => {
   it('validates and routes the target-management operations', async () => {
     const invoke = vi.fn(async (channel: string) => {
@@ -40,6 +50,9 @@ describe('remote target preload API', () => {
         return { mode: 'local', executionTargetId: 'local' };
       }
       if (channel === IPC_CHANNELS.remoteTargetList) return [summary];
+      if (channel === IPC_CHANNELS.remoteLifecycleList) {
+        return [lifecycleSnapshot];
+      }
       if (channel === IPC_CHANNELS.remoteTargetObserveHost) {
         return {
           executionTargetId: TARGET_ID,
@@ -102,6 +115,9 @@ describe('remote target preload API', () => {
       mode: 'local', executionTargetId: 'local'
     });
     await expect(api.listRemoteTargets()).resolves.toEqual([summary]);
+    await expect(api.listRemoteLifecycleSnapshots()).resolves.toEqual([
+      lifecycleSnapshot
+    ]);
     await expect(api.observeRemoteHost(TARGET_ID)).resolves.toMatchObject({
       executionTargetId: TARGET_ID
     });
@@ -147,6 +163,29 @@ describe('remote target preload API', () => {
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperDetails);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperInstall);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appearancePresentationGet);
+  });
+
+  it('validates remote lifecycle events before delivering them', () => {
+    let eventListener: ((value: unknown) => void) | undefined;
+    const listener = vi.fn();
+    const api = createLumoraApi(vi.fn(), (channel, callback) => {
+      if (channel === IPC_CHANNELS.remoteLifecycleEvent) {
+        eventListener = callback;
+      }
+      return vi.fn();
+    });
+
+    api.onRemoteLifecycleEvent(listener);
+    eventListener?.({
+      executionTargetId: TARGET_ID,
+      snapshot: lifecycleSnapshot
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      snapshot: lifecycleSnapshot
+    });
+    expect(() => eventListener?.({ type: 'updated' })).toThrow();
   });
 
   it('rejects malformed requests before invoking IPC', async () => {

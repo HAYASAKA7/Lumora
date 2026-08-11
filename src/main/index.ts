@@ -199,6 +199,7 @@ let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
+let unsubscribeRemoteLifecycleEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let remoteWindowStateManager: SharedWindowStateManager | null = null;
 let activeStartupBackgroundActivity:
@@ -786,6 +787,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         );
       }
     );
+  unsubscribeRemoteLifecycleEvents =
+    remoteTargetRuntime.service.subscribeLifecycle((event) => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.remoteLifecycleEvent, event);
+      }
+      targetWindowManager.send(
+        event.executionTargetId,
+        IPC_CHANNELS.remoteLifecycleEvent,
+        event
+      );
+    });
 
   await mainWindowCreation.ensureCreated();
   createApplicationTray();
@@ -856,6 +868,8 @@ app.on('before-quit', (event) => {
       remoteTargetRuntime = null;
       unsubscribeRemoteTerminalEvents?.();
       unsubscribeRemoteTerminalEvents = null;
+      unsubscribeRemoteLifecycleEvents?.();
+      unsubscribeRemoteLifecycleEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
       runtime?.close();
@@ -875,6 +889,8 @@ app.on('will-quit', () => {
   remoteTargetRuntime = null;
   unsubscribeRemoteTerminalEvents?.();
   unsubscribeRemoteTerminalEvents = null;
+  unsubscribeRemoteLifecycleEvents?.();
+  unsubscribeRemoteLifecycleEvents = null;
   trayController?.dispose();
   trayController = null;
   unsubscribeTerminalEvents?.();

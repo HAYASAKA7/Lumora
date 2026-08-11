@@ -37,6 +37,8 @@ import {
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteLifecycleEventSchema,
+  RemoteLifecycleListSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -100,6 +102,15 @@ export function createLumoraApi(
     async listRemoteTargets() {
       const value = await invoke(IPC_CHANNELS.remoteTargetList);
       return RemoteTargetListSchema.parse(value);
+    },
+    async listRemoteLifecycleSnapshots() {
+      const value = await invoke(IPC_CHANNELS.remoteLifecycleList);
+      return RemoteLifecycleListSchema.parse(value);
+    },
+    onRemoteLifecycleEvent(listener) {
+      return subscribe(IPC_CHANNELS.remoteLifecycleEvent, (value) => {
+        listener(RemoteLifecycleEventSchema.parse(value));
+      });
     },
     async createRemoteTarget(input) {
       const request = RemoteConnectionProfileInputSchema.parse(input);

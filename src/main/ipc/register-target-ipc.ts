@@ -7,6 +7,7 @@ import {
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteLifecycleListSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -49,7 +50,8 @@ interface RegisterTargetIpcDependencies {
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
     'getCredentialStatus' | 'setAutoConnect' | 'forgetCredential' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
-    'scanDiscovery' | 'scanSessions'>;
+    'scanDiscovery' | 'scanSessions' | 'listLifecycleSnapshots' |
+    'getLifecycleSnapshot'>;
   beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
 }
@@ -183,6 +185,15 @@ export function registerTargetIpc({
         request
       ));
     });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteLifecycleList, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(() => RemoteLifecycleListSchema.parse(
+      context.mode === 'local'
+        ? service.listLifecycleSnapshots()
+        : [service.getLifecycleSnapshot(context.executionTargetId)]
+    ));
   });
 
   ipc.handle(IPC_CHANNELS.remoteCredentialStatus, async (event, input) => {
