@@ -533,6 +533,34 @@ describe('remote target service', () => {
       .not.toContain('memory-only');
   });
 
+  it('publishes authoritative lifecycle snapshots with the latest catalog', async () => {
+    const harness = createHarness();
+    const lifecycle = harness.service as unknown as {
+      getLifecycleSnapshot?: (id: typeof TARGET_ID) => {
+        summary: { target: { connectionState: string } };
+        catalog: unknown;
+      };
+      subscribeLifecycle?: (listener: (event: unknown) => void) => () => void;
+    };
+
+    expect(lifecycle.getLifecycleSnapshot).toBeTypeOf('function');
+    expect(lifecycle.subscribeLifecycle).toBeTypeOf('function');
+    const listener = vi.fn();
+    const unsubscribe = lifecycle.subscribeLifecycle!(listener);
+
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(lifecycle.getLifecycleSnapshot!(TARGET_ID)).toMatchObject({
+      summary: { target: { connectionState: 'ready' } },
+      catalog
+    });
+    expect(listener).toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it('marks an active target offline when its SSH transport closes unexpectedly', async () => {
     const removeRuntimeListener = vi.fn();
     const sessionRuntime = {
