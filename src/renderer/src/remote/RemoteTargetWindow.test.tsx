@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_KEYBOARD_SETTINGS,
-  type LumoraApi
+  type LumoraApi,
+  type RemoteLifecycleEvent
 } from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
 
@@ -498,6 +499,71 @@ describe('RemoteTargetWindow', () => {
     await screen.findByLabelText('SSH password');
     expect(api.connectRemoteTarget).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+  });
+
+  it('clears the automatic connection action when ready lifecycle state rerenders the effect', async () => {
+    let lifecycleListener: ((event: RemoteLifecycleEvent) => void) | undefined;
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: []
+      }
+    };
+    const connectedDetails = {
+      ...readySummary,
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    };
+    const connection = deferred<typeof connectedDetails>();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      onRemoteLifecycleEvent: vi.fn((listener) => {
+        lifecycleListener = listener;
+        return () => undefined;
+      }),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      connectRemoteTarget: vi.fn(() => connection.promise),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    }));
+
+    act(() => lifecycleListener?.({
+      executionTargetId: TARGET_ID,
+      snapshot: {
+        summary: readySummary,
+        generation: 1,
+        discovery: null,
+        catalog: null,
+        discoveryState: 'idle',
+        catalogState: 'idle',
+        activeTerminalCount: 0
+      }
+    }));
+    connection.resolve(connectedDetails);
+
+    await screen.findByTestId('lumora-shell');
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Disconnect' })
+    ).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Disconnecting…' }))
+      .not.toBeInTheDocument();
   });
 
   it('connects explicitly with a remembered password without returning it to the renderer', async () => {

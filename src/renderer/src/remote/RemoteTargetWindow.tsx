@@ -277,6 +277,14 @@ export function RemoteTargetWindow({
     useState<RemoteWindowCloseRequest | null>(null);
   const autoScannedKey = useRef<string | null>(null);
   const automaticConnectionAttempted = useRef(false);
+  const componentMounted = useRef(false);
+
+  useEffect(() => {
+    componentMounted.current = true;
+    return () => {
+      componentMounted.current = false;
+    };
+  }, []);
 
   const applyLifecycleSnapshot = useCallback((
     snapshot: RemoteLifecycleSnapshot
@@ -398,12 +406,11 @@ export function RemoteTargetWindow({
     ) return;
 
     automaticConnectionAttempted.current = true;
-    let active = true;
     setBusy(true);
     setError(null);
     void api.connectRemoteTarget({ executionTargetId, mode: 'automatic' }).then(
       (connectedDetails) => {
-        if (!active) return;
+        if (!componentMounted.current) return;
         setSummary({
           target: connectedDetails.target,
           profile: connectedDetails.profile
@@ -412,12 +419,13 @@ export function RemoteTargetWindow({
         setSecret('');
       },
       (connectionError) => {
-        if (active) setError(remoteConnectionErrorMessage(connectionError));
+        if (componentMounted.current) {
+          setError(remoteConnectionErrorMessage(connectionError));
+        }
       }
     ).finally(() => {
-      if (active) setBusy(false);
+      if (componentMounted.current) setBusy(false);
     });
-    return () => { active = false; };
   }, [api, autoConnectOnOpen, executionTargetId, summary]);
 
   const refreshDiscovery = useCallback(async () => {
