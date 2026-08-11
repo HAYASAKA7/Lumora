@@ -19,6 +19,7 @@ type GlobalGeneralSettings = Pick<
   | 'startMaximized'
   | 'autoExpandSidebar'
   | 'windowCloseBehavior'
+  | 'remoteWindowCloseBehavior'
   | 'appearance'
 >;
 
@@ -40,6 +41,7 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
     startMaximized: settings.startMaximized,
     autoExpandSidebar: settings.autoExpandSidebar,
     windowCloseBehavior: settings.windowCloseBehavior,
+    remoteWindowCloseBehavior: settings.remoteWindowCloseBehavior,
     appearance: settings.appearance
   };
 }
@@ -81,7 +83,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 6,
+      version: 7,
       ...globalProjection(global),
       ...targetProjection(target)
     });
@@ -118,7 +120,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...(row === undefined ? {} : objectValue(parseJson(row.value_json))),
-      version: 6
+      version: 7
     });
     return parsed.success ? parsed.data : fallback;
   }
@@ -137,7 +139,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...objectValue(parseJson(row.value_json)),
-      version: 6
+      version: 7
     });
     return parsed.success ? parsed.data : fallback;
   }

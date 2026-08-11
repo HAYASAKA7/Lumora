@@ -22,7 +22,8 @@ describe('GeneralSettingsPanel', () => {
       'Auto-expand sidebar when navigating',
       'Show informational notices',
       'Enable cross-agent session handoff',
-      'Keep Lumora running after closing the window'
+      'Keep Lumora running after closing the window',
+      'Disconnect when a remote window closes'
     ];
     const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
@@ -36,6 +37,9 @@ describe('GeneralSettingsPanel', () => {
     })).not.toBeChecked();
     expect(screen.getByRole('switch', {
       name: 'Keep Lumora running after closing the window'
+    })).not.toBeChecked();
+    expect(screen.getByRole('switch', {
+      name: 'Disconnect when a remote window closes'
     })).not.toBeChecked();
     expect(screen.getByRole('button', {
       name: 'Temporary handoff retention'
@@ -70,6 +74,14 @@ describe('GeneralSettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       windowCloseBehavior: 'hide_to_tray'
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Disconnect when a remote window closes'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      remoteWindowCloseBehavior: 'disconnect'
     });
   });
 

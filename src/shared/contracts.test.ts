@@ -144,6 +144,16 @@ describe('execution target contracts', () => {
       })
     ).toThrow();
   });
+
+  it('defines strict remote lifecycle snapshots and events', () => {
+    const lifecycle = contracts as unknown as {
+      RemoteLifecycleSnapshotSchema?: { safeParse(value: unknown): { success: boolean } };
+      RemoteLifecycleEventSchema?: { safeParse(value: unknown): { success: boolean } };
+    };
+
+    expect(lifecycle.RemoteLifecycleSnapshotSchema).toBeDefined();
+    expect(lifecycle.RemoteLifecycleEventSchema).toBeDefined();
+  });
 });
 
 describe('ProviderIdSchema', () => {
@@ -1317,12 +1327,13 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 6,
+      version: 7,
       showInformationalNotices: true,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
       autoExpandSidebar: true,
       windowCloseBehavior: 'quit',
+      remoteWindowCloseBehavior: 'keep_connected',
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
       enabledProviders: [...PROVIDER_IDS],
@@ -1451,6 +1462,10 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
+    const versionSix = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    versionSix.version = 6;
+    delete versionSix.remoteWindowCloseBehavior;
+    expect(parseStoredGeneralSettings(versionSix)).toEqual(DEFAULT_GENERAL_SETTINGS);
     expect(parseStoredGeneralSettings({
       version: 1,
       showInformationalNotices: false

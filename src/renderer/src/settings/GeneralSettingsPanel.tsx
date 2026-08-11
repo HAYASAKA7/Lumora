@@ -128,6 +128,35 @@ export function GeneralSettingsPanel({
         </span>
       </label>
 
+      <label className="general-setting-card">
+        <span className="general-setting-copy">
+          <strong>Disconnect when a remote window closes</strong>
+          <span id="general-remote-window-close-description">
+            Close its SSH connection when the remote Lumora window closes.
+            Running remote agents require confirmation first.
+          </span>
+        </span>
+        <span className="settings-switch">
+          <input
+            aria-describedby="general-remote-window-close-description"
+            aria-label="Disconnect when a remote window closes"
+            checked={settings.remoteWindowCloseBehavior === 'disconnect'}
+            disabled={saving}
+            onChange={(event) => onChange({
+              ...settings,
+              remoteWindowCloseBehavior: event.currentTarget.checked
+                ? 'disconnect'
+                : 'keep_connected'
+            })}
+            role="switch"
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="settings-switch-track">
+            <span className="settings-switch-thumb" />
+          </span>
+        </span>
+      </label>
+
       <div className="general-setting-card general-setting-card-control">
         <span className="general-setting-copy">
           <strong>Temporary handoff retention</strong>

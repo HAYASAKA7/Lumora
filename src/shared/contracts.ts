@@ -960,12 +960,13 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
 } as const satisfies AppearanceSettings;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(6),
+  version: z.literal(7),
   showInformationalNotices: z.boolean(),
   startMaximized: z.boolean(),
   checkProviderUpdatesAutomatically: z.boolean(),
   autoExpandSidebar: z.boolean(),
   windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  remoteWindowCloseBehavior: z.enum(['keep_connected', 'disconnect']),
   crossAgentWorkflowEnabled: z.boolean(),
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema,
@@ -1008,6 +1009,48 @@ export const RemoteSessionCatalogSchema = z.strictObject({
   snapshot: CatalogSnapshotSchema
 });
 
+export const RemoteLifecycleScanStateSchema = z.enum([
+  'idle', 'refreshing', 'ready', 'error'
+]);
+export const RemoteLifecycleSnapshotSchema = z.strictObject({
+  summary: RemoteTargetSummarySchema,
+  generation: z.number().int().nonnegative(),
+  discovery: RemoteDiscoverySnapshotSchema.nullable(),
+  catalog: RemoteSessionCatalogSchema.nullable(),
+  discoveryState: RemoteLifecycleScanStateSchema,
+  catalogState: RemoteLifecycleScanStateSchema,
+  activeTerminalCount: z.number().int().nonnegative()
+}).superRefine((snapshot, context) => {
+  for (const [key, value] of [
+    ['discovery', snapshot.discovery],
+    ['catalog', snapshot.catalog]
+  ] as const) {
+    if (
+      value !== null &&
+      value.executionTargetId !== snapshot.summary.target.id
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: [key, 'executionTargetId'],
+        message: 'Remote lifecycle data belongs to another target.'
+      });
+    }
+  }
+});
+export const RemoteLifecycleEventSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  snapshot: RemoteLifecycleSnapshotSchema
+}).superRefine((event, context) => {
+  if (event.executionTargetId !== event.snapshot.summary.target.id) {
+    context.addIssue({
+      code: 'custom',
+      path: ['executionTargetId'],
+      message: 'Remote lifecycle event target does not match its snapshot.'
+    });
+  }
+});
+export const RemoteLifecycleListSchema = z.array(RemoteLifecycleSnapshotSchema);
+
 export type RemoteProviderPreferences = z.infer<
   typeof RemoteProviderPreferencesSchema
 >;
@@ -1023,21 +1066,42 @@ export type RemoteSessionProviderStatus = z.infer<
 export type RemoteSessionCatalog = z.infer<
   typeof RemoteSessionCatalogSchema
 >;
+export type RemoteLifecycleScanState = z.infer<
+  typeof RemoteLifecycleScanStateSchema
+>;
+export type RemoteLifecycleSnapshot = z.infer<
+  typeof RemoteLifecycleSnapshotSchema
+>;
+export type RemoteLifecycleEvent = z.infer<typeof RemoteLifecycleEventSchema>;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 6,
+  version: 7,
   showInformationalNotices: true,
   startMaximized: true,
   checkProviderUpdatesAutomatically: true,
   autoExpandSidebar: true,
   windowCloseBehavior: 'quit',
+  remoteWindowCloseBehavior: 'keep_connected',
   crossAgentWorkflowEnabled: false,
   crossAgentHandoffRetentionDays: 30,
   enabledProviders: [...PROVIDER_IDS],
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
+
+const VersionSixGeneralSettingsSchema = z.strictObject({
+  version: z.literal(6),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema,
+  appearance: AppearanceSettingsSchema
+});
 
 const VersionFiveAppearanceSettingsSchema = AppearanceSettingsSchema
   .omit({ surfaceMosaic: true })
@@ -1097,11 +1161,21 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionSix = VersionSixGeneralSettingsSchema.safeParse(value);
+  if (versionSix.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionSix.data,
+      version: 7,
+      remoteWindowCloseBehavior: 'keep_connected'
+    });
+  }
+
   const versionFive = VersionFiveGeneralSettingsSchema.safeParse(value);
   if (versionFive.success) {
     return GeneralSettingsSchema.parse({
       ...versionFive.data,
-      version: 6,
+      version: 7,
+      remoteWindowCloseBehavior: 'keep_connected',
       appearance: {
         ...versionFive.data.appearance,
         theme: versionFive.data.appearance.theme === 'system'
@@ -1117,7 +1191,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1126,7 +1200,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1135,7 +1209,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1527,6 +1601,8 @@ export const IPC_CHANNELS = {
   remoteProviderPreferencesSave: 'lumora:targets:providers:save',
   remoteDiscoveryScan: 'lumora:targets:discovery:scan',
   remoteSessionScan: 'lumora:targets:sessions:scan',
+  remoteLifecycleList: 'lumora:targets:lifecycle:list',
+  remoteLifecycleEvent: 'lumora:targets:lifecycle:event',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1587,6 +1663,10 @@ export const IPC_CHANNELS = {
 export interface LumoraApi {
   getWindowContext(): Promise<LumoraWindowContext>;
   listRemoteTargets(): Promise<RemoteTargetSummary[]>;
+  listRemoteLifecycleSnapshots(): Promise<RemoteLifecycleSnapshot[]>;
+  onRemoteLifecycleEvent(
+    listener: (event: RemoteLifecycleEvent) => void
+  ): () => void;
   createRemoteTarget(
     input: RemoteConnectionProfileInput
   ): Promise<RemoteTargetSummary>;
