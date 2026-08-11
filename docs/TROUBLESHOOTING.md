@@ -320,6 +320,35 @@ changed since the previous connection.
 compare it through a trusted channel with the remote computer. Trust it only
 when it matches. Never bypass a changed fingerprint.
 
+### A password or passphrase cannot be remembered
+
+**Symptom:** The profile's remember switch is disabled, or Lumora asks for the
+credential again after a restart.
+
+**Likely cause:** Operating-system secure storage is unavailable, the Linux
+desktop secret service is locked or missing, the credential was encrypted by a
+different operating-system user, or the profile authentication method changed.
+
+**Resolution:** Unlock or configure the current user's platform credential
+store, restart Lumora, and connect manually. On Linux, Lumora intentionally
+rejects Electron's `basic_text` fallback. Re-enter the credential and enable
+remembering only after secure storage reports available. Lumora cannot recover
+an encrypted credential from another OS account; forgetting it is safe and
+does not modify the remote computer.
+
+### Automatic remote connection stops at the connection page
+
+**Symptom:** Opening a remote Lumora window makes one connection attempt, then
+shows the manual controls.
+
+**Likely cause:** The remembered credential is missing or unavailable, the SSH
+agent has no usable identity, authentication failed, or the host fingerprint
+requires verification.
+
+**Resolution:** Verify the host identity in local Lumora, then connect manually
+with the current credential. Update the remember and automatic-connect switches
+for that profile. Lumora deliberately does not retry automatically in a loop.
+
 ### The remote helper is missing or incompatible
 
 **Symptom:** SSH authentication succeeds, but the remote state is
@@ -340,12 +369,14 @@ software is not removing the helper.
 **Symptom:** The remote helper reports ready, but Lumora does not show remote
 providers, sessions, or terminal controls.
 
-**Likely cause:** This is the current experimental boundary, not a discovery
-failure.
+**Likely cause:** No supported provider is enabled and detected, its remote
+catalog contains no sessions, or the helper/catalog scan failed.
 
-**Resolution:** No action is required. The current phase verifies SSH,
-platform detection, helper installation, and protocol compatibility. Remote
-provider discovery, catalogs, and PTY execution arrive in later phases.
+**Resolution:** Open remote **Settings > Environment** and **Providers**, verify
+the executable and enabled-provider selection, then refresh the catalog. Check
+the remote provider's own session directory and permissions if it remains
+empty. Remote provider discovery, catalogs, and SSH PTY execution are available
+in the current experimental remote feature.
 
 ## Development builds
 

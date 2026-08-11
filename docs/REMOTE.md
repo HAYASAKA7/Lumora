@@ -22,8 +22,19 @@ profile's isolated window and active SSH/helper resources before either
 mutation. Deletion requires an in-app confirmation and never removes files from
 the remote computer.
 
-Passwords and passphrases are connection-only values. Lumora does not save or
-log them.
+Passwords and private-key passphrases remain connection-only by default. Each
+profile can instead enable **Remember password** or **Remember passphrase**.
+Lumora saves only an operating-system-protected encrypted value and never logs
+or exposes it after submission. The remember control is unavailable when the
+operating system cannot provide secure credential storage; Lumora does not fall
+back to plain text.
+
+**Connect automatically** is also off by default and belongs to one profile.
+It supports password, private-key, and SSH-agent authentication. Password-based
+automatic connection becomes available after the password is selected for
+remembering; an unencrypted private key or SSH agent needs no saved secret.
+Opening the isolated remote window makes one automatic attempt. A failure does
+not loop, hide the manual controls, or bypass host-fingerprint verification.
 
 ## Activate the helper
 
@@ -149,7 +160,15 @@ tokens, raw installer output, or provider session contents.
 
 ## Manual test checklist
 
-- Add direct and SSH-config profiles without storing a secret.
+- Add direct and SSH-config profiles and confirm both remember and automatic
+  connection are off by default.
+- Remember a password and a private-key passphrase, reconnect successfully,
+  then turn remembering off and confirm the next connection asks again.
+- Enable automatic connection for password, private-key, and SSH-agent
+  profiles; confirm each remote window makes one attempt and leaves manual
+  recovery visible after failure.
+- Confirm remembering is disabled when secure OS storage is unavailable and
+  that no plain-text secret appears in the profile or routine logs.
 - Edit and delete disconnected profiles; confirm open target windows and SSH
   resources close before the profile changes.
 - Reject an untrusted or changed host fingerprint.

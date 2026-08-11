@@ -31,6 +31,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reuse the complete Provider Settings cards in remote Lumora, including
   target-specific start commands, public version checks, official guide links,
   and explicitly confirmed install/update actions for allowlisted npm providers.
+- Add opt-in per-profile remembering for SSH passwords and private-key
+  passphrases, protected by operating-system secure storage, plus opt-in
+  automatic connection for password, private-key, and SSH-agent profiles.
 
 ### Changed
 
@@ -101,6 +104,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   process, and deliver PTY events only to that target's isolated window.
 - Expose only a read-only appearance projection to isolated remote windows;
   appearance mutations remain restricted to the local Lumora window.
+- Keep remembered remote credentials outside ordinary profile data as
+  OS-protected encrypted blobs, reject insecure Linux fallback storage, remove
+  credentials on authentication changes or profile deletion, and limit
+  automatic connection to one host-verified attempt with manual recovery.
 
 ## [0.2.3] - 2026-08-03
 
