@@ -14,7 +14,10 @@ import {
   type ProviderId,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
+  type RemoteCredentialStatus,
+  type RemoteDiscoverySnapshot,
   type RemoteExecutionTargetId,
+  type RemoteSessionCatalog,
   type RemoteTargetCredentials,
   type RuntimeEvent,
   type SystemInfo
@@ -51,6 +54,7 @@ import {
   type ProviderUpdateService
 } from '../providers/provider-update-service';
 import type { ProviderReleaseSource } from '../providers/provider-release-source';
+import { createRemoteLifecycleStore } from './remote-lifecycle-store';
 
 type RemoteTarget = Extract<ExecutionTarget, { kind: 'remote' }>;
 
@@ -105,6 +109,38 @@ interface ProviderPreferenceRepository {
   ): readonly (typeof PROVIDER_IDS)[number][];
 }
 
+interface RemoteCredentialPreferenceRepository {
+  getAutoConnect(id: RemoteExecutionTargetId): boolean;
+  setAutoConnect(id: RemoteExecutionTargetId, enabled: boolean): void;
+}
+
+interface RemoteCredentialVaultAccess {
+  getStorageState(): Promise<RemoteCredentialStatus['storageState']>;
+  getCredentialState(
+    id: RemoteExecutionTargetId
+  ): RemoteCredentialStatus['credentialState'];
+  save(
+    id: RemoteExecutionTargetId,
+    kind: 'password' | 'private-key-passphrase',
+    secret: string
+  ): Promise<void>;
+  resolve(
+    id: RemoteExecutionTargetId,
+    kind: 'password' | 'private-key-passphrase'
+  ): Promise<string | null>;
+  forget(id: RemoteExecutionTargetId): void;
+}
+
+type RemoteConnectionInput = RemoteTargetCredentials | {
+  mode: 'manual';
+  credentials: RemoteTargetCredentials;
+  rememberCredential: boolean;
+} | {
+  mode: 'automatic';
+} | {
+  mode: 'remembered';
+};
+
 export interface RemoteTargetSummary {
   target: RemoteTarget;
   profile: RemoteConnectionProfile;
@@ -136,6 +172,8 @@ interface CreateRemoteTargetServiceOptions {
     ssh: ConnectedRemoteSshClient;
   }): RemoteSessionRuntime;
   providerPreferences?: ProviderPreferenceRepository;
+  credentialPreferences?: RemoteCredentialPreferenceRepository;
+  credentialVault?: RemoteCredentialVaultAccess;
   providerReleases?: ProviderReleaseSource;
   clock?: () => Date;
   createTargetId?: () => string;
@@ -350,6 +388,21 @@ export function createRemoteTargetService({
     get: () => [...PROVIDER_IDS],
     save: (_id, providers) => [...providers]
   },
+  credentialPreferences = {
+    getAutoConnect: () => false,
+    setAutoConnect: () => {
+      throw new Error('Remote credential preferences are unavailable.');
+    }
+  },
+  credentialVault = {
+    getStorageState: async () => 'unavailable' as const,
+    getCredentialState: () => 'none' as const,
+    save: async () => {
+      throw new Error('Remote credential storage is unavailable.');
+    },
+    resolve: async () => null,
+    forget: () => undefined
+  },
   providerReleases = {
     latestVersion: async () => {
       throw new Error('Provider release metadata is unavailable.');
@@ -367,7 +420,6 @@ export function createRemoteTargetService({
     executionTargetId: RemoteExecutionTargetId,
     event: RuntimeEvent
   ) => void>();
-  let nextGeneration = 1;
   let closed = false;
 
   const disposeActive = async (
@@ -384,6 +436,8 @@ export function createRemoteTargetService({
     active.sessionRuntime = null;
     try {
       await sessionRuntime?.shutdown();
+    } catch {
+      // Resource closure below is authoritative even if graceful PTY shutdown fails.
     } finally {
       sessionRuntime?.close();
       active.files.close();
@@ -399,6 +453,75 @@ export function createRemoteTargetService({
     }
     return { target, profile };
   };
+  const lifecycle = createRemoteLifecycleStore({ getSummary: summary });
+  const pendingDiscoveryScans = new Map<RemoteExecutionTargetId, {
+    generation: number;
+    promise: Promise<RemoteDiscoverySnapshot>;
+  }>();
+  const pendingCatalogScans = new Map<RemoteExecutionTargetId, {
+    generation: number;
+    promise: Promise<RemoteSessionCatalog>;
+  }>();
+
+  const credentialStatus = async (
+    id: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus> => ({
+    executionTargetId: id,
+    storageState: await credentialVault.getStorageState(),
+    credentialState: credentialVault.getCredentialState(id),
+    autoConnect: credentialPreferences.getAutoConnect(id)
+  });
+
+  const resolveCredentials = async (
+    id: RemoteExecutionTargetId,
+    profile: RemoteConnectionProfile,
+    input: RemoteConnectionInput
+  ): Promise<{
+    credentials: RemoteTargetCredentials;
+    rememberCredential: boolean;
+  }> => {
+    if (!('mode' in input)) {
+      return {
+        credentials: RemoteTargetCredentialsSchema.parse(input),
+        rememberCredential: false
+      };
+    }
+    if (input.mode === 'manual') {
+      return {
+        credentials: RemoteTargetCredentialsSchema.parse(input.credentials),
+        rememberCredential: input.rememberCredential
+      };
+    }
+    if (
+      input.mode === 'automatic' &&
+      !credentialPreferences.getAutoConnect(id)
+    ) {
+      throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+    }
+    if (profile.authentication.method === 'agent') {
+      return { credentials: { method: 'agent' }, rememberCredential: false };
+    }
+    if (profile.authentication.method === 'private-key') {
+      return {
+        credentials: {
+          method: 'private-key',
+          passphrase: await credentialVault.resolve(
+            id,
+            'private-key-passphrase'
+          )
+        },
+        rememberCredential: false
+      };
+    }
+    const password = await credentialVault.resolve(id, 'password');
+    if (password === null) {
+      throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+    }
+    return {
+      credentials: { method: 'password', password },
+      rememberCredential: false
+    };
+  };
 
   const disconnect = async (
     input: RemoteExecutionTargetId
@@ -409,6 +532,7 @@ export function createRemoteTargetService({
     providerUpdateServices.delete(id);
     await disposeActive(active);
     targets.updateRemoteConnection(id, { connectionState: 'offline' });
+    lifecycle.invalidateConnection(id);
     return summary(id);
   };
 
@@ -449,6 +573,13 @@ export function createRemoteTargetService({
       active.removeSessionRuntimeListener === null
     ) {
       active.removeSessionRuntimeListener = active.sessionRuntime.subscribe((event) => {
+        if (event.type === 'state') {
+          const activeTerminalCount = active.sessionRuntime?.listRuntimes()
+            .filter((runtime) =>
+              runtime.state === 'launching' || runtime.state === 'running'
+            ).length ?? 0;
+          lifecycle.setActiveTerminalCount(id, activeTerminalCount);
+        }
         for (const listener of sessionRuntimeListeners) {
           try {
             listener(id, event);
@@ -471,6 +602,7 @@ export function createRemoteTargetService({
       capabilities: supportedCapabilities,
       lastConnectedAt: clock().toISOString()
     });
+    lifecycle.refreshSummary(id);
     return connectionDetails(id, active.facts);
   };
 
@@ -543,21 +675,37 @@ export function createRemoteTargetService({
       active?.helper === null || active === undefined ||
       !active.helper.info.capabilities.includes('provider-scan')
     ) throw new RemoteTargetServiceError();
+    const pending = pendingDiscoveryScans.get(id);
+    if (pending?.generation === active.generation) return pending.promise;
     const enabledProviders = providerPreferences.get(id);
-    try {
-      const result = normalizeDiscovery(
-        id,
-        await active.helper.scanDiscovery(enabledProviders),
-        enabledProviders
-      );
-      targets.updateRemoteConnection(id, {
-        lastScannedAt: result.scannedAt
-      });
-      return result;
-    } catch (error) {
-      if (error instanceof RemoteTargetServiceError) throw error;
-      throw new RemoteTargetServiceError();
-    }
+    const generation = active.generation;
+    const helper = active.helper;
+    lifecycle.beginDiscovery(id, generation);
+    let promise!: Promise<RemoteDiscoverySnapshot>;
+    promise = (async () => {
+      try {
+        const result = normalizeDiscovery(
+          id,
+          await helper.scanDiscovery(enabledProviders),
+          enabledProviders
+        );
+        targets.updateRemoteConnection(id, {
+          lastScannedAt: result.scannedAt
+        });
+        lifecycle.completeDiscovery(id, generation, result);
+        return result;
+      } catch (error) {
+        lifecycle.failDiscovery(id, generation);
+        if (error instanceof RemoteTargetServiceError) throw error;
+        throw new RemoteTargetServiceError();
+      } finally {
+        if (pendingDiscoveryScans.get(id)?.promise === promise) {
+          pendingDiscoveryScans.delete(id);
+        }
+      }
+    })();
+    pendingDiscoveryScans.set(id, { generation, promise });
+    return promise;
   };
 
   const providerUpdatesFor = (
@@ -675,6 +823,55 @@ export function createRemoteTargetService({
       return summary(RemoteExecutionTargetIdSchema.parse(input));
     },
 
+    listLifecycleSnapshots() {
+      return lifecycle.list(
+        profiles.list().map(({ executionTargetId }) => executionTargetId)
+      );
+    },
+
+    getLifecycleSnapshot(input: RemoteExecutionTargetId) {
+      return lifecycle.snapshot(RemoteExecutionTargetIdSchema.parse(input));
+    },
+
+    subscribeLifecycle: lifecycle.subscribe,
+
+    async getCredentialStatus(
+      input: RemoteExecutionTargetId
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      summary(id);
+      return credentialStatus(id);
+    },
+
+    async setAutoConnect(
+      input: RemoteExecutionTargetId,
+      enabled: boolean
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const profile = summary(id).profile;
+      if (
+        enabled &&
+        profile.authentication.method === 'password' &&
+        credentialVault.getCredentialState(id) !== 'remembered'
+      ) {
+        throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+      }
+      credentialPreferences.setAutoConnect(id, enabled);
+      return credentialStatus(id);
+    },
+
+    async forgetCredential(
+      input: RemoteExecutionTargetId
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const profile = summary(id).profile;
+      credentialVault.forget(id);
+      if (profile.authentication.method === 'password') {
+        credentialPreferences.setAutoConnect(id, false);
+      }
+      return credentialStatus(id);
+    },
+
     create(input: RemoteConnectionProfileInput): RemoteTargetSummary {
       const profile = RemoteConnectionProfileInputSchema.parse(input);
       const id = RemoteExecutionTargetIdSchema.parse(createTargetId());
@@ -694,12 +891,18 @@ export function createRemoteTargetService({
     ): Promise<RemoteTargetSummary> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const profile = RemoteConnectionProfileInputSchema.parse(profileInput);
+      const formerProfile = summary(id).profile;
       const active = activeTargets.get(id);
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
       await disposeActive(active);
       targets.updateRemoteConnection(id, { connectionState: 'offline' });
       profiles.save(id, profile, clock());
+      lifecycle.invalidateConnection(id);
+      if (formerProfile.authentication.method !== profile.authentication.method) {
+        credentialVault.forget(id);
+        credentialPreferences.setAutoConnect(id, false);
+      }
       return summary(id);
     },
 
@@ -709,6 +912,7 @@ export function createRemoteTargetService({
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
       await disposeActive(active);
+      credentialVault.forget(id);
       targets.deleteRemote(id);
     },
 
@@ -725,22 +929,59 @@ export function createRemoteTargetService({
 
     async connect(
       input: RemoteExecutionTargetId,
-      credentialsInput: RemoteTargetCredentials
+      connectionInput: RemoteConnectionInput
     ): Promise<RemoteTargetConnectionDetails> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
-      const credentials = RemoteTargetCredentialsSchema.parse(credentialsInput);
       const profile = summary(id).profile;
+      let resolved: Awaited<ReturnType<typeof resolveCredentials>>;
+      try {
+        resolved = await resolveCredentials(id, profile, connectionInput);
+      } catch (error) {
+        if (error instanceof RemoteTargetServiceError) throw error;
+        throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_UNAVAILABLE');
+      }
+      const { credentials, rememberCredential } = resolved;
       const former = activeTargets.get(id);
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
       await disposeActive(former);
       targets.updateRemoteConnection(id, { connectionState: 'connecting' });
+      const generation = lifecycle.beginConnection(id);
       let connected: ConnectedRemoteSshClient | null = null;
       let files: ActiveRemoteTarget['files'] | null = null;
       let stage: RemoteConnectionStage = 'ssh';
       try {
         targets.updateRemoteConnection(id, { connectionState: 'authenticating' });
+        lifecycle.refreshSummary(id);
         connected = await ssh.connect(profile, credentials);
+        if ('mode' in connectionInput && connectionInput.mode === 'manual') {
+          try {
+            if (
+              rememberCredential &&
+              credentials.method === 'password'
+            ) {
+              await credentialVault.save(id, 'password', credentials.password);
+            } else if (
+              rememberCredential &&
+              credentials.method === 'private-key' &&
+              credentials.passphrase !== null &&
+              credentials.passphrase.length > 0
+            ) {
+              await credentialVault.save(
+                id,
+                'private-key-passphrase',
+                credentials.passphrase
+              );
+            } else {
+              credentialVault.forget(id);
+              if (credentials.method === 'password') {
+                credentialPreferences.setAutoConnect(id, false);
+              }
+            }
+          } catch {
+            // Credential storage is optional and must not tear down a valid SSH session.
+          }
+        }
         stage = 'platform';
         const facts = await probe(connected.execute);
         if (
@@ -765,7 +1006,7 @@ export function createRemoteTargetService({
           artifact
         });
         const active: ActiveRemoteTarget = {
-          generation: nextGeneration++,
+          generation,
           ssh: connected,
           removeCloseListener: null,
           files,
@@ -792,6 +1033,7 @@ export function createRemoteTargetService({
           active.sessionRuntime = null;
           active.files.close();
           targets.updateRemoteConnection(id, { connectionState: 'offline' });
+          lifecycle.invalidateConnection(id);
         });
         targets.updateRemoteConnection(id, {
           connectionState: inspection.status === 'missing'
@@ -806,6 +1048,7 @@ export function createRemoteTargetService({
           capabilities: [],
           lastConnectedAt: clock().toISOString()
         });
+        lifecycle.refreshSummary(id);
         if (inspection.status !== 'installed') {
           return connectionDetails(id, facts);
         }
@@ -816,12 +1059,14 @@ export function createRemoteTargetService({
           targets.updateRemoteConnection(id, {
             connectionState: 'helper-incompatible'
           });
+          lifecycle.refreshSummary(id);
           return connectionDetails(id, facts);
         }
       } catch (error) {
         files?.close();
         connected?.close();
         targets.updateRemoteConnection(id, { connectionState: 'error' });
+        lifecycle.invalidateConnection(id);
         throw new RemoteTargetServiceError(connectionFailureCode(stage, error));
       }
     },
@@ -862,6 +1107,7 @@ export function createRemoteTargetService({
         targets.updateRemoteConnection(id, {
           connectionState: 'helper-incompatible'
         });
+        lifecycle.refreshSummary(id);
         throw new RemoteTargetServiceError();
       }
     },
@@ -924,65 +1170,79 @@ export function createRemoteTargetService({
         active?.helper === null || active === undefined ||
         !active.helper.info.capabilities.includes('session-scan')
       ) throw new RemoteTargetServiceError();
+      const pending = pendingCatalogScans.get(id);
+      if (pending?.generation === active.generation) return pending.promise;
       const enabled = new Set(providerPreferences.get(id));
       const providers = SESSION_PROVIDER_IDS.filter((provider) => enabled.has(provider));
-      try {
-        const results: Awaited<ReturnType<typeof scanProviderSessions>>[] = [];
-        for (let index = 0; index < providers.length; index += 1) {
-          const provider = providers[index]!;
-          try {
-            results.push(await scanProviderSessions(active.helper, provider));
-          } catch (error) {
-            if (!(error instanceof RemoteHelperConnectionError) ||
-              error.code === 'HELPER_INCOMPATIBLE') {
-              throw error;
-            }
-            results.push({
-              sessions: [],
-              provider: {
-                provider, status: 'failed', sessionCount: 0, invalidCount: 0
+      const generation = active.generation;
+      const helper = active.helper;
+      lifecycle.beginCatalog(id, generation);
+      let promise!: Promise<RemoteSessionCatalog>;
+      promise = (async () => {
+        try {
+          const results: Awaited<ReturnType<typeof scanProviderSessions>>[] = [];
+          for (let index = 0; index < providers.length; index += 1) {
+            const provider = providers[index]!;
+            try {
+              results.push(await scanProviderSessions(helper, provider));
+            } catch (error) {
+              if (!(error instanceof RemoteHelperConnectionError) ||
+                error.code === 'HELPER_INCOMPATIBLE') {
+                throw error;
               }
-            });
-            if (error.code === 'HELPER_TIMEOUT') {
-              for (const pendingProvider of providers.slice(index + 1)) {
-                results.push({
-                  sessions: [],
-                  provider: {
-                    provider: pendingProvider,
-                    status: 'failed',
-                    sessionCount: 0,
-                    invalidCount: 0
-                  }
-                });
+              results.push({
+                sessions: [],
+                provider: {
+                  provider, status: 'failed', sessionCount: 0, invalidCount: 0
+                }
+              });
+              if (error.code === 'HELPER_TIMEOUT') {
+                for (const pendingProvider of providers.slice(index + 1)) {
+                  results.push({
+                    sessions: [],
+                    provider: {
+                      provider: pendingProvider,
+                      status: 'failed', sessionCount: 0, invalidCount: 0
+                    }
+                  });
+                }
+                break;
               }
-              break;
             }
           }
+          const scannedAt = clock().toISOString();
+          const sessions = results
+            .flatMap((result) => result.sessions)
+            .sort(
+              (left, right) =>
+                right.updatedAt.localeCompare(left.updatedAt) ||
+                left.provider.localeCompare(right.provider) ||
+                left.nativeId.localeCompare(right.nativeId)
+            );
+          const providerStatus = results.map((result) => result.provider);
+          const catalog = RemoteSessionCatalogSchema.parse({
+            executionTargetId: id,
+            scannedAt,
+            sessions,
+            providers: providerStatus,
+            snapshot: normalizeRemoteCatalog(id, scannedAt, sessions, providerStatus)
+          });
+          active.sessionRuntime?.updateCatalog(catalog);
+          targets.updateRemoteConnection(id, { lastScannedAt: scannedAt });
+          lifecycle.completeCatalog(id, generation, catalog);
+          return catalog;
+        } catch (error) {
+          lifecycle.failCatalog(id, generation);
+          if (error instanceof RemoteTargetServiceError) throw error;
+          throw new RemoteTargetServiceError();
+        } finally {
+          if (pendingCatalogScans.get(id)?.promise === promise) {
+            pendingCatalogScans.delete(id);
+          }
         }
-        const scannedAt = clock().toISOString();
-        const sessions = results
-          .flatMap((result) => result.sessions)
-          .sort(
-            (left, right) =>
-              right.updatedAt.localeCompare(left.updatedAt) ||
-              left.provider.localeCompare(right.provider) ||
-              left.nativeId.localeCompare(right.nativeId)
-          );
-        const providerStatus = results.map((result) => result.provider);
-        const catalog = RemoteSessionCatalogSchema.parse({
-          executionTargetId: id,
-          scannedAt,
-          sessions,
-          providers: providerStatus,
-          snapshot: normalizeRemoteCatalog(id, scannedAt, sessions, providerStatus)
-        });
-        active.sessionRuntime?.updateCatalog(catalog);
-        targets.updateRemoteConnection(id, { lastScannedAt: scannedAt });
-        return catalog;
-      } catch (error) {
-        if (error instanceof RemoteTargetServiceError) throw error;
-        throw new RemoteTargetServiceError();
-      }
+      })();
+      pendingCatalogScans.set(id, { generation, promise });
+      return promise;
     },
 
     resolveSessionRuntime(input: RemoteExecutionTargetId) {
@@ -1009,9 +1269,12 @@ export function createRemoteTargetService({
       for (const [id, active] of activeTargets) {
         disposing.push(disposeActive(active));
         targets.updateRemoteConnection(id, { connectionState: 'offline' });
+        lifecycle.invalidateConnection(id);
       }
       activeTargets.clear();
       providerUpdateServices.clear();
+      pendingDiscoveryScans.clear();
+      pendingCatalogScans.clear();
       sessionRuntimeListeners.clear();
       await Promise.allSettled(disposing);
     }

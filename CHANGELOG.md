@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-11
+
 ### Added
 
 - Add isolated remote-computer windows with SSH profile management, explicit
@@ -31,9 +33,17 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reuse the complete Provider Settings cards in remote Lumora, including
   target-specific start commands, public version checks, official guide links,
   and explicitly confirmed install/update actions for allowlisted npm providers.
+- Add opt-in per-profile remembering for SSH passwords and private-key
+  passphrases, protected by operating-system secure storage, plus opt-in
+  automatic connection for password, private-key, and SSH-agent profiles.
+- Add a global remote-window close preference. Disconnect-on-close asks for
+  confirmation when the target still has active terminals, with explicit
+  **Keep running** and **Disconnect and close** choices.
 
 ### Changed
 
+- Group General settings by function so related preferences share one section,
+  including the cross-agent handoff switch and temporary-copy retention.
 - Make isolated remote windows use Lumora's global theme, managed background,
   opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
 - Reuse Lumora's main shell and catalog views after a remote target reaches
@@ -43,9 +53,19 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Restore remote Lumora windows from their own shared window size and make them
   honor the global **Start with a maximized window** preference just like the
   local window.
+- Keep ready SSH/helper connections alive in the main Lumora process by
+  default when an isolated remote window closes. Reopening restores cached
+  discovery, catalog, and terminal state without an unnecessary rescan.
+- Update remote-computer cards and the sidebar indicator from live connection
+  lifecycle events so online state remains accurate across windows.
 
 ### Fixed
 
+- Release the remote connection action after SSH/helper activation even when
+  the `ready` lifecycle update rerenders an automatic connection, and keep slow
+  credential-status refreshes from leaving Disconnect stuck on **Disconnecting**.
+- Publish and persist the remote computer's offline state even when graceful
+  terminal shutdown reports an error after its SSH resources have closed.
 - Standardize dropdowns across local and remote catalogs, session workflows,
   settings, terminal profiles, and transfers on Lumora's overlay menu, and use
   a Lumora confirmation dialog when opening terminal links.
@@ -101,6 +121,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   process, and deliver PTY events only to that target's isolated window.
 - Expose only a read-only appearance projection to isolated remote windows;
   appearance mutations remain restricted to the local Lumora window.
+- Keep remembered remote credentials outside ordinary profile data as
+  OS-protected encrypted blobs, reject insecure Linux fallback storage, remove
+  credentials on authentication changes or profile deletion, and limit
+  automatic connection to one host-verified attempt with manual recovery.
 
 ## [0.2.3] - 2026-08-03
 

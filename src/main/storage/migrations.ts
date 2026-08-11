@@ -514,6 +514,25 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         )
       ) STRICT`
     ]
+  },
+  {
+    version: 18,
+    statements: [
+      `ALTER TABLE remote_connection_profile
+       ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 0
+       CHECK (auto_connect IN (0, 1))`,
+      `CREATE TABLE remote_connection_credential (
+        execution_target_id TEXT PRIMARY KEY
+          REFERENCES remote_connection_profile(execution_target_id) ON DELETE CASCADE,
+        secret_kind TEXT NOT NULL CHECK (
+          secret_kind IN ('password', 'private-key-passphrase')
+        ),
+        encrypted_secret BLOB NOT NULL CHECK (length(encrypted_secret) > 0),
+        encryption_version INTEGER NOT NULL CHECK (encryption_version >= 1),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`
+    ]
   }
 ];
 

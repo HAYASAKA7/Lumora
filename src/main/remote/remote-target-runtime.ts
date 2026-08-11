@@ -4,12 +4,17 @@ import { join } from 'node:path';
 import { ExecutionTargetRepository } from '../storage/execution-target-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { RemoteConnectionProfileRepository } from '../storage/remote-connection-profile-repository';
+import { RemoteCredentialRepository } from '../storage/remote-credential-repository';
 import { RemoteProviderPreferenceRepository } from '../storage/remote-provider-preference-repository';
 import type { RemotePlatformFacts } from './platform-probe';
 import { resolveRemoteHelperArtifact } from './helper-artifact-resolver';
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSessionRuntime } from './remote-session-runtime';
 import type { ProviderReleaseSource } from '../providers/provider-release-source';
+import {
+  RemoteCredentialVault,
+  type RemoteCredentialEncryptionBackend
+} from './remote-credential-vault';
 import {
   createRemoteTargetService,
   type RemoteTargetService
@@ -25,6 +30,7 @@ interface CreateRemoteTargetRuntimeOptions {
   ) => Promise<RemotePlatformFacts>;
   helperBundleRoot?: string;
   providerReleases?: ProviderReleaseSource;
+  credentialEncryption?: RemoteCredentialEncryptionBackend;
 }
 
 export interface RemoteTargetRuntime {
@@ -39,6 +45,7 @@ export function createRemoteTargetRuntime({
   ssh,
   probePlatform,
   providerReleases,
+  credentialEncryption,
   helperBundleRoot = join(process.cwd(), 'resources', 'helper', 'generated')
 }: CreateRemoteTargetRuntimeOptions): RemoteTargetRuntime {
   const database = new DatabaseSync(databasePath);
@@ -51,11 +58,17 @@ export function createRemoteTargetRuntime({
   const targets = new ExecutionTargetRepository(database);
   targets.resetRemoteConnectionStates();
   const profiles = new RemoteConnectionProfileRepository(database);
+  const credentialRepository = new RemoteCredentialRepository(database);
+  const credentialVault = credentialEncryption === undefined
+    ? undefined
+    : new RemoteCredentialVault(credentialRepository, credentialEncryption);
   const providerPreferences = new RemoteProviderPreferenceRepository(database);
   let service!: RemoteTargetService;
   service = createRemoteTargetService({
     targets,
     profiles,
+    credentialPreferences: credentialRepository,
+    ...(credentialVault === undefined ? {} : { credentialVault }),
     providerPreferences,
     ...(clock === undefined ? {} : { clock }),
     ...(createTargetId === undefined ? {} : { createTargetId }),

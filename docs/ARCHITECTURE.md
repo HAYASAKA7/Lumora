@@ -93,7 +93,22 @@ settings and managed-background state. Appearance selection and file mutations
 remain local-window-only IPC operations.
 
 The SSH connection verifies a stored SHA-256 host fingerprint before sending
-credentials. Passwords and private-key passphrases remain memory-only. After
+credentials. Passwords and private-key passphrases remain memory-only by
+default. When a user explicitly remembers one profile's credential, the main
+process encrypts it with Electron's operating-system-backed `safeStorage` and
+stores only the encrypted blob in a separate credential table. Credential
+plaintext is never added to the profile DTO, returned after submission, or
+logged. Linux `basic_text` fallback is rejected rather than treated as secure
+storage. On Windows, DPAPI prevents another operating-system account from
+decrypting the blob but does not isolate it from every process already running
+as the same user.
+
+Automatic connection is a separate per-profile preference and defaults off.
+It works with remembered passwords, private keys with an optional remembered
+passphrase, and SSH agents. Opening the isolated remote window performs at most
+one automatic attempt after host trust has been verified; failure returns to
+the same manual connection UI. Authentication-method changes and profile
+deletion remove remembered credentials and disable the preference. After
 authentication, Lumora probes the remote OS, architecture, home directory, and
 shell before choosing a packaged helper artifact; local and remote platforms
 are independent.

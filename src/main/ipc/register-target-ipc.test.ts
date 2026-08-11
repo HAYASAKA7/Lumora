@@ -41,6 +41,16 @@ const summary = {
   }
 } as const satisfies RemoteTargetSummary;
 
+const lifecycleSnapshot = {
+  summary,
+  generation: 0,
+  discovery: null,
+  catalog: null,
+  discoveryState: 'idle' as const,
+  catalogState: 'idle' as const,
+  activeTerminalCount: 0
+};
+
 type Handler = (event: unknown, ...args: unknown[]) => Promise<unknown>;
 
 function createHarness(context: LumoraWindowContext) {
@@ -48,6 +58,8 @@ function createHarness(context: LumoraWindowContext) {
   const service = {
     list: vi.fn(() => [summary]),
     get: vi.fn(() => summary),
+    listLifecycleSnapshots: vi.fn(() => [lifecycleSnapshot]),
+    getLifecycleSnapshot: vi.fn(() => lifecycleSnapshot),
     create: vi.fn(() => summary),
     update: vi.fn().mockResolvedValue(summary),
     remove: vi.fn().mockResolvedValue(undefined),
@@ -60,6 +72,24 @@ function createHarness(context: LumoraWindowContext) {
       ...summary,
       homeDirectory: '/home/builder',
       defaultShell: '/bin/bash'
+    }),
+    getCredentialStatus: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      storageState: 'available',
+      credentialState: 'remembered',
+      autoConnect: false
+    }),
+    setAutoConnect: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      storageState: 'available',
+      credentialState: 'remembered',
+      autoConnect: true
+    }),
+    forgetCredential: vi.fn().mockResolvedValue({
+      executionTargetId: TARGET_ID,
+      storageState: 'available',
+      credentialState: 'none',
+      autoConnect: false
     }),
     disconnect: vi.fn().mockResolvedValue(summary),
     getHelperInstallDetails: vi.fn(() => ({
@@ -107,6 +137,7 @@ function createHarness(context: LumoraWindowContext) {
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
   const beforeProfileMutation = vi.fn().mockResolvedValue(undefined);
+  const resolveWindowClose = vi.fn().mockResolvedValue(true);
   registerTargetIpc({
     ipc: {
       handle(channel, handler) {
@@ -116,9 +147,16 @@ function createHarness(context: LumoraWindowContext) {
     authorize: vi.fn(() => context),
     service,
     beforeProfileMutation,
-    openTargetWindow
+    openTargetWindow,
+    resolveWindowClose
   });
-  return { handlers, service, beforeProfileMutation, openTargetWindow };
+  return {
+    handlers,
+    service,
+    beforeProfileMutation,
+    openTargetWindow,
+    resolveWindowClose
+  };
 }
 
 const event = { senderFrame: { url: 'app://lumora/index.html' }, sender: { id: 1 } };
@@ -138,6 +176,10 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteTargetObserveHost,
       IPC_CHANNELS.remoteTargetTrustHost,
       IPC_CHANNELS.remoteTargetConnect,
+      IPC_CHANNELS.remoteLifecycleList,
+      IPC_CHANNELS.remoteCredentialStatus,
+      IPC_CHANNELS.remoteCredentialForget,
+      IPC_CHANNELS.remoteAutoConnectPreferenceSave,
       IPC_CHANNELS.remoteTargetDisconnect,
       IPC_CHANNELS.remoteTargetHelperDetails,
       IPC_CHANNELS.remoteTargetHelperInstall,
@@ -145,7 +187,8 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteProviderPreferencesSave,
       IPC_CHANNELS.remoteDiscoveryScan,
       IPC_CHANNELS.remoteSessionScan,
-      IPC_CHANNELS.remoteTargetWindowOpen
+      IPC_CHANNELS.remoteTargetWindowOpen,
+      IPC_CHANNELS.remoteWindowCloseResolve
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
       displayName: 'Build server',
@@ -193,20 +236,42 @@ describe('registerTargetIpc', () => {
   });
 
   it('limits a remote window to reading and connecting its own target', async () => {
-    const { handlers, service } = createHarness({
+    const { handlers, service, resolveWindowClose } = createHarness({
       mode: 'remote',
       executionTargetId: TARGET_ID
     });
 
     await expect(handlers.get(IPC_CHANNELS.remoteTargetList)!(event))
       .resolves.toEqual([summary]);
+    await expect(handlers.get(IPC_CHANNELS.remoteLifecycleList)!(event))
+      .resolves.toEqual([lifecycleSnapshot]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
+    })).resolves.toMatchObject({ target: { id: TARGET_ID } });
+    await expect(handlers.get(IPC_CHANNELS.remoteCredentialStatus)!(event, {
+      executionTargetId: TARGET_ID
+    })).resolves.toMatchObject({ credentialState: 'remembered' });
+    await expect(handlers.get(IPC_CHANNELS.remoteAutoConnectPreferenceSave)!(
+      event,
+      { executionTargetId: TARGET_ID, autoConnect: true }
+    )).resolves.toMatchObject({ autoConnect: true });
+    await expect(handlers.get(IPC_CHANNELS.remoteCredentialForget)!(event, {
+      executionTargetId: TARGET_ID
+    })).resolves.toMatchObject({ credentialState: 'none' });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    })).resolves.toMatchObject({ target: { id: TARGET_ID } });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
     })).resolves.toMatchObject({ target: { id: TARGET_ID } });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: OTHER_TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'automatic'
     })).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetRemove)!(event, {
       executionTargetId: TARGET_ID
@@ -225,7 +290,22 @@ describe('registerTargetIpc', () => {
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
-    expect(service.connect).toHaveBeenCalledOnce();
+    await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
+      action: 'disconnect'
+    })).resolves.toEqual({ closed: true });
+    expect(service.connect).toHaveBeenCalledTimes(3);
+    expect(service.getLifecycleSnapshot).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.connect).toHaveBeenCalledWith(TARGET_ID, {
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    });
+    expect(service.connect).toHaveBeenLastCalledWith(TARGET_ID, {
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    });
+    expect(service.getCredentialStatus).toHaveBeenCalledWith(TARGET_ID);
+    expect(service.setAutoConnect).toHaveBeenCalledWith(TARGET_ID, true);
+    expect(service.forgetCredential).toHaveBeenCalledWith(TARGET_ID);
     expect(service.getHelperInstallDetails).toHaveBeenCalledWith(TARGET_ID);
     expect(service.installHelper).toHaveBeenCalledWith(TARGET_ID);
     expect(service.getProviderPreferences).toHaveBeenCalledWith(TARGET_ID);
@@ -235,6 +315,7 @@ describe('registerTargetIpc', () => {
     );
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
     expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
+    expect(resolveWindowClose).toHaveBeenCalledWith(TARGET_ID, 'disconnect');
     expect(service.remove).not.toHaveBeenCalled();
   });
 
@@ -248,7 +329,9 @@ describe('registerTargetIpc', () => {
 
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: false
     })).rejects.toMatchObject({
       code: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED',
       message: 'REMOTE_TARGET_PLATFORM_PROBE_FAILED: Lumora could not complete the remote-target operation.'
@@ -261,7 +344,7 @@ describe('registerTargetIpc', () => {
     );
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'automatic'
     })).rejects.toMatchObject({
       code: 'REMOTE_TARGET_OPERATION_FAILED'
     });
@@ -281,6 +364,9 @@ describe('registerTargetIpc', () => {
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
+      action: 'keep_running'
+    })).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();
   });

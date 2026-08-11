@@ -46,8 +46,11 @@ const storedTarget: Extract<ExecutionTarget, { kind: 'remote' }> = {
 
 function createHarness(options: {
   createSessionRuntime?: (...args: any[]) => any;
+  profile?: RemoteConnectionProfile;
+  autoConnect?: boolean;
 } = {}) {
   let target = storedTarget;
+  let profile = options.profile ?? storedProfile;
   const targets = {
     list: vi.fn(() => [target]),
     get: vi.fn(() => target),
@@ -59,10 +62,13 @@ function createHarness(options: {
     deleteRemote: vi.fn()
   };
   const profiles = {
-    list: vi.fn(() => [storedProfile]),
-    get: vi.fn(() => storedProfile),
-    save: vi.fn(() => storedProfile),
-    trustHostKey: vi.fn(() => storedProfile)
+    list: vi.fn(() => [profile]),
+    get: vi.fn(() => profile),
+    save: vi.fn((_id, input) => {
+      profile = { ...profile, ...input, executionTargetId: TARGET_ID };
+      return profile;
+    }),
+    trustHostKey: vi.fn(() => profile)
   };
   let closeListener: (() => void) | null = null;
   const connected = {
@@ -82,6 +88,22 @@ function createHarness(options: {
       fingerprint: storedProfile.verifiedHostFingerprint
     }),
     connect: vi.fn().mockResolvedValue(connected)
+  };
+  let autoConnect = options.autoConnect ?? false;
+  const credentialPreferences = {
+    getAutoConnect: vi.fn(() => autoConnect),
+    setAutoConnect: vi.fn((_id, enabled: boolean) => {
+      autoConnect = enabled;
+    })
+  };
+  const credentialVault = {
+    getStorageState: vi.fn().mockResolvedValue('available'),
+    getCredentialState: vi.fn((): 'none' | 'remembered' | 'needs-attention' =>
+      'none'
+    ),
+    save: vi.fn().mockResolvedValue(undefined),
+    resolve: vi.fn().mockResolvedValue(null),
+    forget: vi.fn()
   };
   const probePlatform = vi.fn().mockResolvedValue({
     platform: 'linux',
@@ -205,17 +227,223 @@ function createHarness(options: {
       ? {}
       : { createSessionRuntime: options.createSessionRuntime }),
     providerPreferences,
+    credentialPreferences,
+    credentialVault,
     clock,
     createTargetId: () => TARGET_ID
   });
   return {
     service, targets, profiles, ssh, connected, probePlatform,
     artifact, paths, files, resolveHelperArtifact, inspectHelper,
-    installHelper, connectHelper, helper, providerPreferences, providerReleases
+    installHelper, connectHelper, helper, providerPreferences, providerReleases,
+    credentialPreferences, credentialVault
   };
 }
 
 describe('remote target service', () => {
+  it('reports only non-secret remembered credential and auto-connect state', async () => {
+    const harness = createHarness({ autoConnect: true });
+    harness.credentialVault.getCredentialState.mockReturnValue('remembered');
+
+    await expect(harness.service.getCredentialStatus(TARGET_ID)).resolves.toEqual({
+      executionTargetId: TARGET_ID,
+      storageState: 'available',
+      credentialState: 'remembered',
+      autoConnect: true
+    });
+  });
+
+  it('enables password auto-connect only when a credential is remembered', async () => {
+    const harness = createHarness();
+
+    await expect(harness.service.setAutoConnect(TARGET_ID, true))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_CREDENTIAL_REQUIRED' });
+    harness.credentialVault.getCredentialState.mockReturnValue('remembered');
+    await expect(harness.service.setAutoConnect(TARGET_ID, true)).resolves
+      .toMatchObject({ autoConnect: true, credentialState: 'remembered' });
+    expect(harness.credentialPreferences.setAutoConnect)
+      .toHaveBeenCalledWith(TARGET_ID, true);
+  });
+
+  it('forgets a password idempotently and disables its automatic connection', async () => {
+    const harness = createHarness({ autoConnect: true });
+
+    await harness.service.forgetCredential(TARGET_ID);
+    await harness.service.forgetCredential(TARGET_ID);
+
+    expect(harness.credentialVault.forget).toHaveBeenCalledTimes(2);
+    expect(harness.credentialPreferences.setAutoConnect)
+      .toHaveBeenLastCalledWith(TARGET_ID, false);
+  });
+
+  it('forgets incompatible credentials when authentication changes or a profile is removed', async () => {
+    const changed = createHarness({ autoConnect: true });
+    await changed.service.update(TARGET_ID, {
+      displayName: 'Build server',
+      route: 'direct',
+      host: 'build.internal',
+      port: 22,
+      username: 'builder',
+      authentication: { method: 'agent' }
+    });
+    expect(changed.credentialVault.forget).toHaveBeenCalledWith(TARGET_ID);
+    expect(changed.credentialPreferences.setAutoConnect)
+      .toHaveBeenCalledWith(TARGET_ID, false);
+
+    const removed = createHarness();
+    await removed.service.remove(TARGET_ID);
+    expect(removed.credentialVault.forget).toHaveBeenCalledWith(TARGET_ID);
+  });
+
+  it('remembers a manual password only after SSH authentication succeeds', async () => {
+    const harness = createHarness();
+
+    await harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
+    });
+
+    expect(harness.credentialVault.save).toHaveBeenCalledWith(
+      TARGET_ID,
+      'password',
+      'memory-only'
+    );
+    expect(harness.ssh.connect.mock.invocationCallOrder[0]!)
+      .toBeLessThan(harness.credentialVault.save.mock.invocationCallOrder[0]!);
+  });
+
+  it('does not remember a password when SSH authentication fails', async () => {
+    const harness = createHarness();
+    harness.ssh.connect.mockRejectedValueOnce(
+      new RemoteSshError('AUTHENTICATION_FAILED', 'Authentication failed.')
+    );
+
+    await expect(harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'password', password: 'wrong' },
+      rememberCredential: true
+    })).rejects.toMatchObject({ code: 'REMOTE_TARGET_AUTHENTICATION_FAILED' });
+    expect(harness.credentialVault.save).not.toHaveBeenCalled();
+  });
+
+  it('remembers a private-key passphrase only after successful authentication', async () => {
+    const profile: RemoteConnectionProfile = {
+      ...storedProfile,
+      authentication: {
+        method: 'private-key',
+        privateKeyPath: '/home/builder/.ssh/id_ed25519'
+      }
+    };
+    const harness = createHarness({ profile });
+
+    await harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'private-key', passphrase: 'key-secret' },
+      rememberCredential: true
+    });
+
+    expect(harness.ssh.connect).toHaveBeenCalledWith(profile, {
+      method: 'private-key',
+      passphrase: 'key-secret'
+    });
+    expect(harness.credentialVault.save).toHaveBeenCalledWith(
+      TARGET_ID,
+      'private-key-passphrase',
+      'key-secret'
+    );
+  });
+
+  it('resolves a remembered password for one automatic connection attempt', async () => {
+    const harness = createHarness({ autoConnect: true });
+    harness.credentialVault.resolve.mockResolvedValueOnce('remembered');
+
+    await harness.service.connect(TARGET_ID, { mode: 'automatic' });
+
+    expect(harness.credentialVault.resolve).toHaveBeenCalledWith(
+      TARGET_ID,
+      'password'
+    );
+    expect(harness.ssh.connect).toHaveBeenCalledOnce();
+    expect(harness.ssh.connect).toHaveBeenCalledWith(
+      storedProfile,
+      { method: 'password', password: 'remembered' }
+    );
+  });
+
+  it('uses a remembered password for an explicit connection without enabling auto-connect', async () => {
+    const harness = createHarness();
+    harness.credentialVault.resolve.mockResolvedValueOnce('remembered');
+
+    await harness.service.connect(TARGET_ID, { mode: 'remembered' });
+
+    expect(harness.credentialPreferences.getAutoConnect()).toBe(false);
+    expect(harness.credentialVault.resolve).toHaveBeenCalledWith(
+      TARGET_ID,
+      'password'
+    );
+    expect(harness.ssh.connect).toHaveBeenCalledWith(storedProfile, {
+      method: 'password',
+      password: 'remembered'
+    });
+  });
+
+  it('disables password auto-connect when a successful manual connection forgets it', async () => {
+    const harness = createHarness({ autoConnect: true });
+
+    await harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'password', password: 'ephemeral' },
+      rememberCredential: false
+    });
+
+    expect(harness.credentialVault.forget).toHaveBeenCalledWith(TARGET_ID);
+    expect(harness.credentialPreferences.getAutoConnect()).toBe(false);
+  });
+
+  it('supports automatic private-key and SSH-agent authentication', async () => {
+    const privateKeyProfile: RemoteConnectionProfile = {
+      ...storedProfile,
+      authentication: {
+        method: 'private-key',
+        privateKeyPath: '/home/builder/.ssh/id_ed25519'
+      }
+    };
+    const privateKey = createHarness({
+      profile: privateKeyProfile,
+      autoConnect: true
+    });
+    privateKey.credentialVault.resolve.mockResolvedValueOnce('key-secret');
+    await privateKey.service.connect(TARGET_ID, { mode: 'automatic' });
+    expect(privateKey.ssh.connect).toHaveBeenCalledWith(privateKeyProfile, {
+      method: 'private-key',
+      passphrase: 'key-secret'
+    });
+
+    const agentProfile: RemoteConnectionProfile = {
+      ...storedProfile,
+      authentication: { method: 'agent' }
+    };
+    const agent = createHarness({ profile: agentProfile, autoConnect: true });
+    await agent.service.connect(TARGET_ID, { mode: 'automatic' });
+    expect(agent.credentialVault.resolve).not.toHaveBeenCalled();
+    expect(agent.ssh.connect).toHaveBeenCalledWith(agentProfile, {
+      method: 'agent'
+    });
+  });
+
+  it('requires an enabled preference and remembered password for automatic connection', async () => {
+    const disabled = createHarness();
+    await expect(disabled.service.connect(TARGET_ID, { mode: 'automatic' }))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_CREDENTIAL_REQUIRED' });
+    expect(disabled.ssh.connect).not.toHaveBeenCalled();
+
+    const missing = createHarness({ autoConnect: true });
+    await expect(missing.service.connect(TARGET_ID, { mode: 'automatic' }))
+      .rejects.toMatchObject({ code: 'REMOTE_TARGET_CREDENTIAL_REQUIRED' });
+    expect(missing.ssh.connect).not.toHaveBeenCalled();
+  });
+
   it('lists only remote targets joined to their non-secret profiles', () => {
     const { service } = createHarness();
 
@@ -303,6 +531,34 @@ describe('remote target service', () => {
     );
     expect(JSON.stringify(targets.updateRemoteConnection.mock.calls))
       .not.toContain('memory-only');
+  });
+
+  it('publishes authoritative lifecycle snapshots with the latest catalog', async () => {
+    const harness = createHarness();
+    const lifecycle = harness.service as unknown as {
+      getLifecycleSnapshot?: (id: typeof TARGET_ID) => {
+        summary: { target: { connectionState: string } };
+        catalog: unknown;
+      };
+      subscribeLifecycle?: (listener: (event: unknown) => void) => () => void;
+    };
+
+    expect(lifecycle.getLifecycleSnapshot).toBeTypeOf('function');
+    expect(lifecycle.subscribeLifecycle).toBeTypeOf('function');
+    const listener = vi.fn();
+    const unsubscribe = lifecycle.subscribeLifecycle!(listener);
+
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+    const catalog = await harness.service.scanSessions(TARGET_ID);
+
+    expect(lifecycle.getLifecycleSnapshot!(TARGET_ID)).toMatchObject({
+      summary: { target: { connectionState: 'ready' } },
+      catalog
+    });
+    expect(listener).toHaveBeenCalled();
+    unsubscribe();
   });
 
   it('marks an active target offline when its SSH transport closes unexpectedly', async () => {
@@ -556,6 +812,34 @@ describe('remote target service', () => {
     });
     expect(sessionRuntime.close).toHaveBeenCalledOnce();
     expect(harness.connected.close).toHaveBeenCalledOnce();
+  });
+
+  it('publishes offline state when terminal shutdown fails during disconnect', async () => {
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+      shutdown: vi.fn().mockRejectedValue(new Error('remote shutdown failed')),
+      close: vi.fn()
+    };
+    const harness = createHarness({
+      createSessionRuntime: vi.fn(() => sessionRuntime)
+    });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+    const lifecycleEvents: Array<{
+      snapshot: { summary: { target: { connectionState: string } } };
+    }> = [];
+    harness.service.subscribeLifecycle((event) => lifecycleEvents.push(event));
+
+    await expect(harness.service.disconnect(TARGET_ID)).resolves.toMatchObject({
+      target: { connectionState: 'offline' }
+    });
+
+    expect(sessionRuntime.close).toHaveBeenCalledOnce();
+    expect(harness.connected.close).toHaveBeenCalledOnce();
+    expect(lifecycleEvents.at(-1)?.snapshot.summary.target.connectionState)
+      .toBe('offline');
   });
 
   it('reports an installed provider scan failure as retryable', async () => {

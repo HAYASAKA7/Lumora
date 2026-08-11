@@ -13,10 +13,13 @@ import type {
   LaunchPreview,
   LumoraApi,
   ProviderId,
+  RemoteCredentialStatus,
   RemoteDiscoverySnapshot,
   RemoteHelperInstallDetails,
+  RemoteLifecycleSnapshot,
   RemoteExecutionTargetId,
   RemoteProviderPreferences,
+  RemoteWindowCloseRequest,
   RemoteSessionCatalog,
   RemoteTargetConnectionDetails,
   RemoteTargetCredentials,
@@ -57,6 +60,7 @@ import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
 import { keyboardEventMatchesChord } from '../keyboard/shortcut';
 import { ProviderSettings } from '../providers/ProviderSettings';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -143,6 +147,10 @@ const REMOTE_CONNECTION_ERROR_MESSAGES: Record<RemoteTargetErrorCode, string> = 
     'SSH connected, but Lumora could not open the remote file-transfer service. Check that the SSH server has SFTP enabled.',
   REMOTE_TARGET_HELPER_INSPECTION_FAILED:
     'SSH connected, but Lumora could not inspect the remote helper installation. Check the remote account permissions and try again.',
+  REMOTE_TARGET_CREDENTIAL_REQUIRED:
+    'Lumora needs the SSH credential again. Enter it below to reconnect manually.',
+  REMOTE_TARGET_CREDENTIAL_UNAVAILABLE:
+    'The remembered SSH credential is unavailable. Enter it below to reconnect manually.',
   REMOTE_TARGET_OPERATION_FAILED:
     'Lumora could not connect to this remote computer. Check the profile and try again.'
 };
@@ -236,6 +244,12 @@ export function RemoteTargetWindow({
     state: 'idle'
   });
   const [secret, setSecret] = useState('');
+  const [credentialStatus, setCredentialStatus] =
+    useState<RemoteCredentialStatus | null>(null);
+  const [rememberCredential, setRememberCredential] = useState(false);
+  const [autoConnectDraft, setAutoConnectDraft] = useState(false);
+  const [autoConnectOnOpen, setAutoConnectOnOpen] = useState<boolean | null>(null);
+  const [credentialPreferenceBusy, setCredentialPreferenceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
   const [providerSaveError, setProviderSaveError] = useState<string | null>(null);
@@ -259,29 +273,160 @@ export function RemoteTargetWindow({
   const [newSessionIntent, setNewSessionIntent] =
     useState<NewSessionIntent | null>(null);
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
+  const [windowCloseRequest, setWindowCloseRequest] =
+    useState<RemoteWindowCloseRequest | null>(null);
   const autoScannedKey = useRef<string | null>(null);
+  const automaticConnectionAttempted = useRef(false);
+  const componentMounted = useRef(false);
+
+  useEffect(() => {
+    componentMounted.current = true;
+    return () => {
+      componentMounted.current = false;
+    };
+  }, []);
+
+  const applyLifecycleSnapshot = useCallback((
+    snapshot: RemoteLifecycleSnapshot
+  ) => {
+    setSummary(snapshot.summary);
+    if (snapshot.discovery !== null) {
+      setDiscovery({ state: 'ready', snapshot: snapshot.discovery });
+    } else if (snapshot.discoveryState === 'refreshing') {
+      setDiscovery({ state: 'loading' });
+    } else if (snapshot.discoveryState === 'error') {
+      setDiscovery({ state: 'error' });
+    }
+    if (snapshot.catalog !== null) {
+      setSessionCatalog({ state: 'ready', catalog: snapshot.catalog });
+    } else if (snapshot.catalogState === 'refreshing') {
+      setSessionCatalog({ state: 'loading' });
+    } else if (snapshot.catalogState === 'error') {
+      setSessionCatalog({ state: 'error' });
+    }
+  }, []);
 
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
   }, [sidebarExpanded]);
 
   useEffect(() => {
+    if (typeof api.onRemoteWindowCloseRequest !== 'function') return;
+    return api.onRemoteWindowCloseRequest((request) => {
+      if (request.executionTargetId === executionTargetId) {
+        setWindowCloseRequest(request);
+      }
+    });
+  }, [api, executionTargetId]);
+
+  const resolveWindowClose = useCallback(async (
+    action: 'keep_running' | 'disconnect'
+  ) => {
+    if (typeof api.resolveRemoteWindowClose !== 'function') return;
+    try {
+      const closed = await api.resolveRemoteWindowClose({ action });
+      if (!closed) setWindowCloseRequest(null);
+    } catch {
+      setError('Lumora could not close this remote connection safely.');
+    }
+  }, [api]);
+
+  useEffect(() => {
     let active = true;
-    void api.listRemoteTargets().then(
-      (targets) => {
+    void (async () => {
+      try {
+        if (typeof api.listRemoteLifecycleSnapshots === 'function') {
+          const snapshots = await api.listRemoteLifecycleSnapshots();
+          if (!active) return;
+          const lifecycle = snapshots.find(
+            ({ summary: item }) => item.target.id === executionTargetId
+          );
+          if (lifecycle !== undefined) {
+            applyLifecycleSnapshot(lifecycle);
+            setError(null);
+            return;
+          }
+        }
+        const targets = await api.listRemoteTargets();
         if (!active) return;
         const current = targets.find(
           ({ target }) => target.id === executionTargetId
         ) ?? null;
         setSummary(current);
         setError(current === null ? 'This remote target is unavailable.' : null);
+      } catch {
+        if (active) setError('Lumora could not load this remote target.');
+      }
+    })();
+    return () => { active = false; };
+  }, [api, applyLifecycleSnapshot, executionTargetId]);
+
+  useEffect(() => {
+    if (typeof api.onRemoteLifecycleEvent !== 'function') return;
+    return api.onRemoteLifecycleEvent((event) => {
+      if (event.executionTargetId === executionTargetId) {
+        applyLifecycleSnapshot(event.snapshot);
+      }
+    });
+  }, [api, applyLifecycleSnapshot, executionTargetId]);
+
+  useEffect(() => {
+    if (typeof api.getRemoteCredentialStatus !== 'function') return;
+    let active = true;
+    void api.getRemoteCredentialStatus(executionTargetId).then(
+      (status) => {
+        if (!active) return;
+        setCredentialStatus(status);
+        setRememberCredential(status.credentialState === 'remembered');
+        setAutoConnectDraft(status.autoConnect);
+        setAutoConnectOnOpen((current) => current ?? status.autoConnect);
       },
       () => {
-        if (active) setError('Lumora could not load this remote target.');
+        if (!active) return;
+        setCredentialStatus({
+          executionTargetId,
+          storageState: 'temporarily-unavailable',
+          credentialState: 'needs-attention',
+          autoConnect: false
+        });
       }
     );
     return () => { active = false; };
   }, [api, executionTargetId]);
+
+  useEffect(() => {
+    if (
+      automaticConnectionAttempted.current ||
+      summary === null ||
+      autoConnectOnOpen !== true ||
+      summary.profile.verifiedHostFingerprint === null ||
+      summary.target.connectionState === 'ready' ||
+      summary.target.connectionState === 'helper-missing' ||
+      summary.target.connectionState === 'helper-incompatible'
+    ) return;
+
+    automaticConnectionAttempted.current = true;
+    setBusy(true);
+    setError(null);
+    void api.connectRemoteTarget({ executionTargetId, mode: 'automatic' }).then(
+      (connectedDetails) => {
+        if (!componentMounted.current) return;
+        setSummary({
+          target: connectedDetails.target,
+          profile: connectedDetails.profile
+        });
+        setDetails(connectedDetails);
+        setSecret('');
+      },
+      (connectionError) => {
+        if (componentMounted.current) {
+          setError(remoteConnectionErrorMessage(connectionError));
+        }
+      }
+    ).finally(() => {
+      if (componentMounted.current) setBusy(false);
+    });
+  }, [api, autoConnectOnOpen, executionTargetId, summary]);
 
   const refreshDiscovery = useCallback(async () => {
     setDiscovery({ state: 'loading' });
@@ -293,13 +438,18 @@ export function RemoteTargetWindow({
     }
   }, [api]);
 
-  const loadRemoteState = useCallback(async (supported: boolean) => {
-    setDiscovery(supported ? { state: 'loading' } : { state: 'unsupported' });
+  const loadRemoteState = useCallback(async (
+    supported: boolean,
+    scanDiscovery: boolean
+  ) => {
+    if (scanDiscovery) {
+      setDiscovery(supported ? { state: 'loading' } : { state: 'unsupported' });
+    }
     try {
       const nextPreferences = await api.getRemoteProviderPreferences();
       setPreferences(nextPreferences);
       setDraftProviders([...nextPreferences.enabledProviders]);
-      if (supported) {
+      if (supported && scanDiscovery) {
         const snapshot = await api.scanRemoteDiscovery();
         setDiscovery({ state: 'ready', snapshot });
       }
@@ -323,8 +473,11 @@ export function RemoteTargetWindow({
     const key = `${summary.target.id}:${summary.target.helperVersion ?? 'unknown'}`;
     if (autoScannedKey.current === key) return;
     autoScannedKey.current = key;
-    void loadRemoteState(summary.target.capabilities.includes('provider-scan'));
-  }, [loadRemoteState, summary]);
+    void loadRemoteState(
+      summary.target.capabilities.includes('provider-scan'),
+      discovery.state !== 'ready'
+    );
+  }, [discovery.state, loadRemoteState, summary]);
 
   useEffect(() => {
     if (
@@ -565,30 +718,6 @@ export function RemoteTargetWindow({
     });
   }, []);
 
-  useEffect(() => {
-    if (!shellOpened) return;
-    let active = true;
-    const refreshConnectionState = () => {
-      void api.listRemoteTargets().then(
-        (targets) => {
-          if (!active) return;
-          const current = targets.find(
-            ({ target }) => target.id === executionTargetId
-          );
-          if (current !== undefined) setSummary(current);
-        },
-        () => undefined
-      );
-    };
-    const interval = window.setInterval(refreshConnectionState, 4_000);
-    window.addEventListener('focus', refreshConnectionState);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshConnectionState);
-    };
-  }, [api, executionTargetId, shellOpened]);
-
   if (summary === null) {
     return (
       <main className="remote-window-shell">
@@ -625,21 +754,109 @@ export function RemoteTargetWindow({
     }
   };
 
+  const changeRememberCredential = async (enabled: boolean) => {
+    if (credentialPreferenceBusy) return;
+    if (enabled) {
+      setRememberCredential(true);
+      return;
+    }
+
+    setRememberCredential(false);
+    if (credentialStatus?.credentialState !== 'remembered' ||
+        typeof api.forgetRemoteCredential !== 'function') return;
+    setCredentialPreferenceBusy(true);
+    setError(null);
+    try {
+      const status = await api.forgetRemoteCredential(executionTargetId);
+      setCredentialStatus(status);
+      setAutoConnectDraft(status.autoConnect);
+    } catch {
+      setRememberCredential(true);
+      setError('Lumora could not forget the remembered SSH credential.');
+    } finally {
+      setCredentialPreferenceBusy(false);
+    }
+  };
+
+  const changeAutoConnect = async (enabled: boolean) => {
+    if (credentialPreferenceBusy) return;
+    setAutoConnectDraft(enabled);
+
+    const awaitsManualCredential = authentication.method === 'password' &&
+      credentialStatus?.credentialState !== 'remembered';
+    if (enabled && awaitsManualCredential) return;
+    if (typeof api.setRemoteAutoConnect !== 'function') return;
+
+    setCredentialPreferenceBusy(true);
+    setError(null);
+    try {
+      const status = await api.setRemoteAutoConnect(executionTargetId, enabled);
+      setCredentialStatus(status);
+      setAutoConnectDraft(status.autoConnect);
+    } catch {
+      setAutoConnectDraft(!enabled);
+      setError('Lumora could not update automatic connection for this profile.');
+    } finally {
+      setCredentialPreferenceBusy(false);
+    }
+  };
+
+  const syncCredentialPreferencesAfterConnection = () => {
+    if (autoConnectDraft && typeof api.setRemoteAutoConnect === 'function') {
+      void api.setRemoteAutoConnect(executionTargetId, true).then(
+        (status) => {
+          setCredentialStatus(status);
+          setRememberCredential(status.credentialState === 'remembered');
+          setAutoConnectDraft(status.autoConnect);
+        },
+        () => {
+          setAutoConnectDraft(false);
+          setError(
+            'The SSH connection succeeded, but automatic connection could not be enabled.'
+          );
+        }
+      );
+      return;
+    }
+
+    if (typeof api.getRemoteCredentialStatus !== 'function') return;
+    void api.getRemoteCredentialStatus(executionTargetId).then(
+      (status) => {
+        setCredentialStatus(status);
+        setRememberCredential(status.credentialState === 'remembered');
+      },
+      () => {
+        // A valid SSH connection remains usable when the OS vault is unavailable.
+      }
+    );
+  };
+
   const connect = async () => {
     if (!trusted || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const connectedDetails = await api.connectRemoteTarget({
-        executionTargetId,
-        credentials: credentials()
-      });
+      const usesRememberedCredential =
+        authentication.method !== 'agent' &&
+        secret.length === 0 &&
+        credentialStatus?.credentialState === 'remembered';
+      const connectedDetails = await api.connectRemoteTarget(
+        usesRememberedCredential
+          ? { executionTargetId, mode: 'remembered' }
+          : {
+              executionTargetId,
+              mode: 'manual',
+              credentials: credentials(),
+              rememberCredential
+            }
+      );
       setSummary({
         target: connectedDetails.target,
         profile: connectedDetails.profile
       });
       setDetails(connectedDetails);
       setSecret('');
+      syncCredentialPreferencesAfterConnection();
       if (
         connectedDetails.target.connectionState === 'helper-missing' ||
         connectedDetails.target.connectionState === 'helper-incompatible'
@@ -754,6 +971,79 @@ export function RemoteTargetWindow({
         </label>
       )}
 
+      {!connected && !helperPending && credentialStatus !== null && (
+        <div className="remote-connection-options">
+          {authentication.method !== 'agent' && (
+            <label className="remote-connection-option">
+              <span>
+                <strong>
+                  {authentication.method === 'password'
+                    ? 'Remember password'
+                    : 'Remember passphrase'}
+                </strong>
+                <small>
+                  Protect this credential with the operating system's secure storage.
+                </small>
+              </span>
+              <span className="settings-switch">
+                <input
+                  aria-label={authentication.method === 'password'
+                    ? 'Remember password'
+                    : 'Remember passphrase'}
+                  checked={rememberCredential}
+                  disabled={
+                    credentialPreferenceBusy ||
+                    (credentialStatus.storageState !== 'available' &&
+                      !rememberCredential)
+                  }
+                  role="switch"
+                  type="checkbox"
+                  onChange={(event) => {
+                    void changeRememberCredential(event.target.checked);
+                  }}
+                />
+                <span aria-hidden="true" className="settings-switch-track">
+                  <span className="settings-switch-thumb" />
+                </span>
+              </span>
+            </label>
+          )}
+          <label className="remote-connection-option">
+            <span>
+              <strong>Connect automatically</strong>
+              <small>Attempt this profile once when its remote Lumora window opens.</small>
+            </span>
+            <span className="settings-switch">
+              <input
+                aria-label="Connect automatically"
+                checked={autoConnectDraft}
+                disabled={
+                  credentialPreferenceBusy ||
+                  (authentication.method === 'password' &&
+                    credentialStatus.credentialState !== 'remembered' &&
+                    !(rememberCredential && secret.length > 0))
+                }
+                role="switch"
+                type="checkbox"
+                onChange={(event) => {
+                  void changeAutoConnect(event.target.checked);
+                }}
+              />
+              <span aria-hidden="true" className="settings-switch-track">
+                <span className="settings-switch-thumb" />
+              </span>
+            </span>
+          </label>
+          {credentialStatus.storageState !== 'available' &&
+            authentication.method !== 'agent' && (
+              <p className="remote-credential-help">
+                Secure credential storage is unavailable. Lumora will keep this
+                credential in memory for the current connection only.
+              </p>
+            )}
+        </div>
+      )}
+
       <div className="remote-window-actions">
         {connected ? (
           <button className="secondary-button" disabled={busy} onClick={() => void disconnect()}>
@@ -777,7 +1067,9 @@ export function RemoteTargetWindow({
             className="refresh-button"
             disabled={
               busy || !trusted ||
-              (authentication.method === 'password' && secret.length === 0)
+              (authentication.method === 'password' &&
+                secret.length === 0 &&
+                credentialStatus?.credentialState !== 'remembered')
             }
             onClick={() => void connect()}
           >
@@ -1164,6 +1456,24 @@ export function RemoteTargetWindow({
         }}
         floatingContent={(
           <>
+            {windowCloseRequest !== null ? (
+              <ConfirmDialog
+                cancelLabel="Keep running"
+                confirmLabel="Disconnect and close"
+                description={(
+                  <>
+                    This remote computer has {windowCloseRequest.activeTerminalCount}{' '}
+                    active terminal {windowCloseRequest.activeTerminalCount === 1
+                      ? 'session'
+                      : 'sessions'}. Disconnecting will stop the SSH connection
+                    and those terminal sessions.
+                  </>
+                )}
+                heading="Disconnect remote computer?"
+                onCancel={() => void resolveWindowClose('keep_running')}
+                onConfirm={() => void resolveWindowClose('disconnect')}
+              />
+            ) : null}
             {newSessionIntent !== null && catalogSnapshot !== null ? (
               <NewSessionDialog
                 api={api}

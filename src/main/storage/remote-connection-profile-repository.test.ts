@@ -38,19 +38,23 @@ describe('remote connection profile persistence', () => {
       ...profile,
       password: 'must-not-be-stored'
     })).toThrow();
-    expect(RemoteTargetConnectRequestSchema.parse({
+    const request = RemoteTargetConnectRequestSchema.parse({
       executionTargetId: TARGET_ID,
+      mode: 'manual',
       credentials: {
         method: 'private-key',
         passphrase: 'memory-only'
-      }
-    }).credentials).toEqual({
+      },
+      rememberCredential: false
+    });
+    if (request.mode !== 'manual') throw new Error('Expected manual request.');
+    expect(request.credentials).toEqual({
       method: 'private-key',
       passphrase: 'memory-only'
     });
   });
 
-  it('migrates a constrained profile table without secret columns', () => {
+  it('migrates a constrained profile table with non-secret connection preferences', () => {
     database = new DatabaseSync(':memory:');
     migrateCatalogDatabase(database);
 
@@ -69,10 +73,23 @@ describe('remote connection profile persistence', () => {
       'private_key_path',
       'verified_host_fingerprint',
       'created_at',
-      'updated_at'
+      'updated_at',
+      'auto_connect'
     ]);
     expect(columns.some(({ name }) => /password|passphrase|secret/i.test(name)))
       .toBe(false);
+
+    const credentialColumns = database.prepare(
+      'PRAGMA table_info(remote_connection_credential)'
+    ).all() as unknown as Array<{ name: string }>;
+    expect(credentialColumns.map(({ name }) => name)).toEqual([
+      'execution_target_id',
+      'secret_kind',
+      'encrypted_secret',
+      'encryption_version',
+      'created_at',
+      'updated_at'
+    ]);
   });
 
   it('round-trips direct and SSH-config profiles without credentials', () => {

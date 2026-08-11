@@ -32,9 +32,16 @@ import {
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   RemoteConnectionProfileInputSchema,
+  RemoteAutoConnectPreferenceRequestSchema,
+  RemoteCredentialStatusSchema,
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteLifecycleEventSchema,
+  RemoteLifecycleListSchema,
+  RemoteWindowCloseRequestSchema,
+  RemoteWindowCloseResolutionSchema,
+  RemoteWindowCloseResultSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -99,6 +106,28 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.remoteTargetList);
       return RemoteTargetListSchema.parse(value);
     },
+    async listRemoteLifecycleSnapshots() {
+      const value = await invoke(IPC_CHANNELS.remoteLifecycleList);
+      return RemoteLifecycleListSchema.parse(value);
+    },
+    onRemoteLifecycleEvent(listener) {
+      return subscribe(IPC_CHANNELS.remoteLifecycleEvent, (value) => {
+        listener(RemoteLifecycleEventSchema.parse(value));
+      });
+    },
+    onRemoteWindowCloseRequest(listener) {
+      return subscribe(IPC_CHANNELS.remoteWindowCloseRequest, (value) => {
+        listener(RemoteWindowCloseRequestSchema.parse(value));
+      });
+    },
+    async resolveRemoteWindowClose(resolution) {
+      const request = RemoteWindowCloseResolutionSchema.parse(resolution);
+      const value = await invoke(
+        IPC_CHANNELS.remoteWindowCloseResolve,
+        request
+      );
+      return RemoteWindowCloseResultSchema.parse(value).closed;
+    },
     async createRemoteTarget(input) {
       const request = RemoteConnectionProfileInputSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.remoteTargetCreate, request);
@@ -131,6 +160,33 @@ export function createLumoraApi(
       const request = RemoteTargetConnectRequestSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.remoteTargetConnect, request);
       return RemoteTargetConnectionDetailsSchema.parse(value);
+    },
+    async getRemoteCredentialStatus(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(
+        IPC_CHANNELS.remoteCredentialStatus,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
+    },
+    async setRemoteAutoConnect(executionTargetId, enabled) {
+      const request = RemoteAutoConnectPreferenceRequestSchema.parse({
+        executionTargetId,
+        autoConnect: enabled
+      });
+      const value = await invoke(
+        IPC_CHANNELS.remoteAutoConnectPreferenceSave,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
+    },
+    async forgetRemoteCredential(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(
+        IPC_CHANNELS.remoteCredentialForget,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
     },
     async disconnectRemoteTarget(executionTargetId) {
       const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });

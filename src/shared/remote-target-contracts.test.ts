@@ -6,6 +6,9 @@ import {
   RemoteDiscoverySnapshotSchema,
   RemoteProviderPreferencesSchema,
   RemoteSessionCatalogSchema,
+  RemoteAutoConnectPreferenceRequestSchema,
+  RemoteCredentialStatusSchema,
+  RemoteTargetConnectRequestSchema,
   RemoteTargetConnectionDetailsSchema,
   RemoteTargetListSchema,
   RemoteTargetSummarySchema
@@ -82,6 +85,51 @@ describe('remote target API contracts', () => {
       requiresConfirmation: true,
       command: 'hidden-command'
     })).toThrow();
+  });
+
+  it('separates manual credentials from credential-free automatic connection requests', () => {
+    expect(RemoteTargetConnectRequestSchema.parse({
+      executionTargetId: target.id,
+      mode: 'manual',
+      credentials: { method: 'password', password: 'ephemeral' },
+      rememberCredential: true
+    })).toMatchObject({ mode: 'manual', rememberCredential: true });
+    expect(RemoteTargetConnectRequestSchema.parse({
+      executionTargetId: target.id,
+      mode: 'automatic'
+    })).toEqual({ executionTargetId: target.id, mode: 'automatic' });
+    expect(RemoteTargetConnectRequestSchema.parse({
+      executionTargetId: target.id,
+      mode: 'remembered'
+    })).toEqual({ executionTargetId: target.id, mode: 'remembered' });
+    expect(RemoteTargetConnectRequestSchema.safeParse({
+      executionTargetId: target.id,
+      mode: 'automatic',
+      password: 'must-not-cross'
+    }).success).toBe(false);
+    expect(RemoteTargetConnectRequestSchema.safeParse({
+      executionTargetId: target.id,
+      mode: 'remembered',
+      encryptedSecret: 'must-not-cross'
+    }).success).toBe(false);
+  });
+
+  it('allows only non-secret credential state and auto-connect preferences', () => {
+    const status = {
+      executionTargetId: target.id,
+      storageState: 'available',
+      credentialState: 'remembered',
+      autoConnect: true
+    } as const;
+    expect(RemoteCredentialStatusSchema.parse(status)).toEqual(status);
+    expect(RemoteAutoConnectPreferenceRequestSchema.parse({
+      executionTargetId: target.id,
+      autoConnect: false
+    })).toEqual({ executionTargetId: target.id, autoConnect: false });
+    expect(RemoteCredentialStatusSchema.safeParse({
+      ...status,
+      encryptedSecret: 'ciphertext'
+    }).success).toBe(false);
   });
 
   it('validates target-scoped provider preferences and discovery snapshots', () => {

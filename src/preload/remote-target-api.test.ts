@@ -33,6 +33,16 @@ const summary = {
   }
 } as const;
 
+const lifecycleSnapshot = {
+  summary,
+  generation: 0,
+  discovery: null,
+  catalog: null,
+  discoveryState: 'idle',
+  catalogState: 'idle',
+  activeTerminalCount: 0
+} as const;
+
 describe('remote target preload API', () => {
   it('validates and routes the target-management operations', async () => {
     const invoke = vi.fn(async (channel: string) => {
@@ -40,6 +50,9 @@ describe('remote target preload API', () => {
         return { mode: 'local', executionTargetId: 'local' };
       }
       if (channel === IPC_CHANNELS.remoteTargetList) return [summary];
+      if (channel === IPC_CHANNELS.remoteLifecycleList) {
+        return [lifecycleSnapshot];
+      }
       if (channel === IPC_CHANNELS.remoteTargetObserveHost) {
         return {
           executionTargetId: TARGET_ID,
@@ -48,6 +61,27 @@ describe('remote target preload API', () => {
       }
       if (channel === IPC_CHANNELS.remoteTargetConnect) {
         return { ...summary, homeDirectory: '/home/builder', defaultShell: '/bin/bash' };
+      }
+      if (
+        channel === IPC_CHANNELS.remoteCredentialStatus ||
+        channel === IPC_CHANNELS.remoteCredentialForget
+      ) {
+        return {
+          executionTargetId: TARGET_ID,
+          storageState: 'available',
+          credentialState: channel === IPC_CHANNELS.remoteCredentialForget
+            ? 'none'
+            : 'remembered',
+          autoConnect: false
+        };
+      }
+      if (channel === IPC_CHANNELS.remoteAutoConnectPreferenceSave) {
+        return {
+          executionTargetId: TARGET_ID,
+          storageState: 'available',
+          credentialState: 'remembered',
+          autoConnect: true
+        };
       }
       if (channel === IPC_CHANNELS.remoteTargetHelperDetails) {
         return {
@@ -81,13 +115,28 @@ describe('remote target preload API', () => {
       mode: 'local', executionTargetId: 'local'
     });
     await expect(api.listRemoteTargets()).resolves.toEqual([summary]);
+    await expect(api.listRemoteLifecycleSnapshots()).resolves.toEqual([
+      lifecycleSnapshot
+    ]);
     await expect(api.observeRemoteHost(TARGET_ID)).resolves.toMatchObject({
       executionTargetId: TARGET_ID
     });
     await expect(api.connectRemoteTarget({
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
     })).resolves.toMatchObject({ homeDirectory: '/home/builder' });
+    await expect(api.connectRemoteTarget({
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    })).resolves.toMatchObject({ homeDirectory: '/home/builder' });
+    await expect(api.getRemoteCredentialStatus(TARGET_ID)).resolves
+      .toMatchObject({ credentialState: 'remembered' });
+    await expect(api.setRemoteAutoConnect(TARGET_ID, true)).resolves
+      .toMatchObject({ autoConnect: true });
+    await expect(api.forgetRemoteCredential(TARGET_ID)).resolves
+      .toMatchObject({ credentialState: 'none' });
     await expect(api.removeRemoteTarget(TARGET_ID)).resolves.toBeUndefined();
     await expect(api.getRemoteHelperInstallDetails()).resolves.toMatchObject({
       status: 'missing', requiresConfirmation: true
@@ -103,11 +152,65 @@ describe('remote target preload API', () => {
 
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
     });
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperDetails);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperInstall);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.appearancePresentationGet);
+  });
+
+  it('validates remote lifecycle events before delivering them', () => {
+    let eventListener: ((value: unknown) => void) | undefined;
+    const listener = vi.fn();
+    const api = createLumoraApi(vi.fn(), (channel, callback) => {
+      if (channel === IPC_CHANNELS.remoteLifecycleEvent) {
+        eventListener = callback;
+      }
+      return vi.fn();
+    });
+
+    api.onRemoteLifecycleEvent(listener);
+    eventListener?.({
+      executionTargetId: TARGET_ID,
+      snapshot: lifecycleSnapshot
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      snapshot: lifecycleSnapshot
+    });
+    expect(() => eventListener?.({ type: 'updated' })).toThrow();
+  });
+
+  it('validates remote-window close requests and resolutions', async () => {
+    let closeListener: ((value: unknown) => void) | undefined;
+    const listener = vi.fn();
+    const invoke = vi.fn().mockResolvedValue({ closed: true });
+    const api = createLumoraApi(invoke, (channel, callback) => {
+      if (channel === IPC_CHANNELS.remoteWindowCloseRequest) {
+        closeListener = callback;
+      }
+      return vi.fn();
+    });
+
+    api.onRemoteWindowCloseRequest(listener);
+    closeListener?.({ executionTargetId: TARGET_ID, activeTerminalCount: 2 });
+    expect(listener).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      activeTerminalCount: 2
+    });
+    await expect(api.resolveRemoteWindowClose({ action: 'keep_running' }))
+      .resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.remoteWindowCloseResolve,
+      { action: 'keep_running' }
+    );
   });
 
   it('rejects malformed requests before invoking IPC', async () => {
@@ -116,7 +219,7 @@ describe('remote target preload API', () => {
 
     await expect(api.connectRemoteTarget({
       executionTargetId: 'not-a-uuid',
-      credentials: { method: 'password', password: 'secret' }
+      mode: 'automatic'
     })).rejects.toBeDefined();
     await expect(api.createRemoteTarget({
       displayName: 'Invalid',

@@ -36,7 +36,10 @@ describe('LumoraShell', () => {
           }}
           secondaryNavigation={{
             label: 'Target actions',
-            routes: [{ id: 'settings', icon: 'settings', label: 'Settings' }]
+            routes: [{
+              id: 'settings', icon: 'settings', label: 'Settings',
+              status: '1 computer online'
+            }]
           }}
           sidebarExpanded
           statusBar={<footer role="status">Remote target ready</footer>}
@@ -52,6 +55,9 @@ describe('LumoraShell', () => {
     expect(screen.getByText('Remote data is stale')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Remote target ready');
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Settings · 1 computer online'
+    }).querySelector('.nav-status-dot')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(navigate).toHaveBeenCalledWith('sessions');

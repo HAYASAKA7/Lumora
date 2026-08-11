@@ -25,13 +25,23 @@ responses. Renderer input never grants authority.
 - Build process arguments as arrays. Do not concatenate untrusted shell text.
 - Workspace trust is required before launching an agent in that exact
   canonical workspace.
-- Passwords and passphrases are ephemeral and must not be stored or logged.
+- Passwords and passphrases are ephemeral by default and must never be logged,
+  included in ordinary profile rows, or returned after submission. An explicit
+  per-profile remember action may persist only an OS-protected encrypted blob
+  through the approved main-process credential vault. Plaintext must not cross
+  back into the renderer, and an insecure storage fallback must be rejected.
 - Provider tokens, environment variables, transcripts, raw terminal output,
   private paths, and archive contents must not enter routine logs or telemetry.
 
 Remote SSH connections must verify a host fingerprint before trust is stored.
 Changed fingerprints require a new explicit decision. Remote contexts must not
 inherit local provider settings or access another target.
+
+Automatic remote connection is opt-in per profile, may run only after host-key
+verification, and must make one bounded attempt. Missing, unreadable, or
+platform-unavailable credentials fail closed and leave manual recovery visible.
+Changing authentication method or deleting a profile must remove its remembered
+credential and disable automatic connection.
 
 Remote helper artifacts must be selected only after probing the remote target,
 validated against a bounded manifest, uploaded to a private versioned per-user
@@ -52,6 +62,8 @@ untrusted context.
 - `src/main/transfer/transfer-path-safety.ts`
 - `src/main/storage/remote-host-trust.test.ts`
 - `src/main/remote/ssh-client.ts`
+- `src/main/remote/remote-credential-vault.ts`
+- `src/main/storage/remote-credential-repository.ts`
 - `src/main/remote/helper-installer.ts`
 - `src/main/remote/helper-connection.ts`
 

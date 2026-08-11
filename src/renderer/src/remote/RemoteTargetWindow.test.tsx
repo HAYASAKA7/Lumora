@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_KEYBOARD_SETTINGS,
-  type LumoraApi
+  type LumoraApi,
+  type RemoteLifecycleEvent
 } from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
 
@@ -90,6 +91,106 @@ function deferred<T>() {
 }
 
 describe('RemoteTargetWindow', () => {
+  it('hydrates a kept connection from lifecycle cache without rescanning', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const catalog = {
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-11T05:00:00.000Z',
+      sessions: [],
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-11T05:00:00.000Z',
+        workspaces: [], sessions: [], providerStatus: [],
+        providerFacets: [], diagnostics: []
+      }
+    } as const;
+    const scanRemoteDiscovery = vi.fn();
+    const scanRemoteSessions = vi.fn();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteLifecycleSnapshots: vi.fn().mockResolvedValue([{
+        summary: readySummary,
+        generation: 1,
+        discovery,
+        catalog,
+        discoveryState: 'ready',
+        catalogState: 'ready',
+        activeTerminalCount: 0
+      }]),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      onRemoteLifecycleEvent: vi.fn(() => () => undefined),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery,
+      scanRemoteSessions
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByTestId('lumora-shell');
+    await waitFor(() => expect(api.getRemoteProviderPreferences).toHaveBeenCalled());
+
+    expect(api.listRemoteTargets).not.toHaveBeenCalled();
+    expect(scanRemoteDiscovery).not.toHaveBeenCalled();
+    expect(scanRemoteSessions).not.toHaveBeenCalled();
+  });
+
+  it('warns before closing a disconnecting window with active terminals', async () => {
+    let closeListener: ((request: {
+      executionTargetId: typeof TARGET_ID;
+      activeTerminalCount: number;
+    }) => void) | undefined;
+    const resolveRemoteWindowClose = vi.fn().mockResolvedValue(true);
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1
+      }
+    };
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      onRemoteWindowCloseRequest: vi.fn((listener) => {
+        closeListener = listener;
+        return () => undefined;
+      }),
+      resolveRemoteWindowClose
+    } as unknown as LumoraApi;
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByText('Linux build server');
+
+    act(() => closeListener?.({
+      executionTargetId: TARGET_ID,
+      activeTerminalCount: 2
+    }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Disconnect remote computer?'
+    });
+    expect(within(dialog).getByText(/2 active terminal sessions/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('button', {
+      name: 'Keep running'
+    }));
+
+    await waitFor(() => expect(resolveRemoteWindowClose).toHaveBeenCalledWith({
+      action: 'keep_running'
+    }));
+  });
+
   it('waits for remote discovery before scanning sessions on the shared helper channel', async () => {
     const discoveryPending = deferred<typeof discovery>();
     const readySummary = {
@@ -225,6 +326,12 @@ describe('RemoteTargetWindow', () => {
     const api = {
       ...providerApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      }),
       connectRemoteTarget: vi.fn().mockResolvedValue({
         ...summary,
         target: {
@@ -256,7 +363,9 @@ describe('RemoteTargetWindow', () => {
 
     await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: false
     }));
     expect(await screen.findByTestId('lumora-shell')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -266,6 +375,290 @@ describe('RemoteTargetWindow', () => {
     expect(await screen.findByText('/home/builder')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
+  });
+
+  it('releases the connection action after SSH succeeds while credential status refresh is pending', async () => {
+    const credentialRefresh = deferred<never>();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn()
+        .mockResolvedValueOnce({
+          executionTargetId: TARGET_ID,
+          storageState: 'available',
+          credentialState: 'none',
+          autoConnect: false
+        })
+        .mockImplementation(() => credentialRefresh.promise),
+      connectRemoteTarget: vi.fn().mockResolvedValue({
+        ...summary,
+        target: {
+          ...summary.target,
+          connectionState: 'ready',
+          helperVersion: '0.3.1',
+          protocolVersion: 1,
+          capabilities: []
+        },
+        homeDirectory: '/home/builder',
+        defaultShell: '/bin/bash'
+      }),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.change(await screen.findByLabelText('SSH password'), {
+      target: { value: 'memory-only' }
+    });
+    await waitFor(() => expect(api.getRemoteCredentialStatus).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    await screen.findByTestId('lumora-shell');
+    expect(screen.queryByRole('button', { name: 'Disconnecting…' }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeEnabled();
+  });
+
+  it('remembers a password and enables auto-connect only after manual success', async () => {
+    const connected = {
+      ...summary,
+      target: { ...summary.target, connectionState: 'ready' as const },
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    };
+    const api = {
+      ...providerApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      }),
+      connectRemoteTarget: vi.fn().mockResolvedValue(connected),
+      setRemoteAutoConnect: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.change(await screen.findByLabelText('SSH password'), {
+      target: { value: 'memory-only' }
+    });
+    const remember = screen.getByRole('switch', { name: 'Remember password' });
+    const automatic = screen.getByRole('switch', {
+      name: 'Connect automatically'
+    });
+    expect(remember).not.toBeChecked();
+    expect(automatic).toBeDisabled();
+    fireEvent.click(remember);
+    expect(automatic).not.toBeDisabled();
+    fireEvent.click(automatic);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
+    }));
+    await waitFor(() => expect(api.setRemoteAutoConnect)
+      .toHaveBeenCalledWith(TARGET_ID, true));
+  });
+
+  it('attempts automatic connection only once and leaves manual recovery visible', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      connectRemoteTarget: vi.fn().mockRejectedValue(
+        new Error('REMOTE_TARGET_AUTHENTICATION_FAILED')
+      )
+    } as unknown as LumoraApi;
+
+    const view = render(
+      <RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />
+    );
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    }));
+    view.rerender(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByLabelText('SSH password');
+    expect(api.connectRemoteTarget).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+  });
+
+  it('clears the automatic connection action when ready lifecycle state rerenders the effect', async () => {
+    let lifecycleListener: ((event: RemoteLifecycleEvent) => void) | undefined;
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: []
+      }
+    };
+    const connectedDetails = {
+      ...readySummary,
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    };
+    const connection = deferred<typeof connectedDetails>();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      onRemoteLifecycleEvent: vi.fn((listener) => {
+        lifecycleListener = listener;
+        return () => undefined;
+      }),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      connectRemoteTarget: vi.fn(() => connection.promise),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    }));
+
+    act(() => lifecycleListener?.({
+      executionTargetId: TARGET_ID,
+      snapshot: {
+        summary: readySummary,
+        generation: 1,
+        discovery: null,
+        catalog: null,
+        discoveryState: 'idle',
+        catalogState: 'idle',
+        activeTerminalCount: 0
+      }
+    }));
+    connection.resolve(connectedDetails);
+
+    await screen.findByTestId('lumora-shell');
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Disconnect' })
+    ).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Disconnecting…' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('connects explicitly with a remembered password without returning it to the renderer', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: false
+      }),
+      connectRemoteTarget: vi.fn().mockResolvedValue({
+        ...summary,
+        target: { ...summary.target, connectionState: 'ready' },
+        homeDirectory: '/home/builder',
+        defaultShell: '/bin/bash'
+      }),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    const connect = await screen.findByRole('button', { name: 'Connect' });
+    await waitFor(() => expect(connect).not.toBeDisabled());
+    expect(screen.getByLabelText('SSH password')).toHaveValue('');
+    fireEvent.click(connect);
+
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    }));
+  });
+
+  it('disables remembering without secure storage and omits it for SSH agent profiles', async () => {
+    const unavailable = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'unavailable',
+        credentialState: 'none',
+        autoConnect: false
+      })
+    } as unknown as LumoraApi;
+    const first = render(
+      <RemoteTargetWindow executionTargetId={TARGET_ID} api={unavailable} />
+    );
+    expect(await screen.findByRole('switch', { name: 'Remember password' }))
+      .toBeDisabled();
+    first.unmount();
+
+    const agent = {
+      listRemoteTargets: vi.fn().mockResolvedValue([{
+        ...summary,
+        profile: { ...summary.profile, authentication: { method: 'agent' } }
+      }]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      })
+    } as unknown as LumoraApi;
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={agent} />);
+    expect(await screen.findByRole('switch', { name: 'Connect automatically' }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /Remember/ })).not.toBeInTheDocument();
+  });
+
+  it('offers passphrase remembering for private-key profiles', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([{
+        ...summary,
+        profile: {
+          ...summary.profile,
+          authentication: {
+            method: 'private-key',
+            privateKeyPath: '/home/builder/.ssh/id_ed25519'
+          }
+        }
+      }]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    expect(await screen.findByRole('switch', { name: 'Remember passphrase' }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText('Private-key passphrase (optional)'))
+      .toHaveValue('');
   });
 
   it('shows a safe actionable connection-stage failure without raw diagnostics', async () => {

@@ -12,6 +12,7 @@ import {
   nativeImage,
   net,
   protocol,
+  safeStorage,
   screen,
   shell,
   Tray
@@ -198,6 +199,7 @@ let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
+let unsubscribeRemoteLifecycleEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let remoteWindowStateManager: SharedWindowStateManager | null = null;
 let activeStartupBackgroundActivity:
@@ -208,6 +210,7 @@ let activeStartupBackgroundActivityId: number | null = null;
 let trayController: TrayController | null = null;
 let appearanceBackgroundStore: AppearanceBackgroundStore | null = null;
 let shutdownStarted = false;
+const pendingRemoteWindowCloses = new Set<string>();
 
 configureDevelopmentDataPaths(app);
 configurePackagedWindowsApplicationIdentity(app, {
@@ -417,8 +420,54 @@ const targetWindowManager = createTargetWindowManager({
   },
   loadWindow: (window) => window.loadURL(
     developmentOrigin ?? 'app://lumora/index.html'
-  )
+  ),
+  onCloseRequested: (executionTargetId, event) => {
+    if (
+      terminalRuntime?.getGeneralSettings().remoteWindowCloseBehavior !==
+        'disconnect' ||
+      remoteTargetRuntime === null
+    ) return;
+
+    event.preventDefault();
+    if (pendingRemoteWindowCloses.has(executionTargetId)) return;
+    const activeTerminalCount = remoteTargetRuntime.service
+      .getLifecycleSnapshot(executionTargetId).activeTerminalCount;
+    pendingRemoteWindowCloses.add(executionTargetId);
+    if (activeTerminalCount > 0) {
+      const delivered = targetWindowManager.send(
+        executionTargetId,
+        IPC_CHANNELS.remoteWindowCloseRequest,
+        { executionTargetId, activeTerminalCount }
+      );
+      if (!delivered) {
+        pendingRemoteWindowCloses.delete(executionTargetId);
+        targetWindowManager.close(executionTargetId);
+      }
+      return;
+    }
+
+    void remoteTargetRuntime.service.disconnect(executionTargetId).then(() => {
+      pendingRemoteWindowCloses.delete(executionTargetId);
+      targetWindowManager.close(executionTargetId);
+    }).catch(() => {
+      pendingRemoteWindowCloses.delete(executionTargetId);
+    });
+  }
 });
+
+async function resolveRemoteWindowClose(
+  executionTargetId: Parameters<typeof targetWindowManager.close>[0],
+  action: 'keep_running' | 'disconnect'
+): Promise<boolean> {
+  if (!pendingRemoteWindowCloses.has(executionTargetId)) return false;
+  if (action === 'disconnect') {
+    if (remoteTargetRuntime === null) return false;
+    await remoteTargetRuntime.service.disconnect(executionTargetId);
+  }
+  pendingRemoteWindowCloses.delete(executionTargetId);
+  targetWindowManager.close(executionTargetId);
+  return true;
+}
 
 function createApplicationTray(): void {
   if (trayController !== null || trayIconPath === undefined) return;
@@ -485,8 +534,20 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     loadImage: (path) => nativeImage.createFromPath(path)
   });
   registerApplicationProtocol();
+  const credentialEncryption = {
+    platform,
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    isAsyncEncryptionAvailable: () =>
+      safeStorage.isAsyncEncryptionAvailable(),
+    getSelectedStorageBackend: () => safeStorage.getSelectedStorageBackend(),
+    encryptStringAsync: (value: string) =>
+      safeStorage.encryptStringAsync(value),
+    decryptStringAsync: (value: Buffer) =>
+      safeStorage.decryptStringAsync(value)
+  };
   remoteTargetRuntime = createRemoteTargetRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
+    credentialEncryption,
     providerReleases: providerReleaseSource,
     helperBundleRoot: app.isPackaged
       ? join(process.resourcesPath, 'helper')
@@ -622,7 +683,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       }
       remoteTargetRuntime.service.get(executionTargetId);
       await targetWindowManager.open(executionTargetId);
-    }
+    },
+    resolveWindowClose: resolveRemoteWindowClose
   });
   registerSystemIpc({
     ipc: ipcMain,
@@ -773,6 +835,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         );
       }
     );
+  unsubscribeRemoteLifecycleEvents =
+    remoteTargetRuntime.service.subscribeLifecycle((event) => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.remoteLifecycleEvent, event);
+      }
+      targetWindowManager.send(
+        event.executionTargetId,
+        IPC_CHANNELS.remoteLifecycleEvent,
+        event
+      );
+    });
 
   await mainWindowCreation.ensureCreated();
   createApplicationTray();
@@ -843,6 +916,8 @@ app.on('before-quit', (event) => {
       remoteTargetRuntime = null;
       unsubscribeRemoteTerminalEvents?.();
       unsubscribeRemoteTerminalEvents = null;
+      unsubscribeRemoteLifecycleEvents?.();
+      unsubscribeRemoteLifecycleEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
       runtime?.close();
@@ -862,6 +937,8 @@ app.on('will-quit', () => {
   remoteTargetRuntime = null;
   unsubscribeRemoteTerminalEvents?.();
   unsubscribeRemoteTerminalEvents = null;
+  unsubscribeRemoteLifecycleEvents?.();
+  unsubscribeRemoteLifecycleEvents = null;
   trayController?.dispose();
   trayController = null;
   unsubscribeTerminalEvents?.();

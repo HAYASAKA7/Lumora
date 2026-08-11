@@ -2,9 +2,14 @@ import {
   IPC_CHANNELS,
   LumoraWindowContextSchema,
   RemoteConnectionProfileInputSchema,
+  RemoteAutoConnectPreferenceRequestSchema,
+  RemoteCredentialStatusSchema,
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
+  RemoteLifecycleListSchema,
+  RemoteWindowCloseResolutionSchema,
+  RemoteWindowCloseResultSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -45,10 +50,16 @@ interface RegisterTargetIpcDependencies {
   service: Pick<RemoteTargetService,
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
+    'getCredentialStatus' | 'setAutoConnect' | 'forgetCredential' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
-    'scanDiscovery' | 'scanSessions'>;
+    'scanDiscovery' | 'scanSessions' | 'listLifecycleSnapshots' |
+    'getLifecycleSnapshot'>;
   beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
+  resolveWindowClose(
+    id: RemoteExecutionTargetId,
+    action: 'keep_running' | 'disconnect'
+  ): Promise<boolean>;
 }
 
 export class RemoteTargetIpcError extends Error {
@@ -101,7 +112,8 @@ export function registerTargetIpc({
   authorize,
   service,
   beforeProfileMutation,
-  openTargetWindow
+  openTargetWindow,
+  resolveWindowClose
 }: RegisterTargetIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.targetWindowContextGet, async (event) =>
     LumoraWindowContextSchema.parse(authorize(event))
@@ -177,10 +189,58 @@ export function registerTargetIpc({
       requireTargetScope(context, request.executionTargetId);
       return RemoteTargetConnectionDetailsSchema.parse(await service.connect(
         request.executionTargetId,
-        request.credentials
+        request
       ));
     });
   });
+
+  ipc.handle(IPC_CHANNELS.remoteLifecycleList, async (event) => {
+    const context = authorize(event);
+    return protectedOperation(() => RemoteLifecycleListSchema.parse(
+      context.mode === 'local'
+        ? service.listLifecycleSnapshots()
+        : [service.getLifecycleSnapshot(context.executionTargetId)]
+    ));
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteCredentialStatus, async (event, input) => {
+    const context = authorize(event);
+    return protectedOperation(async () => {
+      const request = RemoteTargetIdRequestSchema.parse(input);
+      requireTargetScope(context, request.executionTargetId);
+      return RemoteCredentialStatusSchema.parse(
+        await service.getCredentialStatus(request.executionTargetId)
+      );
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteCredentialForget, async (event, input) => {
+    const context = authorize(event);
+    return protectedOperation(async () => {
+      const request = RemoteTargetIdRequestSchema.parse(input);
+      requireTargetScope(context, request.executionTargetId);
+      return RemoteCredentialStatusSchema.parse(
+        await service.forgetCredential(request.executionTargetId)
+      );
+    });
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.remoteAutoConnectPreferenceSave,
+    async (event, input) => {
+      const context = authorize(event);
+      return protectedOperation(async () => {
+        const request = RemoteAutoConnectPreferenceRequestSchema.parse(input);
+        requireTargetScope(context, request.executionTargetId);
+        return RemoteCredentialStatusSchema.parse(
+          await service.setAutoConnect(
+            request.executionTargetId,
+            request.autoConnect
+          )
+        );
+      });
+    }
+  );
 
   ipc.handle(IPC_CHANNELS.remoteTargetDisconnect, async (event, input) => {
     const context = authorize(event);
@@ -250,6 +310,16 @@ export function registerTargetIpc({
       return RemoteTargetWindowOpenResultSchema.parse({
         opened: true,
         executionTargetId: request.executionTargetId
+      });
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteWindowCloseResolve, async (event, input) => {
+    const executionTargetId = requireRemote(authorize(event));
+    return protectedOperation(async () => {
+      const request = RemoteWindowCloseResolutionSchema.parse(input);
+      return RemoteWindowCloseResultSchema.parse({
+        closed: await resolveWindowClose(executionTargetId, request.action)
       });
     });
   });

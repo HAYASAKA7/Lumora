@@ -65,4 +65,19 @@ describe('development data paths', () => {
     expect(readiness).toBeGreaterThan(-1);
     expect(configuration).toBeLessThan(readiness);
   });
+
+  it('composes secure credential storage only after Electron readiness', async () => {
+    const source = await readFile(resolve('src/main/index.ts'), 'utf8');
+    const readiness = source.indexOf('app.whenReady().then');
+    const adapter = source.indexOf('const credentialEncryption', readiness);
+    const safeStorageAdapter = source.indexOf('safeStorage', adapter);
+    const remoteRuntime = source.indexOf('createRemoteTargetRuntime({', readiness);
+
+    expect(readiness).toBeGreaterThan(-1);
+    expect(adapter).toBeGreaterThan(readiness);
+    expect(safeStorageAdapter).toBeGreaterThan(adapter);
+    expect(remoteRuntime).toBeGreaterThan(safeStorageAdapter);
+    expect(source.slice(remoteRuntime, remoteRuntime + 300))
+      .toContain('credentialEncryption');
+  });
 });

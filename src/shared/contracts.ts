@@ -162,9 +162,37 @@ export const RemoteTargetCredentialsSchema = z.discriminatedUnion('method', [
   z.strictObject({ method: z.literal('agent') })
 ]);
 
-export const RemoteTargetConnectRequestSchema = z.strictObject({
+export const RemoteTargetConnectRequestSchema = z.discriminatedUnion('mode', [
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('manual'),
+    credentials: RemoteTargetCredentialsSchema,
+    rememberCredential: z.boolean()
+  }),
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('automatic')
+  }),
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('remembered')
+  })
+]);
+
+export const RemoteCredentialStatusSchema = z.strictObject({
   executionTargetId: RemoteExecutionTargetIdSchema,
-  credentials: RemoteTargetCredentialsSchema
+  storageState: z.enum([
+    'available',
+    'unavailable',
+    'temporarily-unavailable'
+  ]),
+  credentialState: z.enum(['none', 'remembered', 'needs-attention']),
+  autoConnect: z.boolean()
+});
+
+export const RemoteAutoConnectPreferenceRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  autoConnect: z.boolean()
 });
 
 export const RemoteExecutionTargetSchema = z.strictObject({
@@ -248,6 +276,12 @@ export type RemoteTargetCredentials = z.infer<
 >;
 export type RemoteTargetConnectRequest = z.infer<
   typeof RemoteTargetConnectRequestSchema
+>;
+export type RemoteCredentialStatus = z.infer<
+  typeof RemoteCredentialStatusSchema
+>;
+export type RemoteAutoConnectPreferenceRequest = z.infer<
+  typeof RemoteAutoConnectPreferenceRequestSchema
 >;
 export type RemoteExecutionTarget = z.infer<typeof RemoteExecutionTargetSchema>;
 export type RemoteTargetSummary = z.infer<typeof RemoteTargetSummarySchema>;
@@ -926,12 +960,13 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
 } as const satisfies AppearanceSettings;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(6),
+  version: z.literal(7),
   showInformationalNotices: z.boolean(),
   startMaximized: z.boolean(),
   checkProviderUpdatesAutomatically: z.boolean(),
   autoExpandSidebar: z.boolean(),
   windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  remoteWindowCloseBehavior: z.enum(['keep_connected', 'disconnect']),
   crossAgentWorkflowEnabled: z.boolean(),
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema,
@@ -974,6 +1009,59 @@ export const RemoteSessionCatalogSchema = z.strictObject({
   snapshot: CatalogSnapshotSchema
 });
 
+export const RemoteLifecycleScanStateSchema = z.enum([
+  'idle', 'refreshing', 'ready', 'error'
+]);
+export const RemoteLifecycleSnapshotSchema = z.strictObject({
+  summary: RemoteTargetSummarySchema,
+  generation: z.number().int().nonnegative(),
+  discovery: RemoteDiscoverySnapshotSchema.nullable(),
+  catalog: RemoteSessionCatalogSchema.nullable(),
+  discoveryState: RemoteLifecycleScanStateSchema,
+  catalogState: RemoteLifecycleScanStateSchema,
+  activeTerminalCount: z.number().int().nonnegative()
+}).superRefine((snapshot, context) => {
+  for (const [key, value] of [
+    ['discovery', snapshot.discovery],
+    ['catalog', snapshot.catalog]
+  ] as const) {
+    if (
+      value !== null &&
+      value.executionTargetId !== snapshot.summary.target.id
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: [key, 'executionTargetId'],
+        message: 'Remote lifecycle data belongs to another target.'
+      });
+    }
+  }
+});
+export const RemoteLifecycleEventSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  snapshot: RemoteLifecycleSnapshotSchema
+}).superRefine((event, context) => {
+  if (event.executionTargetId !== event.snapshot.summary.target.id) {
+    context.addIssue({
+      code: 'custom',
+      path: ['executionTargetId'],
+      message: 'Remote lifecycle event target does not match its snapshot.'
+    });
+  }
+});
+export const RemoteLifecycleListSchema = z.array(RemoteLifecycleSnapshotSchema);
+
+export const RemoteWindowCloseRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  activeTerminalCount: z.number().int().nonnegative()
+});
+export const RemoteWindowCloseResolutionSchema = z.strictObject({
+  action: z.enum(['keep_running', 'disconnect'])
+});
+export const RemoteWindowCloseResultSchema = z.strictObject({
+  closed: z.boolean()
+});
+
 export type RemoteProviderPreferences = z.infer<
   typeof RemoteProviderPreferencesSchema
 >;
@@ -989,21 +1077,48 @@ export type RemoteSessionProviderStatus = z.infer<
 export type RemoteSessionCatalog = z.infer<
   typeof RemoteSessionCatalogSchema
 >;
+export type RemoteLifecycleScanState = z.infer<
+  typeof RemoteLifecycleScanStateSchema
+>;
+export type RemoteLifecycleSnapshot = z.infer<
+  typeof RemoteLifecycleSnapshotSchema
+>;
+export type RemoteLifecycleEvent = z.infer<typeof RemoteLifecycleEventSchema>;
+export type RemoteWindowCloseRequest = z.infer<
+  typeof RemoteWindowCloseRequestSchema
+>;
+export type RemoteWindowCloseResolution = z.infer<
+  typeof RemoteWindowCloseResolutionSchema
+>;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 6,
+  version: 7,
   showInformationalNotices: true,
   startMaximized: true,
   checkProviderUpdatesAutomatically: true,
   autoExpandSidebar: true,
   windowCloseBehavior: 'quit',
+  remoteWindowCloseBehavior: 'keep_connected',
   crossAgentWorkflowEnabled: false,
   crossAgentHandoffRetentionDays: 30,
   enabledProviders: [...PROVIDER_IDS],
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
+
+const VersionSixGeneralSettingsSchema = z.strictObject({
+  version: z.literal(6),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema,
+  appearance: AppearanceSettingsSchema
+});
 
 const VersionFiveAppearanceSettingsSchema = AppearanceSettingsSchema
   .omit({ surfaceMosaic: true })
@@ -1063,11 +1178,21 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionSix = VersionSixGeneralSettingsSchema.safeParse(value);
+  if (versionSix.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionSix.data,
+      version: 7,
+      remoteWindowCloseBehavior: 'keep_connected'
+    });
+  }
+
   const versionFive = VersionFiveGeneralSettingsSchema.safeParse(value);
   if (versionFive.success) {
     return GeneralSettingsSchema.parse({
       ...versionFive.data,
-      version: 6,
+      version: 7,
+      remoteWindowCloseBehavior: 'keep_connected',
       appearance: {
         ...versionFive.data.appearance,
         theme: versionFive.data.appearance.theme === 'system'
@@ -1083,7 +1208,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1092,7 +1217,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1101,7 +1226,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 6
+      version: 7
     });
   }
 
@@ -1483,6 +1608,9 @@ export const IPC_CHANNELS = {
   remoteTargetObserveHost: 'lumora:targets:host:observe',
   remoteTargetTrustHost: 'lumora:targets:host:trust',
   remoteTargetConnect: 'lumora:targets:connect',
+  remoteCredentialStatus: 'lumora:targets:credential:status',
+  remoteCredentialForget: 'lumora:targets:credential:forget',
+  remoteAutoConnectPreferenceSave: 'lumora:targets:auto-connect:save',
   remoteTargetDisconnect: 'lumora:targets:disconnect',
   remoteTargetHelperDetails: 'lumora:targets:helper:details',
   remoteTargetHelperInstall: 'lumora:targets:helper:install',
@@ -1490,6 +1618,10 @@ export const IPC_CHANNELS = {
   remoteProviderPreferencesSave: 'lumora:targets:providers:save',
   remoteDiscoveryScan: 'lumora:targets:discovery:scan',
   remoteSessionScan: 'lumora:targets:sessions:scan',
+  remoteLifecycleList: 'lumora:targets:lifecycle:list',
+  remoteLifecycleEvent: 'lumora:targets:lifecycle:event',
+  remoteWindowCloseRequest: 'lumora:targets:window:close-request',
+  remoteWindowCloseResolve: 'lumora:targets:window:close-resolve',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1550,6 +1682,16 @@ export const IPC_CHANNELS = {
 export interface LumoraApi {
   getWindowContext(): Promise<LumoraWindowContext>;
   listRemoteTargets(): Promise<RemoteTargetSummary[]>;
+  listRemoteLifecycleSnapshots(): Promise<RemoteLifecycleSnapshot[]>;
+  onRemoteLifecycleEvent(
+    listener: (event: RemoteLifecycleEvent) => void
+  ): () => void;
+  onRemoteWindowCloseRequest(
+    listener: (request: RemoteWindowCloseRequest) => void
+  ): () => void;
+  resolveRemoteWindowClose(
+    resolution: RemoteWindowCloseResolution
+  ): Promise<boolean>;
   createRemoteTarget(
     input: RemoteConnectionProfileInput
   ): Promise<RemoteTargetSummary>;
@@ -1565,6 +1707,16 @@ export interface LumoraApi {
   connectRemoteTarget(
     input: RemoteTargetConnectRequest
   ): Promise<RemoteTargetConnectionDetails>;
+  getRemoteCredentialStatus(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus>;
+  setRemoteAutoConnect(
+    executionTargetId: RemoteExecutionTargetId,
+    enabled: boolean
+  ): Promise<RemoteCredentialStatus>;
+  forgetRemoteCredential(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus>;
   disconnectRemoteTarget(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<RemoteTargetSummary>;
