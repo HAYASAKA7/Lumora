@@ -5,6 +5,7 @@ import {
   RemoteHelperRequestSchema,
   RemoteHelperResponseSchema,
   type RemoteHelperDiscoveryResult,
+  type RemoteHelperProviderLifecycleResult,
   type RemoteHelperResponse,
   type RemoteHelperSessionScanResult,
   type RemoteHelperSystemInfo
@@ -19,6 +20,7 @@ import type { RemoteExecChannel } from './ssh-client';
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_DISCOVERY_REQUEST_TIMEOUT_MS = 75_000;
+const DEFAULT_LIFECYCLE_REQUEST_TIMEOUT_MS = 10 * 60 * 1_000 + 15_000;
 const MAX_STDERR_BYTES = 64 * 1024;
 
 export type RemoteHelperConnectionErrorCode =
@@ -47,6 +49,10 @@ export interface ConnectedRemoteHelper {
     cursor: string | null,
     limit: number
   ): Promise<RemoteHelperSessionScanResult>;
+  runProviderLifecycle(
+    provider: ProviderId,
+    action: 'install' | 'update'
+  ): Promise<RemoteHelperProviderLifecycleResult>;
   close(): void;
 }
 
@@ -65,6 +71,7 @@ export function connectRemoteHelper(input: {
   createRequestId?: () => string;
   timeoutMs?: number;
   discoveryTimeoutMs?: number;
+  lifecycleTimeoutMs?: number;
 }): Promise<ConnectedRemoteHelper> {
   const tracker = new RemoteHelperResponseTracker(input.generation);
   const decoder = createHelperFrameDecoder();
@@ -74,6 +81,10 @@ export function connectRemoteHelper(input: {
   const discoveryTimeoutMs = input.discoveryTimeoutMs ?? Math.max(
     timeoutMs,
     DEFAULT_DISCOVERY_REQUEST_TIMEOUT_MS
+  );
+  const lifecycleTimeoutMs = input.lifecycleTimeoutMs ?? Math.max(
+    timeoutMs,
+    DEFAULT_LIFECYCLE_REQUEST_TIMEOUT_MS
   );
   let stderrBytes = 0;
   let closed = false;
@@ -222,6 +233,22 @@ export function connectRemoteHelper(input: {
           throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
         }
         return sessions.result;
+      },
+      async runProviderLifecycle(
+        provider: ProviderId,
+        action: 'install' | 'update'
+      ) {
+        if (!info.capabilities.includes('provider-lifecycle')) {
+          throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
+        }
+        const lifecycle = await send('provider-lifecycle', {
+          provider,
+          action
+        }, lifecycleTimeoutMs);
+        if (lifecycle.operation !== 'provider-lifecycle' || !lifecycle.ok) {
+          throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
+        }
+        return lifecycle.result;
       },
       close() {
         failConnection('HELPER_INCOMPATIBLE');

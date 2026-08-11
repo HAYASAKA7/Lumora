@@ -183,6 +183,71 @@ describe('remote helper connection', () => {
     connected.close();
   });
 
+  it('runs one allowlisted provider lifecycle request after capability negotiation', async () => {
+    const remote = channel();
+    const written: Buffer[] = [];
+    remote.stdin.on('data', (chunk: Buffer) => written.push(chunk));
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 100,
+      lifecycleTimeoutMs: 200
+    });
+    remote.stdout.write(encodeHelperFrame(response({
+      result: {
+        ...response().result as object,
+        capabilities: ['system-info', 'provider-lifecycle']
+      }
+    })));
+    const connected = await connecting;
+    const running = connected.runProviderLifecycle('codex', 'install');
+    remote.stdout.write(encodeHelperFrame({
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 7,
+      requestId: 'request-2',
+      operation: 'provider-lifecycle',
+      ok: true,
+      result: {
+        provider: 'codex',
+        action: 'install',
+        completedAt: '2026-08-11T01:02:03.000Z'
+      }
+    }));
+
+    await expect(running).resolves.toMatchObject({
+      provider: 'codex', action: 'install'
+    });
+    const requests = createHelperFrameDecoder().push(Buffer.concat(written));
+    expect(requests[1]).toMatchObject({
+      operation: 'provider-lifecycle',
+      payload: { provider: 'codex', action: 'install' }
+    });
+    expect(JSON.stringify(requests[1])).not.toContain('command');
+    connected.close();
+  });
+
+  it('rejects provider lifecycle when the helper did not advertise it', async () => {
+    const remote = channel();
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => 'request-1'
+    });
+    remote.stdout.write(encodeHelperFrame(response()));
+    const connected = await connecting;
+    await expect(
+      connected.runProviderLifecycle('codex', 'update')
+    ).rejects.toMatchObject({ code: 'HELPER_INCOMPATIBLE' });
+    connected.close();
+  });
+
   it('rejects pending discovery when the connected helper closes', async () => {
     const remote = channel();
     const requestIds = ['request-1', 'request-2'];
