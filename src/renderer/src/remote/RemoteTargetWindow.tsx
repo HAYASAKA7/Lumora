@@ -793,6 +793,36 @@ export function RemoteTargetWindow({
     }
   };
 
+  const syncCredentialPreferencesAfterConnection = () => {
+    if (autoConnectDraft && typeof api.setRemoteAutoConnect === 'function') {
+      void api.setRemoteAutoConnect(executionTargetId, true).then(
+        (status) => {
+          setCredentialStatus(status);
+          setRememberCredential(status.credentialState === 'remembered');
+          setAutoConnectDraft(status.autoConnect);
+        },
+        () => {
+          setAutoConnectDraft(false);
+          setError(
+            'The SSH connection succeeded, but automatic connection could not be enabled.'
+          );
+        }
+      );
+      return;
+    }
+
+    if (typeof api.getRemoteCredentialStatus !== 'function') return;
+    void api.getRemoteCredentialStatus(executionTargetId).then(
+      (status) => {
+        setCredentialStatus(status);
+        setRememberCredential(status.credentialState === 'remembered');
+      },
+      () => {
+        // A valid SSH connection remains usable when the OS vault is unavailable.
+      }
+    );
+  };
+
   const connect = async () => {
     if (!trusted || busy) return;
     setBusy(true);
@@ -818,27 +848,7 @@ export function RemoteTargetWindow({
       });
       setDetails(connectedDetails);
       setSecret('');
-      if (typeof api.getRemoteCredentialStatus === 'function') {
-        try {
-          const status = await api.getRemoteCredentialStatus(executionTargetId);
-          setCredentialStatus(status);
-          setRememberCredential(status.credentialState === 'remembered');
-        } catch {
-          // A valid SSH connection remains usable when the OS vault is unavailable.
-        }
-      }
-      if (autoConnectDraft && typeof api.setRemoteAutoConnect === 'function') {
-        try {
-          const status = await api.setRemoteAutoConnect(executionTargetId, true);
-          setCredentialStatus(status);
-          setAutoConnectDraft(status.autoConnect);
-        } catch {
-          setAutoConnectDraft(false);
-          setError(
-            'The SSH connection succeeded, but automatic connection could not be enabled.'
-          );
-        }
-      }
+      syncCredentialPreferencesAfterConnection();
       if (
         connectedDetails.target.connectionState === 'helper-missing' ||
         connectedDetails.target.connectionState === 'helper-incompatible'

@@ -57,6 +57,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Release the remote connection action as soon as SSH/helper activation
+  succeeds so a slow credential-status refresh cannot leave the ready window's
+  Disconnect control stuck on **Disconnecting**.
 - Standardize dropdowns across local and remote catalogs, session workflows,
   settings, terminal profiles, and transfers on Lumora's overlay menu, and use
   a Lumora confirmation dialog when opening terminal links.
