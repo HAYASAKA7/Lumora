@@ -14,6 +14,7 @@ import {
   type ProviderId,
   type RemoteConnectionProfile,
   type RemoteConnectionProfileInput,
+  type RemoteCredentialStatus,
   type RemoteExecutionTargetId,
   type RemoteTargetCredentials,
   type RuntimeEvent,
@@ -105,6 +106,36 @@ interface ProviderPreferenceRepository {
   ): readonly (typeof PROVIDER_IDS)[number][];
 }
 
+interface RemoteCredentialPreferenceRepository {
+  getAutoConnect(id: RemoteExecutionTargetId): boolean;
+  setAutoConnect(id: RemoteExecutionTargetId, enabled: boolean): void;
+}
+
+interface RemoteCredentialVaultAccess {
+  getStorageState(): Promise<RemoteCredentialStatus['storageState']>;
+  getCredentialState(
+    id: RemoteExecutionTargetId
+  ): RemoteCredentialStatus['credentialState'];
+  save(
+    id: RemoteExecutionTargetId,
+    kind: 'password' | 'private-key-passphrase',
+    secret: string
+  ): Promise<void>;
+  resolve(
+    id: RemoteExecutionTargetId,
+    kind: 'password' | 'private-key-passphrase'
+  ): Promise<string | null>;
+  forget(id: RemoteExecutionTargetId): void;
+}
+
+type RemoteConnectionInput = RemoteTargetCredentials | {
+  mode: 'manual';
+  credentials: RemoteTargetCredentials;
+  rememberCredential: boolean;
+} | {
+  mode: 'automatic';
+};
+
 export interface RemoteTargetSummary {
   target: RemoteTarget;
   profile: RemoteConnectionProfile;
@@ -136,6 +167,8 @@ interface CreateRemoteTargetServiceOptions {
     ssh: ConnectedRemoteSshClient;
   }): RemoteSessionRuntime;
   providerPreferences?: ProviderPreferenceRepository;
+  credentialPreferences?: RemoteCredentialPreferenceRepository;
+  credentialVault?: RemoteCredentialVaultAccess;
   providerReleases?: ProviderReleaseSource;
   clock?: () => Date;
   createTargetId?: () => string;
@@ -350,6 +383,21 @@ export function createRemoteTargetService({
     get: () => [...PROVIDER_IDS],
     save: (_id, providers) => [...providers]
   },
+  credentialPreferences = {
+    getAutoConnect: () => false,
+    setAutoConnect: () => {
+      throw new Error('Remote credential preferences are unavailable.');
+    }
+  },
+  credentialVault = {
+    getStorageState: async () => 'unavailable' as const,
+    getCredentialState: () => 'none' as const,
+    save: async () => {
+      throw new Error('Remote credential storage is unavailable.');
+    },
+    resolve: async () => null,
+    forget: () => undefined
+  },
   providerReleases = {
     latestVersion: async () => {
       throw new Error('Provider release metadata is unavailable.');
@@ -398,6 +446,63 @@ export function createRemoteTargetService({
       throw new Error('The remote connection profile does not exist.');
     }
     return { target, profile };
+  };
+
+  const credentialStatus = async (
+    id: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus> => ({
+    executionTargetId: id,
+    storageState: await credentialVault.getStorageState(),
+    credentialState: credentialVault.getCredentialState(id),
+    autoConnect: credentialPreferences.getAutoConnect(id)
+  });
+
+  const resolveCredentials = async (
+    id: RemoteExecutionTargetId,
+    profile: RemoteConnectionProfile,
+    input: RemoteConnectionInput
+  ): Promise<{
+    credentials: RemoteTargetCredentials;
+    rememberCredential: boolean;
+  }> => {
+    if (!('mode' in input)) {
+      return {
+        credentials: RemoteTargetCredentialsSchema.parse(input),
+        rememberCredential: false
+      };
+    }
+    if (input.mode === 'manual') {
+      return {
+        credentials: RemoteTargetCredentialsSchema.parse(input.credentials),
+        rememberCredential: input.rememberCredential
+      };
+    }
+    if (!credentialPreferences.getAutoConnect(id)) {
+      throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+    }
+    if (profile.authentication.method === 'agent') {
+      return { credentials: { method: 'agent' }, rememberCredential: false };
+    }
+    if (profile.authentication.method === 'private-key') {
+      return {
+        credentials: {
+          method: 'private-key',
+          passphrase: await credentialVault.resolve(
+            id,
+            'private-key-passphrase'
+          )
+        },
+        rememberCredential: false
+      };
+    }
+    const password = await credentialVault.resolve(id, 'password');
+    if (password === null) {
+      throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+    }
+    return {
+      credentials: { method: 'password', password },
+      rememberCredential: false
+    };
   };
 
   const disconnect = async (
@@ -675,6 +780,43 @@ export function createRemoteTargetService({
       return summary(RemoteExecutionTargetIdSchema.parse(input));
     },
 
+    async getCredentialStatus(
+      input: RemoteExecutionTargetId
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      summary(id);
+      return credentialStatus(id);
+    },
+
+    async setAutoConnect(
+      input: RemoteExecutionTargetId,
+      enabled: boolean
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const profile = summary(id).profile;
+      if (
+        enabled &&
+        profile.authentication.method === 'password' &&
+        credentialVault.getCredentialState(id) !== 'remembered'
+      ) {
+        throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
+      }
+      credentialPreferences.setAutoConnect(id, enabled);
+      return credentialStatus(id);
+    },
+
+    async forgetCredential(
+      input: RemoteExecutionTargetId
+    ): Promise<RemoteCredentialStatus> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const profile = summary(id).profile;
+      credentialVault.forget(id);
+      if (profile.authentication.method === 'password') {
+        credentialPreferences.setAutoConnect(id, false);
+      }
+      return credentialStatus(id);
+    },
+
     create(input: RemoteConnectionProfileInput): RemoteTargetSummary {
       const profile = RemoteConnectionProfileInputSchema.parse(input);
       const id = RemoteExecutionTargetIdSchema.parse(createTargetId());
@@ -694,12 +836,17 @@ export function createRemoteTargetService({
     ): Promise<RemoteTargetSummary> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const profile = RemoteConnectionProfileInputSchema.parse(profileInput);
+      const formerProfile = summary(id).profile;
       const active = activeTargets.get(id);
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
       await disposeActive(active);
       targets.updateRemoteConnection(id, { connectionState: 'offline' });
       profiles.save(id, profile, clock());
+      if (formerProfile.authentication.method !== profile.authentication.method) {
+        credentialVault.forget(id);
+        credentialPreferences.setAutoConnect(id, false);
+      }
       return summary(id);
     },
 
@@ -709,6 +856,7 @@ export function createRemoteTargetService({
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
       await disposeActive(active);
+      credentialVault.forget(id);
       targets.deleteRemote(id);
     },
 
@@ -725,11 +873,18 @@ export function createRemoteTargetService({
 
     async connect(
       input: RemoteExecutionTargetId,
-      credentialsInput: RemoteTargetCredentials
+      connectionInput: RemoteConnectionInput
     ): Promise<RemoteTargetConnectionDetails> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
-      const credentials = RemoteTargetCredentialsSchema.parse(credentialsInput);
       const profile = summary(id).profile;
+      let resolved: Awaited<ReturnType<typeof resolveCredentials>>;
+      try {
+        resolved = await resolveCredentials(id, profile, connectionInput);
+      } catch (error) {
+        if (error instanceof RemoteTargetServiceError) throw error;
+        throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_UNAVAILABLE');
+      }
+      const { credentials, rememberCredential } = resolved;
       const former = activeTargets.get(id);
       activeTargets.delete(id);
       providerUpdateServices.delete(id);
@@ -741,6 +896,31 @@ export function createRemoteTargetService({
       try {
         targets.updateRemoteConnection(id, { connectionState: 'authenticating' });
         connected = await ssh.connect(profile, credentials);
+        if ('mode' in connectionInput && connectionInput.mode === 'manual') {
+          try {
+            if (
+              rememberCredential &&
+              credentials.method === 'password'
+            ) {
+              await credentialVault.save(id, 'password', credentials.password);
+            } else if (
+              rememberCredential &&
+              credentials.method === 'private-key' &&
+              credentials.passphrase !== null &&
+              credentials.passphrase.length > 0
+            ) {
+              await credentialVault.save(
+                id,
+                'private-key-passphrase',
+                credentials.passphrase
+              );
+            } else {
+              credentialVault.forget(id);
+            }
+          } catch {
+            // Credential storage is optional and must not tear down a valid SSH session.
+          }
+        }
         stage = 'platform';
         const facts = await probe(connected.execute);
         if (
