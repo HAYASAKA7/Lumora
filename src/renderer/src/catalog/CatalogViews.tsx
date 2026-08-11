@@ -151,15 +151,7 @@ export function WorkspacesView({
 
   return (
     <section className="catalog-panel" aria-labelledby="workspace-list-title">
-      <div className="catalog-toolbar">
-        <div>
-          <p className="card-label">{scopeLabel}</p>
-          <h2 aria-live="polite" id="workspace-list-title">
-            {normalizedQuery.length === 0
-              ? `${workspaces.length} ${workspaces.length === 1 ? 'workspace' : 'workspaces'}`
-              : `${filteredWorkspaces.length} of ${workspaces.length} workspaces`}
-          </h2>
-        </div>
+      <div className="session-toolbar">
         <label className="search-control">
           <span>Search workspaces</span>
           <input
@@ -192,6 +184,15 @@ export function WorkspacesView({
             </button>
           )}
         </div>
+      </div>
+
+      <div className="catalog-result-heading">
+        <p className="card-label">{scopeLabel}</p>
+        <h2 aria-live="polite" id="workspace-list-title">
+          {normalizedQuery.length === 0
+            ? `${workspaces.length} ${workspaces.length === 1 ? 'workspace' : 'workspaces'}`
+            : `${filteredWorkspaces.length} of ${workspaces.length} workspaces`}
+        </h2>
       </div>
 
       {workspaces.length === 0 ? (

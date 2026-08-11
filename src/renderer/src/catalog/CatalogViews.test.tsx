@@ -147,7 +147,7 @@ function repeatedSessions(count: number): CatalogSnapshot['sessions'] {
 
 describe('WorkspacesView', () => {
   it('supports a read-only remote scope without local workspace controls', () => {
-    render(
+    const { container } = render(
       <WorkspacesView
         isRefreshing={false}
         onOpenWorkspace={vi.fn()}
@@ -158,9 +158,20 @@ describe('WorkspacesView', () => {
     );
 
     expect(screen.getByText('Remote provider folders')).toBeInTheDocument();
-    expect(
-      screen.getByRole('searchbox', { name: 'Search workspaces' })
-    ).toBeInTheDocument();
+    const search = screen.getByRole('searchbox', {
+      name: 'Search workspaces'
+    });
+    expect(search).toBeInTheDocument();
+    const toolbar = search.closest('.session-toolbar');
+    const resultHeading = screen
+      .getByRole('heading', { name: '2 workspaces' })
+      .closest('.catalog-result-heading');
+    expect(toolbar).toBeInTheDocument();
+    expect(resultHeading).toBeInTheDocument();
+    expect(toolbar?.nextElementSibling).toBe(resultHeading);
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Refresh catalog' })
+    );
     expect(screen.queryByRole('button', { name: 'Add workspace' })).not.toBeInTheDocument();
   });
 
