@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
+	"github.com/HAYASAKA7/lumora/helper/internal/providerlifecycle"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
 	"github.com/HAYASAKA7/lumora/helper/internal/sessioncatalog"
 	"github.com/HAYASAKA7/lumora/helper/internal/systeminfo"
@@ -78,6 +79,66 @@ func TestServeDiscoveryScanValidatesProvidersBeforeScanning(t *testing.T) {
 	}
 	if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
 		t.Fatalf("invalid discovery was not rejected: %#v calls=%d", response, calls)
+	}
+}
+
+func TestServeProviderLifecycleValidatesIntentBeforeExecution(t *testing.T) {
+	lifecycle := request("provider-lifecycle")
+	lifecycle.Payload = map[string]any{"provider": "codex", "action": "install"}
+	var input bytes.Buffer
+	if err := protocol.WriteFrame(&input, lifecycle); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	calls := 0
+	if err := Serve(&input, &output, Dependencies{
+		ProviderLifecycle: func(_ context.Context, request providerlifecycle.Request) (providerlifecycle.Result, error) {
+			calls++
+			if request.Provider != "codex" || request.Action != providerlifecycle.ActionInstall {
+				t.Fatalf("unexpected lifecycle request: %#v", request)
+			}
+			return providerlifecycle.Result{
+				Provider: "codex", Action: providerlifecycle.ActionInstall,
+				CompletedAt: "2026-08-11T01:02:03Z",
+			}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var response protocol.Response
+	if err := protocol.ReadFrame(&output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OK || response.Operation != "provider-lifecycle" || calls != 1 {
+		t.Fatalf("unexpected lifecycle response: %#v calls=%d", response, calls)
+	}
+
+	for _, payload := range []map[string]any{
+		{"provider": "unknown", "action": "install"},
+		{"provider": "codex", "action": "remove"},
+		{"provider": "codex", "action": "install", "command": "sudo npm install"},
+	} {
+		input.Reset()
+		output.Reset()
+		invalid := request("provider-lifecycle")
+		invalid.Payload = payload
+		if err := protocol.WriteFrame(&input, invalid); err != nil {
+			t.Fatal(err)
+		}
+		if err := Serve(&input, &output, Dependencies{
+			ProviderLifecycle: func(context.Context, providerlifecycle.Request) (providerlifecycle.Result, error) {
+				calls++
+				return providerlifecycle.Result{}, nil
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := protocol.ReadFrame(&output, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
+			t.Fatalf("invalid lifecycle was not rejected: %#v calls=%d", response, calls)
+		}
 	}
 }
 

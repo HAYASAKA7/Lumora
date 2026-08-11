@@ -4,6 +4,7 @@ import {
   REMOTE_HELPER_PROTOCOL_VERSION,
   RemoteHelperDiscoveryResponseSchema,
   RemoteHelperHandshakeResponseSchema,
+  RemoteHelperProviderLifecycleResponseSchema,
   RemoteHelperRequestSchema,
   RemoteHelperResponseSchema,
   RemoteHelperSessionScanResponseSchema
@@ -19,6 +20,49 @@ const request = {
 } as const;
 
 describe('remote helper protocol contracts', () => {
+  it('accepts only allowlisted provider lifecycle intent', () => {
+    const lifecycleRequest = {
+      ...request,
+      operation: 'provider-lifecycle',
+      payload: { provider: 'codex', action: 'install' }
+    } as const;
+    expect(RemoteHelperRequestSchema.parse(lifecycleRequest)).toEqual(
+      lifecycleRequest
+    );
+    for (const payload of [
+      { provider: 'codex', action: 'remove' },
+      { provider: 'unknown', action: 'install' },
+      { provider: 'codex', action: 'install', command: 'sudo npm install' },
+      { provider: 'codex', action: 'install', package: 'other-package' }
+    ]) {
+      expect(RemoteHelperRequestSchema.safeParse({
+        ...lifecycleRequest,
+        payload
+      }).success).toBe(false);
+    }
+
+    const response = {
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 4,
+      requestId: 'request-4',
+      operation: 'provider-lifecycle',
+      ok: true,
+      result: {
+        provider: 'codex',
+        action: 'install',
+        completedAt: '2026-08-11T01:02:03.000Z'
+      }
+    } as const;
+    expect(RemoteHelperProviderLifecycleResponseSchema.parse(response)).toEqual(
+      response
+    );
+    expect(RemoteHelperProviderLifecycleResponseSchema.safeParse({
+      ...response,
+      result: { ...response.result, output: '/home/work/private' }
+    }).success).toBe(false);
+  });
+
   it('accepts bounded, paginated session metadata without transcript contents', () => {
     const sessionRequest = {
       ...request,

@@ -61,6 +61,8 @@ func Current(helperVersion string) (Info, error) {
 		Architecture:    architecture,
 		HomeDirectory:   home,
 		DefaultShell:    shell,
-		Capabilities:    []string{"system-info", "provider-scan", "session-scan"},
+		Capabilities: []string{
+			"system-info", "provider-scan", "provider-lifecycle", "session-scan",
+		},
 	}, nil
 }

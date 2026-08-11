@@ -15,6 +15,7 @@ export const REMOTE_HELPER_MAX_CONTROL_FRAME_BYTES = 64 * 1024;
 export const RemoteHelperCapabilitySchema = z.enum([
   'system-info',
   'provider-scan',
+  'provider-lifecycle',
   'session-scan',
   'pty',
   'persistent-runtime'
@@ -61,6 +62,13 @@ export const RemoteHelperRequestSchema = z.discriminatedUnion('operation', [
             });
           }
       })
+    })
+  }).strict(),
+  RequestIdentitySchema.extend({
+    operation: z.literal('provider-lifecycle'),
+    payload: z.strictObject({
+      provider: ProviderIdSchema,
+      action: z.enum(['install', 'update'])
     })
   }).strict(),
   RequestIdentitySchema.extend({
@@ -148,6 +156,19 @@ export const RemoteHelperDiscoveryResponseSchema = ResponseIdentitySchema.extend
   result: RemoteHelperDiscoveryResultSchema
 }).strict();
 
+export const RemoteHelperProviderLifecycleResultSchema = z.strictObject({
+  provider: ProviderIdSchema,
+  action: z.enum(['install', 'update']),
+  completedAt: z.iso.datetime()
+});
+
+export const RemoteHelperProviderLifecycleResponseSchema =
+  ResponseIdentitySchema.extend({
+    operation: z.literal('provider-lifecycle'),
+    ok: z.literal(true),
+    result: RemoteHelperProviderLifecycleResultSchema
+  }).strict();
+
 export const RemoteHelperSessionRecordSchema = z.strictObject({
   nativeId: z.string().trim().min(1).max(256),
   workspacePath: z.string().min(1).max(32_768),
@@ -202,14 +223,18 @@ export const RemoteHelperSessionScanResponseSchema = ResponseIdentitySchema.exte
 export const RemoteHelperErrorResponseSchema = ResponseIdentitySchema.extend({
   operation: z.enum([
     'handshake', 'system-info', 'health', 'shutdown', 'discovery-scan',
-    'session-scan'
+    'session-scan', 'provider-lifecycle'
   ]),
   ok: z.literal(false),
   error: z.object({
     code: z.enum([
       'INVALID_REQUEST',
       'UNSUPPORTED_OPERATION',
-      'INTERNAL_ERROR'
+      'INTERNAL_ERROR',
+      'PROVIDER_INSTALL_GUIDE_REQUIRED',
+      'PROVIDER_PACKAGE_MANAGER_UNAVAILABLE',
+      'PROVIDER_LIFECYCLE_FAILED',
+      'PROVIDER_LIFECYCLE_TIMEOUT'
     ]),
     message: z.string().min(1).max(240)
   }).strict()
@@ -221,6 +246,7 @@ export const RemoteHelperResponseSchema = z.union([
   RemoteHelperHealthResponseSchema,
   RemoteHelperShutdownResponseSchema,
   RemoteHelperDiscoveryResponseSchema,
+  RemoteHelperProviderLifecycleResponseSchema,
   RemoteHelperSessionScanResponseSchema,
   RemoteHelperErrorResponseSchema
 ]);
@@ -231,6 +257,9 @@ export type RemoteHelperResponse = z.infer<typeof RemoteHelperResponseSchema>;
 export type RemoteHelperSystemInfo = z.infer<typeof RemoteHelperSystemInfoSchema>;
 export type RemoteHelperDiscoveryResult = z.infer<
   typeof RemoteHelperDiscoveryResultSchema
+>;
+export type RemoteHelperProviderLifecycleResult = z.infer<
+  typeof RemoteHelperProviderLifecycleResultSchema
 >;
 export type RemoteHelperSessionRecord = z.infer<
   typeof RemoteHelperSessionRecordSchema

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
+	"github.com/HAYASAKA7/lumora/helper/internal/providerlifecycle"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
 	"github.com/HAYASAKA7/lumora/helper/internal/sessioncatalog"
 	"github.com/HAYASAKA7/lumora/helper/internal/systeminfo"
@@ -16,10 +17,11 @@ import (
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,80}$`)
 
 type Dependencies struct {
-	HelperVersion string
-	SystemInfo    func(string) (systeminfo.Info, error)
-	Discover      func(context.Context, []string) providerprobe.Result
-	SessionScan   func(context.Context, sessioncatalog.Query) sessioncatalog.Result
+	HelperVersion     string
+	SystemInfo        func(string) (systeminfo.Info, error)
+	Discover          func(context.Context, []string) providerprobe.Result
+	ProviderLifecycle func(context.Context, providerlifecycle.Request) (providerlifecycle.Result, error)
+	SessionScan       func(context.Context, sessioncatalog.Query) sessioncatalog.Result
 }
 
 var sessionProviders = map[string]struct{}{
@@ -97,6 +99,41 @@ func discoveryProviders(payload map[string]any) ([]string, bool) {
 	return providers, true
 }
 
+func lifecycleRequest(payload map[string]any) (providerlifecycle.Request, bool) {
+	if len(payload) != 2 {
+		return providerlifecycle.Request{}, false
+	}
+	provider, providerOK := payload["provider"].(string)
+	actionValue, actionOK := payload["action"].(string)
+	if !providerOK || !actionOK {
+		return providerlifecycle.Request{}, false
+	}
+	known := false
+	for _, definition := range providerprobe.Registry {
+		if definition.Provider == provider {
+			known = true
+			break
+		}
+	}
+	action := providerlifecycle.Action(actionValue)
+	if !known || (action != providerlifecycle.ActionInstall && action != providerlifecycle.ActionUpdate) {
+		return providerlifecycle.Request{}, false
+	}
+	return providerlifecycle.Request{Provider: provider, Action: action}, true
+}
+
+func lifecycleError(errorValue error) *protocol.ResponseError {
+	var lifecycleError *providerlifecycle.Error
+	if errors.As(errorValue, &lifecycleError) {
+		return &protocol.ResponseError{
+			Code: string(lifecycleError.Code), Message: "The provider lifecycle operation failed.",
+		}
+	}
+	return &protocol.ResponseError{
+		Code: "INTERNAL_ERROR", Message: "The provider lifecycle operation failed.",
+	}
+}
+
 func responseFor(request protocol.Request, dependencies Dependencies) (protocol.Response, bool) {
 	response := protocol.Response{
 		ProtocolVersion: protocol.Version,
@@ -168,6 +205,27 @@ func responseFor(request protocol.Request, dependencies Dependencies) (protocol.
 		}
 		response.OK = true
 		response.Result = discover(context.Background(), providers)
+	case "provider-lifecycle":
+		requestValue, valid := lifecycleRequest(request.Payload)
+		if !valid {
+			response.Error = &protocol.ResponseError{
+				Code: "INVALID_REQUEST", Message: "The helper request is invalid.",
+			}
+			return response, false
+		}
+		run := dependencies.ProviderLifecycle
+		if run == nil {
+			run = func(ctx context.Context, input providerlifecycle.Request) (providerlifecycle.Result, error) {
+				return providerlifecycle.Run(ctx, input, providerlifecycle.Dependencies{})
+			}
+		}
+		result, err := run(context.Background(), requestValue)
+		if err != nil {
+			response.Error = lifecycleError(err)
+			return response, false
+		}
+		response.OK = true
+		response.Result = result
 	case "session-scan":
 		query, valid := sessionQuery(request.Payload)
 		if !valid {
