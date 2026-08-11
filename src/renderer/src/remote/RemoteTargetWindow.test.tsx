@@ -357,6 +357,39 @@ describe('RemoteTargetWindow', () => {
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
   });
 
+  it('connects explicitly with a remembered password without returning it to the renderer', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: false
+      }),
+      connectRemoteTarget: vi.fn().mockResolvedValue({
+        ...summary,
+        target: { ...summary.target, connectionState: 'ready' },
+        homeDirectory: '/home/builder',
+        defaultShell: '/bin/bash'
+      }),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    const connect = await screen.findByRole('button', { name: 'Connect' });
+    await waitFor(() => expect(connect).not.toBeDisabled());
+    expect(screen.getByLabelText('SSH password')).toHaveValue('');
+    fireEvent.click(connect);
+
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    }));
+  });
+
   it('disables remembering without secure storage and omits it for SSH agent profiles', async () => {
     const unavailable = {
       listRemoteTargets: vi.fn().mockResolvedValue([summary]),
@@ -390,6 +423,33 @@ describe('RemoteTargetWindow', () => {
     expect(await screen.findByRole('switch', { name: 'Connect automatically' }))
       .toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: /Remember/ })).not.toBeInTheDocument();
+  });
+
+  it('offers passphrase remembering for private-key profiles', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([{
+        ...summary,
+        profile: {
+          ...summary.profile,
+          authentication: {
+            method: 'private-key',
+            privateKeyPath: '/home/builder/.ssh/id_ed25519'
+          }
+        }
+      }]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    expect(await screen.findByRole('switch', { name: 'Remember passphrase' }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText('Private-key passphrase (optional)'))
+      .toHaveValue('');
   });
 
   it('shows a safe actionable connection-stage failure without raw diagnostics', async () => {

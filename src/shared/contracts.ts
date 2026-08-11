@@ -172,6 +172,10 @@ export const RemoteTargetConnectRequestSchema = z.discriminatedUnion('mode', [
   z.strictObject({
     executionTargetId: RemoteExecutionTargetIdSchema,
     mode: z.literal('automatic')
+  }),
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('remembered')
   })
 ]);
 

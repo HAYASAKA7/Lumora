@@ -134,6 +134,8 @@ type RemoteConnectionInput = RemoteTargetCredentials | {
   rememberCredential: boolean;
 } | {
   mode: 'automatic';
+} | {
+  mode: 'remembered';
 };
 
 export interface RemoteTargetSummary {
@@ -477,7 +479,10 @@ export function createRemoteTargetService({
         rememberCredential: input.rememberCredential
       };
     }
-    if (!credentialPreferences.getAutoConnect(id)) {
+    if (
+      input.mode === 'automatic' &&
+      !credentialPreferences.getAutoConnect(id)
+    ) {
       throw new RemoteTargetServiceError('REMOTE_TARGET_CREDENTIAL_REQUIRED');
     }
     if (profile.authentication.method === 'agent') {
@@ -916,6 +921,9 @@ export function createRemoteTargetService({
               );
             } else {
               credentialVault.forget(id);
+              if (credentials.method === 'password') {
+                credentialPreferences.setAutoConnect(id, false);
+              }
             }
           } catch {
             // Credential storage is optional and must not tear down a valid SSH session.

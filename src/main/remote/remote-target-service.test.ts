@@ -327,6 +327,33 @@ describe('remote target service', () => {
     expect(harness.credentialVault.save).not.toHaveBeenCalled();
   });
 
+  it('remembers a private-key passphrase only after successful authentication', async () => {
+    const profile: RemoteConnectionProfile = {
+      ...storedProfile,
+      authentication: {
+        method: 'private-key',
+        privateKeyPath: '/home/builder/.ssh/id_ed25519'
+      }
+    };
+    const harness = createHarness({ profile });
+
+    await harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'private-key', passphrase: 'key-secret' },
+      rememberCredential: true
+    });
+
+    expect(harness.ssh.connect).toHaveBeenCalledWith(profile, {
+      method: 'private-key',
+      passphrase: 'key-secret'
+    });
+    expect(harness.credentialVault.save).toHaveBeenCalledWith(
+      TARGET_ID,
+      'private-key-passphrase',
+      'key-secret'
+    );
+  });
+
   it('resolves a remembered password for one automatic connection attempt', async () => {
     const harness = createHarness({ autoConnect: true });
     harness.credentialVault.resolve.mockResolvedValueOnce('remembered');
@@ -342,6 +369,36 @@ describe('remote target service', () => {
       storedProfile,
       { method: 'password', password: 'remembered' }
     );
+  });
+
+  it('uses a remembered password for an explicit connection without enabling auto-connect', async () => {
+    const harness = createHarness();
+    harness.credentialVault.resolve.mockResolvedValueOnce('remembered');
+
+    await harness.service.connect(TARGET_ID, { mode: 'remembered' });
+
+    expect(harness.credentialPreferences.getAutoConnect()).toBe(false);
+    expect(harness.credentialVault.resolve).toHaveBeenCalledWith(
+      TARGET_ID,
+      'password'
+    );
+    expect(harness.ssh.connect).toHaveBeenCalledWith(storedProfile, {
+      method: 'password',
+      password: 'remembered'
+    });
+  });
+
+  it('disables password auto-connect when a successful manual connection forgets it', async () => {
+    const harness = createHarness({ autoConnect: true });
+
+    await harness.service.connect(TARGET_ID, {
+      mode: 'manual',
+      credentials: { method: 'password', password: 'ephemeral' },
+      rememberCredential: false
+    });
+
+    expect(harness.credentialVault.forget).toHaveBeenCalledWith(TARGET_ID);
+    expect(harness.credentialPreferences.getAutoConnect()).toBe(false);
   });
 
   it('supports automatic private-key and SSH-agent authentication', async () => {

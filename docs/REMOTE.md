@@ -27,7 +27,8 @@ profile can instead enable **Remember password** or **Remember passphrase**.
 Lumora saves only an operating-system-protected encrypted value and never logs
 or exposes it after submission. The remember control is unavailable when the
 operating system cannot provide secure credential storage; Lumora does not fall
-back to plain text.
+back to plain text. Turning the remember switch off deletes that profile's
+encrypted credential immediately but does not modify the remote computer.
 
 **Connect automatically** is also off by default and belongs to one profile.
 It supports password, private-key, and SSH-agent authentication. Password-based
@@ -35,6 +36,9 @@ automatic connection becomes available after the password is selected for
 remembering; an unencrypted private key or SSH agent needs no saved secret.
 Opening the isolated remote window makes one automatic attempt. A failure does
 not loop, hide the manual controls, or bypass host-fingerprint verification.
+With automatic connection off, selecting **Connect** reuses a remembered
+credential inside the main process; the saved value is never prefilled or sent
+back to the remote window.
 
 ## Activate the helper
 

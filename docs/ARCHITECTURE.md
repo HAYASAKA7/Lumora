@@ -99,7 +99,9 @@ process encrypts it with Electron's operating-system-backed `safeStorage` and
 stores only the encrypted blob in a separate credential table. Credential
 plaintext is never added to the profile DTO, returned after submission, or
 logged. Linux `basic_text` fallback is rejected rather than treated as secure
-storage.
+storage. On Windows, DPAPI prevents another operating-system account from
+decrypting the blob but does not isolate it from every process already running
+as the same user.
 
 Automatic connection is a separate per-profile preference and defaults off.
 It works with remembered passwords, private keys with an optional remembered

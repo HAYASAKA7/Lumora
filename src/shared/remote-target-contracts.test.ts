@@ -98,10 +98,19 @@ describe('remote target API contracts', () => {
       executionTargetId: target.id,
       mode: 'automatic'
     })).toEqual({ executionTargetId: target.id, mode: 'automatic' });
+    expect(RemoteTargetConnectRequestSchema.parse({
+      executionTargetId: target.id,
+      mode: 'remembered'
+    })).toEqual({ executionTargetId: target.id, mode: 'remembered' });
     expect(RemoteTargetConnectRequestSchema.safeParse({
       executionTargetId: target.id,
       mode: 'automatic',
       password: 'must-not-cross'
+    }).success).toBe(false);
+    expect(RemoteTargetConnectRequestSchema.safeParse({
+      executionTargetId: target.id,
+      mode: 'remembered',
+      encryptedSecret: 'must-not-cross'
     }).success).toBe(false);
   });
 

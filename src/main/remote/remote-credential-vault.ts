@@ -57,16 +57,16 @@ export class RemoteCredentialVault {
   ) {}
 
   async getStorageState(): Promise<RemoteCredentialStorageState> {
-    if (
-      this.encryption.platform === 'linux' &&
-      this.encryption.getSelectedStorageBackend() === 'basic_text'
-    ) {
-      return 'unavailable';
-    }
-    if (!this.encryption.isEncryptionAvailable()) {
-      return 'temporarily-unavailable';
-    }
     try {
+      if (
+        this.encryption.platform === 'linux' &&
+        this.encryption.getSelectedStorageBackend() === 'basic_text'
+      ) {
+        return 'unavailable';
+      }
+      if (!this.encryption.isEncryptionAvailable()) {
+        return 'temporarily-unavailable';
+      }
       return await this.encryption.isAsyncEncryptionAvailable()
         ? 'available'
         : 'temporarily-unavailable';

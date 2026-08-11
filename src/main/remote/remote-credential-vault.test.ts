@@ -62,6 +62,17 @@ describe('RemoteCredentialVault', () => {
     await expect(vault.getStorageState()).resolves.toBe('available');
   });
 
+  it('reports a backend probe failure without exposing or throwing the raw error', async () => {
+    const vault = new RemoteCredentialVault(repository(), backend({
+      isEncryptionAvailable: vi.fn(() => {
+        throw new Error('raw keychain probe failure');
+      })
+    }));
+
+    await expect(vault.getStorageState())
+      .resolves.toBe('temporarily-unavailable');
+  });
+
   it('rejects Linux basic_text instead of storing an insecure fallback', async () => {
     const encryption = backend({
       platform: 'linux',

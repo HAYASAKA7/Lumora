@@ -245,6 +245,7 @@ export function RemoteTargetWindow({
     useState<RemoteCredentialStatus | null>(null);
   const [rememberCredential, setRememberCredential] = useState(false);
   const [autoConnectDraft, setAutoConnectDraft] = useState(false);
+  const [autoConnectOnOpen, setAutoConnectOnOpen] = useState<boolean | null>(null);
   const [credentialPreferenceBusy, setCredentialPreferenceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
@@ -303,6 +304,7 @@ export function RemoteTargetWindow({
         setCredentialStatus(status);
         setRememberCredential(status.credentialState === 'remembered');
         setAutoConnectDraft(status.autoConnect);
+        setAutoConnectOnOpen((current) => current ?? status.autoConnect);
       },
       () => {
         if (!active) return;
@@ -321,7 +323,7 @@ export function RemoteTargetWindow({
     if (
       automaticConnectionAttempted.current ||
       summary === null ||
-      credentialStatus?.autoConnect !== true ||
+      autoConnectOnOpen !== true ||
       summary.profile.verifiedHostFingerprint === null ||
       summary.target.connectionState === 'ready' ||
       summary.target.connectionState === 'helper-missing' ||
@@ -349,7 +351,7 @@ export function RemoteTargetWindow({
       if (active) setBusy(false);
     });
     return () => { active = false; };
-  }, [api, credentialStatus?.autoConnect, executionTargetId, summary]);
+  }, [api, autoConnectOnOpen, executionTargetId, summary]);
 
   const refreshDiscovery = useCallback(async () => {
     setDiscovery({ state: 'loading' });
@@ -745,23 +747,34 @@ export function RemoteTargetWindow({
     setBusy(true);
     setError(null);
     try {
-      const connectedDetails = await api.connectRemoteTarget({
-        executionTargetId,
-        mode: 'manual',
-        credentials: credentials(),
-        rememberCredential
-      });
+      const usesRememberedCredential =
+        authentication.method !== 'agent' &&
+        secret.length === 0 &&
+        credentialStatus?.credentialState === 'remembered';
+      const connectedDetails = await api.connectRemoteTarget(
+        usesRememberedCredential
+          ? { executionTargetId, mode: 'remembered' }
+          : {
+              executionTargetId,
+              mode: 'manual',
+              credentials: credentials(),
+              rememberCredential
+            }
+      );
       setSummary({
         target: connectedDetails.target,
         profile: connectedDetails.profile
       });
       setDetails(connectedDetails);
       setSecret('');
-      if (rememberCredential) {
-        setCredentialStatus((current) => current === null ? current : ({
-          ...current,
-          credentialState: 'remembered'
-        }));
+      if (typeof api.getRemoteCredentialStatus === 'function') {
+        try {
+          const status = await api.getRemoteCredentialStatus(executionTargetId);
+          setCredentialStatus(status);
+          setRememberCredential(status.credentialState === 'remembered');
+        } catch {
+          // A valid SSH connection remains usable when the OS vault is unavailable.
+        }
       }
       if (autoConnectDraft && typeof api.setRemoteAutoConnect === 'function') {
         try {
@@ -985,7 +998,9 @@ export function RemoteTargetWindow({
             className="refresh-button"
             disabled={
               busy || !trusted ||
-              (authentication.method === 'password' && secret.length === 0)
+              (authentication.method === 'password' &&
+                secret.length === 0 &&
+                credentialStatus?.credentialState !== 'remembered')
             }
             onClick={() => void connect()}
           >

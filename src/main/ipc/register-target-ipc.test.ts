@@ -239,6 +239,10 @@ describe('registerTargetIpc', () => {
     })).resolves.toMatchObject({ credentialState: 'none' });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
       executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    })).resolves.toMatchObject({ target: { id: TARGET_ID } });
+    await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
+      executionTargetId: TARGET_ID,
       mode: 'automatic'
     })).resolves.toMatchObject({ target: { id: TARGET_ID } });
     await expect(handlers.get(IPC_CHANNELS.remoteTargetConnect)!(event, {
@@ -262,7 +266,11 @@ describe('registerTargetIpc', () => {
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
-    expect(service.connect).toHaveBeenCalledTimes(2);
+    expect(service.connect).toHaveBeenCalledTimes(3);
+    expect(service.connect).toHaveBeenCalledWith(TARGET_ID, {
+      executionTargetId: TARGET_ID,
+      mode: 'remembered'
+    });
     expect(service.connect).toHaveBeenLastCalledWith(TARGET_ID, {
       executionTargetId: TARGET_ID,
       mode: 'automatic'
