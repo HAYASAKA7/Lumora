@@ -1,14 +1,14 @@
 [
-  { "provider": "codex", "command": "codex", "versionArgs": ["--version"] },
-  { "provider": "claude", "command": "claude", "versionArgs": ["--version"] },
-  { "provider": "gemini", "command": "gemini", "versionArgs": ["--version"] },
-  { "provider": "antigravity", "command": "agy", "versionArgs": ["--version"] },
-  { "provider": "opencode", "command": "opencode", "versionArgs": ["--version"] },
-  { "provider": "cursor", "command": "cursor-agent", "versionArgs": ["--version"] },
-  { "provider": "copilot", "command": "copilot", "versionArgs": ["version"] },
-  { "provider": "qwen", "command": "qwen", "versionArgs": ["--version"] },
-  { "provider": "amp", "command": "amp", "versionArgs": ["--version"] },
-  { "provider": "crush", "command": "crush", "versionArgs": ["--version"] },
-  { "provider": "goose", "command": "goose", "versionArgs": ["--version"] },
-  { "provider": "aider", "command": "aider", "versionArgs": ["--version"] }
+  { "provider": "codex", "command": "codex", "versionArgs": ["--version"], "npmPackage": "@openai/codex" },
+  { "provider": "claude", "command": "claude", "versionArgs": ["--version"], "npmPackage": "@anthropic-ai/claude-code" },
+  { "provider": "gemini", "command": "gemini", "versionArgs": ["--version"], "npmPackage": "@google/gemini-cli" },
+  { "provider": "antigravity", "command": "agy", "versionArgs": ["--version"], "npmPackage": null },
+  { "provider": "opencode", "command": "opencode", "versionArgs": ["--version"], "npmPackage": "opencode-ai" },
+  { "provider": "cursor", "command": "cursor-agent", "versionArgs": ["--version"], "npmPackage": null },
+  { "provider": "copilot", "command": "copilot", "versionArgs": ["version"], "npmPackage": "@github/copilot" },
+  { "provider": "qwen", "command": "qwen", "versionArgs": ["--version"], "npmPackage": "@qwen-code/qwen-code" },
+  { "provider": "amp", "command": "amp", "versionArgs": ["--version"], "npmPackage": null },
+  { "provider": "crush", "command": "crush", "versionArgs": ["--version"], "npmPackage": "@charmland/crush" },
+  { "provider": "goose", "command": "goose", "versionArgs": ["--version"], "npmPackage": null },
+  { "provider": "aider", "command": "aider", "versionArgs": ["--version"], "npmPackage": null }
 ]

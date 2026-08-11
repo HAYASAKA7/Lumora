@@ -7,19 +7,20 @@ type Definition struct {
 	Provider    string
 	Command     string
 	VersionArgs []string
+	NPMPackage  string
 }
 
 var Registry = []Definition{
-	{Provider: "codex", Command: "codex", VersionArgs: []string{"--version"}},
-	{Provider: "claude", Command: "claude", VersionArgs: []string{"--version"}},
-	{Provider: "gemini", Command: "gemini", VersionArgs: []string{"--version"}},
-	{Provider: "antigravity", Command: "agy", VersionArgs: []string{"--version"}},
-	{Provider: "opencode", Command: "opencode", VersionArgs: []string{"--version"}},
-	{Provider: "cursor", Command: "cursor-agent", VersionArgs: []string{"--version"}},
-	{Provider: "copilot", Command: "copilot", VersionArgs: []string{"version"}},
-	{Provider: "qwen", Command: "qwen", VersionArgs: []string{"--version"}},
-	{Provider: "amp", Command: "amp", VersionArgs: []string{"--version"}},
-	{Provider: "crush", Command: "crush", VersionArgs: []string{"--version"}},
-	{Provider: "goose", Command: "goose", VersionArgs: []string{"--version"}},
-	{Provider: "aider", Command: "aider", VersionArgs: []string{"--version"}},
+	{Provider: "codex", Command: "codex", VersionArgs: []string{"--version"}, NPMPackage: "@openai/codex"},
+	{Provider: "claude", Command: "claude", VersionArgs: []string{"--version"}, NPMPackage: "@anthropic-ai/claude-code"},
+	{Provider: "gemini", Command: "gemini", VersionArgs: []string{"--version"}, NPMPackage: "@google/gemini-cli"},
+	{Provider: "antigravity", Command: "agy", VersionArgs: []string{"--version"}, NPMPackage: ""},
+	{Provider: "opencode", Command: "opencode", VersionArgs: []string{"--version"}, NPMPackage: "opencode-ai"},
+	{Provider: "cursor", Command: "cursor-agent", VersionArgs: []string{"--version"}, NPMPackage: ""},
+	{Provider: "copilot", Command: "copilot", VersionArgs: []string{"version"}, NPMPackage: "@github/copilot"},
+	{Provider: "qwen", Command: "qwen", VersionArgs: []string{"--version"}, NPMPackage: "@qwen-code/qwen-code"},
+	{Provider: "amp", Command: "amp", VersionArgs: []string{"--version"}, NPMPackage: ""},
+	{Provider: "crush", Command: "crush", VersionArgs: []string{"--version"}, NPMPackage: "@charmland/crush"},
+	{Provider: "goose", Command: "goose", VersionArgs: []string{"--version"}, NPMPackage: ""},
+	{Provider: "aider", Command: "aider", VersionArgs: []string{"--version"}, NPMPackage: ""},
 }

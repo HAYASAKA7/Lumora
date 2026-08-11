@@ -18,49 +18,42 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('codex'),
     displayName: 'Codex',
     sessionSupport: 'complete',
-    npmPackage: '@openai/codex',
     installGuideUrl: 'https://developers.openai.com/codex/cli/'
   },
   {
     ...providerProbe('claude'),
     displayName: 'Claude Code',
     sessionSupport: 'complete',
-    npmPackage: '@anthropic-ai/claude-code',
     installGuideUrl: 'https://docs.anthropic.com/en/docs/claude-code/setup'
   },
   {
     ...providerProbe('gemini'),
     displayName: 'Gemini CLI',
     sessionSupport: 'complete',
-    npmPackage: '@google/gemini-cli',
     installGuideUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
     ...providerProbe('antigravity'),
     displayName: 'Antigravity',
     sessionSupport: 'launch_only',
-    npmPackage: null,
     installGuideUrl: 'https://antigravity.google/docs/cli-getting-started'
   },
   {
     ...providerProbe('opencode'),
     displayName: 'OpenCode',
     sessionSupport: 'complete',
-    npmPackage: 'opencode-ai',
     installGuideUrl: 'https://opencode.ai/docs/'
   },
   {
     ...providerProbe('cursor'),
     displayName: 'Cursor CLI',
     sessionSupport: 'launch_only',
-    npmPackage: null,
     installGuideUrl: 'https://cursor.com/docs/cli/installation'
   },
   {
     ...providerProbe('copilot'),
     displayName: 'GitHub Copilot CLI',
     sessionSupport: 'complete',
-    npmPackage: '@github/copilot',
     installGuideUrl:
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli'
   },
@@ -68,35 +61,30 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('qwen'),
     displayName: 'Qwen Code',
     sessionSupport: 'complete',
-    npmPackage: '@qwen-code/qwen-code',
     installGuideUrl: 'https://qwenlm.github.io/qwen-code-docs/en/'
   },
   {
     ...providerProbe('amp'),
     displayName: 'Amp',
     sessionSupport: 'launch_only',
-    npmPackage: null,
     installGuideUrl: 'https://ampcode.com/manual'
   },
   {
     ...providerProbe('crush'),
     displayName: 'Crush',
     sessionSupport: 'launch_only',
-    npmPackage: '@charmland/crush',
     installGuideUrl: 'https://github.com/charmbracelet/crush'
   },
   {
     ...providerProbe('goose'),
     displayName: 'goose',
     sessionSupport: 'launch_only',
-    npmPackage: null,
     installGuideUrl: 'https://block.github.io/goose/docs/getting-started/installation'
   },
   {
     ...providerProbe('aider'),
     displayName: 'Aider',
     sessionSupport: 'launch_only',
-    npmPackage: null,
     installGuideUrl: 'https://aider.chat/docs/install.html'
   }
 ] as const satisfies readonly ProviderDefinition[]);

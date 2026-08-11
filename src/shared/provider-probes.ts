@@ -8,7 +8,10 @@ const ProviderProbeDefinitionSchema = z.strictObject({
   command: z.string().regex(/^[A-Za-z0-9._-]+$/u).max(80),
   versionArgs: z.array(
     z.string().min(1).max(80).refine((value) => !/[\0\r\n]/u.test(value))
-  ).min(1).max(4)
+  ).min(1).max(4),
+  npmPackage: z.string()
+    .regex(/^(@[a-z0-9-]+\/)?[a-z0-9-]+$/iu)
+    .nullable()
 });
 
 const ProviderProbeRegistrySchema = z.array(ProviderProbeDefinitionSchema)
@@ -30,6 +33,7 @@ export interface ProviderProbeDefinition {
   readonly provider: ProviderId;
   readonly command: string;
   readonly versionArgs: readonly string[];
+  readonly npmPackage: string | null;
 }
 
 export const PROVIDER_PROBES = Object.freeze(

@@ -23,11 +23,13 @@ describe('provider definitions', () => {
       provider: string;
       command: string;
       versionArgs: string[];
+      npmPackage: string | null;
     }>;
     expect(registry).toEqual(PROVIDER_DEFINITIONS.map((definition) => ({
       provider: definition.provider,
       command: definition.command,
-      versionArgs: [...definition.versionArgs]
+      versionArgs: [...definition.versionArgs],
+      npmPackage: definition.npmPackage
     })));
   });
 
