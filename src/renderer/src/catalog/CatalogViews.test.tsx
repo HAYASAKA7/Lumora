@@ -158,7 +158,72 @@ describe('WorkspacesView', () => {
     );
 
     expect(screen.getByText('Remote provider folders')).toBeInTheDocument();
+    expect(
+      screen.getByRole('searchbox', { name: 'Search workspaces' })
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add workspace' })).not.toBeInTheDocument();
+  });
+
+  it('filters workspace names and paths case-insensitively and clears the query', () => {
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+    const search = screen.getByRole('searchbox', {
+      name: 'Search workspaces'
+    });
+
+    fireEvent.change(search, { target: { value: 'ARCHIVED' } });
+    expect(
+      screen.getByRole('heading', { name: 'Archived docs' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Lumora' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: '1 of 2 workspaces' })
+    ).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'projects\\ai' } });
+    expect(
+      screen.getByRole('heading', { name: 'Lumora' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Archived docs' })
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: '' } });
+    expect(
+      screen.getByRole('heading', { name: 'Lumora' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Archived docs' })
+    ).toBeInTheDocument();
+  });
+
+  it('distinguishes filtered workspace results from an empty catalog', () => {
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search workspaces' }),
+      { target: { value: 'missing workspace' } }
+    );
+
+    expect(screen.getByText('No matching workspaces')).toBeInTheDocument();
+    expect(screen.queryByText('No workspaces yet')).not.toBeInTheDocument();
   });
   it('renders only nonzero counts for complete session providers', () => {
     render(
@@ -309,6 +374,41 @@ describe('WorkspacesView', () => {
     expect(
       screen.getAllByRole('button', { name: /Open sessions for Workspace/ })
     ).toHaveLength(25);
+  });
+
+  it('resets progressive workspace rendering when the query changes', () => {
+    const workspaces = repeatedWorkspaces(45);
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onAddWorkspace={vi.fn()}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{
+          state: 'ready',
+          snapshot: { ...catalogSnapshot, workspaces }
+        }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Load more workspaces' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Load more workspaces' })
+    );
+    expect(
+      screen.getAllByRole('button', { name: /Open sessions for Workspace/ })
+    ).toHaveLength(45);
+
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: 'Search workspaces' }),
+      { target: { value: 'workspace' } }
+    );
+
+    expect(
+      screen.getAllByRole('button', { name: /Open sessions for Workspace/ })
+    ).toHaveLength(20);
   });
 
   it('shows honest empty and recoverable failure states', () => {

@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, useMemo, useState } from 'react';
 
 import type {
   CatalogSnapshot,
@@ -103,11 +103,20 @@ export function WorkspacesView({
   onOpenWorkspace,
   scopeLabel = 'Canonical local folders'
 }: WorkspacesViewProps): ReactNode {
+  const [queryText, setQueryText] = useState('');
   const workspaces =
     status.state === 'ready' ? status.snapshot.workspaces : [];
+  const normalizedQuery = queryText.trim().toLowerCase();
+  const filteredWorkspaces = useMemo(() => {
+    if (normalizedQuery.length === 0) return workspaces;
+    return workspaces.filter((workspace) =>
+      workspace.displayName.toLowerCase().includes(normalizedQuery) ||
+      workspace.canonicalPath.toLowerCase().includes(normalizedQuery)
+    );
+  }, [normalizedQuery, workspaces]);
   const progress = useProgressiveList({
-    itemCount: workspaces.length,
-    resetKey: 'workspaces',
+    itemCount: filteredWorkspaces.length,
+    resetKey: `workspaces\u0000${normalizedQuery}`,
     initialCount: WORKSPACE_BATCH_SIZE,
     batchSize: WORKSPACE_BATCH_SIZE
   });
@@ -145,10 +154,21 @@ export function WorkspacesView({
       <div className="catalog-toolbar">
         <div>
           <p className="card-label">{scopeLabel}</p>
-          <h2 id="workspace-list-title">
-            {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
+          <h2 aria-live="polite" id="workspace-list-title">
+            {normalizedQuery.length === 0
+              ? `${workspaces.length} ${workspaces.length === 1 ? 'workspace' : 'workspaces'}`
+              : `${filteredWorkspaces.length} of ${workspaces.length} workspaces`}
           </h2>
         </div>
+        <label className="search-control">
+          <span>Search workspaces</span>
+          <input
+            onChange={(event) => setQueryText(event.currentTarget.value)}
+            placeholder="Search name or path"
+            type="search"
+            value={queryText}
+          />
+        </label>
         <div className="catalog-actions">
           <button
             className="secondary-button"
@@ -181,16 +201,23 @@ export function WorkspacesView({
             Add a folder or refresh to discover workspaces from provider sessions.
           </p>
         </div>
+      ) : filteredWorkspaces.length === 0 ? (
+        <div className="catalog-empty">
+          <h3>No matching workspaces</h3>
+          <p>Try a different workspace name or path.</p>
+        </div>
       ) : (
         <>
           <div className="workspace-list">
-            {workspaces.slice(0, progress.visibleCount).map((workspace) => (
-              <WorkspaceCard
-                key={workspace.id}
-                onOpenWorkspace={onOpenWorkspace}
-                workspace={workspace}
-              />
-            ))}
+            {filteredWorkspaces
+              .slice(0, progress.visibleCount)
+              .map((workspace) => (
+                <WorkspaceCard
+                  key={workspace.id}
+                  onOpenWorkspace={onOpenWorkspace}
+                  workspace={workspace}
+                />
+              ))}
           </div>
           <ProgressiveListControl
             hasMore={progress.hasMore}
