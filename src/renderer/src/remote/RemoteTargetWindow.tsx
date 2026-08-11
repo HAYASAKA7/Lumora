@@ -13,7 +13,6 @@ import type {
   LaunchPreview,
   LumoraApi,
   ProviderId,
-  ProviderInstallation,
   RemoteDiscoverySnapshot,
   RemoteHelperInstallDetails,
   RemoteExecutionTargetId,
@@ -57,6 +56,7 @@ import { NewSessionDialog } from '../terminal/NewSessionDialog';
 import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
 import { keyboardEventMatchesChord } from '../keyboard/shortcut';
+import { ProviderSettings } from '../providers/ProviderSettings';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -121,12 +121,6 @@ const REMOTE_ROUTES = [
 ] as const;
 
 const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
-  ready: 'Detected',
-  not_found: 'Not found',
-  probe_failed: 'Probe failed'
-};
-
-const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   ready: 'Detected',
   not_found: 'Not found',
   probe_failed: 'Probe failed'
@@ -214,63 +208,6 @@ function ToolCard({
   );
 }
 
-function ProviderCard({
-  enabled,
-  installation,
-  provider,
-  onlyEnabled,
-  onToggle
-}: {
-  enabled: boolean;
-  installation: ProviderInstallation | null;
-  provider: (typeof PROVIDER_DEFINITIONS)[number];
-  onlyEnabled: boolean;
-  onToggle(provider: ProviderId, enabled: boolean): void;
-}): ReactNode {
-  const state = enabled && installation !== null ? installation.state : 'not-scanned';
-  return (
-    <article className={`remote-provider-card state-${state}`}>
-      <header>
-        <div>
-          <p className="card-label">Remote provider</p>
-          <h3>{provider.displayName}</h3>
-        </div>
-        <label className="remote-provider-toggle">
-          <span>{enabled ? 'Enabled' : 'Disabled'}</span>
-          <span className="settings-switch">
-            <input
-              aria-label={`Enable ${provider.displayName}`}
-              checked={enabled}
-              disabled={enabled && onlyEnabled}
-              onChange={(event) => onToggle(provider.provider, event.target.checked)}
-              role="switch"
-              type="checkbox"
-            />
-            <span aria-hidden="true" className="settings-switch-track">
-              <span className="settings-switch-thumb" />
-            </span>
-          </span>
-        </label>
-      </header>
-      {!enabled || installation === null ? (
-        <p className="remote-provider-unscanned">Not scanned</p>
-      ) : installation.state === 'ready' ? (
-        <dl className="remote-discovery-details">
-          <div><dt>Status</dt><dd>{PROVIDER_STATE_LABELS[installation.state]}</dd></div>
-          <div><dt>Version</dt><dd>{installation.version}</dd></div>
-          <div><dt>Executable</dt><dd>{installation.executablePath}</dd></div>
-        </dl>
-      ) : (
-        <div className="remote-provider-issue">
-          <strong>{PROVIDER_STATE_LABELS[installation.state]}</strong>
-          <p>{installation.issue.message}</p>
-          <p>{installation.issue.recovery}</p>
-        </div>
-      )}
-    </article>
-  );
-}
-
 export function RemoteTargetWindow({
   executionTargetId,
   api = window.lumora,
@@ -301,6 +238,7 @@ export function RemoteTargetWindow({
   const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
+  const [providerSaveError, setProviderSaveError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shellOpened, setShellOpened] = useState(false);
   const [terminalProfiles, setTerminalProfiles] = useState<TerminalProfile[]>([]);
@@ -679,12 +617,6 @@ export function RemoteTargetWindow({
     summary.target.capabilities.includes('provider-scan');
   const helperPending = summary.target.connectionState === 'helper-missing' ||
     summary.target.connectionState === 'helper-incompatible';
-  const providerResults = discovery.state === 'ready'
-    ? new Map(discovery.snapshot.providers.providers.map((item) => [item.provider, item]))
-    : new Map<ProviderId, ProviderInstallation>();
-  const providersChanged = preferences !== null &&
-    draftProviders.join('\0') !== preferences.enabledProviders.join('\0');
-
   const loadHelperInstall = async () => {
     try {
       setHelperInstall(await api.getRemoteHelperInstallDetails());
@@ -760,27 +692,24 @@ export function RemoteTargetWindow({
     }
   };
 
-  const toggleProvider = (provider: ProviderId, enabled: boolean) => {
-    setDraftProviders((current) => canonicalProviders(
-      enabled
-        ? [...current, provider]
-        : current.filter((candidate) => candidate !== provider)
-    ));
-  };
-
-  const saveProviders = async () => {
-    if (savingProviders || draftProviders.length === 0) return;
+  const saveProviders = async (
+    providers: readonly ProviderId[]
+  ): Promise<boolean> => {
+    if (savingProviders || providers.length === 0) return false;
     setSavingProviders(true);
+    setProviderSaveError(null);
     try {
       const saved = await api.saveRemoteProviderPreferences({
-        enabledProviders: draftProviders
+        enabledProviders: canonicalProviders(providers)
       });
       setPreferences(saved);
       setDraftProviders([...saved.enabledProviders]);
       setSessionCatalog({ state: 'idle' });
       await refreshDiscovery();
+      return true;
     } catch {
-      setDiscovery({ state: 'error' });
+      setProviderSaveError('The remote provider selection could not be saved.');
+      return false;
     } finally {
       setSavingProviders(false);
     }
@@ -901,60 +830,25 @@ export function RemoteTargetWindow({
   );
 
   const renderProviders = () => (
-    <section className="remote-window-panel">
-      <div className="remote-panel-heading">
-        <div>
-          <p className="card-label">Target-scoped selection</p>
-          <h2>Providers</h2>
-          <p>
-            Lumora scans only enabled providers. Install or repair CLIs directly
-            on the remote computer.
-          </p>
-        </div>
-        <div className="remote-provider-actions">
-          <button
-            className="secondary-button"
-            disabled={!discoverySupported || discovery.state === 'loading'}
-            onClick={() => void refreshDiscovery()}
-          >Refresh</button>
-          <button
-            className="refresh-button"
-            disabled={
-              !discoverySupported || !providersChanged ||
-              savingProviders || draftProviders.length === 0
-            }
-            onClick={() => void saveProviders()}
-          >{savingProviders ? 'Saving…' : 'Save and scan'}</button>
-        </div>
-      </div>
-      {discovery.state === 'unsupported' && (
-        <p className="inline-notice warning">
-          Provider discovery requires the current Lumora helper. Reconnect this
-          target from Overview to update it.
-        </p>
-      )}
-      {discovery.state === 'error' && (
-        <p className="inline-notice error">
-          Lumora could not scan providers on this remote computer. You can retry
-          without reconnecting.
-        </p>
-      )}
-      <div className="remote-provider-grid">
-        {PROVIDER_DEFINITIONS.map((provider) => {
-          const enabled = draftProviders.includes(provider.provider);
-          return (
-            <ProviderCard
-              enabled={enabled}
-              installation={providerResults.get(provider.provider) ?? null}
-              key={provider.provider}
-              onToggle={toggleProvider}
-              onlyEnabled={draftProviders.length === 1}
-              provider={provider}
-            />
-          );
-        })}
-      </div>
-    </section>
+    <ProviderSettings
+      api={api}
+      generalSettings={{
+        ...generalSettings,
+        enabledProviders: preferences?.enabledProviders ?? draftProviders
+      }}
+      generalSettingsSaveError={providerSaveError}
+      generalSettingsSaving={savingProviders}
+      onRefresh={() => void refreshDiscovery()}
+      onSaveEnabledProviders={saveProviders}
+      scope="remote"
+      status={
+        discovery.state === 'ready'
+          ? { state: 'ready', scan: discovery.snapshot.providers }
+          : discovery.state === 'loading' || discovery.state === 'idle'
+            ? { state: 'loading' }
+            : { state: 'error' }
+      }
+    />
   );
 
   const renderRemoteSettings = () => {

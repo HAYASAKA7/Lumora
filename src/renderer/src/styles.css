@@ -4937,23 +4937,19 @@ button {
 }
 
 .remote-panel-heading,
-.remote-discovery-card > header,
-.remote-provider-card > header,
-.remote-provider-actions {
+.remote-discovery-card > header {
   display: flex;
   align-items: center;
 }
 
 .remote-panel-heading,
-.remote-discovery-card > header,
-.remote-provider-card > header {
+.remote-discovery-card > header {
   justify-content: space-between;
   gap: 18px;
 }
 
 .remote-panel-heading h2,
-.remote-discovery-card h3,
-.remote-provider-card h3 {
+.remote-discovery-card h3 {
   margin: 0;
   color: var(--text);
 }
@@ -4964,8 +4960,7 @@ button {
 }
 
 .remote-panel-heading p,
-.remote-discovery-card p,
-.remote-provider-card p {
+.remote-discovery-card p {
   margin: 5px 0 0;
   color: var(--text-muted);
   line-height: 1.5;
@@ -4975,15 +4970,13 @@ button {
   min-width: 0;
 }
 
-.remote-environment-grid,
-.remote-provider-grid {
+.remote-environment-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.remote-discovery-card,
-.remote-provider-card {
+.remote-discovery-card {
   display: grid;
   min-width: 0;
   align-content: start;
@@ -4994,8 +4987,7 @@ button {
   border-radius: 11px;
 }
 
-.remote-discovery-card.state-ready,
-.remote-provider-card.state-ready {
+.remote-discovery-card.state-ready {
   border-color: var(--success-border);
 }
 
@@ -5027,47 +5019,11 @@ button {
   color: var(--text);
 }
 
-.remote-discovery-path,
-.remote-provider-unscanned {
+.remote-discovery-path {
   overflow-wrap: anywhere;
   color: var(--text-soft) !important;
   font-family: var(--font-mono);
   font-size: 0.75rem;
-}
-
-.remote-provider-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
-}
-
-.remote-provider-toggle {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.remote-provider-toggle:has(input:disabled) {
-  cursor: not-allowed;
-  opacity: 0.62;
-}
-
-.remote-provider-actions {
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.remote-provider-issue {
-  display: grid;
-  gap: 5px;
-}
-
-.remote-provider-issue strong {
-  color: var(--danger);
 }
 
 .remote-discovery-message {
@@ -5252,5 +5208,4 @@ button {
   .remote-environment-grid { grid-template-columns: 1fr; }
   .remote-window-nav { overflow-x: auto; }
   .remote-window-tab { flex: 1 0 auto; }
-  .remote-provider-actions { justify-content: flex-start; }
 }

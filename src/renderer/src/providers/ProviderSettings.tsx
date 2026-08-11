@@ -8,6 +8,7 @@ import {
 
 import type {
   GeneralSettings,
+  LumoraApi,
   ProviderId,
   ProviderInstallation,
   ProviderLaunchConfig,
@@ -31,6 +32,16 @@ export type ProviderUpdatesStatus =
   | { state: 'loading' }
   | { state: 'ready'; check: ProviderUpdateCheckResult }
   | { state: 'error' };
+
+export type ProviderSettingsApi = Pick<
+  LumoraApi,
+  'getProviderLaunchConfigs' |
+  'saveProviderLaunchConfig' |
+  'checkProviderUpdates' |
+  'installProvider' |
+  'openProviderInstallGuide' |
+  'updateProvider'
+>;
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   ready: 'Detected',
@@ -315,6 +326,8 @@ function ProviderCard({
 export function ProviderSettings({
   status,
   onRefresh,
+  api = window.lumora,
+  scope = 'local',
   generalSettings = DEFAULT_GENERAL_SETTINGS,
   generalSettingsSaving = false,
   generalSettingsSaveError = null,
@@ -322,6 +335,8 @@ export function ProviderSettings({
 }: {
   status: ProviderScanStatus;
   onRefresh: () => void;
+  api?: ProviderSettingsApi;
+  scope?: 'local' | 'remote';
   generalSettings?: GeneralSettings;
   generalSettingsSaving?: boolean;
   generalSettingsSaveError?: string | null;
@@ -371,7 +386,7 @@ export function ProviderSettings({
 
   useEffect(() => {
     let active = true;
-    void window.lumora.getProviderLaunchConfigs().then(
+    void api.getProviderLaunchConfigs().then(
       (configs) => {
         if (active) applyConfigs(configs);
       },
@@ -380,14 +395,14 @@ export function ProviderSettings({
       }
     );
     return () => { active = false; };
-  }, []);
+  }, [api]);
 
   const refreshUpdates = useCallback(async (): Promise<void> => {
     const requestId = updatesRequestId.current + 1;
     updatesRequestId.current = requestId;
     setUpdatesStatus({ state: 'loading' });
     try {
-      const check = await window.lumora.checkProviderUpdates();
+      const check = await api.checkProviderUpdates();
       if (updatesRequestId.current === requestId) {
         setUpdatesStatus({ state: 'ready', check });
       }
@@ -396,7 +411,7 @@ export function ProviderSettings({
         setUpdatesStatus({ state: 'error' });
       }
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     if (!generalSettings.checkProviderUpdatesAutomatically) {
@@ -413,7 +428,7 @@ export function ProviderSettings({
   const saveCommand = (provider: ProviderId, command: string | null) => {
     setSavingProvider(provider);
     setCommandError(null);
-    void window.lumora.saveProviderLaunchConfig({ provider, command }).then(
+    void api.saveProviderLaunchConfig({ provider, command }).then(
       (configs) => {
         applyConfigs(configs);
         setSavingProvider(null);
@@ -428,7 +443,7 @@ export function ProviderSettings({
   const updateProvider = (provider: ProviderId, displayName: string) => {
     setUpdatingProvider(provider);
     setUpdateErrors((current) => ({ ...current, [provider]: undefined }));
-    void window.lumora.updateProvider(provider).then(
+    void api.updateProvider(provider).then(
       async () => {
         onRefresh();
         if (generalSettings.checkProviderUpdatesAutomatically) {
@@ -456,7 +471,7 @@ export function ProviderSettings({
       next.delete(provider);
       return next;
     });
-    void window.lumora.installProvider(provider).then(
+    void api.installProvider(provider).then(
       async () => {
         onRefresh();
         if (generalSettings.checkProviderUpdatesAutomatically) {
@@ -478,7 +493,7 @@ export function ProviderSettings({
 
   const openInstallGuide = (provider: ProviderId, displayName: string) => {
     setInstallErrors((current) => ({ ...current, [provider]: undefined }));
-    void window.lumora.openProviderInstallGuide(provider).catch(() => {
+    void api.openProviderInstallGuide(provider).catch(() => {
       setInstallErrors((current) => ({
         ...current,
         [provider]: `${displayName}'s installation guide could not be opened.`
@@ -613,10 +628,13 @@ export function ProviderSettings({
 
       <div className="provider-panel-header">
         <div>
-          <p className="card-label">Local provider registry</p>
+          <p className="card-label">
+            {scope === 'remote' ? 'Remote provider registry' : 'Local provider registry'}
+          </p>
           <h2 id="provider-panel-title">Provider installations</h2>
           <p>
-            Lumora reads the effective PATH and checks public release metadata.
+            Lumora reads the {scope === 'remote' ? 'remote ' : ''}effective PATH
+            {' '}and checks public release metadata.
             It only modifies a provider after you explicitly confirm an action.
           </p>
         </div>

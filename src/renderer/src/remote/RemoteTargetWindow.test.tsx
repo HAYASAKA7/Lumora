@@ -58,6 +58,7 @@ const discovery = {
 
 function runtimeApiDefaults() {
   return {
+    ...providerApiDefaults(),
     getTerminalProfiles: vi.fn().mockResolvedValue([]),
     listRuntimes: vi.fn().mockResolvedValue([]),
     getGeneralSettings: vi.fn().mockResolvedValue({
@@ -65,6 +66,20 @@ function runtimeApiDefaults() {
     }),
     getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
     onRuntimeEvent: vi.fn(() => () => undefined)
+  };
+}
+
+function providerApiDefaults() {
+  return {
+    getProviderLaunchConfigs: vi.fn().mockResolvedValue([]),
+    saveProviderLaunchConfig: vi.fn().mockResolvedValue([]),
+    checkProviderUpdates: vi.fn().mockResolvedValue({
+      checkedAt: '2026-08-05T04:03:02.000Z',
+      providers: []
+    }),
+    installProvider: vi.fn(),
+    updateProvider: vi.fn(),
+    openProviderInstallGuide: vi.fn().mockResolvedValue(undefined)
   };
 }
 
@@ -208,6 +223,7 @@ describe('RemoteTargetWindow', () => {
   });
   it('connects its bound target with an ephemeral password and exposes no local controls', async () => {
     const api = {
+      ...providerApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([summary]),
       connectRemoteTarget: vi.fn().mockResolvedValue({
         ...summary,
@@ -342,7 +358,7 @@ describe('RemoteTargetWindow', () => {
     expect(screen.getByText('SSH helper connected')).toBeInTheDocument();
   });
 
-  it('saves target-scoped provider choices and rescans without install controls', async () => {
+  it('saves target-scoped provider choices through the shared provider settings', async () => {
     const readySummary = {
       ...summary,
       target: {
@@ -354,6 +370,7 @@ describe('RemoteTargetWindow', () => {
       }
     };
     const api = {
+      ...providerApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
       getRemoteProviderPreferences: vi.fn().mockResolvedValue({
         enabledProviders: ['codex']
@@ -372,19 +389,85 @@ describe('RemoteTargetWindow', () => {
       'true'
     );
     expect(await screen.findByText('codex 1.2.3')).toBeInTheDocument();
-    expect(screen.getByText(/install or repair CLIs directly on the remote computer/i))
+    expect(screen.getByText('Remote provider registry'))
       .toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /install/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
-    const openCodeSwitch = screen.getByRole('switch', { name: 'Enable OpenCode' });
-    expect(openCodeSwitch.closest('.settings-switch')).not.toBeNull();
+    const openCodeSwitch = screen.getByRole('checkbox', { name: 'Use OpenCode' });
     fireEvent.click(openCodeSwitch);
-    fireEvent.click(screen.getByRole('button', { name: 'Save and scan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save provider selection' }));
 
     await waitFor(() => expect(api.saveRemoteProviderPreferences)
       .toHaveBeenCalledWith({ enabledProviders: ['codex', 'opencode'] }));
     expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(3);
+  });
+
+  it('saves start commands and confirms installs from the remote provider card', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.2',
+        protocolVersion: 1,
+        capabilities: [
+          'provider-scan' as const,
+          'provider-lifecycle' as const
+        ]
+      }
+    };
+    const remoteDiscovery = {
+      ...discovery,
+      providers: {
+        ...discovery.providers,
+        providers: [{
+          provider: 'opencode' as const,
+          displayName: 'OpenCode',
+          state: 'not_found' as const,
+          executablePath: null,
+          version: null,
+          issue: {
+            code: 'PROVIDER_NOT_FOUND' as const,
+            message: 'OpenCode was not found on PATH.',
+            recovery: 'Install OpenCode on the remote computer, then refresh.',
+            retryable: true
+          }
+        }]
+      }
+    };
+    const saveProviderLaunchConfig = vi.fn().mockResolvedValue([{
+      provider: 'opencode', command: 'opencode --remote',
+      updatedAt: '2026-08-05T04:03:02.000Z'
+    }]);
+    const installProvider = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['opencode']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(remoteDiscovery),
+      saveProviderLaunchConfig,
+      installProvider
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    const command = await screen.findByLabelText('OpenCode start command');
+    fireEvent.change(command, { target: { value: 'opencode --remote' } });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Save OpenCode start command'
+    }));
+    await waitFor(() => expect(saveProviderLaunchConfig).toHaveBeenCalledWith({
+      provider: 'opencode', command: 'opencode --remote'
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Install OpenCode' }));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Confirm install OpenCode'
+    }));
+    await waitFor(() => expect(installProvider).toHaveBeenCalledWith('opencode'));
   });
 
   it('loads a read-only remote catalog for the shared catalog routes', async () => {
@@ -769,6 +852,7 @@ describe('RemoteTargetWindow', () => {
       }
     };
     const api = {
+      ...providerApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([readyWithoutDiscovery]),
       getRemoteProviderPreferences: vi.fn().mockResolvedValue({
         enabledProviders: ['codex']
