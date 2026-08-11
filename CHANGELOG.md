@@ -28,6 +28,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   targets.
 - Add target-scoped provider start-command customization under remote
   **Settings > Launch**, isolated from local Lumora launch settings.
+- Reuse the complete Provider Settings cards in remote Lumora, including
+  target-specific start commands, public version checks, official guide links,
+  and explicitly confirmed install/update actions for allowlisted npm providers.
 
 ### Changed
 
@@ -86,6 +89,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep remote discovery read-only and allowlisted with bounded probes. Remote
   environment variables, credentials, tokens, and provider session contents
   are not returned to the renderer.
+- Keep remote provider lifecycle execution target-bound and non-elevated, with
+  generated package allowlists, structured arguments, bounded time/output, and
+  no raw npm or shell diagnostics exposed to the renderer.
 - Keep remote session discovery metadata-only, strip helper-private source keys
   at the main-process boundary, and bound command output, page size, page count,
   record count, file enumeration, file reads, provider protocol traffic, and

@@ -59,6 +59,15 @@ Provider choices belong to the remote target and do not change local provider
 settings. At least one provider must remain enabled. Saving a provider selection
 starts a new scan, and **Refresh** repeats the scan without reconnecting.
 
+The Providers category reuses the local Lumora provider cards. Each card can
+save a target-specific start command, check public release metadata, and show
+only the lifecycle actions supported by that provider. For an allowlisted
+npm-based provider, **Install** or **Update** requires an explicit confirmation
+before the helper runs the fixed global npm package action. Lumora does not use
+`sudo`, request elevation, edit shell profiles, or return raw command output.
+Providers that require an official installer keep their installation-guide
+action instead.
+
 ## Browse remote sessions
 
 After the target reaches `ready`, Lumora performs one bounded catalog scan for
@@ -120,11 +129,12 @@ remote helper and file-transfer resources, marks the target offline, and keeps
 the current page and cached catalog visible. An emphasized reconnect banner is
 shown instead of replacing the shell with a blank connection page.
 
-Discovery is read-only. Lumora does not install, update, or repair Node.js, npm,
-or agent CLIs on the remote computer. Perform those operations on the remote
-computer, then refresh the isolated page. The helper uses a fixed command
-allowlist, bounded version probes, and never returns environment variables,
-tokens, or provider session contents.
+Environment and session discovery remain read-only. Lumora does not install,
+update, or repair Node.js or npm. Provider lifecycle actions are limited to
+generated, allowlisted npm package identifiers and run only after confirmation;
+all other provider installation methods remain manual. The helper uses bounded
+version probes and lifecycle output, and never returns environment variables,
+tokens, raw installer output, or provider session contents.
 
 ## Current states
 
@@ -150,8 +160,14 @@ tokens, or provider session contents.
 - Confirm Environment reports remote Node.js/npm paths and versions.
 - Enable and disable providers, save, and confirm only enabled providers are
   scanned. Confirm at least one provider must remain enabled.
-- Install or remove a provider on the remote computer, refresh, and confirm the
-  status changes without reconnecting.
+- Save and reset a target-specific start command from **Settings > Providers**;
+  confirm local provider commands do not change.
+- Confirm an allowlisted missing npm provider, install it, and verify the card
+  rescans to Detected. Check and apply an available update the same way.
+- Cancel both lifecycle confirmations and verify no remote command runs. Confirm
+  guide-only providers open their shipped official URL instead.
+- Confirm lifecycle failures show a bounded Lumora message without raw npm or
+  remote shell output, and that the SSH connection remains usable.
 - Confirm a ready connection transitions into the shared Lumora shell with
   Home, Workspaces, All sessions, and Settings, without Terminal profiles or
   local Remote-computer management.

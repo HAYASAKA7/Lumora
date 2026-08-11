@@ -198,8 +198,11 @@ for that target. Home, Workspaces, and All sessions discover provider-owned
 metadata for Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and
 Qwen Code. From the same remote window, you can start a new session or resume
 an exact session in an SSH-backed terminal. Provider start commands can be
-customized per remote computer under **Settings > Launch** without changing
-local launch settings. The remote shell follows global Lumora appearance while
+customized per remote computer from the shared **Settings > Providers** cards
+or layered under **Settings > Launch** without changing local launch settings.
+The Providers page can also check versions and, after explicit confirmation,
+install or update allowlisted npm-based CLIs on the connected computer without
+administrator elevation. The remote shell follows global Lumora appearance while
 keeping target data, terminals, trust, and provider choices isolated. See
 [Remote computers](docs/REMOTE.md) for setup and test guidance.
 

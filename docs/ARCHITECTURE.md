@@ -108,7 +108,10 @@ replacement upload has passed verification and the user confirmed replacement.
 The helper uses length-prefixed, schema-validated frames with bounded payloads,
 timeouts, generation-bound request IDs, and an initial compatibility handshake.
 The helper capabilities cover system information, allowlisted provider
-discovery, and bounded provider-owned session metadata. Interactive execution
+discovery, explicitly confirmed lifecycle actions for generated npm package
+identifiers, and bounded provider-owned session metadata. Lifecycle execution
+uses structured arguments, no elevation or shell-profile mutation, a fixed
+timeout, and bounded output that is never returned to the renderer. Interactive execution
 does not turn the helper into a daemon: the Electron main process opens a
 separate SSH PTY channel for each authorized remote runtime, while the helper
 continues to own only bounded discovery.
