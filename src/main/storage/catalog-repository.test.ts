@@ -123,7 +123,8 @@ describe('catalog migrations', () => {
       { version: 14 },
       { version: 15 },
       { version: 16 },
-      { version: 17 }
+      { version: 17 },
+      { version: 18 }
     ]);
     expect(
       database
@@ -141,6 +142,7 @@ describe('catalog migrations', () => {
         'session',
         'session_source',
         'provider_launch_config',
+        'remote_connection_credential',
         'runtime_reconciliation',
         'trust_decision',
         'workspace'

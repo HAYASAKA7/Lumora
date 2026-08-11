@@ -92,7 +92,7 @@ describe('execution-target migration', () => {
       database.prepare(
         'SELECT version FROM schema_migration ORDER BY version DESC LIMIT 1'
       ).get()
-    ).toEqual({ version: 17 });
+    ).toEqual({ version: 18 });
     expect(
       database.prepare('SELECT id, kind, connection_state FROM execution_target').get()
     ).toEqual({ id: 'local', kind: 'local', connection_state: 'local' });
