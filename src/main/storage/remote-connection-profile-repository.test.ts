@@ -40,10 +40,12 @@ describe('remote connection profile persistence', () => {
     })).toThrow();
     expect(RemoteTargetConnectRequestSchema.parse({
       executionTargetId: TARGET_ID,
+      mode: 'manual',
       credentials: {
         method: 'private-key',
         passphrase: 'memory-only'
-      }
+      },
+      rememberCredential: false
     }).credentials).toEqual({
       method: 'private-key',
       passphrase: 'memory-only'

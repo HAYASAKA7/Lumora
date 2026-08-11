@@ -162,9 +162,33 @@ export const RemoteTargetCredentialsSchema = z.discriminatedUnion('method', [
   z.strictObject({ method: z.literal('agent') })
 ]);
 
-export const RemoteTargetConnectRequestSchema = z.strictObject({
+export const RemoteTargetConnectRequestSchema = z.discriminatedUnion('mode', [
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('manual'),
+    credentials: RemoteTargetCredentialsSchema,
+    rememberCredential: z.boolean()
+  }),
+  z.strictObject({
+    executionTargetId: RemoteExecutionTargetIdSchema,
+    mode: z.literal('automatic')
+  })
+]);
+
+export const RemoteCredentialStatusSchema = z.strictObject({
   executionTargetId: RemoteExecutionTargetIdSchema,
-  credentials: RemoteTargetCredentialsSchema
+  storageState: z.enum([
+    'available',
+    'unavailable',
+    'temporarily-unavailable'
+  ]),
+  credentialState: z.enum(['none', 'remembered', 'needs-attention']),
+  autoConnect: z.boolean()
+});
+
+export const RemoteAutoConnectPreferenceRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  autoConnect: z.boolean()
 });
 
 export const RemoteExecutionTargetSchema = z.strictObject({
@@ -248,6 +272,12 @@ export type RemoteTargetCredentials = z.infer<
 >;
 export type RemoteTargetConnectRequest = z.infer<
   typeof RemoteTargetConnectRequestSchema
+>;
+export type RemoteCredentialStatus = z.infer<
+  typeof RemoteCredentialStatusSchema
+>;
+export type RemoteAutoConnectPreferenceRequest = z.infer<
+  typeof RemoteAutoConnectPreferenceRequestSchema
 >;
 export type RemoteExecutionTarget = z.infer<typeof RemoteExecutionTargetSchema>;
 export type RemoteTargetSummary = z.infer<typeof RemoteTargetSummarySchema>;
@@ -1483,6 +1513,9 @@ export const IPC_CHANNELS = {
   remoteTargetObserveHost: 'lumora:targets:host:observe',
   remoteTargetTrustHost: 'lumora:targets:host:trust',
   remoteTargetConnect: 'lumora:targets:connect',
+  remoteCredentialStatus: 'lumora:targets:credential:status',
+  remoteCredentialForget: 'lumora:targets:credential:forget',
+  remoteAutoConnectPreferenceSave: 'lumora:targets:auto-connect:save',
   remoteTargetDisconnect: 'lumora:targets:disconnect',
   remoteTargetHelperDetails: 'lumora:targets:helper:details',
   remoteTargetHelperInstall: 'lumora:targets:helper:install',
@@ -1565,6 +1598,16 @@ export interface LumoraApi {
   connectRemoteTarget(
     input: RemoteTargetConnectRequest
   ): Promise<RemoteTargetConnectionDetails>;
+  getRemoteCredentialStatus(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus>;
+  setRemoteAutoConnect(
+    executionTargetId: RemoteExecutionTargetId,
+    enabled: boolean
+  ): Promise<RemoteCredentialStatus>;
+  forgetRemoteCredential(
+    executionTargetId: RemoteExecutionTargetId
+  ): Promise<RemoteCredentialStatus>;
   disconnectRemoteTarget(
     executionTargetId: RemoteExecutionTargetId
   ): Promise<RemoteTargetSummary>;
