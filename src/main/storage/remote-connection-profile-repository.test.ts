@@ -38,7 +38,7 @@ describe('remote connection profile persistence', () => {
       ...profile,
       password: 'must-not-be-stored'
     })).toThrow();
-    expect(RemoteTargetConnectRequestSchema.parse({
+    const request = RemoteTargetConnectRequestSchema.parse({
       executionTargetId: TARGET_ID,
       mode: 'manual',
       credentials: {
@@ -46,7 +46,9 @@ describe('remote connection profile persistence', () => {
         passphrase: 'memory-only'
       },
       rememberCredential: false
-    }).credentials).toEqual({
+    });
+    if (request.mode !== 'manual') throw new Error('Expected manual request.');
+    expect(request.credentials).toEqual({
       method: 'private-key',
       passphrase: 'memory-only'
     });

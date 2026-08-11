@@ -12,6 +12,7 @@ import {
   nativeImage,
   net,
   protocol,
+  safeStorage,
   screen,
   shell,
   Tray
@@ -485,8 +486,20 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     loadImage: (path) => nativeImage.createFromPath(path)
   });
   registerApplicationProtocol();
+  const credentialEncryption = {
+    platform,
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    isAsyncEncryptionAvailable: () =>
+      safeStorage.isAsyncEncryptionAvailable(),
+    getSelectedStorageBackend: () => safeStorage.getSelectedStorageBackend(),
+    encryptStringAsync: (value: string) =>
+      safeStorage.encryptStringAsync(value),
+    decryptStringAsync: (value: Buffer) =>
+      safeStorage.decryptStringAsync(value)
+  };
   remoteTargetRuntime = createRemoteTargetRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
+    credentialEncryption,
     providerReleases: providerReleaseSource,
     helperBundleRoot: app.isPackaged
       ? join(process.resourcesPath, 'helper')

@@ -98,7 +98,9 @@ function createHarness(options: {
   };
   const credentialVault = {
     getStorageState: vi.fn().mockResolvedValue('available'),
-    getCredentialState: vi.fn(() => 'none'),
+    getCredentialState: vi.fn((): 'none' | 'remembered' | 'needs-attention' =>
+      'none'
+    ),
     save: vi.fn().mockResolvedValue(undefined),
     resolve: vi.fn().mockResolvedValue(null),
     forget: vi.fn()
@@ -307,14 +309,14 @@ describe('remote target service', () => {
       'password',
       'memory-only'
     );
-    expect(harness.ssh.connect.mock.invocationCallOrder[0])
-      .toBeLessThan(harness.credentialVault.save.mock.invocationCallOrder[0]);
+    expect(harness.ssh.connect.mock.invocationCallOrder[0]!)
+      .toBeLessThan(harness.credentialVault.save.mock.invocationCallOrder[0]!);
   });
 
   it('does not remember a password when SSH authentication fails', async () => {
     const harness = createHarness();
     harness.ssh.connect.mockRejectedValueOnce(
-      new RemoteSshError('AUTHENTICATION_FAILED')
+      new RemoteSshError('AUTHENTICATION_FAILED', 'Authentication failed.')
     );
 
     await expect(harness.service.connect(TARGET_ID, {
