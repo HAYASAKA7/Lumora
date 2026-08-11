@@ -4666,6 +4666,47 @@ button {
   outline: none;
 }
 
+.remote-connection-options {
+  display: grid;
+  max-width: 560px;
+  gap: 9px;
+}
+
+.remote-connection-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 12px;
+  color: var(--text);
+  background: var(--control-surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.remote-connection-option > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.remote-connection-option strong {
+  font-size: 0.8rem;
+  font-weight: 720;
+}
+
+.remote-connection-option small,
+.remote-credential-help {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.remote-credential-help {
+  margin: 1px 2px 0;
+}
+
 .select-menu {
   position: relative;
   min-width: 0;
