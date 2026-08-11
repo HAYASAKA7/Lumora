@@ -416,6 +416,7 @@ describe('remote session runtime', () => {
       } else {
         expect(command).toContain("exec env 'LUMORA_PROVIDER_COMMAND=codexp --remote-profile'");
         expect(command).toContain("'/bin/zsh'");
+        expect(command).toContain("'-l' '-i' '-c'");
       }
 
       await runtime.shutdown();
@@ -488,6 +489,7 @@ describe('remote session runtime', () => {
           cwd: WORKSPACE_PATH,
           executablePath: '/bin/bash',
           args: [
+            '-l',
             '-c',
             'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
             'lumora-provider',
@@ -539,6 +541,7 @@ describe('remote session runtime', () => {
           cwd: WORKSPACE_PATH,
           executablePath: '/bin/bash',
           args: [
+            '-l',
             '-c',
             'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
             'lumora-provider',

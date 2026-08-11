@@ -378,15 +378,29 @@ function createRemotePtyChannel(channel: ClientChannel): RemotePtyChannel {
   return {
     pid: null,
     write(data) {
-      if (!closed) channel.write(data);
+      if (closed) return;
+      try {
+        channel.write(data);
+      } catch {
+        reportExit();
+      }
     },
     resize(cols, rows) {
-      if (!closed) channel.setWindow(rows, cols, 0, 0);
+      if (closed) return;
+      try {
+        channel.setWindow(rows, cols, 0, 0);
+      } catch {
+        reportExit();
+      }
     },
     kill() {
       if (closed) return;
       closed = true;
-      channel.close();
+      try {
+        channel.close();
+      } catch {
+        reportExit();
+      }
     },
     onData(listener) {
       if (!closed) dataListeners.add(listener);

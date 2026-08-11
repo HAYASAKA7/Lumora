@@ -106,6 +106,7 @@ export function createRemoteSessionRuntime(
     options.executionTargetId
   );
   repository.markLiveRuntimesLost(clock().toISOString());
+  const shellFamily = remoteShellFamily(options.defaultShell);
   const terminalProfile: TerminalProfile = {
     id: stableRemoteId(
       options.executionTargetId,
@@ -114,9 +115,12 @@ export function createRemoteSessionRuntime(
     ),
     kind: 'detected',
     name: 'Remote SSH PTY',
-    shellFamily: remoteShellFamily(options.defaultShell),
+    shellFamily,
     executablePath: options.defaultShell,
-    args: [],
+    args:
+      options.platform !== 'win32' && shellFamily !== 'other'
+        ? ['-l']
+        : [],
     available: true,
     recommended: true
   };

@@ -9,6 +9,7 @@ import {
   createRemoteSshClient,
   fingerprintSshHostKey,
   prepareSshConnectionConfig,
+  type RemotePtyChannel,
   type SshClientAdapter
 } from './ssh-client';
 import { RemoteSshError } from './ssh-errors';
@@ -311,6 +312,59 @@ describe('remote SSH client', () => {
 
     expect(client.channel.write).not.toHaveBeenCalled();
     expect(client.channel.setWindow).not.toHaveBeenCalled();
+    expect(onExit).toHaveBeenCalledWith({ exitCode: null });
+  });
+
+  it.each([
+    {
+      operation: 'write',
+      fail(channel: FakePtyChannel) {
+        channel.write.mockImplementationOnce(() => {
+          throw new Error('Channel is not writable');
+        });
+      },
+      invoke(channel: RemotePtyChannel) {
+        channel.write('late input');
+      }
+    },
+    {
+      operation: 'resize',
+      fail(channel: FakePtyChannel) {
+        channel.setWindow.mockImplementationOnce(() => {
+          throw new Error('Channel is closed');
+        });
+      },
+      invoke(channel: RemotePtyChannel) {
+        channel.resize(120, 40);
+      }
+    },
+    {
+      operation: 'kill',
+      fail(channel: FakePtyChannel) {
+        channel.close.mockImplementationOnce(() => {
+          throw new Error('Channel is closed');
+        });
+      },
+      invoke(channel: RemotePtyChannel) {
+        channel.kill();
+      }
+    }
+  ])('treats a synchronous SSH $operation failure as an exited remote PTY', async ({
+    fail,
+    invoke
+  }) => {
+    const client = new FakePtyClient();
+    const connected = await connectReady(client);
+    const channel = await connected.openPtyExec('remote command', {
+      cols: 80,
+      rows: 24
+    });
+    const onExit = vi.fn();
+    channel.onExit(onExit);
+    fail(client.channel);
+
+    expect(() => invoke(channel)).not.toThrow();
+    expect(onExit).toHaveBeenCalledOnce();
     expect(onExit).toHaveBeenCalledWith({ exitCode: null });
   });
 
