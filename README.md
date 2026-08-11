@@ -24,7 +24,7 @@
 </p>
 
 > [!WARNING]
-> Lumora 0.2 is an unsigned preview release. Review the
+> Lumora 0.3 is an unsigned preview release. Review the
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
@@ -183,8 +183,9 @@ the first import can be retried later.
 Lumora can create an isolated window for a trusted SSH computer and activate a
 lightweight Lumora helper there. Add the computer from the separate **Remote**
 entrance, verify its SHA-256 host fingerprint, then connect with a password,
-private-key passphrase, or SSH agent. Credentials are used only for that
-connection and are not saved.
+private-key passphrase, or SSH agent. Credentials are ephemeral by default.
+You can opt in per profile to remember a password or private-key passphrase in
+operating-system secure storage, and separately opt in to automatic connection.
 
 When the helper is missing or incompatible, the remote window shows the exact
 per-user install location and version before asking for confirmation. Lumora
