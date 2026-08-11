@@ -2,6 +2,8 @@ import {
   IPC_CHANNELS,
   LumoraWindowContextSchema,
   RemoteConnectionProfileInputSchema,
+  RemoteAutoConnectPreferenceRequestSchema,
+  RemoteCredentialStatusSchema,
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
@@ -45,6 +47,7 @@ interface RegisterTargetIpcDependencies {
   service: Pick<RemoteTargetService,
     'list' | 'get' | 'create' | 'update' | 'remove' | 'observeHostKey' |
     'trustHostKey' | 'connect' | 'disconnect' | 'getHelperInstallDetails' |
+    'getCredentialStatus' | 'setAutoConnect' | 'forgetCredential' |
     'installHelper' | 'getProviderPreferences' | 'saveProviderPreferences' |
     'scanDiscovery' | 'scanSessions'>;
   beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
@@ -177,10 +180,49 @@ export function registerTargetIpc({
       requireTargetScope(context, request.executionTargetId);
       return RemoteTargetConnectionDetailsSchema.parse(await service.connect(
         request.executionTargetId,
-        request.credentials
+        request
       ));
     });
   });
+
+  ipc.handle(IPC_CHANNELS.remoteCredentialStatus, async (event, input) => {
+    const context = authorize(event);
+    return protectedOperation(async () => {
+      const request = RemoteTargetIdRequestSchema.parse(input);
+      requireTargetScope(context, request.executionTargetId);
+      return RemoteCredentialStatusSchema.parse(
+        await service.getCredentialStatus(request.executionTargetId)
+      );
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteCredentialForget, async (event, input) => {
+    const context = authorize(event);
+    return protectedOperation(async () => {
+      const request = RemoteTargetIdRequestSchema.parse(input);
+      requireTargetScope(context, request.executionTargetId);
+      return RemoteCredentialStatusSchema.parse(
+        await service.forgetCredential(request.executionTargetId)
+      );
+    });
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.remoteAutoConnectPreferenceSave,
+    async (event, input) => {
+      const context = authorize(event);
+      return protectedOperation(async () => {
+        const request = RemoteAutoConnectPreferenceRequestSchema.parse(input);
+        requireTargetScope(context, request.executionTargetId);
+        return RemoteCredentialStatusSchema.parse(
+          await service.setAutoConnect(
+            request.executionTargetId,
+            request.autoConnect
+          )
+        );
+      });
+    }
+  );
 
   ipc.handle(IPC_CHANNELS.remoteTargetDisconnect, async (event, input) => {
     const context = authorize(event);

@@ -32,6 +32,8 @@ import {
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   RemoteConnectionProfileInputSchema,
+  RemoteAutoConnectPreferenceRequestSchema,
+  RemoteCredentialStatusSchema,
   RemoteHostKeyObservationSchema,
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
@@ -131,6 +133,33 @@ export function createLumoraApi(
       const request = RemoteTargetConnectRequestSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.remoteTargetConnect, request);
       return RemoteTargetConnectionDetailsSchema.parse(value);
+    },
+    async getRemoteCredentialStatus(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(
+        IPC_CHANNELS.remoteCredentialStatus,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
+    },
+    async setRemoteAutoConnect(executionTargetId, enabled) {
+      const request = RemoteAutoConnectPreferenceRequestSchema.parse({
+        executionTargetId,
+        autoConnect: enabled
+      });
+      const value = await invoke(
+        IPC_CHANNELS.remoteAutoConnectPreferenceSave,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
+    },
+    async forgetRemoteCredential(executionTargetId) {
+      const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });
+      const value = await invoke(
+        IPC_CHANNELS.remoteCredentialForget,
+        request
+      );
+      return RemoteCredentialStatusSchema.parse(value);
     },
     async disconnectRemoteTarget(executionTargetId) {
       const request = RemoteTargetIdRequestSchema.parse({ executionTargetId });

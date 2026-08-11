@@ -49,6 +49,27 @@ describe('remote target preload API', () => {
       if (channel === IPC_CHANNELS.remoteTargetConnect) {
         return { ...summary, homeDirectory: '/home/builder', defaultShell: '/bin/bash' };
       }
+      if (
+        channel === IPC_CHANNELS.remoteCredentialStatus ||
+        channel === IPC_CHANNELS.remoteCredentialForget
+      ) {
+        return {
+          executionTargetId: TARGET_ID,
+          storageState: 'available',
+          credentialState: channel === IPC_CHANNELS.remoteCredentialForget
+            ? 'none'
+            : 'remembered',
+          autoConnect: false
+        };
+      }
+      if (channel === IPC_CHANNELS.remoteAutoConnectPreferenceSave) {
+        return {
+          executionTargetId: TARGET_ID,
+          storageState: 'available',
+          credentialState: 'remembered',
+          autoConnect: true
+        };
+      }
       if (channel === IPC_CHANNELS.remoteTargetHelperDetails) {
         return {
           status: 'missing', helperVersion: '0.1.0',
@@ -86,8 +107,16 @@ describe('remote target preload API', () => {
     });
     await expect(api.connectRemoteTarget({
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
     })).resolves.toMatchObject({ homeDirectory: '/home/builder' });
+    await expect(api.getRemoteCredentialStatus(TARGET_ID)).resolves
+      .toMatchObject({ credentialState: 'remembered' });
+    await expect(api.setRemoteAutoConnect(TARGET_ID, true)).resolves
+      .toMatchObject({ autoConnect: true });
+    await expect(api.forgetRemoteCredential(TARGET_ID)).resolves
+      .toMatchObject({ credentialState: 'none' });
     await expect(api.removeRemoteTarget(TARGET_ID)).resolves.toBeUndefined();
     await expect(api.getRemoteHelperInstallDetails()).resolves.toMatchObject({
       status: 'missing', requiresConfirmation: true
@@ -103,7 +132,9 @@ describe('remote target preload API', () => {
 
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {
       executionTargetId: TARGET_ID,
-      credentials: { method: 'password', password: 'memory-only' }
+      mode: 'manual',
+      credentials: { method: 'password', password: 'memory-only' },
+      rememberCredential: true
     });
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperDetails);
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetHelperInstall);
@@ -116,7 +147,7 @@ describe('remote target preload API', () => {
 
     await expect(api.connectRemoteTarget({
       executionTargetId: 'not-a-uuid',
-      credentials: { method: 'password', password: 'secret' }
+      mode: 'automatic'
     })).rejects.toBeDefined();
     await expect(api.createRemoteTarget({
       displayName: 'Invalid',
