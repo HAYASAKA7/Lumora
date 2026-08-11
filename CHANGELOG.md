@@ -7,6 +7,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Performance
+
+- Reduce local verification load with adaptive one-to-three-worker Vitest
+  concurrency and avoid a redundant second TypeScript pass while retaining
+  every test, helper, typecheck, and production-build gate.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
