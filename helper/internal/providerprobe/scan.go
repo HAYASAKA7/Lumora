@@ -86,6 +86,13 @@ func LocateProvider(ctx context.Context, provider string, dependencies Dependenc
 	return dependencies.FindExecutable(command, dependencies.SearchPaths(ctx))
 }
 
+// LocateTool resolves one simple executable name through the same bounded,
+// login-shell-aware search used by provider discovery.
+func LocateTool(ctx context.Context, command string, dependencies Dependencies) (string, error) {
+	dependencies = withDefaults(dependencies)
+	return dependencies.FindExecutable(command, dependencies.SearchPaths(ctx))
+}
+
 func Scan(ctx context.Context, enabled []string, dependencies Dependencies) Result {
 	dependencies = withDefaults(dependencies)
 	paths := dependencies.SearchPaths(ctx)
