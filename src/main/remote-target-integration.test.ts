@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8')
+  .replace(/\r\n/g, '\n');
 
 describe('remote target application integration', () => {
   it('composes target storage, target-aware IPC, and immutable remote windows', () => {
