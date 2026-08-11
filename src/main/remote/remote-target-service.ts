@@ -436,6 +436,8 @@ export function createRemoteTargetService({
     active.sessionRuntime = null;
     try {
       await sessionRuntime?.shutdown();
+    } catch {
+      // Resource closure below is authoritative even if graceful PTY shutdown fails.
     } finally {
       sessionRuntime?.close();
       active.files.close();

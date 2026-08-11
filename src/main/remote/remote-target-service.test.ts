@@ -814,6 +814,34 @@ describe('remote target service', () => {
     expect(harness.connected.close).toHaveBeenCalledOnce();
   });
 
+  it('publishes offline state when terminal shutdown fails during disconnect', async () => {
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+      shutdown: vi.fn().mockRejectedValue(new Error('remote shutdown failed')),
+      close: vi.fn()
+    };
+    const harness = createHarness({
+      createSessionRuntime: vi.fn(() => sessionRuntime)
+    });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+    const lifecycleEvents: Array<{
+      snapshot: { summary: { target: { connectionState: string } } };
+    }> = [];
+    harness.service.subscribeLifecycle((event) => lifecycleEvents.push(event));
+
+    await expect(harness.service.disconnect(TARGET_ID)).resolves.toMatchObject({
+      target: { connectionState: 'offline' }
+    });
+
+    expect(sessionRuntime.close).toHaveBeenCalledOnce();
+    expect(harness.connected.close).toHaveBeenCalledOnce();
+    expect(lifecycleEvents.at(-1)?.snapshot.summary.target.connectionState)
+      .toBe('offline');
+  });
+
   it('reports an installed provider scan failure as retryable', async () => {
     const harness = createHarness();
     harness.providerPreferences.get.mockReturnValue(['codex']);

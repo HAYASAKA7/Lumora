@@ -60,6 +60,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Release the remote connection action after SSH/helper activation even when
   the `ready` lifecycle update rerenders an automatic connection, and keep slow
   credential-status refreshes from leaving Disconnect stuck on **Disconnecting**.
+- Publish and persist the remote computer's offline state even when graceful
+  terminal shutdown reports an error after its SSH resources have closed.
 - Standardize dropdowns across local and remote catalogs, session workflows,
   settings, terminal profiles, and transfers on Lumora's overlay menu, and use
   a Lumora confirmation dialog when opening terminal links.
