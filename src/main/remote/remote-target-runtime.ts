@@ -9,6 +9,7 @@ import type { RemotePlatformFacts } from './platform-probe';
 import { resolveRemoteHelperArtifact } from './helper-artifact-resolver';
 import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSessionRuntime } from './remote-session-runtime';
+import type { ProviderReleaseSource } from '../providers/provider-release-source';
 import {
   createRemoteTargetService,
   type RemoteTargetService
@@ -23,6 +24,7 @@ interface CreateRemoteTargetRuntimeOptions {
     execute: ConnectedRemoteSshClient['execute']
   ) => Promise<RemotePlatformFacts>;
   helperBundleRoot?: string;
+  providerReleases?: ProviderReleaseSource;
 }
 
 export interface RemoteTargetRuntime {
@@ -36,6 +38,7 @@ export function createRemoteTargetRuntime({
   createTargetId,
   ssh,
   probePlatform,
+  providerReleases,
   helperBundleRoot = join(process.cwd(), 'resources', 'helper', 'generated')
 }: CreateRemoteTargetRuntimeOptions): RemoteTargetRuntime {
   const database = new DatabaseSync(databasePath);
@@ -58,6 +61,7 @@ export function createRemoteTargetRuntime({
     ...(createTargetId === undefined ? {} : { createTargetId }),
     ...(ssh === undefined ? {} : { ssh }),
     ...(probePlatform === undefined ? {} : { probePlatform }),
+    ...(providerReleases === undefined ? {} : { providerReleases }),
     createSessionRuntime: ({
       executionTargetId,
       platform,

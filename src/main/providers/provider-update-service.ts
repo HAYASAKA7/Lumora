@@ -151,7 +151,10 @@ export function createProviderUpdateService({
   registry: ProviderRegistryLike;
   enabledProviders?: () => readonly ProviderId[];
   releases: ProviderReleaseSource;
-  runLifecycle(provider: ProviderId): Promise<void>;
+  runLifecycle(
+    provider: ProviderId,
+    action: 'install' | 'update'
+  ): Promise<void>;
   now?: () => Date;
 }): ProviderUpdateService {
   const running = new Set<ProviderId>();
@@ -183,9 +186,10 @@ export function createProviderUpdateService({
   };
 
   const resultAfterLifecycle = async (
-    provider: ProviderId
+    provider: ProviderId,
+    action: 'install' | 'update'
   ): Promise<ProviderUpdateResult> => {
-    await runLifecycle(provider);
+    await runLifecycle(provider, action);
     const after = await (registry.scanFresh?.() ?? registry.scan());
     const installation = after.providers.find(
       (candidate) => candidate.provider === provider
@@ -246,7 +250,7 @@ export function createProviderUpdateService({
             'The provider is already installed.'
           );
         }
-        return resultAfterLifecycle(provider);
+        return resultAfterLifecycle(provider, 'install');
       });
     },
 
@@ -270,7 +274,7 @@ export function createProviderUpdateService({
           );
         }
 
-        return resultAfterLifecycle(provider);
+        return resultAfterLifecycle(provider, 'update');
       });
     }
   });

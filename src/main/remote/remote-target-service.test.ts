@@ -123,6 +123,7 @@ function createHarness(options: {
       capabilities: [
         'system-info' as const,
         'provider-scan' as const,
+        'provider-lifecycle' as const,
         'session-scan' as const
       ]
     },
@@ -173,6 +174,11 @@ function createHarness(options: {
         nextCursor: cursor === null ? '1' : null
       };
     }),
+    runProviderLifecycle: vi.fn().mockResolvedValue({
+      provider: 'opencode',
+      action: 'install',
+      completedAt: '2026-08-04T08:00:00.000Z'
+    }),
     close: vi.fn()
   };
   const providerPreferences = {
@@ -180,6 +186,9 @@ function createHarness(options: {
     save: vi.fn((_id, providers: readonly ProviderId[]) => [...providers])
   };
   const connectHelper = vi.fn().mockResolvedValue(helper);
+  const providerReleases = {
+    latestVersion: vi.fn(async () => '2.0.0')
+  };
   const clock = vi.fn(() => new Date('2026-08-04T08:00:00.000Z'));
   const service = createRemoteTargetService({
     targets,
@@ -191,6 +200,7 @@ function createHarness(options: {
     inspectHelper,
     installHelper,
     connectHelper,
+    providerReleases,
     ...(options.createSessionRuntime === undefined
       ? {}
       : { createSessionRuntime: options.createSessionRuntime }),
@@ -201,7 +211,7 @@ function createHarness(options: {
   return {
     service, targets, profiles, ssh, connected, probePlatform,
     artifact, paths, files, resolveHelperArtifact, inspectHelper,
-    installHelper, connectHelper, helper, providerPreferences
+    installHelper, connectHelper, helper, providerPreferences, providerReleases
   };
 }
 
@@ -280,7 +290,7 @@ describe('remote target service', () => {
           architecture: 'arm64',
           helperVersion: '0.1.0',
           protocolVersion: 1,
-          capabilities: ['provider-scan', 'session-scan'],
+          capabilities: ['provider-scan', 'provider-lifecycle', 'session-scan'],
           lastConnectedAt: '2026-08-04T08:00:00.000Z'
         }
       ]);
@@ -369,6 +379,57 @@ describe('remote target service', () => {
     expect(harness.service.saveProviderPreferences(TARGET_ID, {
       enabledProviders: ['opencode']
     })).toEqual({ enabledProviders: ['opencode'] });
+  });
+
+  it('checks, installs, and rescans providers through the active target helper', async () => {
+    const harness = createHarness();
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    await expect(harness.service.checkProviderUpdates(TARGET_ID)).resolves.toMatchObject({
+      providers: expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'codex', state: 'update_available'
+        })
+      ])
+    });
+
+    harness.helper.scanDiscovery
+      .mockResolvedValueOnce({
+        checkedAt: '2026-08-05T04:04:00.000Z',
+        node: { state: 'ready', executablePath: '/usr/bin/node', version: 'v24' },
+        npm: { state: 'ready', executablePath: '/usr/bin/npm', version: '10.0.0' },
+        providers: [{
+          provider: 'codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: 'codex 1.2.3'
+        }, {
+          provider: 'opencode', state: 'not_found',
+          executablePath: null, version: null
+        }]
+      })
+      .mockResolvedValueOnce({
+        checkedAt: '2026-08-05T04:05:00.000Z',
+        node: { state: 'ready', executablePath: '/usr/bin/node', version: 'v24' },
+        npm: { state: 'ready', executablePath: '/usr/bin/npm', version: '10.0.0' },
+        providers: [{
+          provider: 'codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: 'codex 1.2.3'
+        }, {
+          provider: 'opencode', state: 'ready',
+          executablePath: '/home/builder/.local/bin/opencode', version: '2.0.0'
+        }]
+      });
+
+    await expect(
+      harness.service.installProvider(TARGET_ID, 'opencode')
+    ).resolves.toMatchObject({
+      provider: 'opencode',
+      installation: { state: 'ready', version: '2.0.0' }
+    });
+    expect(harness.helper.runProviderLifecycle).toHaveBeenCalledWith(
+      'opencode', 'install'
+    );
   });
 
   it('collects bounded session pages and strips helper-only source paths', async () => {

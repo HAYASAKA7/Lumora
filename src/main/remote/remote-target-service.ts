@@ -4,6 +4,7 @@ import {
   RemoteConnectionProfileInputSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteExecutionTargetIdSchema,
+  ProviderIdSchema,
   RemoteProviderPreferencesSchema,
   RemoteSessionCatalogSchema,
   RemoteTargetCredentialsSchema,
@@ -45,6 +46,11 @@ import type { ConnectedRemoteSshClient } from './ssh-client';
 import { createRemoteSshClient } from './ssh-client';
 import { RemoteSshError } from './ssh-errors';
 import type { RemoteSessionRuntime } from './remote-session-runtime';
+import {
+  createProviderUpdateService,
+  type ProviderUpdateService
+} from '../providers/provider-update-service';
+import type { ProviderReleaseSource } from '../providers/provider-release-source';
 
 type RemoteTarget = Extract<ExecutionTarget, { kind: 'remote' }>;
 
@@ -130,6 +136,7 @@ interface CreateRemoteTargetServiceOptions {
     ssh: ConnectedRemoteSshClient;
   }): RemoteSessionRuntime;
   providerPreferences?: ProviderPreferenceRepository;
+  providerReleases?: ProviderReleaseSource;
   clock?: () => Date;
   createTargetId?: () => string;
 }
@@ -343,10 +350,19 @@ export function createRemoteTargetService({
     get: () => [...PROVIDER_IDS],
     save: (_id, providers) => [...providers]
   },
+  providerReleases = {
+    latestVersion: async () => {
+      throw new Error('Provider release metadata is unavailable.');
+    }
+  },
   clock = () => new Date(),
   createTargetId = () => randomUUID()
 }: CreateRemoteTargetServiceOptions) {
   const activeTargets = new Map<RemoteExecutionTargetId, ActiveRemoteTarget>();
+  const providerUpdateServices = new Map<
+    RemoteExecutionTargetId,
+    ProviderUpdateService
+  >();
   const sessionRuntimeListeners = new Set<(
     executionTargetId: RemoteExecutionTargetId,
     event: RuntimeEvent
@@ -390,6 +406,7 @@ export function createRemoteTargetService({
     const id = RemoteExecutionTargetIdSchema.parse(input);
     const active = activeTargets.get(id);
     activeTargets.delete(id);
+    providerUpdateServices.delete(id);
     await disposeActive(active);
     targets.updateRemoteConnection(id, { connectionState: 'offline' });
     return summary(id);
@@ -519,6 +536,60 @@ export function createRemoteTargetService({
     });
   };
 
+  const scanDiscovery = async (input: RemoteExecutionTargetId) => {
+    const id = RemoteExecutionTargetIdSchema.parse(input);
+    const active = activeTargets.get(id);
+    if (
+      active?.helper === null || active === undefined ||
+      !active.helper.info.capabilities.includes('provider-scan')
+    ) throw new RemoteTargetServiceError();
+    const enabledProviders = providerPreferences.get(id);
+    try {
+      const result = normalizeDiscovery(
+        id,
+        await active.helper.scanDiscovery(enabledProviders),
+        enabledProviders
+      );
+      targets.updateRemoteConnection(id, {
+        lastScannedAt: result.scannedAt
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof RemoteTargetServiceError) throw error;
+      throw new RemoteTargetServiceError();
+    }
+  };
+
+  const providerUpdatesFor = (
+    id: RemoteExecutionTargetId
+  ): ProviderUpdateService => {
+    const existing = providerUpdateServices.get(id);
+    if (existing !== undefined) return existing;
+
+    const service = createProviderUpdateService({
+      registry: {
+        scan: async () => (await scanDiscovery(id)).providers,
+        scanFresh: async () => (await scanDiscovery(id)).providers
+      },
+      enabledProviders: () => providerPreferences.get(id),
+      releases: providerReleases,
+      runLifecycle: async (provider, action) => {
+        const active = activeTargets.get(id);
+        if (
+          active?.helper === null || active === undefined ||
+          !active.helper.info.capabilities.includes('provider-lifecycle')
+        ) throw new RemoteTargetServiceError();
+        const result = await active.helper.runProviderLifecycle(provider, action);
+        if (result.provider !== provider || result.action !== action) {
+          throw new RemoteTargetServiceError();
+        }
+      },
+      now: clock
+    });
+    providerUpdateServices.set(id, service);
+    return service;
+  };
+
   const scanProviderSessions = async (
     helper: ConnectedRemoteHelper,
     provider: ProviderId
@@ -625,6 +696,7 @@ export function createRemoteTargetService({
       const profile = RemoteConnectionProfileInputSchema.parse(profileInput);
       const active = activeTargets.get(id);
       activeTargets.delete(id);
+      providerUpdateServices.delete(id);
       await disposeActive(active);
       targets.updateRemoteConnection(id, { connectionState: 'offline' });
       profiles.save(id, profile, clock());
@@ -635,6 +707,7 @@ export function createRemoteTargetService({
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const active = activeTargets.get(id);
       activeTargets.delete(id);
+      providerUpdateServices.delete(id);
       await disposeActive(active);
       targets.deleteRemote(id);
     },
@@ -659,6 +732,7 @@ export function createRemoteTargetService({
       const profile = summary(id).profile;
       const former = activeTargets.get(id);
       activeTargets.delete(id);
+      providerUpdateServices.delete(id);
       await disposeActive(former);
       targets.updateRemoteConnection(id, { connectionState: 'connecting' });
       let connected: ConnectedRemoteSshClient | null = null;
@@ -707,6 +781,7 @@ export function createRemoteTargetService({
         active.removeCloseListener = connected.onClose(() => {
           if (activeTargets.get(id) !== active) return;
           activeTargets.delete(id);
+          providerUpdateServices.delete(id);
           active.removeCloseListener?.();
           active.removeCloseListener = null;
           active.helper?.close();
@@ -817,28 +892,29 @@ export function createRemoteTargetService({
       });
     },
 
-    async scanDiscovery(input: RemoteExecutionTargetId) {
+    scanDiscovery,
+
+    checkProviderUpdates(input: RemoteExecutionTargetId) {
       const id = RemoteExecutionTargetIdSchema.parse(input);
-      const active = activeTargets.get(id);
-      if (
-        active?.helper === null || active === undefined ||
-        !active.helper.info.capabilities.includes('provider-scan')
-      ) throw new RemoteTargetServiceError();
-      const enabledProviders = providerPreferences.get(id);
-      try {
-        const result = normalizeDiscovery(
-          id,
-          await active.helper.scanDiscovery(enabledProviders),
-          enabledProviders
-        );
-        targets.updateRemoteConnection(id, {
-          lastScannedAt: result.scannedAt
-        });
-        return result;
-      } catch (error) {
-        if (error instanceof RemoteTargetServiceError) throw error;
-        throw new RemoteTargetServiceError();
-      }
+      return providerUpdatesFor(id).check();
+    },
+
+    installProvider(
+      input: RemoteExecutionTargetId,
+      providerInput: ProviderId
+    ) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const provider = ProviderIdSchema.parse(providerInput);
+      return providerUpdatesFor(id).install(provider);
+    },
+
+    updateProvider(
+      input: RemoteExecutionTargetId,
+      providerInput: ProviderId
+    ) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const provider = ProviderIdSchema.parse(providerInput);
+      return providerUpdatesFor(id).update(provider);
     },
 
     async scanSessions(input: RemoteExecutionTargetId) {
@@ -935,6 +1011,7 @@ export function createRemoteTargetService({
         targets.updateRemoteConnection(id, { connectionState: 'offline' });
       }
       activeTargets.clear();
+      providerUpdateServices.clear();
       sessionRuntimeListeners.clear();
       await Promise.allSettled(disposing);
     }

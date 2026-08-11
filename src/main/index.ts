@@ -486,6 +486,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   registerApplicationProtocol();
   remoteTargetRuntime = createRemoteTargetRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
+    providerReleases: providerReleaseSource,
     helperBundleRoot: app.isPackaged
       ? join(process.resourcesPath, 'helper')
       : join(app.getAppPath(), 'resources', 'helper', 'generated')

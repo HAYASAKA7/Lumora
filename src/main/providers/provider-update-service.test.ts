@@ -161,7 +161,7 @@ describe('ProviderUpdateService.update', () => {
       completedAt: '2026-07-17T03:00:00.000Z',
       installation: updatedCodex
     });
-    expect(runLifecycle).toHaveBeenCalledWith('codex');
+    expect(runLifecycle).toHaveBeenCalledWith('codex', 'update');
     expect(registry.scan).toHaveBeenCalledOnce();
     expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
@@ -199,7 +199,9 @@ describe('ProviderUpdateService.update', () => {
     });
 
     const first = service.update('codex');
-    await vi.waitFor(() => expect(runLifecycle).toHaveBeenCalledWith('codex'));
+    await vi.waitFor(() =>
+      expect(runLifecycle).toHaveBeenCalledWith('codex', 'update')
+    );
     await expect(service.update('codex')).rejects.toMatchObject({
       code: 'PROVIDER_UPDATE_IN_PROGRESS'
     });
@@ -305,7 +307,7 @@ describe('ProviderUpdateService.install', () => {
       completedAt: '2026-07-17T03:10:00.000Z',
       installation: readyGemini
     });
-    expect(runLifecycle).toHaveBeenCalledWith('gemini');
+    expect(runLifecycle).toHaveBeenCalledWith('gemini', 'install');
     expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
 
