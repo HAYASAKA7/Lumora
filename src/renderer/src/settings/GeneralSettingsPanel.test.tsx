@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
@@ -29,6 +29,40 @@ describe('GeneralSettingsPanel', () => {
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
     expect(panel).toHaveClass('catalog-panel', 'general-settings-panel');
     expect(header).toHaveClass('provider-panel-header');
+
+    const windowGroup = screen.getByRole('group', { name: 'Window behavior' });
+    expect(within(windowGroup).getByRole('switch', {
+      name: 'Start with a maximized window'
+    })).toBeVisible();
+    expect(within(windowGroup).getByRole('switch', {
+      name: 'Keep Lumora running after closing the window'
+    })).toBeVisible();
+
+    const navigationGroup = screen.getByRole('group', { name: 'Sidebar and notices' });
+    expect(within(navigationGroup).getByRole('switch', {
+      name: 'Auto-expand sidebar when navigating'
+    })).toBeVisible();
+    expect(within(navigationGroup).getByRole('switch', {
+      name: 'Show informational notices'
+    })).toBeVisible();
+
+    expect(within(screen.getByRole('group', { name: 'Provider maintenance' })).getByRole(
+      'switch',
+      { name: 'Check provider updates automatically' }
+    )).toBeVisible();
+    expect(within(screen.getByRole('group', { name: 'Remote behavior' })).getByRole(
+      'switch',
+      { name: 'Disconnect when a remote window closes' }
+    )).toBeVisible();
+
+    const handoffGroup = screen.getByRole('group', { name: 'Cross-agent handoff' });
+    expect(within(handoffGroup).getByRole('switch', {
+      name: 'Enable cross-agent session handoff'
+    })).toBeVisible();
+    expect(within(handoffGroup).getByRole('button', {
+      name: 'Temporary handoff retention'
+    })).toBeDisabled();
+
     for (const name of switches.slice(0, 4)) {
       expect(screen.getByRole('switch', { name })).toBeChecked();
     }

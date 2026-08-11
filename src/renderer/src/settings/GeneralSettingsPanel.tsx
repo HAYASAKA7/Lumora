@@ -8,47 +8,51 @@ interface GeneralSettingsPanelProps {
   onChange(settings: GeneralSettings): void;
 }
 
-const GENERAL_SETTINGS = [
-  {
+type BooleanGeneralSettingKey =
+  | 'startMaximized'
+  | 'checkProviderUpdatesAutomatically'
+  | 'autoExpandSidebar'
+  | 'showInformationalNotices'
+  | 'crossAgentWorkflowEnabled';
+
+interface BooleanGeneralSettingDefinition {
+  key: BooleanGeneralSettingKey;
+  label: string;
+  description: string;
+}
+
+const GENERAL_SETTING_DEFINITIONS = {
+  startMaximized: {
     key: 'startMaximized',
     label: 'Start with a maximized window',
     description:
       'Open Lumora maximized on the next launch while preserving your normal window size.'
   },
-  {
+  checkProviderUpdatesAutomatically: {
     key: 'checkProviderUpdatesAutomatically',
     label: 'Check provider updates automatically',
     description:
       'Check enabled agent providers for newer releases when provider settings open.'
   },
-  {
+  autoExpandSidebar: {
     key: 'autoExpandSidebar',
     label: 'Auto-expand sidebar when navigating',
     description:
       'Expand a collapsed sidebar when you choose a destination or use a navigation shortcut.'
   },
-  {
+  showInformationalNotices: {
     key: 'showInformationalNotices',
     label: 'Show informational notices',
     description:
       'Display non-critical diagnostics and helpful guidance throughout Lumora.'
   },
-  {
+  crossAgentWorkflowEnabled: {
     key: 'crossAgentWorkflowEnabled',
     label: 'Enable cross-agent session handoff',
     description:
       'Start a new provider session from a temporary local copy of another provider session.'
   }
-] as const satisfies ReadonlyArray<{
-  key:
-    | 'startMaximized'
-    | 'checkProviderUpdatesAutomatically'
-    | 'autoExpandSidebar'
-    | 'showInformationalNotices'
-    | 'crossAgentWorkflowEnabled';
-  label: string;
-  description: string;
-}>;
+} as const satisfies Record<BooleanGeneralSettingKey, BooleanGeneralSettingDefinition>;
 
 export function GeneralSettingsPanel({
   settings,
@@ -56,6 +60,35 @@ export function GeneralSettingsPanel({
   saveError,
   onChange
 }: GeneralSettingsPanelProps) {
+  const renderBooleanSetting = (setting: BooleanGeneralSettingDefinition) => {
+    const descriptionId = `general-${setting.key}-description`;
+    return (
+      <label className="general-setting-row" key={setting.key}>
+        <span className="general-setting-copy">
+          <strong>{setting.label}</strong>
+          <span id={descriptionId}>{setting.description}</span>
+        </span>
+        <span className="settings-switch">
+          <input
+            aria-describedby={descriptionId}
+            aria-label={setting.label}
+            checked={settings[setting.key]}
+            disabled={saving}
+            onChange={(event) => onChange({
+              ...settings,
+              [setting.key]: event.currentTarget.checked
+            })}
+            role="switch"
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="settings-switch-track">
+            <span className="settings-switch-thumb" />
+          </span>
+        </span>
+      </label>
+    );
+  };
+
   return (
     <section
       aria-labelledby="general-settings-title"
@@ -69,26 +102,35 @@ export function GeneralSettingsPanel({
         </div>
       </header>
 
-      {GENERAL_SETTINGS.map((setting) => {
-        const descriptionId = `general-${setting.key}-description`;
-        return (
-          <label className="general-setting-card" key={setting.key}>
+      <section
+        aria-labelledby="general-window-behavior-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-window-behavior-title">
+          Window behavior
+        </h3>
+        <div className="general-setting-group-rows">
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.startMaximized)}
+          <label className="general-setting-row">
             <span className="general-setting-copy">
-              <strong>{setting.label}</strong>
-              <span id={descriptionId}>{setting.description}</span>
+              <strong>Keep Lumora running after closing the window</strong>
+              <span id="general-window-close-description">
+                Hide Lumora in the tray instead of exiting and stopping managed agents.
+              </span>
             </span>
             <span className="settings-switch">
               <input
-                aria-describedby={descriptionId}
-                aria-label={setting.label}
-                checked={settings[setting.key]}
+                aria-describedby="general-window-close-description"
+                aria-label="Keep Lumora running after closing the window"
+                checked={settings.windowCloseBehavior === 'hide_to_tray'}
                 disabled={saving}
-                onChange={(event) =>
-                  onChange({
-                    ...settings,
-                    [setting.key]: event.currentTarget.checked
-                  })
-                }
+                onChange={(event) => onChange({
+                  ...settings,
+                  windowCloseBehavior: event.currentTarget.checked
+                    ? 'hide_to_tray'
+                    : 'quit'
+                })}
                 role="switch"
                 type="checkbox"
               />
@@ -97,88 +139,118 @@ export function GeneralSettingsPanel({
               </span>
             </span>
           </label>
-        );
-      })}
+        </div>
+      </section>
 
-      <label className="general-setting-card">
-        <span className="general-setting-copy">
-          <strong>Keep Lumora running after closing the window</strong>
-          <span id="general-window-close-description">
-            Hide Lumora in the tray instead of exiting and stopping managed agents.
-          </span>
-        </span>
-        <span className="settings-switch">
-          <input
-            aria-describedby="general-window-close-description"
-            aria-label="Keep Lumora running after closing the window"
-            checked={settings.windowCloseBehavior === 'hide_to_tray'}
-            disabled={saving}
-            onChange={(event) => onChange({
-              ...settings,
-              windowCloseBehavior: event.currentTarget.checked
-                ? 'hide_to_tray'
-                : 'quit'
-            })}
-            role="switch"
-            type="checkbox"
-          />
-          <span aria-hidden="true" className="settings-switch-track">
-            <span className="settings-switch-thumb" />
-          </span>
-        </span>
-      </label>
+      <section
+        aria-labelledby="general-sidebar-notices-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-sidebar-notices-title">
+          Sidebar and notices
+        </h3>
+        <div className="general-setting-group-rows">
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.autoExpandSidebar)}
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showInformationalNotices)}
+        </div>
+      </section>
 
-      <label className="general-setting-card">
-        <span className="general-setting-copy">
-          <strong>Disconnect when a remote window closes</strong>
-          <span id="general-remote-window-close-description">
-            Close its SSH connection when the remote Lumora window closes.
-            Running remote agents require confirmation first.
-          </span>
-        </span>
-        <span className="settings-switch">
-          <input
-            aria-describedby="general-remote-window-close-description"
-            aria-label="Disconnect when a remote window closes"
-            checked={settings.remoteWindowCloseBehavior === 'disconnect'}
-            disabled={saving}
-            onChange={(event) => onChange({
-              ...settings,
-              remoteWindowCloseBehavior: event.currentTarget.checked
-                ? 'disconnect'
-                : 'keep_connected'
-            })}
-            role="switch"
-            type="checkbox"
-          />
-          <span aria-hidden="true" className="settings-switch-track">
-            <span className="settings-switch-thumb" />
-          </span>
-        </span>
-      </label>
+      <section
+        aria-labelledby="general-provider-maintenance-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3
+          className="general-setting-group-title"
+          id="general-provider-maintenance-title"
+        >
+          Provider maintenance
+        </h3>
+        <div className="general-setting-group-rows">
+          {renderBooleanSetting(
+            GENERAL_SETTING_DEFINITIONS.checkProviderUpdatesAutomatically
+          )}
+        </div>
+      </section>
 
-      <div className="general-setting-card general-setting-card-control">
-        <span className="general-setting-copy">
-          <strong>Temporary handoff retention</strong>
-          <span id="general-handoff-retention-description">
-            Automatically delete Lumora's managed session copies after this time.
-          </span>
-        </span>
-        <SelectMenu
-          ariaDescribedBy="general-handoff-retention-description"
-          disabled={saving || !settings.crossAgentWorkflowEnabled}
-          label="Temporary handoff retention"
-          onChange={(value) => onChange({
-            ...settings,
-            crossAgentHandoffRetentionDays: Number(value)
-          })}
-          options={[1, 7, 30, 60, 90, 180, 365].map((days) => ({
-            value: String(days),
-            label: days === 1 ? '1 day' : `${days} days`
-          }))}
-          value={String(settings.crossAgentHandoffRetentionDays)}
-        />
-      </div>
+      <section
+        aria-labelledby="general-remote-behavior-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-remote-behavior-title">
+          Remote behavior
+        </h3>
+        <div className="general-setting-group-rows">
+          <label className="general-setting-row">
+            <span className="general-setting-copy">
+              <strong>Disconnect when a remote window closes</strong>
+              <span id="general-remote-window-close-description">
+                Close its SSH connection when the remote Lumora window closes.
+                Running remote agents require confirmation first.
+              </span>
+            </span>
+            <span className="settings-switch">
+              <input
+                aria-describedby="general-remote-window-close-description"
+                aria-label="Disconnect when a remote window closes"
+                checked={settings.remoteWindowCloseBehavior === 'disconnect'}
+                disabled={saving}
+                onChange={(event) => onChange({
+                  ...settings,
+                  remoteWindowCloseBehavior: event.currentTarget.checked
+                    ? 'disconnect'
+                    : 'keep_connected'
+                })}
+                role="switch"
+                type="checkbox"
+              />
+              <span aria-hidden="true" className="settings-switch-track">
+                <span className="settings-switch-thumb" />
+              </span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="general-cross-agent-handoff-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3
+          className="general-setting-group-title"
+          id="general-cross-agent-handoff-title"
+        >
+          Cross-agent handoff
+        </h3>
+        <div className="general-setting-group-rows">
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.crossAgentWorkflowEnabled)}
+          <div className="general-setting-row general-setting-row-control">
+            <span className="general-setting-copy">
+              <strong>Temporary handoff retention</strong>
+              <span id="general-handoff-retention-description">
+                Automatically delete Lumora's managed session copies after this time.
+              </span>
+            </span>
+            <SelectMenu
+              ariaDescribedBy="general-handoff-retention-description"
+              disabled={saving || !settings.crossAgentWorkflowEnabled}
+              label="Temporary handoff retention"
+              onChange={(value) => onChange({
+                ...settings,
+                crossAgentHandoffRetentionDays: Number(value)
+              })}
+              options={[1, 7, 30, 60, 90, 180, 365].map((days) => ({
+                value: String(days),
+                label: days === 1 ? '1 day' : `${days} days`
+              }))}
+              value={String(settings.crossAgentHandoffRetentionDays)}
+            />
+          </div>
+        </div>
+      </section>
 
       {saveError === null ? null : (
         <p className="general-setting-error" role="alert">

@@ -40,6 +40,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Group General settings by function so related preferences share one section,
+  including the cross-agent handoff switch and temporary-copy retention.
 - Make isolated remote windows use Lumora's global theme, managed background,
   opacity hierarchy, mosaic, popup, scrollbar, and shared control styles.
 - Reuse Lumora's main shell and catalog views after a remote target reaches

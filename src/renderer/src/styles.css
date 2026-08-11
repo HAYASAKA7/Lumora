@@ -1530,7 +1530,9 @@ button {
   border-color: var(--line-strong);
 }
 
-.general-setting-card {
+.general-setting-group {
+  min-width: 0;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1544,12 +1546,49 @@ button {
   gap: 24px;
   padding: 20px 22px;
   cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .general-setting-card:hover {
   border-color: var(--line-strong);
   box-shadow: var(--panel-shadow-soft);
+}
+
+.general-setting-group-title {
+  padding: 12px 18px;
+  margin: 0;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.general-setting-group-rows {
+  display: grid;
+}
+
+.general-setting-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.general-setting-row + .general-setting-row {
+  border-top: 1px solid var(--line);
+}
+
+.general-setting-row:hover {
+  background: color-mix(in srgb, var(--surface-raised) 78%, var(--blue-soft));
 }
 
 .general-setting-copy {
@@ -1569,13 +1608,27 @@ button {
   line-height: 1.5;
 }
 
+.general-setting-row > .select-menu {
+  flex: 0 0 auto;
+  min-width: 112px;
+}
+
 .general-setting-card > .select-menu {
   flex: 0 0 auto;
   min-width: 112px;
 }
 
+.general-setting-row-control {
+  cursor: default;
+}
+
 .general-setting-card-control {
   cursor: default;
+}
+
+.general-setting-row > .select-menu:has(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .general-setting-card > .select-menu:has(button:disabled) {
@@ -2750,6 +2803,11 @@ button {
 @media (max-width: 720px) {
   .catalog-panel {
     padding: 18px;
+  }
+
+  .general-setting-row {
+    align-items: flex-start;
+    gap: 14px;
   }
 
   .catalog-toolbar,
