@@ -16,8 +16,10 @@ import type {
   RemoteCredentialStatus,
   RemoteDiscoverySnapshot,
   RemoteHelperInstallDetails,
+  RemoteLifecycleSnapshot,
   RemoteExecutionTargetId,
   RemoteProviderPreferences,
+  RemoteWindowCloseRequest,
   RemoteSessionCatalog,
   RemoteTargetConnectionDetails,
   RemoteTargetCredentials,
@@ -58,6 +60,7 @@ import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
 import { keyboardEventMatchesChord } from '../keyboard/shortcut';
 import { ProviderSettings } from '../providers/ProviderSettings';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -270,30 +273,94 @@ export function RemoteTargetWindow({
   const [newSessionIntent, setNewSessionIntent] =
     useState<NewSessionIntent | null>(null);
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
+  const [windowCloseRequest, setWindowCloseRequest] =
+    useState<RemoteWindowCloseRequest | null>(null);
   const autoScannedKey = useRef<string | null>(null);
   const automaticConnectionAttempted = useRef(false);
+
+  const applyLifecycleSnapshot = useCallback((
+    snapshot: RemoteLifecycleSnapshot
+  ) => {
+    setSummary(snapshot.summary);
+    if (snapshot.discovery !== null) {
+      setDiscovery({ state: 'ready', snapshot: snapshot.discovery });
+    } else if (snapshot.discoveryState === 'refreshing') {
+      setDiscovery({ state: 'loading' });
+    } else if (snapshot.discoveryState === 'error') {
+      setDiscovery({ state: 'error' });
+    }
+    if (snapshot.catalog !== null) {
+      setSessionCatalog({ state: 'ready', catalog: snapshot.catalog });
+    } else if (snapshot.catalogState === 'refreshing') {
+      setSessionCatalog({ state: 'loading' });
+    } else if (snapshot.catalogState === 'error') {
+      setSessionCatalog({ state: 'error' });
+    }
+  }, []);
 
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
   }, [sidebarExpanded]);
 
   useEffect(() => {
+    if (typeof api.onRemoteWindowCloseRequest !== 'function') return;
+    return api.onRemoteWindowCloseRequest((request) => {
+      if (request.executionTargetId === executionTargetId) {
+        setWindowCloseRequest(request);
+      }
+    });
+  }, [api, executionTargetId]);
+
+  const resolveWindowClose = useCallback(async (
+    action: 'keep_running' | 'disconnect'
+  ) => {
+    if (typeof api.resolveRemoteWindowClose !== 'function') return;
+    try {
+      const closed = await api.resolveRemoteWindowClose({ action });
+      if (!closed) setWindowCloseRequest(null);
+    } catch {
+      setError('Lumora could not close this remote connection safely.');
+    }
+  }, [api]);
+
+  useEffect(() => {
     let active = true;
-    void api.listRemoteTargets().then(
-      (targets) => {
+    void (async () => {
+      try {
+        if (typeof api.listRemoteLifecycleSnapshots === 'function') {
+          const snapshots = await api.listRemoteLifecycleSnapshots();
+          if (!active) return;
+          const lifecycle = snapshots.find(
+            ({ summary: item }) => item.target.id === executionTargetId
+          );
+          if (lifecycle !== undefined) {
+            applyLifecycleSnapshot(lifecycle);
+            setError(null);
+            return;
+          }
+        }
+        const targets = await api.listRemoteTargets();
         if (!active) return;
         const current = targets.find(
           ({ target }) => target.id === executionTargetId
         ) ?? null;
         setSummary(current);
         setError(current === null ? 'This remote target is unavailable.' : null);
-      },
-      () => {
+      } catch {
         if (active) setError('Lumora could not load this remote target.');
       }
-    );
+    })();
     return () => { active = false; };
-  }, [api, executionTargetId]);
+  }, [api, applyLifecycleSnapshot, executionTargetId]);
+
+  useEffect(() => {
+    if (typeof api.onRemoteLifecycleEvent !== 'function') return;
+    return api.onRemoteLifecycleEvent((event) => {
+      if (event.executionTargetId === executionTargetId) {
+        applyLifecycleSnapshot(event.snapshot);
+      }
+    });
+  }, [api, applyLifecycleSnapshot, executionTargetId]);
 
   useEffect(() => {
     if (typeof api.getRemoteCredentialStatus !== 'function') return;
@@ -363,13 +430,18 @@ export function RemoteTargetWindow({
     }
   }, [api]);
 
-  const loadRemoteState = useCallback(async (supported: boolean) => {
-    setDiscovery(supported ? { state: 'loading' } : { state: 'unsupported' });
+  const loadRemoteState = useCallback(async (
+    supported: boolean,
+    scanDiscovery: boolean
+  ) => {
+    if (scanDiscovery) {
+      setDiscovery(supported ? { state: 'loading' } : { state: 'unsupported' });
+    }
     try {
       const nextPreferences = await api.getRemoteProviderPreferences();
       setPreferences(nextPreferences);
       setDraftProviders([...nextPreferences.enabledProviders]);
-      if (supported) {
+      if (supported && scanDiscovery) {
         const snapshot = await api.scanRemoteDiscovery();
         setDiscovery({ state: 'ready', snapshot });
       }
@@ -393,8 +465,11 @@ export function RemoteTargetWindow({
     const key = `${summary.target.id}:${summary.target.helperVersion ?? 'unknown'}`;
     if (autoScannedKey.current === key) return;
     autoScannedKey.current = key;
-    void loadRemoteState(summary.target.capabilities.includes('provider-scan'));
-  }, [loadRemoteState, summary]);
+    void loadRemoteState(
+      summary.target.capabilities.includes('provider-scan'),
+      discovery.state !== 'ready'
+    );
+  }, [discovery.state, loadRemoteState, summary]);
 
   useEffect(() => {
     if (
@@ -634,30 +709,6 @@ export function RemoteTargetWindow({
       return next;
     });
   }, []);
-
-  useEffect(() => {
-    if (!shellOpened) return;
-    let active = true;
-    const refreshConnectionState = () => {
-      void api.listRemoteTargets().then(
-        (targets) => {
-          if (!active) return;
-          const current = targets.find(
-            ({ target }) => target.id === executionTargetId
-          );
-          if (current !== undefined) setSummary(current);
-        },
-        () => undefined
-      );
-    };
-    const interval = window.setInterval(refreshConnectionState, 4_000);
-    window.addEventListener('focus', refreshConnectionState);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener('focus', refreshConnectionState);
-    };
-  }, [api, executionTargetId, shellOpened]);
 
   if (summary === null) {
     return (
@@ -1387,6 +1438,24 @@ export function RemoteTargetWindow({
         }}
         floatingContent={(
           <>
+            {windowCloseRequest !== null ? (
+              <ConfirmDialog
+                cancelLabel="Keep running"
+                confirmLabel="Disconnect and close"
+                description={(
+                  <>
+                    This remote computer has {windowCloseRequest.activeTerminalCount}{' '}
+                    active terminal {windowCloseRequest.activeTerminalCount === 1
+                      ? 'session'
+                      : 'sessions'}. Disconnecting will stop the SSH connection
+                    and those terminal sessions.
+                  </>
+                )}
+                heading="Disconnect remote computer?"
+                onCancel={() => void resolveWindowClose('keep_running')}
+                onConfirm={() => void resolveWindowClose('disconnect')}
+              />
+            ) : null}
             {newSessionIntent !== null && catalogSnapshot !== null ? (
               <NewSessionDialog
                 api={api}

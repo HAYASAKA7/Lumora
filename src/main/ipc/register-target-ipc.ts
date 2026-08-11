@@ -8,6 +8,8 @@ import {
   RemoteHostTrustRequestSchema,
   RemoteHelperInstallDetailsSchema,
   RemoteLifecycleListSchema,
+  RemoteWindowCloseResolutionSchema,
+  RemoteWindowCloseResultSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -54,6 +56,10 @@ interface RegisterTargetIpcDependencies {
     'getLifecycleSnapshot'>;
   beforeProfileMutation(id: RemoteExecutionTargetId): Promise<void> | void;
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
+  resolveWindowClose(
+    id: RemoteExecutionTargetId,
+    action: 'keep_running' | 'disconnect'
+  ): Promise<boolean>;
 }
 
 export class RemoteTargetIpcError extends Error {
@@ -106,7 +112,8 @@ export function registerTargetIpc({
   authorize,
   service,
   beforeProfileMutation,
-  openTargetWindow
+  openTargetWindow,
+  resolveWindowClose
 }: RegisterTargetIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.targetWindowContextGet, async (event) =>
     LumoraWindowContextSchema.parse(authorize(event))
@@ -303,6 +310,16 @@ export function registerTargetIpc({
       return RemoteTargetWindowOpenResultSchema.parse({
         opened: true,
         executionTargetId: request.executionTargetId
+      });
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.remoteWindowCloseResolve, async (event, input) => {
+    const executionTargetId = requireRemote(authorize(event));
+    return protectedOperation(async () => {
+      const request = RemoteWindowCloseResolutionSchema.parse(input);
+      return RemoteWindowCloseResultSchema.parse({
+        closed: await resolveWindowClose(executionTargetId, request.action)
       });
     });
   });

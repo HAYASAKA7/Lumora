@@ -39,6 +39,9 @@ import {
   RemoteHelperInstallDetailsSchema,
   RemoteLifecycleEventSchema,
   RemoteLifecycleListSchema,
+  RemoteWindowCloseRequestSchema,
+  RemoteWindowCloseResolutionSchema,
+  RemoteWindowCloseResultSchema,
   RemoteDiscoverySnapshotSchema,
   RemoteSessionCatalogSchema,
   RemoteProviderPreferencesSchema,
@@ -111,6 +114,19 @@ export function createLumoraApi(
       return subscribe(IPC_CHANNELS.remoteLifecycleEvent, (value) => {
         listener(RemoteLifecycleEventSchema.parse(value));
       });
+    },
+    onRemoteWindowCloseRequest(listener) {
+      return subscribe(IPC_CHANNELS.remoteWindowCloseRequest, (value) => {
+        listener(RemoteWindowCloseRequestSchema.parse(value));
+      });
+    },
+    async resolveRemoteWindowClose(resolution) {
+      const request = RemoteWindowCloseResolutionSchema.parse(resolution);
+      const value = await invoke(
+        IPC_CHANNELS.remoteWindowCloseResolve,
+        request
+      );
+      return RemoteWindowCloseResultSchema.parse(value).closed;
     },
     async createRemoteTarget(input) {
       const request = RemoteConnectionProfileInputSchema.parse(input);

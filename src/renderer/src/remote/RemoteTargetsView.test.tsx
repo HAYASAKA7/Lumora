@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LumoraApi } from '../../../shared/contracts';
@@ -36,6 +36,38 @@ const summary = {
 } as const;
 
 describe('RemoteTargetsView', () => {
+  it('updates a remote card from authoritative lifecycle events', async () => {
+    let lifecycleListener: ((event: unknown) => void) | undefined;
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      onRemoteLifecycleEvent: vi.fn((listener) => {
+        lifecycleListener = listener;
+        return () => undefined;
+      })
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />);
+    expect(await screen.findByText('offline')).toBeInTheDocument();
+
+    act(() => lifecycleListener?.({
+      executionTargetId: TARGET_ID,
+      snapshot: {
+        summary: {
+          ...summary,
+          target: { ...summary.target, connectionState: 'ready' }
+        },
+        generation: 1,
+        discovery: null,
+        catalog: null,
+        discoveryState: 'idle',
+        catalogState: 'idle',
+        activeTerminalCount: 0
+      }
+    }));
+
+    expect(screen.getByText('ready')).toBeInTheDocument();
+    expect(screen.queryByText('offline')).not.toBeInTheDocument();
+  });
+
   it('creates a direct SSH profile without requesting or persisting a secret', async () => {
     const api = {
       listRemoteTargets: vi.fn().mockResolvedValue([]),

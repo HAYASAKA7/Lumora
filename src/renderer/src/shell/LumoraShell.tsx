@@ -25,6 +25,7 @@ export interface ShellRoute<RouteId extends string = string> {
   icon: NavigationIconName;
   label: string;
   shortcut?: string | undefined;
+  status?: string | undefined;
 }
 
 export interface ShellNavigationGroup<RouteId extends string = string> {
@@ -132,11 +133,18 @@ function NavigationGroup<RouteId extends string>({
       ) : null}
       {group.routes.map((route) => (
         <Tooltip
-          content={expanded ? null : route.label}
+          content={expanded
+            ? null
+            : route.status === undefined
+              ? route.label
+              : `${route.label} (${route.status})`}
           key={route.id}
           shortcut={route.shortcut}
         >
           <button
+            aria-label={route.status === undefined
+              ? undefined
+              : `${route.label} · ${route.status}`}
             aria-current={activeRouteId === route.id ? 'page' : undefined}
             className="nav-item"
             data-lumora-command
@@ -144,7 +152,12 @@ function NavigationGroup<RouteId extends string>({
             tabIndex={-1}
             type="button"
           >
-            <NavigationIcon name={route.icon} />
+            <span className="nav-item-icon">
+              <NavigationIcon name={route.icon} />
+              {route.status === undefined ? null : (
+                <span aria-hidden="true" className="nav-status-dot" />
+              )}
+            </span>
             <span className="nav-item-label">{route.label}</span>
           </button>
         </Tooltip>

@@ -16,13 +16,22 @@ export interface TargetWindowLike {
   show(): void;
   focus(): void;
   close(): void;
+  on(event: 'close', listener: (event: TargetWindowCloseEvent) => void): this;
   once(event: 'closed', listener: () => void): this;
+}
+
+export interface TargetWindowCloseEvent {
+  preventDefault(): void;
 }
 
 interface CreateTargetWindowManagerOptions<Window extends TargetWindowLike> {
   contexts: WindowContextRegistry;
   createWindow(id: RemoteExecutionTargetId): Window;
   loadWindow(window: Window): Promise<void>;
+  onCloseRequested?: (
+    id: RemoteExecutionTargetId,
+    event: TargetWindowCloseEvent
+  ) => void;
 }
 
 function focusWindow(window: TargetWindowLike): void {
@@ -35,11 +44,19 @@ function focusWindow(window: TargetWindowLike): void {
 export function createTargetWindowManager<Window extends TargetWindowLike>({
   contexts,
   createWindow,
-  loadWindow
+  loadWindow,
+  onCloseRequested
 }: CreateTargetWindowManagerOptions<Window>) {
   const windows = new Map<RemoteExecutionTargetId, Window>();
   const senderIds = new WeakMap<Window, number>();
   const pending = new Map<RemoteExecutionTargetId, Promise<void>>();
+  const programmaticCloses = new WeakSet<Window>();
+
+  const closeWindow = (window: Window): void => {
+    if (window.isDestroyed()) return;
+    programmaticCloses.add(window);
+    window.close();
+  };
 
   const open = (input: RemoteExecutionTargetId): Promise<void> => {
     const id = RemoteExecutionTargetIdSchema.parse(input);
@@ -65,6 +82,10 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
       executionTargetId: id
     });
     windows.set(id, window);
+    window.on('close', (event) => {
+      if (programmaticCloses.delete(window)) return;
+      onCloseRequested?.(id, event);
+    });
     window.once('closed', () => {
       contexts.unregister(senderId);
       senderIds.delete(window);
@@ -78,7 +99,7 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
       contexts.unregister(senderId);
       senderIds.delete(window);
       if (windows.get(id) === window) windows.delete(id);
-      if (!window.isDestroyed()) window.close();
+      closeWindow(window);
       throw error;
     }).finally(() => {
       if (pending.get(id) === creation) pending.delete(id);
@@ -93,15 +114,16 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
       input: RemoteExecutionTargetId,
       channel: string,
       payload: unknown
-    ): void {
+    ): boolean {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const window = windows.get(id);
       if (
         window === undefined ||
         window.isDestroyed() ||
         window.webContents.isDestroyed()
-      ) return;
+      ) return false;
       window.webContents.send(channel, payload);
+      return true;
     },
     close(input: RemoteExecutionTargetId): void {
       const id = RemoteExecutionTargetIdSchema.parse(input);
@@ -111,7 +133,7 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
       const senderId = senderIds.get(window);
       if (senderId !== undefined) contexts.unregister(senderId);
       senderIds.delete(window);
-      if (!window.isDestroyed()) window.close();
+      closeWindow(window);
     },
     closeAll(): void {
       for (const id of [...windows.keys()]) this.close(id);

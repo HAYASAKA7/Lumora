@@ -1051,6 +1051,17 @@ export const RemoteLifecycleEventSchema = z.strictObject({
 });
 export const RemoteLifecycleListSchema = z.array(RemoteLifecycleSnapshotSchema);
 
+export const RemoteWindowCloseRequestSchema = z.strictObject({
+  executionTargetId: RemoteExecutionTargetIdSchema,
+  activeTerminalCount: z.number().int().nonnegative()
+});
+export const RemoteWindowCloseResolutionSchema = z.strictObject({
+  action: z.enum(['keep_running', 'disconnect'])
+});
+export const RemoteWindowCloseResultSchema = z.strictObject({
+  closed: z.boolean()
+});
+
 export type RemoteProviderPreferences = z.infer<
   typeof RemoteProviderPreferencesSchema
 >;
@@ -1073,6 +1084,12 @@ export type RemoteLifecycleSnapshot = z.infer<
   typeof RemoteLifecycleSnapshotSchema
 >;
 export type RemoteLifecycleEvent = z.infer<typeof RemoteLifecycleEventSchema>;
+export type RemoteWindowCloseRequest = z.infer<
+  typeof RemoteWindowCloseRequestSchema
+>;
+export type RemoteWindowCloseResolution = z.infer<
+  typeof RemoteWindowCloseResolutionSchema
+>;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
@@ -1603,6 +1620,8 @@ export const IPC_CHANNELS = {
   remoteSessionScan: 'lumora:targets:sessions:scan',
   remoteLifecycleList: 'lumora:targets:lifecycle:list',
   remoteLifecycleEvent: 'lumora:targets:lifecycle:event',
+  remoteWindowCloseRequest: 'lumora:targets:window:close-request',
+  remoteWindowCloseResolve: 'lumora:targets:window:close-resolve',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1667,6 +1686,12 @@ export interface LumoraApi {
   onRemoteLifecycleEvent(
     listener: (event: RemoteLifecycleEvent) => void
   ): () => void;
+  onRemoteWindowCloseRequest(
+    listener: (request: RemoteWindowCloseRequest) => void
+  ): () => void;
+  resolveRemoteWindowClose(
+    resolution: RemoteWindowCloseResolution
+  ): Promise<boolean>;
   createRemoteTarget(
     input: RemoteConnectionProfileInput
   ): Promise<RemoteTargetSummary>;

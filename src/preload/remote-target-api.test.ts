@@ -188,6 +188,31 @@ describe('remote target preload API', () => {
     expect(() => eventListener?.({ type: 'updated' })).toThrow();
   });
 
+  it('validates remote-window close requests and resolutions', async () => {
+    let closeListener: ((value: unknown) => void) | undefined;
+    const listener = vi.fn();
+    const invoke = vi.fn().mockResolvedValue({ closed: true });
+    const api = createLumoraApi(invoke, (channel, callback) => {
+      if (channel === IPC_CHANNELS.remoteWindowCloseRequest) {
+        closeListener = callback;
+      }
+      return vi.fn();
+    });
+
+    api.onRemoteWindowCloseRequest(listener);
+    closeListener?.({ executionTargetId: TARGET_ID, activeTerminalCount: 2 });
+    expect(listener).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      activeTerminalCount: 2
+    });
+    await expect(api.resolveRemoteWindowClose({ action: 'keep_running' }))
+      .resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.remoteWindowCloseResolve,
+      { action: 'keep_running' }
+    );
+  });
+
   it('rejects malformed requests before invoking IPC', async () => {
     const invoke = vi.fn();
     const api = createLumoraApi(invoke);

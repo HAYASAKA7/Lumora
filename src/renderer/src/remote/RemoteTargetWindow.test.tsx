@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -90,6 +90,106 @@ function deferred<T>() {
 }
 
 describe('RemoteTargetWindow', () => {
+  it('hydrates a kept connection from lifecycle cache without rescanning', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const catalog = {
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-11T05:00:00.000Z',
+      sessions: [],
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-11T05:00:00.000Z',
+        workspaces: [], sessions: [], providerStatus: [],
+        providerFacets: [], diagnostics: []
+      }
+    } as const;
+    const scanRemoteDiscovery = vi.fn();
+    const scanRemoteSessions = vi.fn();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteLifecycleSnapshots: vi.fn().mockResolvedValue([{
+        summary: readySummary,
+        generation: 1,
+        discovery,
+        catalog,
+        discoveryState: 'ready',
+        catalogState: 'ready',
+        activeTerminalCount: 0
+      }]),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      onRemoteLifecycleEvent: vi.fn(() => () => undefined),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery,
+      scanRemoteSessions
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByTestId('lumora-shell');
+    await waitFor(() => expect(api.getRemoteProviderPreferences).toHaveBeenCalled());
+
+    expect(api.listRemoteTargets).not.toHaveBeenCalled();
+    expect(scanRemoteDiscovery).not.toHaveBeenCalled();
+    expect(scanRemoteSessions).not.toHaveBeenCalled();
+  });
+
+  it('warns before closing a disconnecting window with active terminals', async () => {
+    let closeListener: ((request: {
+      executionTargetId: typeof TARGET_ID;
+      activeTerminalCount: number;
+    }) => void) | undefined;
+    const resolveRemoteWindowClose = vi.fn().mockResolvedValue(true);
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1
+      }
+    };
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      onRemoteWindowCloseRequest: vi.fn((listener) => {
+        closeListener = listener;
+        return () => undefined;
+      }),
+      resolveRemoteWindowClose
+    } as unknown as LumoraApi;
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    await screen.findByText('Linux build server');
+
+    act(() => closeListener?.({
+      executionTargetId: TARGET_ID,
+      activeTerminalCount: 2
+    }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Disconnect remote computer?'
+    });
+    expect(within(dialog).getByText(/2 active terminal sessions/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('button', {
+      name: 'Keep running'
+    }));
+
+    await waitFor(() => expect(resolveRemoteWindowClose).toHaveBeenCalledWith({
+      action: 'keep_running'
+    }));
+  });
+
   it('waits for remote discovery before scanning sessions on the shared helper channel', async () => {
     const discoveryPending = deferred<typeof discovery>();
     const readySummary = {

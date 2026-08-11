@@ -4666,6 +4666,26 @@ button {
   outline: none;
 }
 
+.nav-item-icon {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  position: relative;
+}
+
+.nav-status-dot {
+  background: var(--success);
+  border: 2px solid var(--navy-900);
+  border-radius: 999px;
+  bottom: -2px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--success) 60%, transparent);
+  height: 8px;
+  position: absolute;
+  right: -3px;
+  width: 8px;
+}
+
 .remote-connection-options {
   display: grid;
   max-width: 560px;

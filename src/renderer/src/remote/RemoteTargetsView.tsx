@@ -137,6 +137,21 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
     return () => { active = false; };
   }, [api]);
 
+  useEffect(() => {
+    if (typeof api.onRemoteLifecycleEvent !== 'function') return;
+    return api.onRemoteLifecycleEvent(({ snapshot }) => {
+      const next = snapshot.summary;
+      setTargets((current) => current.some(
+        (item) => item.target.id === next.target.id
+      )
+        ? current.map((item) =>
+            item.target.id === next.target.id ? next : item
+          )
+        : [...current, next]
+      );
+    });
+  }, [api]);
+
   const replaceTarget = (next: RemoteTargetSummary) => {
     setTargets((current) => {
       const exists = current.some(({ target }) => target.id === next.target.id);

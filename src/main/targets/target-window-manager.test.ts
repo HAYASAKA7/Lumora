@@ -17,6 +17,12 @@ class FakeWindow extends EventEmitter {
   readonly focus = vi.fn();
   readonly restore = vi.fn();
   readonly close = vi.fn(() => {
+    const closeEvent = {
+      defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; }
+    };
+    this.emit('close', closeEvent);
+    if (closeEvent.defaultPrevented) return;
     this.destroyed = true;
     this.emit('closed');
   });
@@ -44,6 +50,10 @@ class FakeWindow extends EventEmitter {
   }
   isDestroyed(): boolean { return this.destroyed; }
   isMinimized(): boolean { return this.minimized; }
+
+  requestUserClose(): void {
+    this.close();
+  }
 }
 
 describe('target window manager', () => {
@@ -169,12 +179,45 @@ describe('target window manager', () => {
     await manager.open(TARGET_ID);
     await manager.open(otherTargetId);
 
-    manager.send(TARGET_ID, 'lumora:terminal:runtime:event', { type: 'output' });
+    expect(manager.send(
+      TARGET_ID,
+      'lumora:terminal:runtime:event',
+      { type: 'output' }
+    )).toBe(true);
 
     expect(windows.get(TARGET_ID)!.send).toHaveBeenCalledWith(
       'lumora:terminal:runtime:event',
       { type: 'output' }
     );
     expect(windows.get(otherTargetId)!.send).not.toHaveBeenCalled();
+    expect(manager.send(
+      '8de8a686-3559-49f0-806a-2426b29df71c',
+      'lumora:terminal:runtime:event',
+      { type: 'output' }
+    )).toBe(false);
+  });
+
+  it('distinguishes a user close request from a manager close', async () => {
+    const contexts = createWindowContextRegistry();
+    const window = new FakeWindow(50);
+    const onCloseRequested = vi.fn((_id, event) => event.preventDefault());
+    const manager = createTargetWindowManager({
+      contexts,
+      createWindow: () => window,
+      loadWindow: vi.fn().mockResolvedValue(undefined),
+      onCloseRequested
+    });
+    await manager.open(TARGET_ID);
+
+    window.requestUserClose();
+    expect(onCloseRequested).toHaveBeenCalledWith(
+      TARGET_ID,
+      expect.objectContaining({ preventDefault: expect.any(Function) })
+    );
+    expect(window.destroyed).toBe(false);
+
+    manager.close(TARGET_ID);
+    expect(window.destroyed).toBe(true);
+    expect(onCloseRequested).toHaveBeenCalledOnce();
   });
 });

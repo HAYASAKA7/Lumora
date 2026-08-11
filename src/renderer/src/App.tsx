@@ -21,6 +21,7 @@ import type {
   ProviderId,
   KeyboardSettings,
   LaunchPreview,
+  RemoteLifecycleSnapshot,
   RuntimeSummary,
   SessionSummary,
   SystemInfo,
@@ -349,6 +350,9 @@ function AppContent(): ReactNode {
   const [sidebarExpanded, setSidebarExpanded] = useState(() =>
     readSidebarExpanded(window)
   );
+  const [remoteLifecycleSnapshots, setRemoteLifecycleSnapshots] = useState(
+    () => new Map<string, RemoteLifecycleSnapshot>()
+  );
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [runtimeMru, setRuntimeMru] = useState<string[]>([]);
   const [runtimeSwitcher, setRuntimeSwitcher] =
@@ -373,6 +377,36 @@ function AppContent(): ReactNode {
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
   }, [sidebarExpanded]);
+
+  useEffect(() => {
+    if (
+      typeof window.lumora.listRemoteLifecycleSnapshots !== 'function' ||
+      typeof window.lumora.onRemoteLifecycleEvent !== 'function'
+    ) return;
+    let active = true;
+    const merge = (snapshots: readonly RemoteLifecycleSnapshot[]) => {
+      if (!active) return;
+      setRemoteLifecycleSnapshots((current) => {
+        const next = new Map(current);
+        for (const snapshot of snapshots) {
+          const id = snapshot.summary.target.id;
+          const existing = next.get(id);
+          if (existing === undefined || snapshot.generation >= existing.generation) {
+            next.set(id, snapshot);
+          }
+        }
+        return next;
+      });
+    };
+    const unsubscribe = window.lumora.onRemoteLifecycleEvent(({ snapshot }) => {
+      merge([snapshot]);
+    });
+    void window.lumora.listRemoteLifecycleSnapshots().then(merge, () => undefined);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   const resolvedTheme = resolveAppearanceTheme(
     generalSettings?.appearance.theme ?? DEFAULT_GENERAL_SETTINGS.appearance.theme
@@ -403,6 +437,8 @@ function AppContent(): ReactNode {
     () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
     [activeRouteId]
   );
+  const onlineRemoteTargetCount = [...remoteLifecycleSnapshots.values()]
+    .filter(({ summary }) => summary.target.connectionState === 'ready').length;
 
   useEffect(() => {
     if (mainContentRef.current !== null) {
@@ -1388,7 +1424,12 @@ function AppContent(): ReactNode {
             {
               id: REMOTE_ROUTE.id,
               icon: REMOTE_ROUTE.icon,
-              label: REMOTE_ROUTE.label
+              label: REMOTE_ROUTE.label,
+              status: onlineRemoteTargetCount > 0
+                ? `${onlineRemoteTargetCount} ${onlineRemoteTargetCount === 1
+                    ? 'computer'
+                    : 'computers'} online`
+                : undefined
             }
           ]
         }}

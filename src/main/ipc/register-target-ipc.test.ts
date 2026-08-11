@@ -137,6 +137,7 @@ function createHarness(context: LumoraWindowContext) {
   };
   const openTargetWindow = vi.fn().mockResolvedValue(undefined);
   const beforeProfileMutation = vi.fn().mockResolvedValue(undefined);
+  const resolveWindowClose = vi.fn().mockResolvedValue(true);
   registerTargetIpc({
     ipc: {
       handle(channel, handler) {
@@ -146,9 +147,16 @@ function createHarness(context: LumoraWindowContext) {
     authorize: vi.fn(() => context),
     service,
     beforeProfileMutation,
-    openTargetWindow
+    openTargetWindow,
+    resolveWindowClose
   });
-  return { handlers, service, beforeProfileMutation, openTargetWindow };
+  return {
+    handlers,
+    service,
+    beforeProfileMutation,
+    openTargetWindow,
+    resolveWindowClose
+  };
 }
 
 const event = { senderFrame: { url: 'app://lumora/index.html' }, sender: { id: 1 } };
@@ -179,7 +187,8 @@ describe('registerTargetIpc', () => {
       IPC_CHANNELS.remoteProviderPreferencesSave,
       IPC_CHANNELS.remoteDiscoveryScan,
       IPC_CHANNELS.remoteSessionScan,
-      IPC_CHANNELS.remoteTargetWindowOpen
+      IPC_CHANNELS.remoteTargetWindowOpen,
+      IPC_CHANNELS.remoteWindowCloseResolve
     ]);
     await expect(handlers.get(IPC_CHANNELS.remoteTargetCreate)!(event, {
       displayName: 'Build server',
@@ -227,7 +236,7 @@ describe('registerTargetIpc', () => {
   });
 
   it('limits a remote window to reading and connecting its own target', async () => {
-    const { handlers, service } = createHarness({
+    const { handlers, service, resolveWindowClose } = createHarness({
       mode: 'remote',
       executionTargetId: TARGET_ID
     });
@@ -281,6 +290,9 @@ describe('registerTargetIpc', () => {
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
+    await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
+      action: 'disconnect'
+    })).resolves.toEqual({ closed: true });
     expect(service.connect).toHaveBeenCalledTimes(3);
     expect(service.getLifecycleSnapshot).toHaveBeenCalledWith(TARGET_ID);
     expect(service.connect).toHaveBeenCalledWith(TARGET_ID, {
@@ -303,6 +315,7 @@ describe('registerTargetIpc', () => {
     );
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
     expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
+    expect(resolveWindowClose).toHaveBeenCalledWith(TARGET_ID, 'disconnect');
     expect(service.remove).not.toHaveBeenCalled();
   });
 
@@ -351,6 +364,9 @@ describe('registerTargetIpc', () => {
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
+    await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
+      action: 'keep_running'
+    })).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();
   });

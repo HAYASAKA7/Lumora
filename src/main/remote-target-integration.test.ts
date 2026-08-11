@@ -36,6 +36,14 @@ describe('remote target application integration', () => {
     expect(mainSource).toContain('unsubscribeRemoteLifecycleEvents?.()');
   });
 
+  it('keeps remote connections by default and confirms active disconnects', () => {
+    expect(mainSource).toContain('onCloseRequested: (executionTargetId, event) => {');
+    expect(mainSource).toContain('remoteWindowCloseBehavior');
+    expect(mainSource).toContain("'disconnect'");
+    expect(mainSource).toContain('IPC_CHANNELS.remoteWindowCloseRequest');
+    expect(mainSource).toContain('resolveRemoteWindowClose');
+  });
+
   it('stops startup composition during shutdown and handles initialization failures', () => {
     const startup = mainSource.slice(
       mainSource.indexOf('if (hasSingleInstanceLock)')

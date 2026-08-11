@@ -40,6 +40,24 @@ With automatic connection off, selecting **Connect** reuses a remembered
 credential inside the main process; the saved value is never prefilled or sent
 back to the remote window.
 
+## Close and reopen a remote window
+
+Closing an isolated remote window keeps its ready SSH connection, helper, and
+running agents alive in the main Lumora process by default. Reopening the same
+computer restores the cached environment, provider catalog, sessions, and
+active terminal state immediately. Use the normal refresh controls when a new
+remote scan is needed.
+
+Enable **Settings > General > Disconnect when a remote window closes** when a
+window close should also end that computer's connection. If remote terminals
+are still active, Lumora asks whether to **Keep running** or **Disconnect and
+close** before doing anything. Disconnecting stops the target's managed remote
+resources; keeping them running closes only the window.
+
+The connection state on the main **Remote** page updates while isolated windows
+connect or disconnect. A status dot on the Remote sidebar entrance also appears
+whenever at least one remote computer is ready.
+
 ## Activate the helper
 
 After SSH authentication, Lumora probes the remote operating system and
@@ -171,6 +189,14 @@ tokens, raw installer output, or provider session contents.
 - Enable automatic connection for password, private-key, and SSH-agent
   profiles; confirm each remote window makes one attempt and leaves manual
   recovery visible after failure.
+- Close a ready remote window with the default close behavior, confirm its card
+  and sidebar indicator remain online, then reopen it and confirm cached
+  environment, catalog, sessions, and active terminals appear without a new
+  scan.
+- Enable **Disconnect when a remote window closes**, close a target with no
+  active terminals, and confirm its Remote card and sidebar indicator update
+  immediately. Repeat with an active terminal and test both **Keep running**
+  and **Disconnect and close** in the warning dialog.
 - Confirm remembering is disabled when secure OS storage is unavailable and
   that no plain-text secret appears in the profile or routine logs.
 - Edit and delete disconnected profiles; confirm open target windows and SSH
