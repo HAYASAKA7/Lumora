@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-12
+
 ### Added
 
 - Paste clipboard images into any live local or remote managed terminal. Lumora
@@ -29,6 +31,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   window and all remote Lumora windows. Changes propagate to open windows
   immediately, while enabled providers, launch commands, credentials, and
   other machine-specific configuration remain isolated per execution target.
+- Move **Remote computers** into the local window's primary navigation and
+  place **Settings** below the separator in both local and remote Lumora.
+- Change the default navigation shortcuts so `Ctrl+5` opens **Remote
+  computers** and `Ctrl+,` opens **Settings**. Both remain customizable, and
+  existing shortcut settings migrate without losing user-defined bindings.
+- Replace the obsolete local-footer `Local only` label with a live active-agent
+  count using correct singular and plural labels.
 
 ### Performance
 
