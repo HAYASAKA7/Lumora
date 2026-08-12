@@ -188,6 +188,14 @@ Catalog refreshes run at startup, on user request, on a schedule, and shortly
 after a managed provider exits. Search results use request ownership so a slow,
 stale response cannot replace a newer query.
 
+Workspace visibility is a non-destructive renderer projection over a complete
+catalog snapshot. Target-scoped policies can hide only a workspace card or the
+card and its sessions; independent General settings can omit unavailable
+workspaces and unusable sessions. Search and provider filters are applied to
+the projected in-memory snapshot, so typing does not trigger database reads or
+provider scans. A failed policy read fails open, and neither visibility mode
+changes provider-owned files or normalized catalog rows.
+
 ## Cross-device transfer flow
 
 Cross-device transfer moves provider-owned session files without changing the
@@ -316,6 +324,7 @@ It stores:
 - terminal profiles and provider command overrides;
 - layered launch settings;
 - keyboard preferences;
+- target-scoped workspace visibility policies;
 - workspace trust decisions;
 - managed runtime and reconciliation history; and
 - non-sensitive transfer history plus the last export and import directories.

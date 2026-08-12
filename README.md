@@ -141,6 +141,14 @@ The **Home** page keeps a smaller recent-session list with direct Resume
 actions. Provider filters only include installed providers for which Lumora
 found resumable sessions.
 
+To remove an old project from everyday navigation without deleting anything,
+open its workspace actions and choose **Hide workspace**. You can hide only the
+workspace card while keeping its sessions in Home and All sessions, or hide the
+workspace together with those sessions. Use **Hidden workspaces** on the
+Workspaces page to search, select, and restore hidden entries. General settings
+can also omit unavailable workspaces and currently unusable sessions. These
+choices are isolated between local Lumora and each remote computer.
+
 <details>
   <summary><strong>More workspace and navigation views</strong></summary>
   <br>

@@ -7,6 +7,19 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add target-scoped workspace visibility controls for local and remote
+  catalogs. A workspace can be hidden by itself or together with its sessions,
+  and the searchable Hidden workspaces dialog can restore one, several, or all
+  selections without deleting provider data.
+
+### Changed
+
+- Add General settings to hide unavailable workspaces and currently unusable
+  sessions. Catalog filtering is performed in memory after one complete scan,
+  preserving responsive search and provider filters for larger catalogs.
+
 ### Performance
 
 - Reduce local verification load with adaptive one-to-three-worker Vitest
