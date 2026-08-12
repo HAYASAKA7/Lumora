@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   RemoteConnectionProfileInputSchema,
@@ -55,6 +57,7 @@ import {
 } from '../providers/provider-update-service';
 import type { ProviderReleaseSource } from '../providers/provider-release-source';
 import { createRemoteLifecycleStore } from './remote-lifecycle-store';
+import { RemoteTerminalImageStager } from './remote-terminal-image-stager';
 
 type RemoteTarget = Extract<ExecutionTarget, { kind: 'remote' }>;
 
@@ -177,6 +180,10 @@ interface CreateRemoteTargetServiceOptions {
   providerReleases?: ProviderReleaseSource;
   clock?: () => Date;
   createTargetId?: () => string;
+  terminalImageStager?: Pick<
+    RemoteTerminalImageStager,
+    'stage' | 'cleanupRuntime'
+  >;
 }
 
 export class RemoteTargetServiceError extends Error {
@@ -409,7 +416,10 @@ export function createRemoteTargetService({
     }
   },
   clock = () => new Date(),
-  createTargetId = () => randomUUID()
+  createTargetId = () => randomUUID(),
+  terminalImageStager = new RemoteTerminalImageStager({
+    localRootDirectory: join(tmpdir(), 'Lumora', 'terminal-images', 'remote')
+  })
 }: CreateRemoteTargetServiceOptions) {
   const activeTargets = new Map<RemoteExecutionTargetId, ActiveRemoteTarget>();
   const providerUpdateServices = new Map<
@@ -433,12 +443,20 @@ export function createRemoteTargetService({
     active.removeSessionRuntimeListener?.();
     active.removeSessionRuntimeListener = null;
     const sessionRuntime = active.sessionRuntime;
+    const runtimeIds = (sessionRuntime?.listRuntimes?.() ?? []).map(
+      (runtime) => runtime.id
+    );
     active.sessionRuntime = null;
     try {
       await sessionRuntime?.shutdown();
     } catch {
       // Resource closure below is authoritative even if graceful PTY shutdown fails.
     } finally {
+      await Promise.allSettled(
+        runtimeIds.map((runtimeId) =>
+          terminalImageStager.cleanupRuntime(runtimeId, active.files)
+        )
+      );
       sessionRuntime?.close();
       active.files.close();
       active.ssh.close();
@@ -1250,6 +1268,43 @@ export function createRemoteTargetService({
       const runtime = activeTargets.get(id)?.sessionRuntime ?? null;
       if (runtime === null) throw new RemoteTargetServiceError();
       return runtime;
+    },
+
+    async stageTerminalImage(
+      input: RemoteExecutionTargetId,
+      runtimeId: string,
+      png: Buffer
+    ) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      const runtime = active?.sessionRuntime?.listRuntimes().find(
+        (candidate) => candidate.id === runtimeId
+      );
+      if (
+        active === undefined ||
+        runtime === undefined ||
+        active.facts.platform === 'unknown' ||
+        (runtime.state !== 'launching' && runtime.state !== 'running')
+      ) {
+        throw new RemoteTargetServiceError();
+      }
+      return terminalImageStager.stage({
+        runtimeId,
+        png,
+        platform: active.facts.platform,
+        baseDirectory: active.facts.helperBaseDirectory,
+        files: active.files
+      });
+    },
+
+    async cleanupTerminalImages(
+      input: RemoteExecutionTargetId,
+      runtimeId: string
+    ): Promise<void> {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const active = activeTargets.get(id);
+      if (active === undefined) return;
+      await terminalImageStager.cleanupRuntime(runtimeId, active.files);
     },
 
     subscribeSessionRuntimeEvents(listener: (

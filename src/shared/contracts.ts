@@ -1624,6 +1624,16 @@ export type RuntimeEvent = z.infer<typeof RuntimeEventSchema>;
 
 export const ClipboardTextSchema = z.string().max(4_194_304);
 
+export const TerminalClipboardReadRequestSchema = RuntimeIdRequestSchema;
+export const TerminalClipboardReadResultSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('empty') }),
+  z.strictObject({ kind: z.literal('text'), text: ClipboardTextSchema }),
+  z.strictObject({
+    kind: z.literal('image'),
+    pasteText: z.string().min(1).max(8_192)
+  })
+]);
+
 export const StartupPresentationClaimSchema = z.boolean();
 
 export const StartupPresentationCompletionSchema = z.strictObject({
@@ -1643,6 +1653,12 @@ export const ClipboardWriteResultSchema = z.strictObject({
 });
 
 export type ClipboardText = z.infer<typeof ClipboardTextSchema>;
+export type TerminalClipboardReadRequest = z.infer<
+  typeof TerminalClipboardReadRequestSchema
+>;
+export type TerminalClipboardReadResult = z.infer<
+  typeof TerminalClipboardReadResultSchema
+>;
 
 export const AppearanceBackgroundStateSchema = z.discriminatedUnion(
   'available',
@@ -1712,6 +1728,7 @@ export const IPC_CHANNELS = {
   trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
+  terminalClipboardRead: 'lumora:clipboard:terminal:read',
   appearancePresentationGet: 'lumora:appearance:presentation:get',
   appearanceBackgroundGet: 'lumora:appearance:background:get',
   appearanceBackgroundChoose: 'lumora:appearance:background:choose',
@@ -1831,6 +1848,7 @@ export interface LumoraApi {
     listener: (sessionId: string) => void
   ): () => void;
   readClipboardText(): Promise<string>;
+  readTerminalClipboard(runtimeId: string): Promise<TerminalClipboardReadResult>;
   writeClipboardText(text: string): Promise<void>;
   getAppearanceBackground(): Promise<AppearanceBackgroundState>;
   chooseAppearanceBackground(): Promise<AppearanceBackgroundState>;

@@ -5,6 +5,8 @@ import {
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
+  TerminalClipboardReadRequestSchema,
+  TerminalClipboardReadResultSchema,
   ClipboardWriteResultSchema,
   CustomTerminalProfileInputSchema,
   DEFAULT_GENERAL_SETTINGS,
@@ -385,6 +387,33 @@ describe('IPC_CHANNELS', () => {
 });
 
 describe('clipboard contracts', () => {
+  it('validates runtime-scoped terminal clipboard reads without image bytes', () => {
+    const runtimeId = '5a795d90-06b3-4fca-b9a7-c0d0bf312c1d';
+    expect(TerminalClipboardReadRequestSchema.parse({ runtimeId })).toEqual({ runtimeId });
+    expect(TerminalClipboardReadResultSchema.parse({ kind: 'empty' })).toEqual({
+      kind: 'empty'
+    });
+    expect(
+      TerminalClipboardReadResultSchema.parse({ kind: 'text', text: 'hello' })
+    ).toEqual({ kind: 'text', text: 'hello' });
+    expect(
+      TerminalClipboardReadResultSchema.parse({
+        kind: 'image',
+        pasteText: '[Pasted image: "C:\\Temp\\image.png"]'
+      })
+    ).toEqual({
+      kind: 'image',
+      pasteText: '[Pasted image: "C:\\Temp\\image.png"]'
+    });
+    expect(
+      TerminalClipboardReadResultSchema.safeParse({
+        kind: 'image',
+        pasteText: 'image',
+        png: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(false);
+  });
+
   it('bounds plain clipboard text and validates accepted writes', () => {
     expect(ClipboardTextSchema.parse('hello')).toBe('hello');
     expect(ClipboardTextSchema.parse('')).toBe('');
@@ -407,6 +436,9 @@ describe('clipboard contracts', () => {
   });
 
   it('defines only namespaced clipboard channels', () => {
+    expect(IPC_CHANNELS.terminalClipboardRead).toBe(
+      'lumora:clipboard:terminal:read'
+    );
     expect(IPC_CHANNELS.clipboardTextRead).toBe(
       'lumora:clipboard:text:read'
     );

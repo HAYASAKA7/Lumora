@@ -227,8 +227,8 @@ provider supports rollback; confirm the provider is healthy before retrying.
 
 ### Copy or paste does not behave as expected
 
-**Symptom:** `Ctrl+C` interrupts instead of copying, or clipboard text is not
-pasted into the terminal.
+**Symptom:** `Ctrl+C` interrupts instead of copying, or clipboard text or an
+image is not pasted into the terminal.
 
 **Likely cause:** No terminal text is selected, or the platform-specific
 clipboard shortcut was not used.
@@ -236,7 +236,13 @@ clipboard shortcut was not used.
 **Resolution:** On Windows and Linux, use `Ctrl+Shift+C` and `Ctrl+Shift+V` for
 unambiguous copy and paste; `Ctrl+V` also pastes. With selected text, `Ctrl+C`
 copies. On macOS, use `Command+C` and `Command+V`. On every platform,
-right-click inside a live terminal to paste clipboard text.
+right-click inside a live terminal to paste supported clipboard contents.
+
+When the clipboard contains an image, the same paste actions insert a
+`[Pasted image: "..."]` reference. Lumora does not submit it automatically.
+If staging fails, confirm that the terminal is still running, the image is no
+larger than 8192 px on either side, and its PNG representation is below 20 MiB.
+For a remote terminal, also confirm that its SSH connection is still online.
 
 ### The first Ctrl+C does not interrupt the provider
 

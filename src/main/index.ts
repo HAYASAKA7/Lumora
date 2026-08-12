@@ -48,6 +48,8 @@ import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTargetIpc } from './ipc/register-target-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
 import { registerTransferIpc } from './ipc/register-transfer-ipc';
+import { createTerminalClipboardService } from './terminal/terminal-clipboard-service';
+import { TerminalImageStager } from './terminal/terminal-image-stager';
 import { registerWorkspaceVisibilityIpc } from './ipc/register-workspace-visibility-ipc';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
@@ -800,13 +802,72 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  const localTerminalImageStager = new TerminalImageStager({
+    rootDirectory: join(
+      app.getPath('temp'),
+      'Lumora',
+      'terminal-images',
+      'local'
+    )
+  });
+  void localTerminalImageStager
+    .cleanupStale({ maxDirectories: 100 })
+    .catch(() => undefined);
+  const terminalClipboardService = createTerminalClipboardService({
+    clipboard: {
+      readImage: () => clipboard.readImage(),
+      readText: () => clipboard.readText()
+    },
+    resolveTarget: (context) => {
+      if (context.executionTargetId === LOCAL_EXECUTION_TARGET_ID) {
+        return {
+          platform,
+          listRuntimes: () => terminalRuntime!.listRuntimes(),
+          stageImage: ({ runtimeId, png, width, height }) =>
+            localTerminalImageStager.stageLocal({
+              runtimeId,
+              png,
+              width,
+              height,
+              platform
+            })
+        };
+      }
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      const executionTargetId = RemoteExecutionTargetIdSchema.parse(
+        context.executionTargetId
+      );
+      const remotePlatform = remoteTargetRuntime.service.get(executionTargetId)
+        .target.platform;
+      if (remotePlatform === 'unknown') {
+        throw new Error('The remote target platform is unavailable.');
+      }
+      return {
+        platform: remotePlatform,
+        listRuntimes: () =>
+          remoteTargetRuntime!.service
+            .resolveSessionRuntime(executionTargetId)
+            .listRuntimes(),
+        stageImage: ({ runtimeId, png }) =>
+          remoteTargetRuntime!.service.stageTerminalImage(
+            executionTargetId,
+            runtimeId,
+            png
+          )
+      };
+    }
+  });
   registerClipboardIpc({
     ipc: ipcMain,
-    authorize: authorizeLocalIpc,
+    authorize: authorizeTargetIpc,
     clipboard: {
       readText: () => clipboard.readText(),
       writeText: (text) => clipboard.writeText(text)
     },
+    readTerminalClipboard: (context, request) =>
+      terminalClipboardService.read(context, request.runtimeId),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerAppearanceIpc({
@@ -843,6 +904,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sendRuntimeEvent: (event) => {
       if (event.type === 'state') {
         trayController?.refresh();
+        if (
+          event.runtime.state !== 'launching' &&
+          event.runtime.state !== 'running'
+        ) {
+          void localTerminalImageStager
+            .cleanupRuntime(event.runtimeId)
+            .catch(() => undefined);
+        }
       }
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.runtimeEvent, event);
@@ -853,6 +922,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   unsubscribeRemoteTerminalEvents =
     remoteTargetRuntime.service.subscribeSessionRuntimeEvents(
       (executionTargetId, event) => {
+        if (
+          event.type === 'state' &&
+          event.runtime.state !== 'launching' &&
+          event.runtime.state !== 'running'
+        ) {
+          void remoteTargetRuntime?.service
+            .cleanupTerminalImages(executionTargetId, event.runtimeId)
+            .catch(() => undefined);
+        }
         targetWindowManager.send(
           executionTargetId,
           IPC_CHANNELS.runtimeEvent,

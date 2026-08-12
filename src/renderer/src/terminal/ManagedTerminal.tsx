@@ -125,17 +125,17 @@ export function ManagedTerminal({
         terminal.loadAddon(fitAddon);
         terminal.parser.registerOscHandler(52, () => true);
         terminal.open(target);
-        const pasteClipboardText = () => {
+        const pasteClipboardContents = () => {
           if (!alive || !acceptingInputRef.current) return;
           setError(null);
-          void api.readClipboardText().then(
-            (text) => {
-              if (!alive || text.length === 0) return;
-              terminal.paste(text);
+          void api.readTerminalClipboard(runtime.id).then(
+            (result) => {
+              if (!alive || result.kind === 'empty') return;
+              terminal.paste(result.kind === 'text' ? result.text : result.pasteText);
               if (activeRef.current) terminal.focus();
             },
             () => {
-              if (alive) setError('Clipboard text could not be pasted.');
+              if (alive) setError('Clipboard contents could not be pasted.');
             }
           );
         };
@@ -143,7 +143,7 @@ export function ManagedTerminal({
           if (!acceptingInputRef.current) return;
           event.preventDefault();
           event.stopPropagation();
-          pasteClipboardText();
+          pasteClipboardContents();
         };
         target.addEventListener('contextmenu', contextMenu);
         const exitIntent = createTerminalExitIntentTracker(runtime.provider);
@@ -335,7 +335,7 @@ export function ManagedTerminal({
             return false;
           }
 
-          pasteClipboardText();
+          pasteClipboardContents();
           return false;
         });
         fitAddon.fit();

@@ -9,6 +9,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Paste clipboard images into any live local or remote managed terminal. Lumora
+  stages a private, bounded PNG on the terminal's own machine and inserts only
+  a readable file reference without submitting the prompt automatically.
 - Add target-scoped workspace visibility controls for local and remote
   catalogs. A workspace can be hidden by itself or together with its sessions,
   and the searchable Hidden workspaces dialog can restore one, several, or all

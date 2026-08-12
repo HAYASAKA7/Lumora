@@ -307,6 +307,15 @@ events, and a chunked one-mebibyte tail is retained for renderer attachment.
 Runtime output is forwarded to the renderer without rebuilding the native tray;
 the tray refreshes only for state or catalog changes.
 
+Terminal paste is target-aware. The main process inspects the native clipboard
+and returns plain text directly, but never sends clipboard image bytes to the
+renderer. Images are validated, converted to bounded PNG files, and staged in
+a private per-runtime temporary directory. Local runtimes receive a local path;
+remote runtimes receive a path uploaded over their existing authenticated SFTP
+connection. Xterm inserts a provider-neutral file reference without Enter, so
+the user can edit the prompt before submitting it. Runtime exit removes tracked
+files, while bounded startup cleanup removes stale local copies after crashes.
+
 Stopping a managed runtime uses two bounded interrupt windows before escalating
 to the native PTY close. Lumora waits for the PTY's observed exit event and
 coalesces concurrent stop requests. If no exit event arrives after escalation,

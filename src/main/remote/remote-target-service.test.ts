@@ -211,6 +211,13 @@ function createHarness(options: {
   const providerReleases = {
     latestVersion: vi.fn(async () => '2.0.0')
   };
+  const terminalImageStager = {
+    stage: vi.fn().mockResolvedValue({
+      remotePath: '/home/builder/.lumora/tmp/terminal-images/image.png',
+      pasteText: '[Pasted image: "/home/builder/.lumora/tmp/terminal-images/image.png"]'
+    }),
+    cleanupRuntime: vi.fn().mockResolvedValue(undefined)
+  };
   const clock = vi.fn(() => new Date('2026-08-04T08:00:00.000Z'));
   const service = createRemoteTargetService({
     targets,
@@ -223,6 +230,7 @@ function createHarness(options: {
     installHelper,
     connectHelper,
     providerReleases,
+    terminalImageStager,
     ...(options.createSessionRuntime === undefined
       ? {}
       : { createSessionRuntime: options.createSessionRuntime }),
@@ -236,7 +244,7 @@ function createHarness(options: {
     service, targets, profiles, ssh, connected, probePlatform,
     artifact, paths, files, resolveHelperArtifact, inspectHelper,
     installHelper, connectHelper, helper, providerPreferences, providerReleases,
-    credentialPreferences, credentialVault
+    credentialPreferences, credentialVault, terminalImageStager
   };
 }
 
@@ -779,6 +787,42 @@ describe('remote target service', () => {
     };
     (runtimeListener as ((event: any) => void) | null)?.(event);
     expect(onEvent).toHaveBeenCalledWith(TARGET_ID, event);
+  });
+
+  it('stages images only for a live runtime owned by the connected target', async () => {
+    const runtimeId = '5a795d90-06b3-4fca-b9a7-c0d0bf312c1d';
+    const sessionRuntime = {
+      updateCatalog: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+      listRuntimes: vi.fn(() => [{ id: runtimeId, state: 'running' }]),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn()
+    };
+    const harness = createHarness({
+      createSessionRuntime: vi.fn(() => sessionRuntime)
+    });
+    await harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+
+    await expect(
+      harness.service.stageTerminalImage(TARGET_ID, runtimeId, Buffer.from('png'))
+    ).resolves.toMatchObject({ remotePath: expect.stringContaining('image.png') });
+    expect(harness.terminalImageStager.stage).toHaveBeenCalledWith({
+      runtimeId,
+      png: Buffer.from('png'),
+      platform: 'linux',
+      baseDirectory: '/home/builder',
+      files: harness.files
+    });
+
+    await expect(
+      harness.service.stageTerminalImage(
+        TARGET_ID,
+        'a52d2434-5876-46e8-b33c-f967e4959934',
+        Buffer.from('png')
+      )
+    ).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
   });
 
   it('waits for remote terminal shutdown before closing the SSH transport', async () => {

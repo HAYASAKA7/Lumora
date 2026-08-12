@@ -5,6 +5,8 @@ import {
   CatalogSnapshotSchema,
   ClipboardTextSchema,
   ClipboardWriteResultSchema,
+  TerminalClipboardReadRequestSchema,
+  TerminalClipboardReadResultSchema,
   CustomTerminalProfileInputSchema,
   DeveloperEnvironmentScanResultSchema,
   ExternalOpenResultSchema,
@@ -327,6 +329,11 @@ export function createLumoraApi(
     async readClipboardText() {
       const value = await invoke(IPC_CHANNELS.clipboardTextRead);
       return ClipboardTextSchema.parse(value);
+    },
+    async readTerminalClipboard(runtimeId) {
+      const request = TerminalClipboardReadRequestSchema.parse({ runtimeId });
+      const value = await invoke(IPC_CHANNELS.terminalClipboardRead, request);
+      return TerminalClipboardReadResultSchema.parse(value);
     },
     async writeClipboardText(text) {
       const request = ClipboardTextSchema.parse(text);

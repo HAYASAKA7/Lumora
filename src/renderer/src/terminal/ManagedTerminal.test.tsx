@@ -99,7 +99,7 @@ type RuntimeApi = Pick<
   | 'attachRuntime'
   | 'onRuntimeEvent'
   | 'openTerminalLink'
-  | 'readClipboardText'
+  | 'readTerminalClipboard'
   | 'resizeRuntime'
   | 'terminateRuntime'
   | 'writeClipboardText'
@@ -135,7 +135,7 @@ function installLumora(overrides: Partial<RuntimeApi> = {}): RuntimeApi {
     }),
     onRuntimeEvent: vi.fn(() => () => undefined),
     openTerminalLink: vi.fn().mockResolvedValue(undefined),
-    readClipboardText: vi.fn().mockResolvedValue(''),
+    readTerminalClipboard: vi.fn().mockResolvedValue({ kind: 'empty' }),
     resizeRuntime: vi.fn().mockResolvedValue(undefined),
     terminateRuntime: vi.fn().mockResolvedValue({
       ...runtime,
@@ -1090,8 +1090,10 @@ describe('ManagedTerminal', () => {
   });
 
   it('pastes clipboard text on terminal right-click and restores focus', async () => {
-    const readClipboardText = vi.fn().mockResolvedValue('from right click');
-    installLumora({ readClipboardText });
+    const readTerminalClipboard = vi.fn().mockResolvedValue({
+      kind: 'text', text: 'from right click'
+    });
+    installLumora({ readTerminalClipboard });
     render(
       <ManagedTerminal
         active
@@ -1114,13 +1116,13 @@ describe('ManagedTerminal', () => {
     await waitFor(() =>
       expect(xterm.pasteTerminal).toHaveBeenCalledWith('from right click')
     );
-    expect(readClipboardText).toHaveBeenCalledOnce();
+    expect(readTerminalClipboard).toHaveBeenCalledWith(runtime.id);
     expect(xterm.focusTerminal).toHaveBeenCalledOnce();
   });
 
   it('does not paste empty clipboard text on right-click', async () => {
-    const readClipboardText = vi.fn().mockResolvedValue('');
-    installLumora({ readClipboardText });
+    const readTerminalClipboard = vi.fn().mockResolvedValue({ kind: 'empty' });
+    installLumora({ readTerminalClipboard });
     render(
       <ManagedTerminal
         active
@@ -1133,13 +1135,13 @@ describe('ManagedTerminal', () => {
 
     fireEvent.contextMenu(screen.getByLabelText('codex terminal'));
 
-    await waitFor(() => expect(readClipboardText).toHaveBeenCalledOnce());
+    await waitFor(() => expect(readTerminalClipboard).toHaveBeenCalledWith(runtime.id));
     expect(xterm.pasteTerminal).not.toHaveBeenCalled();
   });
 
   it('reports right-click clipboard failures inline', async () => {
     installLumora({
-      readClipboardText: vi.fn().mockRejectedValue(new Error('read failed'))
+      readTerminalClipboard: vi.fn().mockRejectedValue(new Error('read failed'))
     });
     render(
       <ManagedTerminal
@@ -1154,13 +1156,15 @@ describe('ManagedTerminal', () => {
     fireEvent.contextMenu(screen.getByLabelText('codex terminal'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Clipboard text could not be pasted.'
+      'Clipboard contents could not be pasted.'
     );
   });
 
   it('pastes clipboard text through xterm and restores active focus', async () => {
-    const readClipboardText = vi.fn().mockResolvedValue('from clipboard');
-    const api = installLumora({ readClipboardText });
+    const readTerminalClipboard = vi.fn().mockResolvedValue({
+      kind: 'text', text: 'from clipboard'
+    });
+    const api = installLumora({ readTerminalClipboard });
     render(
       <ManagedTerminal
         active
@@ -1182,14 +1186,18 @@ describe('ManagedTerminal', () => {
     await waitFor(() => {
       expect(xterm.pasteTerminal).toHaveBeenCalledWith('from clipboard');
     });
-    expect(readClipboardText).toHaveBeenCalledTimes(1);
+    expect(readTerminalClipboard).toHaveBeenCalledWith(runtime.id);
     expect(api.writeRuntime).not.toHaveBeenCalled();
     expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it('does not ask xterm to paste empty clipboard text', async () => {
-    const readClipboardText = vi.fn().mockResolvedValue('');
-    installLumora({ readClipboardText });
+  it('pastes a staged image reference without submitting the terminal prompt', async () => {
+    const pasteText = '[Pasted image: "C:\\Temp\\lumora-image.png"]';
+    const api = installLumora({
+      readTerminalClipboard: vi.fn().mockResolvedValue({
+        kind: 'image', pasteText
+      })
+    });
     render(
       <ManagedTerminal
         active
@@ -1204,13 +1212,35 @@ describe('ManagedTerminal', () => {
       xterm.customKeyEventHandler!(clipboardKey('KeyV', { ctrlKey: true }));
     });
 
-    await waitFor(() => expect(readClipboardText).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(xterm.pasteTerminal).toHaveBeenCalledWith(pasteText));
+    expect(api.readTerminalClipboard).toHaveBeenCalledWith(runtime.id);
+    expect(api.writeRuntime).not.toHaveBeenCalled();
+  });
+
+  it('does not ask xterm to paste empty clipboard text', async () => {
+    const readTerminalClipboard = vi.fn().mockResolvedValue({ kind: 'empty' });
+    installLumora({ readTerminalClipboard });
+    render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.customKeyEventHandler).not.toBeNull());
+
+    act(() => {
+      xterm.customKeyEventHandler!(clipboardKey('KeyV', { ctrlKey: true }));
+    });
+
+    await waitFor(() => expect(readTerminalClipboard).toHaveBeenCalledWith(runtime.id));
     expect(xterm.pasteTerminal).not.toHaveBeenCalled();
   });
 
   it('reports clipboard read failures inline', async () => {
     installLumora({
-      readClipboardText: vi.fn().mockRejectedValue(new Error('read failed'))
+      readTerminalClipboard: vi.fn().mockRejectedValue(new Error('read failed'))
     });
     render(
       <ManagedTerminal
@@ -1227,7 +1257,7 @@ describe('ManagedTerminal', () => {
     });
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Clipboard text could not be pasted.'
+      'Clipboard contents could not be pasted.'
     );
   });
 
@@ -1257,14 +1287,14 @@ describe('ManagedTerminal', () => {
   });
 
   it('ignores clipboard reads that resolve after unmount', async () => {
-    let resolveRead!: (value: string) => void;
-    const readClipboardText = vi.fn(
+    let resolveRead!: (value: { kind: 'text'; text: string }) => void;
+    const readTerminalClipboard = vi.fn(
       () =>
-        new Promise<string>((resolve) => {
+        new Promise<{ kind: 'text'; text: string }>((resolve) => {
           resolveRead = resolve;
         })
     );
-    installLumora({ readClipboardText });
+    installLumora({ readTerminalClipboard });
     const { unmount } = render(
       <ManagedTerminal
         active
@@ -1277,11 +1307,11 @@ describe('ManagedTerminal', () => {
     act(() => {
       xterm.customKeyEventHandler!(clipboardKey('KeyV', { ctrlKey: true }));
     });
-    await waitFor(() => expect(readClipboardText).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readTerminalClipboard).toHaveBeenCalledWith(runtime.id));
 
     unmount();
     await act(async () => {
-      resolveRead('late clipboard text');
+      resolveRead({ kind: 'text', text: 'late clipboard text' });
     });
 
     expect(xterm.pasteTerminal).not.toHaveBeenCalled();
@@ -1322,13 +1352,15 @@ describe('ManagedTerminal', () => {
   });
 
   it('uses the latest platform without reconstructing the terminal', async () => {
-    const readClipboardText = vi.fn().mockResolvedValue('from clipboard');
+    const readTerminalClipboard = vi.fn().mockResolvedValue({
+      kind: 'text', text: 'from clipboard'
+    });
     const attachRuntime = vi.fn().mockResolvedValue({
       runtime,
       snapshot: '',
       outputSequence: 0
     });
-    installLumora({ attachRuntime, readClipboardText });
+    installLumora({ attachRuntime, readTerminalClipboard });
     const onRuntimeChange = vi.fn();
     const { rerender } = render(
       <ManagedTerminal

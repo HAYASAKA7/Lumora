@@ -403,6 +403,35 @@ describe('createLumoraApi', () => {
     ]);
   });
 
+  it('reads a runtime-scoped terminal clipboard result through its dedicated channel', async () => {
+    const runtimeId = '5a795d90-06b3-4fca-b9a7-c0d0bf312c1d';
+    const invoke = vi.fn(async () => ({
+      kind: 'image',
+      pasteText: '[Pasted image: "/tmp/lumora/image.png"]'
+    }));
+    const api = createLumoraApi(invoke);
+
+    await expect(api.readTerminalClipboard(runtimeId)).resolves.toEqual({
+      kind: 'image',
+      pasteText: '[Pasted image: "/tmp/lumora/image.png"]'
+    });
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.terminalClipboardRead, {
+      runtimeId
+    });
+  });
+
+  it('rejects image bytes at the terminal clipboard preload boundary', async () => {
+    const api = createLumoraApi(async () => ({
+      kind: 'image',
+      pasteText: 'image',
+      png: new Uint8Array([1, 2, 3])
+    }));
+
+    await expect(
+      api.readTerminalClipboard('5a795d90-06b3-4fca-b9a7-c0d0bf312c1d')
+    ).rejects.toBeDefined();
+  });
+
   it('writes validated clipboard text through only the dedicated channel', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const api = createLumoraApi(async (channel, ...args) => {

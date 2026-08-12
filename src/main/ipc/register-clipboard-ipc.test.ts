@@ -12,6 +12,7 @@ function createHarness(options: {
   developmentOrigin?: string;
   readText?: () => string;
   writeText?: (text: string) => void;
+  readTerminalClipboard?: (...args: any[]) => Promise<unknown>;
 } = {}) {
   const handlers = new Map<string, Handler>();
   const ipc = {
@@ -23,17 +24,22 @@ function createHarness(options: {
     readText: vi.fn(options.readText ?? (() => 'clipboard text')),
     writeText: vi.fn(options.writeText ?? (() => undefined))
   };
+  const readTerminalClipboard = vi.fn(
+    options.readTerminalClipboard ??
+      (async () => ({ kind: 'text', text: 'terminal clipboard' }))
+  );
 
   registerClipboardIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc,
     clipboard,
+    readTerminalClipboard,
     ...(options.developmentOrigin === undefined
       ? {}
       : { developmentOrigin: options.developmentOrigin })
   });
 
-  return { handlers, clipboard };
+  return { handlers, clipboard, readTerminalClipboard };
 }
 
 const trustedEvent = {
@@ -53,13 +59,27 @@ const expectedClipboardError = {
 };
 
 describe('registerClipboardIpc', () => {
-  it('registers only the two dedicated clipboard channels in order', () => {
+  it('registers only the three dedicated clipboard channels in order', () => {
     const { handlers } = createHarness();
 
     expect([...handlers.keys()]).toEqual([
       IPC_CHANNELS.clipboardTextRead,
-      IPC_CHANNELS.clipboardTextWrite
+      IPC_CHANNELS.clipboardTextWrite,
+      IPC_CHANNELS.terminalClipboardRead
     ]);
+  });
+
+  it('reads terminal clipboard content for the target-owned runtime', async () => {
+    const { handlers, readTerminalClipboard } = createHarness();
+    const request = { runtimeId: '5a795d90-06b3-4fca-b9a7-c0d0bf312c1d' };
+
+    await expect(
+      handlers.get(IPC_CHANNELS.terminalClipboardRead)!(trustedEvent, request)
+    ).resolves.toEqual({ kind: 'text', text: 'terminal clipboard' });
+    expect(readTerminalClipboard).toHaveBeenCalledWith(
+      { mode: 'local', executionTargetId: 'local' },
+      request
+    );
   });
 
   it('reads clipboard text for the trusted packaged renderer', async () => {
@@ -97,6 +117,11 @@ describe('registerClipboardIpc', () => {
         untrustedEvent,
         'new text'
       )
+    ).rejects.toMatchObject(expectedAccessError);
+    await expect(
+      handlers.get(IPC_CHANNELS.terminalClipboardRead)!(untrustedEvent, {
+        runtimeId: '5a795d90-06b3-4fca-b9a7-c0d0bf312c1d'
+      })
     ).rejects.toMatchObject(expectedAccessError);
     expect(clipboard.readText).not.toHaveBeenCalled();
     expect(clipboard.writeText).not.toHaveBeenCalled();

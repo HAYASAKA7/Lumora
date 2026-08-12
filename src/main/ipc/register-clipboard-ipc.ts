@@ -2,7 +2,13 @@ import type { IpcAuthorizer } from './ipc-access';
 import {
   ClipboardTextSchema,
   ClipboardWriteResultSchema,
+  TerminalClipboardReadRequestSchema,
+  TerminalClipboardReadResultSchema,
   IPC_CHANNELS
+} from '../../shared/contracts';
+import type {
+  LumoraWindowContext,
+  TerminalClipboardReadRequest
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 
@@ -29,6 +35,10 @@ interface RegisterClipboardIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
   clipboard: ClipboardAdapter;
+  readTerminalClipboard(
+    context: LumoraWindowContext,
+    request: TerminalClipboardReadRequest
+  ): Promise<unknown>;
   developmentOrigin?: string;
 }
 
@@ -58,20 +68,22 @@ function assertTrusted(
   event: IpcInvokeEventLike,
   authorize: IpcAuthorizer,
   developmentOrigin?: string
-): void {
-  authorize(event);
+): LumoraWindowContext {
+  const context = authorize(event);
   if (
     event.senderFrame === null ||
     !isTrustedRendererUrl(event.senderFrame.url, developmentOrigin)
   ) {
     throw new IpcAccessError();
   }
+  return context;
 }
 
 export function registerClipboardIpc({
   ipc,
   authorize,
   clipboard,
+  readTerminalClipboard,
   developmentOrigin
 }: RegisterClipboardIpcDependencies): void {
   ipc.handle(IPC_CHANNELS.clipboardTextRead, async (event) => {
@@ -95,5 +107,17 @@ export function registerClipboardIpc({
     }
 
     return ClipboardWriteResultSchema.parse({ accepted: true });
+  });
+
+  ipc.handle(IPC_CHANNELS.terminalClipboardRead, async (event, input) => {
+    const context = assertTrusted(event, authorize, developmentOrigin);
+    const request = TerminalClipboardReadRequestSchema.parse(input);
+    try {
+      return TerminalClipboardReadResultSchema.parse(
+        await readTerminalClipboard(context, request)
+      );
+    } catch {
+      throw new ClipboardIpcError();
+    }
   });
 }
