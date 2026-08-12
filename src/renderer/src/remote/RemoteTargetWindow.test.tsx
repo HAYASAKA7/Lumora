@@ -579,6 +579,39 @@ describe('RemoteTargetWindow', () => {
     await screen.findByLabelText('SSH password');
     expect(api.connectRemoteTarget).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+    expect(screen.getByText(
+      'Lumora could not connect to this remote computer. Check the profile and try again.'
+    )).toBeInTheDocument();
+  });
+
+  it('hides authentication while automatic connection is pending', async () => {
+    const connection = deferred<never>();
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      connectRemoteTarget: vi.fn(() => connection.promise)
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    expect(await screen.findByRole('heading', {
+      name: 'Connecting to Linux build server'
+    })).toBeInTheDocument();
+    expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    });
+    expect(screen.queryByLabelText('SSH password')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Remember password' }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Connect automatically' }))
+      .not.toBeInTheDocument();
   });
 
   it('clears the automatic connection action when ready lifecycle state rerenders the effect', async () => {

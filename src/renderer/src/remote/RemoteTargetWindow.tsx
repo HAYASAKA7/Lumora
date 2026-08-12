@@ -280,6 +280,7 @@ export function RemoteTargetWindow({
   const [autoConnectOnOpen, setAutoConnectOnOpen] = useState<boolean | null>(null);
   const [credentialPreferenceBusy, setCredentialPreferenceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [automaticConnectionPending, setAutomaticConnectionPending] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
   const [providerSaveError, setProviderSaveError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -428,17 +429,20 @@ export function RemoteTargetWindow({
   }, [api, executionTargetId]);
 
   useEffect(() => {
+    const eligible =
+      summary !== null &&
+      autoConnectOnOpen === true &&
+      summary.profile.verifiedHostFingerprint !== null &&
+      summary.target.connectionState !== 'ready' &&
+      summary.target.connectionState !== 'helper-missing' &&
+      summary.target.connectionState !== 'helper-incompatible';
     if (
       automaticConnectionAttempted.current ||
-      summary === null ||
-      autoConnectOnOpen !== true ||
-      summary.profile.verifiedHostFingerprint === null ||
-      summary.target.connectionState === 'ready' ||
-      summary.target.connectionState === 'helper-missing' ||
-      summary.target.connectionState === 'helper-incompatible'
+      !eligible
     ) return;
 
     automaticConnectionAttempted.current = true;
+    setAutomaticConnectionPending(true);
     setBusy(true);
     setError(null);
     void api.connectRemoteTarget({ executionTargetId, mode: 'automatic' }).then(
@@ -457,7 +461,10 @@ export function RemoteTargetWindow({
         }
       }
     ).finally(() => {
-      if (componentMounted.current) setBusy(false);
+      if (componentMounted.current) {
+        setAutomaticConnectionPending(false);
+        setBusy(false);
+      }
     });
   }, [api, autoConnectOnOpen, executionTargetId, summary]);
 
@@ -859,6 +866,40 @@ export function RemoteTargetWindow({
           <p className="eyebrow">Remote Lumora</p>
           <h1>Connecting to target manager</h1>
           <p>{error ?? 'Loading the isolated remote workspace…'}</p>
+        </section>
+      </main>
+    );
+  }
+
+  const automaticConnectionEligible =
+    autoConnectOnOpen === true &&
+    summary.profile.verifiedHostFingerprint !== null &&
+    summary.target.connectionState !== 'ready' &&
+    summary.target.connectionState !== 'helper-missing' &&
+    summary.target.connectionState !== 'helper-incompatible';
+  const showAutomaticConnecting = automaticConnectionPending || (
+    !automaticConnectionAttempted.current && automaticConnectionEligible
+  );
+
+  const credentialStatusLoading =
+    typeof api.getRemoteCredentialStatus === 'function' &&
+    credentialStatus === null;
+
+  if (credentialStatusLoading || showAutomaticConnecting) {
+    return (
+      <main className="remote-window-shell">
+        <section className="remote-window-card" aria-live="polite">
+          <p className="eyebrow">Remote Lumora</p>
+          <h1>
+            {showAutomaticConnecting
+              ? `Connecting to ${summary.target.displayName}`
+              : `Preparing ${summary.target.displayName}`}
+          </h1>
+          <p>
+            {showAutomaticConnecting
+              ? 'Establishing the remembered SSH connection…'
+              : 'Checking secure connection preferences…'}
+          </p>
         </section>
       </main>
     );

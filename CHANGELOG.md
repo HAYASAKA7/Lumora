@@ -19,6 +19,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add General settings to hide unavailable workspaces and currently unusable
   sessions. Catalog filtering is performed in memory after one complete scan,
   preserving responsive search and provider filters for larger catalogs.
+- Open remembered automatic SSH profiles through a dedicated connecting state
+  instead of briefly exposing authentication controls. If the attempt fails,
+  Remote Lumora restores the existing login page with its connection error.
 - Make every preference displayed under **General** global across the local
   window and all remote Lumora windows. Changes propagate to open windows
   immediately, while enabled providers, launch commands, credentials, and
