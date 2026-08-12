@@ -237,6 +237,38 @@ describe('remote session runtime', () => {
     database.close();
   });
 
+  it('persists global General settings from a remote window', () => {
+    const { database, runtime } = createHarness();
+    const saved = runtime.saveGeneralSettings({
+      ...runtime.getGeneralSettings(),
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      checkProviderUpdatesAutomatically: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7
+    });
+
+    expect(saved).toMatchObject({
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      checkProviderUpdatesAutomatically: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7,
+      enabledProviders: SESSION_PROVIDER_IDS
+    });
+    expect(runtime.getGeneralSettings()).toMatchObject({
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      checkProviderUpdatesAutomatically: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7,
+      enabledProviders: SESSION_PROVIDER_IDS
+    });
+
+    runtime.close();
+    database.close();
+  });
+
   it('persists a target-scoped custom provider command and launches it through the remote shell', async () => {
     const { database, runtime, openPty } = createHarness();
     const layers = runtime.saveLaunchSettingsLayer({

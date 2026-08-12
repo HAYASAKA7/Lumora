@@ -19,6 +19,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add General settings to hide unavailable workspaces and currently unusable
   sessions. Catalog filtering is performed in memory after one complete scan,
   preserving responsive search and provider filters for larger catalogs.
+- Make every preference displayed under **General** global across the local
+  window and all remote Lumora windows. Changes propagate to open windows
+  immediately, while enabled providers, launch commands, credentials, and
+  other machine-specific configuration remain isolated per execution target.
 
 ### Performance
 

@@ -337,6 +337,17 @@ maximization preference and clamp restored bounds to an available display.
 Development builds append `-dev` to the default application-data path so they
 do not share data with an installed package.
 
+General settings have one application-wide owner. The local window and every
+remote target window read and write the same global projection, including
+catalog presentation, startup, sidebar, close, cross-agent, notification, and
+appearance preferences. A schema-validated, payload-free IPC notification
+causes every open renderer to reload that projection after a successful save;
+the event carries no setting values or target secrets. Provider enablement,
+provider commands, credentials, workspace visibility policies, and other
+machine-specific configuration remain stored against an execution target.
+Legacy local target rows are migrated into the global projection without
+altering remote provider preferences.
+
 Window-close behavior is stored with General settings. In hide-to-tray mode the
 main window remains alive, preserving the renderer and managed PTYs. Explicit
 Exit still follows the normal shutdown path and terminates managed runtimes

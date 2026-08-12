@@ -10,27 +10,37 @@ import {
 } from '../../shared/contracts';
 
 const LEGACY_SETTINGS_KEY = 'generalSettings.v1';
-const GLOBAL_SETTINGS_KEY = 'generalSettings.global.v1';
+const LEGACY_GLOBAL_SETTINGS_KEY = 'generalSettings.global.v1';
+const GLOBAL_SETTINGS_KEY = 'generalSettings.global.v2';
 const TARGET_SETTINGS_KEY = 'generalSettings.target.v1';
 
 type GlobalGeneralSettings = Pick<
   GeneralSettings,
   | 'showInformationalNotices'
+  | 'showUnavailableWorkspaces'
+  | 'showUnusableSessions'
   | 'startMaximized'
+  | 'checkProviderUpdatesAutomatically'
   | 'autoExpandSidebar'
   | 'windowCloseBehavior'
   | 'remoteWindowCloseBehavior'
+  | 'crossAgentWorkflowEnabled'
+  | 'crossAgentHandoffRetentionDays'
   | 'appearance'
 >;
 
 type TargetGeneralSettings = Pick<
+  GeneralSettings,
+  'enabledProviders'
+>;
+
+type FormerTargetGeneralSettings = Pick<
   GeneralSettings,
   | 'showUnavailableWorkspaces'
   | 'showUnusableSessions'
   | 'checkProviderUpdatesAutomatically'
   | 'crossAgentWorkflowEnabled'
   | 'crossAgentHandoffRetentionDays'
-  | 'enabledProviders'
 >;
 
 function normalizeTimestamp(value: string): string {
@@ -40,22 +50,34 @@ function normalizeTimestamp(value: string): string {
 function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
   return {
     showInformationalNotices: settings.showInformationalNotices,
+    showUnavailableWorkspaces: settings.showUnavailableWorkspaces,
+    showUnusableSessions: settings.showUnusableSessions,
     startMaximized: settings.startMaximized,
+    checkProviderUpdatesAutomatically: settings.checkProviderUpdatesAutomatically,
     autoExpandSidebar: settings.autoExpandSidebar,
     windowCloseBehavior: settings.windowCloseBehavior,
     remoteWindowCloseBehavior: settings.remoteWindowCloseBehavior,
+    crossAgentWorkflowEnabled: settings.crossAgentWorkflowEnabled,
+    crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays,
     appearance: settings.appearance
   };
 }
 
 function targetProjection(settings: GeneralSettings): TargetGeneralSettings {
   return {
+    enabledProviders: settings.enabledProviders
+  };
+}
+
+function formerTargetProjection(
+  settings: GeneralSettings
+): FormerTargetGeneralSettings {
+  return {
     showUnavailableWorkspaces: settings.showUnavailableWorkspaces,
     showUnusableSessions: settings.showUnusableSessions,
     checkProviderUpdatesAutomatically: settings.checkProviderUpdatesAutomatically,
     crossAgentWorkflowEnabled: settings.crossAgentWorkflowEnabled,
-    crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays,
-    enabledProviders: settings.enabledProviders
+    crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays
   };
 }
 
@@ -118,15 +140,50 @@ export class GeneralSettingsStorage {
   }
 
   private readGlobal(fallback: GeneralSettings): GeneralSettings {
-    const row = this.database.prepare(
+    const currentRow = this.database.prepare(
       'SELECT value_json FROM app_preference WHERE key = ?'
     ).get(GLOBAL_SETTINGS_KEY) as { value_json: string } | undefined;
-    const parsed = GeneralSettingsSchema.safeParse({
+    if (currentRow !== undefined) {
+      const current = GeneralSettingsSchema.safeParse({
+        ...fallback,
+        ...objectValue(parseJson(currentRow.value_json)),
+        version: 8
+      });
+      return current.success ? current.data : fallback;
+    }
+
+    const legacyGlobalRow = this.database.prepare(
+      'SELECT value_json FROM app_preference WHERE key = ?'
+    ).get(LEGACY_GLOBAL_SETTINGS_KEY) as { value_json: string } | undefined;
+    const localTargetRow = this.database.prepare(
+      `SELECT value_json FROM execution_target_preference
+       WHERE execution_target_id = ? AND key = ?`
+    ).get(LOCAL_EXECUTION_TARGET_ID, TARGET_SETTINGS_KEY) as
+      | { value_json: string }
+      | undefined;
+    if (legacyGlobalRow === undefined && localTargetRow === undefined) {
+      return fallback;
+    }
+    const formerLocalTarget = GeneralSettingsSchema.safeParse({
       ...fallback,
-      ...(row === undefined ? {} : objectValue(parseJson(row.value_json))),
+      ...(localTargetRow === undefined
+        ? {}
+        : objectValue(parseJson(localTargetRow.value_json))),
       version: 8
     });
-    return parsed.success ? parsed.data : fallback;
+    const parsed = GeneralSettingsSchema.safeParse({
+      ...fallback,
+      ...(formerLocalTarget.success
+        ? formerTargetProjection(formerLocalTarget.data)
+        : {}),
+      ...(legacyGlobalRow === undefined
+        ? {}
+        : objectValue(parseJson(legacyGlobalRow.value_json))),
+      version: 8
+    });
+    if (!parsed.success) return fallback;
+    this.writeGlobal(globalProjection(parsed.data), new Date().toISOString());
+    return parsed.data;
   }
 
   private readTarget(fallback: GeneralSettings): GeneralSettings {

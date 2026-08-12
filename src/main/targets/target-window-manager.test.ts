@@ -197,6 +197,32 @@ describe('target window manager', () => {
     )).toBe(false);
   });
 
+  it('broadcasts global events to every live target window', async () => {
+    const contexts = createWindowContextRegistry();
+    const otherTargetId = '37da69d5-57d5-46ef-b3c6-98db8df20793';
+    const windows = new Map([
+      [TARGET_ID, new FakeWindow(51)],
+      [otherTargetId, new FakeWindow(52)]
+    ]);
+    const manager = createTargetWindowManager({
+      contexts,
+      createWindow: (id) => windows.get(id)!,
+      loadWindow: vi.fn().mockResolvedValue(undefined)
+    });
+    await manager.open(TARGET_ID);
+    await manager.open(otherTargetId);
+
+    expect(manager.broadcast('lumora:terminal:general-settings:changed', null)).toBe(2);
+    expect(windows.get(TARGET_ID)!.send).toHaveBeenCalledWith(
+      'lumora:terminal:general-settings:changed',
+      null
+    );
+    expect(windows.get(otherTargetId)!.send).toHaveBeenCalledWith(
+      'lumora:terminal:general-settings:changed',
+      null
+    );
+  });
+
   it('distinguishes a user close request from a manager close', async () => {
     const contexts = createWindowContextRegistry();
     const window = new FakeWindow(50);

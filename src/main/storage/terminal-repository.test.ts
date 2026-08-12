@@ -386,7 +386,7 @@ describe('TerminalRepository', () => {
     ).run(JSON.stringify({ version: 1, showInformationalNotices: 'no' }));
     database.prepare(
       `UPDATE app_preference SET value_json = ?
-       WHERE key = 'generalSettings.global.v1'`
+       WHERE key = 'generalSettings.global.v2'`
     ).run(JSON.stringify({ startMaximized: 'no' }));
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
 
@@ -397,6 +397,62 @@ describe('TerminalRepository', () => {
     ).run('{broken');
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
     database.exec('PRAGMA ignore_check_constraints = OFF');
+  });
+
+  it('migrates former local target General values into the global record', () => {
+    repository.getGeneralSettings();
+    database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES ('generalSettings.global.v1', ?, ?)`
+    ).run(JSON.stringify({
+      showInformationalNotices: false,
+      startMaximized: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      remoteWindowCloseBehavior: 'disconnect',
+      appearance: DEFAULT_GENERAL_SETTINGS.appearance
+    }), timestamp);
+    database.prepare(
+      `UPDATE execution_target_preference SET value_json = ?
+       WHERE execution_target_id = 'local'
+         AND key = 'generalSettings.target.v1'`
+    ).run(JSON.stringify({
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: false,
+      checkProviderUpdatesAutomatically: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7,
+      enabledProviders: ['codex']
+    }));
+
+    expect(repository.getGeneralSettings()).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: false,
+      startMaximized: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      windowCloseBehavior: 'hide_to_tray',
+      remoteWindowCloseBehavior: 'disconnect',
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7,
+      enabledProviders: ['codex']
+    });
+    const migrated = database.prepare(
+      `SELECT value_json FROM app_preference
+       WHERE key = 'generalSettings.global.v2'`
+    ).get() as { value_json: string } | undefined;
+    expect(migrated).toBeDefined();
+    if (migrated === undefined) throw new Error('Missing migrated settings.');
+    expect(JSON.parse(migrated.value_json)).toMatchObject({
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: false,
+      checkProviderUpdatesAutomatically: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7
+    });
   });
 
   it('validates layer targets and session provider commands', () => {

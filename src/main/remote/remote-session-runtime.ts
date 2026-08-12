@@ -304,15 +304,14 @@ export function createRemoteSessionRuntime(
     ) => repository.saveLaunchSettingsLayer(input, clock().toISOString()),
     getGeneralSettings: () => ({
       ...repository.getGeneralSettings(),
-      crossAgentWorkflowEnabled: false as const,
       enabledProviders: [
         ...(options.enabledProviders?.() ?? SESSION_PROVIDER_IDS)
       ]
     }),
     getKeyboardSettings: () => repository.getKeyboardSettings(),
-    saveGeneralSettings() {
-      throw new Error('Remote general settings use the target settings API.');
-    },
+    saveGeneralSettings: (
+      input: Parameters<TerminalRepository['saveGeneralSettings']>[0]
+    ) => repository.saveGeneralSettings(input, clock().toISOString()),
     saveKeyboardSettings: (
       input: Parameters<TerminalRepository['saveKeyboardSettings']>[0]
     ) => repository.saveKeyboardSettings(input, clock().toISOString()),

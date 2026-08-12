@@ -77,6 +77,7 @@ interface RegisterTerminalIpcDependencies {
   authorize: IpcAuthorizer;
   resolveRuntime(context: LumoraWindowContext): TerminalIpcRuntime;
   subscribeRuntimeEvents(listener: (event: RuntimeEvent) => void): () => void;
+  sendGeneralSettingsChanged(): void;
   sendRuntimeEvent(event: RuntimeEvent): void;
   openExternal(url: string): Promise<unknown>;
   developmentOrigin?: string;
@@ -128,6 +129,7 @@ export function registerTerminalIpc({
   authorize,
   resolveRuntime,
   subscribeRuntimeEvents,
+  sendGeneralSettingsChanged,
   sendRuntimeEvent,
   openExternal,
   developmentOrigin
@@ -209,9 +211,11 @@ export function registerTerminalIpc({
       assertTrusted(event, authorize, developmentOrigin)
     );
     const request = GeneralSettingsSchema.parse(input);
-    return privileged(() =>
+    const saved = await privileged(() =>
       GeneralSettingsSchema.parse(runtime.saveGeneralSettings(request))
     );
+    sendGeneralSettingsChanged();
+    return saved;
   });
   ipc.handle(IPC_CHANNELS.keyboardSettingsGet, async (event) => {
     const runtime = resolveRuntime(

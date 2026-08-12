@@ -564,22 +564,31 @@ function AppContent(): ReactNode {
 
   useEffect(() => {
     let isCurrent = true;
-    void window.lumora.getGeneralSettings().then(
-      (settings) => {
-        if (isCurrent) {
-          setGeneralSettings(settings);
-          settleStartupTask('generalSettings');
+    let requestId = 0;
+    const loadGeneralSettings = (startup: boolean) => {
+      const currentRequest = ++requestId;
+      void window.lumora.getGeneralSettings().then(
+        (settings) => {
+          if (isCurrent && currentRequest === requestId) {
+            setGeneralSettings(settings);
+          }
+          if (startup && isCurrent) settleStartupTask('generalSettings');
+        },
+        () => {
+          if (startup && isCurrent && currentRequest === requestId) {
+            setGeneralSettings(DEFAULT_GENERAL_SETTINGS);
+          }
+          if (startup && isCurrent) settleStartupTask('generalSettings');
         }
-      },
-      () => {
-        if (isCurrent) {
-          setGeneralSettings(DEFAULT_GENERAL_SETTINGS);
-          settleStartupTask('generalSettings');
-        }
-      }
-    );
+      );
+    };
+    const unsubscribe = typeof window.lumora.onGeneralSettingsChanged === 'function'
+      ? window.lumora.onGeneralSettingsChanged(() => loadGeneralSettings(false))
+      : () => undefined;
+    loadGeneralSettings(true);
     return () => {
       isCurrent = false;
+      unsubscribe();
     };
   }, [settleStartupTask]);
 

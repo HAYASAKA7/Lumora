@@ -834,6 +834,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     },
     subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
+    sendGeneralSettingsChanged: () => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.generalSettingsChanged, null);
+      }
+      targetWindowManager.broadcast(IPC_CHANNELS.generalSettingsChanged, null);
+    },
     sendRuntimeEvent: (event) => {
       if (event.type === 'state') {
         trayController?.refresh();

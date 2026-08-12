@@ -8,6 +8,7 @@ import {
   CustomTerminalProfileInputSchema,
   DeveloperEnvironmentScanResultSchema,
   ExternalOpenResultSchema,
+  GeneralSettingsChangedSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
@@ -378,6 +379,12 @@ export function createLumoraApi(
       const request = GeneralSettingsSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.generalSettingsSave, request);
       return GeneralSettingsSchema.parse(value);
+    },
+    onGeneralSettingsChanged(listener) {
+      return subscribe(IPC_CHANNELS.generalSettingsChanged, (value) => {
+        GeneralSettingsChangedSchema.parse(value);
+        listener();
+      });
     },
     async getAppearanceBackground() {
       const value = await invoke(IPC_CHANNELS.appearanceBackgroundGet);

@@ -87,12 +87,14 @@ function createHarness() {
     })
   };
   const sendRuntimeEvent = vi.fn();
+  const sendGeneralSettingsChanged = vi.fn();
   const resolveRuntime = vi.fn(() => runtimeService);
   registerTerminalIpc({
     authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     resolveRuntime,
     subscribeRuntimeEvents: runtimeService.subscribe,
+    sendGeneralSettingsChanged,
     sendRuntimeEvent,
     openExternal
   });
@@ -101,6 +103,7 @@ function createHarness() {
     openExternal,
     runtimeService,
     resolveRuntime,
+    sendGeneralSettingsChanged,
     sendRuntimeEvent,
     emit(event: RuntimeEvent) { eventListener?.(event); }
   };
@@ -305,7 +308,7 @@ describe('registerTerminalIpc', () => {
   });
 
   it('validates and forwards general settings', async () => {
-    const { handlers, runtimeService } = createHarness();
+    const { handlers, runtimeService, sendGeneralSettingsChanged } = createHarness();
     const hidden = {
       ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false
@@ -318,6 +321,7 @@ describe('registerTerminalIpc', () => {
       handlers.get(IPC_CHANNELS.generalSettingsSave)!(trustedEvent, hidden)
     ).resolves.toEqual(hidden);
     expect(runtimeService.saveGeneralSettings).toHaveBeenCalledWith(hidden);
+    expect(sendGeneralSettingsChanged).toHaveBeenCalledOnce();
 
     await expect(
       Promise.resolve().then(() =>
@@ -327,6 +331,15 @@ describe('registerTerminalIpc', () => {
         })
       )
     ).rejects.toBeDefined();
+    expect(sendGeneralSettingsChanged).toHaveBeenCalledOnce();
+
+    runtimeService.saveGeneralSettings.mockImplementationOnce(() => {
+      throw new Error('write failed');
+    });
+    await expect(
+      handlers.get(IPC_CHANNELS.generalSettingsSave)!(trustedEvent, hidden)
+    ).rejects.toMatchObject({ code: 'TERMINAL_OPERATION_FAILED' });
+    expect(sendGeneralSettingsChanged).toHaveBeenCalledOnce();
   });
 
   it('validates and forwards provider launch configuration', async () => {

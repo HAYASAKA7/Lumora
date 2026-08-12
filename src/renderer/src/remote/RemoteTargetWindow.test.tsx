@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
   type LumoraApi,
   type RemoteLifecycleEvent
@@ -66,6 +67,7 @@ function runtimeApiDefaults() {
       enabledProviders: ['codex']
     }),
     getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
+    onGeneralSettingsChanged: vi.fn(() => () => undefined),
     onRuntimeEvent: vi.fn(() => () => undefined)
   };
 }
@@ -204,6 +206,7 @@ describe('RemoteTargetWindow', () => {
       }
     };
     const api = {
+      ...runtimeApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
       getRemoteProviderPreferences: vi.fn().mockResolvedValue({
         enabledProviders: ['codex']
@@ -269,6 +272,10 @@ describe('RemoteTargetWindow', () => {
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Overview' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(screen.getByTestId('lumora-shell')).toHaveClass('sidebar-collapsed');
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(screen.getByTestId('lumora-shell')).not.toHaveClass('sidebar-collapsed');
   });
 
   it('keeps hidden workspace policies isolated in the remote window', async () => {
@@ -947,8 +954,21 @@ describe('RemoteTargetWindow', () => {
         capabilities: ['provider-scan' as const, 'session-scan' as const]
       }
     };
+    let notifySettingsChanged: (() => void) | null = null;
+    const getGeneralSettings = vi.fn()
+      .mockResolvedValueOnce(DEFAULT_GENERAL_SETTINGS)
+      .mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        showInformationalNotices: false
+      });
     const api = {
+      ...runtimeApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getGeneralSettings,
+      onGeneralSettingsChanged: vi.fn((listener: () => void) => {
+        notifySettingsChanged = listener;
+        return () => { notifySettingsChanged = null; };
+      }),
       getRemoteProviderPreferences: vi.fn().mockResolvedValue({
         enabledProviders: ['codex', 'opencode']
       }),
@@ -1024,6 +1044,13 @@ describe('RemoteTargetWindow', () => {
     expect(screen.getByText('lumora')).toBeInTheDocument();
     expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.getByText(/Codex remote catalog support is pending/i)).toBeInTheDocument();
+
+    if (notifySettingsChanged === null) throw new Error('Missing settings listener.');
+    act(() => notifySettingsChanged?.());
+    await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(
+      screen.queryByText(/Codex remote catalog support is pending/i)
+    ).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh catalog' }));
     await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(2));

@@ -125,6 +125,15 @@ export function createTargetWindowManager<Window extends TargetWindowLike>({
       window.webContents.send(channel, payload);
       return true;
     },
+    broadcast(channel: string, payload: unknown): number {
+      let sent = 0;
+      for (const window of windows.values()) {
+        if (window.isDestroyed() || window.webContents.isDestroyed()) continue;
+        window.webContents.send(channel, payload);
+        sent += 1;
+      }
+      return sent;
+    },
     close(input: RemoteExecutionTargetId): void {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const window = windows.get(id);

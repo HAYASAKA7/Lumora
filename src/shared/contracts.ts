@@ -1010,6 +1010,7 @@ export const GeneralSettingsSchema = z.strictObject({
   enabledProviders: EnabledProviderIdsSchema,
   appearance: AppearanceSettingsSchema
 });
+export const GeneralSettingsChangedSchema = z.null();
 
 export const RemoteProviderPreferencesSchema = z.strictObject({
   enabledProviders: EnabledProviderIdsSchema
@@ -1724,6 +1725,7 @@ export const IPC_CHANNELS = {
   launchSettingsLayerSave: 'lumora:terminal:launch-settings:save',
   generalSettingsGet: 'lumora:terminal:general-settings:get',
   generalSettingsSave: 'lumora:terminal:general-settings:save',
+  generalSettingsChanged: 'lumora:terminal:general-settings:changed',
   keyboardSettingsGet: 'lumora:terminal:keyboard-settings:get',
   keyboardSettingsSave: 'lumora:terminal:keyboard-settings:save',
   launchPrepare: 'lumora:terminal:launch:prepare',
@@ -1848,6 +1850,7 @@ export interface LumoraApi {
   ): Promise<LaunchSettingsLayer[]>;
   getGeneralSettings(): Promise<GeneralSettings>;
   saveGeneralSettings(input: GeneralSettings): Promise<GeneralSettings>;
+  onGeneralSettingsChanged(listener: () => void): () => void;
   getKeyboardSettings(): Promise<KeyboardSettings>;
   saveKeyboardSettings(input: KeyboardSettings): Promise<KeyboardSettings>;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;

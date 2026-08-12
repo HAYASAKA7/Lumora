@@ -110,6 +110,19 @@ const DEFAULT_REMOTE_APPEARANCE: LumoraShellAppearance = {
   theme: 'lumora'
 };
 
+function normalizeRemoteGeneralSettings(
+  settings: GeneralSettings
+): GeneralSettings {
+  return {
+    ...DEFAULT_GENERAL_SETTINGS,
+    ...settings,
+    appearance: {
+      ...DEFAULT_GENERAL_SETTINGS.appearance,
+      ...settings.appearance
+    }
+  };
+}
+
 const REMOTE_ROUTES = [
   {
     id: 'home', label: 'Home', icon: 'home', eyebrow: 'Remote computer',
@@ -297,6 +310,7 @@ export function RemoteTargetWindow({
   const autoScannedKey = useRef<string | null>(null);
   const automaticConnectionAttempted = useRef(false);
   const componentMounted = useRef(false);
+  const generalSettingsRequestId = useRef(0);
 
   useEffect(() => {
     componentMounted.current = true;
@@ -592,6 +606,7 @@ export function RemoteTargetWindow({
       typeof api.onRuntimeEvent !== 'function'
     ) return;
     let active = true;
+    const settingsRequest = ++generalSettingsRequestId.current;
     void Promise.all([
       api.getTerminalProfiles(),
       api.listRuntimes(),
@@ -603,15 +618,9 @@ export function RemoteTargetWindow({
       ([profiles, runtimeValues, settings, shortcuts]) => {
         if (!active) return;
         setTerminalProfiles(profiles);
-        setGeneralSettings({
-          ...DEFAULT_GENERAL_SETTINGS,
-          ...settings,
-          appearance: {
-            ...DEFAULT_GENERAL_SETTINGS.appearance,
-            ...settings.appearance
-          },
-          crossAgentWorkflowEnabled: false
-        });
+        if (settingsRequest === generalSettingsRequestId.current) {
+          setGeneralSettings(normalizeRemoteGeneralSettings(settings));
+        }
         setKeyboardSettings(shortcuts);
         setRuntimes(runtimeValues);
         const liveIds = runtimeValues
@@ -655,6 +664,29 @@ export function RemoteTargetWindow({
     summary?.target.connectionState,
     updateRuntime
   ]);
+
+  useEffect(() => {
+    if (
+      typeof api.getGeneralSettings !== 'function' ||
+      typeof api.onGeneralSettingsChanged !== 'function'
+    ) return;
+    let active = true;
+    const unsubscribe = api.onGeneralSettingsChanged(() => {
+      const request = ++generalSettingsRequestId.current;
+      void api.getGeneralSettings().then(
+        (settings) => {
+          if (active && request === generalSettingsRequestId.current) {
+            setGeneralSettings(normalizeRemoteGeneralSettings(settings));
+          }
+        },
+        () => undefined
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [api]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -1252,11 +1284,8 @@ export function RemoteTargetWindow({
     setGeneralSettingsSaving(true);
     setGeneralSettingsSaveError(null);
     try {
-      const saved = await api.saveGeneralSettings({
-        ...next,
-        crossAgentWorkflowEnabled: false
-      });
-      setGeneralSettings({ ...saved, crossAgentWorkflowEnabled: false });
+      const saved = await api.saveGeneralSettings(next);
+      setGeneralSettings(normalizeRemoteGeneralSettings(saved));
     } catch {
       setGeneralSettings(previous);
       setGeneralSettingsSaveError('Lumora could not save this remote setting.');
@@ -1490,7 +1519,7 @@ export function RemoteTargetWindow({
         provider={sessionProvider}
         providerScan={providerScan}
         queryText={sessionSearch}
-        showInformationalNotices
+        showInformationalNotices={generalSettings.showInformationalNotices}
         status={visibleCatalogStatus}
         workspaceById={catalogPresentation?.workspaceById}
       />
@@ -1558,6 +1587,7 @@ export function RemoteTargetWindow({
         onNavigate={(route) => {
           setPage(route);
           if (route !== 'workspaces') setSelectedWorkspaceId(null);
+          if (generalSettings.autoExpandSidebar) setSidebarExpanded(true);
         }}
         onToggleSidebar={() => setSidebarExpanded((current) => !current)}
         pageHeader={{

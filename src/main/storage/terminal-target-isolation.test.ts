@@ -140,41 +140,58 @@ describe('TerminalRepository execution-target isolation', () => {
     expect(remote.listRuntimes()).toEqual([remoteRuntime]);
   });
 
-  it('shares presentation settings while isolating provider policy settings', () => {
+  it('shares every General-tab setting while isolating provider selection', () => {
     local.saveGeneralSettings({
       ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: false,
       checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7,
       enabledProviders: ['codex']
     }, timestamp);
 
     expect(remote.getGeneralSettings()).toEqual({
       ...DEFAULT_GENERAL_SETTINGS,
-      showInformationalNotices: false
+      showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: false,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 7
     });
 
     remote.saveGeneralSettings({
       ...remote.getGeneralSettings(),
       startMaximized: false,
-      crossAgentWorkflowEnabled: true,
-      crossAgentHandoffRetentionDays: 7,
+      showUnusableSessions: true,
+      crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['claude']
     }, '2026-08-04T11:00:00.000Z');
 
     expect(local.getGeneralSettings()).toMatchObject({
       showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: true,
       startMaximized: false,
       checkProviderUpdatesAutomatically: false,
-      crossAgentWorkflowEnabled: false,
-      crossAgentHandoffRetentionDays: 30,
+      autoExpandSidebar: false,
+      crossAgentWorkflowEnabled: true,
+      crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['codex']
     });
     expect(remote.getGeneralSettings()).toMatchObject({
       showInformationalNotices: false,
+      showUnavailableWorkspaces: false,
+      showUnusableSessions: true,
       startMaximized: false,
-      checkProviderUpdatesAutomatically: true,
+      checkProviderUpdatesAutomatically: false,
+      autoExpandSidebar: false,
       crossAgentWorkflowEnabled: true,
-      crossAgentHandoffRetentionDays: 7,
+      crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['claude']
     });
   });

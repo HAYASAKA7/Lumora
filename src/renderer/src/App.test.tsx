@@ -255,6 +255,7 @@ interface CatalogApiOverrides {
   restoreAllWorkspaceVisibility?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
   getGeneralSettings?: ReturnType<typeof vi.fn>;
+  onGeneralSettingsChanged?: (listener: () => void) => () => void;
   getAppearanceBackground?: ReturnType<typeof vi.fn>;
   chooseAppearanceBackground?: ReturnType<typeof vi.fn>;
   removeAppearanceBackground?: ReturnType<typeof vi.fn>;
@@ -352,6 +353,8 @@ function setSystemInfoResult(
         vi.fn().mockResolvedValue(DEFAULT_GENERAL_SETTINGS),
       saveGeneralSettings:
         catalogApi.saveGeneralSettings ?? vi.fn(async (value) => value),
+      onGeneralSettingsChanged:
+        catalogApi.onGeneralSettingsChanged ?? vi.fn(() => () => undefined),
       getAppearanceBackground:
         catalogApi.getAppearanceBackground ??
         vi.fn().mockResolvedValue({ available: false, revision: null }),
@@ -844,6 +847,34 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     await screen.findByText('Catalog implementation');
     expect(screen.queryByText('A saved-preference warning.')).toBeNull();
+  });
+
+  it('reloads global General settings when another Lumora window changes them', async () => {
+    let notifySettingsChanged: (() => void) | null = null;
+    const getGeneralSettings = vi.fn()
+      .mockResolvedValueOnce(DEFAULT_GENERAL_SETTINGS)
+      .mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        showInformationalNotices: false
+      });
+    setSystemInfoResult(undefined, undefined, {
+      getGeneralSettings,
+      onGeneralSettingsChanged: (listener) => {
+        notifySettingsChanged = listener;
+        return () => { notifySettingsChanged = null; };
+      }
+    });
+    render(<App />);
+    await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledOnce());
+    if (notifySettingsChanged === null) throw new Error('Missing settings listener.');
+
+    act(() => notifySettingsChanged?.());
+    await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const informationSwitch = await screen.findByRole('switch', {
+      name: 'Show informational notices'
+    });
+    await waitFor(() => expect(informationSwitch).not.toBeChecked());
   });
 
   it('restores the switch and shows an actionable error when saving fails', async () => {

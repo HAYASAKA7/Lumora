@@ -694,6 +694,26 @@ describe('createLumoraApi', () => {
     ).rejects.toBeDefined();
   });
 
+  it('exposes a validated General-settings change subscription', () => {
+    let subscribedChannel: string | null = null;
+    let subscribedListener: ((value: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(vi.fn(), (channel, listener) => {
+      subscribedChannel = channel;
+      subscribedListener = listener;
+      return unsubscribe;
+    });
+    const listener = vi.fn();
+
+    expect(api.onGeneralSettingsChanged(listener)).toBe(unsubscribe);
+    expect(subscribedChannel).toBe(IPC_CHANNELS.generalSettingsChanged);
+    const notify = subscribedListener as ((value: unknown) => void) | null;
+    if (notify === null) throw new Error('Missing subscription.');
+    notify(null);
+    expect(listener).toHaveBeenCalledOnce();
+    expect(() => notify({ settings: 'leaked' })).toThrow();
+  });
+
   it('exposes opaque appearance background operations', async () => {
     const state = { available: true, revision: '1720000000000-4096' };
     const invoke = vi.fn().mockResolvedValue(state);
