@@ -400,4 +400,38 @@ describe('provider lifecycle migration', () => {
       )
     ).not.toThrow();
   });
+
+  it('adds target-scoped workspace visibility policies without changing catalog data', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 18)
+    );
+    const timestamp = '2026-08-12T01:00:00.000Z';
+    const workspaceId = 'a'.repeat(64);
+    database.prepare(
+      `INSERT INTO workspace (
+        execution_target_id, id, identity_key, canonical_path, display_name,
+        available, origin, created_at, updated_at
+      ) VALUES ('local', ?, 'workspace-key', '/work/lumora', 'Lumora', 1,
+        'manual', ?, ?)`
+    ).run(workspaceId, timestamp, timestamp);
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(database.prepare(
+      `SELECT display_name FROM workspace
+       WHERE execution_target_id = 'local' AND id = ?`
+    ).get(workspaceId)).toEqual({ display_name: 'Lumora' });
+    expect(() => database!.prepare(
+      `INSERT INTO workspace_visibility_policy (
+        execution_target_id, workspace_id, mode, updated_at
+      ) VALUES ('local', ?, 'workspace_only', ?)`
+    ).run(workspaceId, timestamp)).not.toThrow();
+    expect(() => database!.prepare(
+      `INSERT INTO workspace_visibility_policy (
+        execution_target_id, workspace_id, mode, updated_at
+      ) VALUES ('local', ?, 'delete', ?)`
+    ).run(workspaceId, timestamp)).toThrow();
+  });
 });

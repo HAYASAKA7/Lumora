@@ -80,6 +80,9 @@ import {
   WorkspaceTrustDecisionSchema,
   WorkspaceTrustGrantRequestSchema,
   WorkspaceTrustRevokeRequestSchema,
+  WorkspaceVisibilityPolicyListSchema,
+  WorkspaceVisibilityRestoreRequestSchema,
+  WorkspaceVisibilitySetRequestSchema,
   type CatalogQuery,
   type LumoraApi
 } from '../shared/contracts';
@@ -293,6 +296,27 @@ export function createLumoraApi(
     async chooseWorkspace() {
       const value = await invoke(IPC_CHANNELS.workspaceChoose);
       return value === null ? null : CatalogSnapshotSchema.parse(value);
+    },
+    async getWorkspaceVisibilityPolicies() {
+      const value = await invoke(IPC_CHANNELS.workspaceVisibilityGet);
+      return WorkspaceVisibilityPolicyListSchema.parse(value);
+    },
+    async setWorkspaceVisibilityPolicy(input) {
+      const request = WorkspaceVisibilitySetRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.workspaceVisibilitySet, request);
+      return WorkspaceVisibilityPolicyListSchema.parse(value);
+    },
+    async restoreWorkspaceVisibility(input) {
+      const request = WorkspaceVisibilityRestoreRequestSchema.parse(input);
+      const value = await invoke(
+        IPC_CHANNELS.workspaceVisibilityRestore,
+        request
+      );
+      return WorkspaceVisibilityPolicyListSchema.parse(value);
+    },
+    async restoreAllWorkspaceVisibility() {
+      const value = await invoke(IPC_CHANNELS.workspaceVisibilityRestoreAll);
+      return WorkspaceVisibilityPolicyListSchema.parse(value);
     },
     onTrayResumeSessionRequested(listener) {
       return subscribe(IPC_CHANNELS.trayResumeSession, (value) => {

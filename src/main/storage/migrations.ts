@@ -533,6 +533,25 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         updated_at TEXT NOT NULL
       ) STRICT`
     ]
+  },
+  {
+    version: 19,
+    statements: [
+      `CREATE TABLE workspace_visibility_policy (
+        execution_target_id TEXT NOT NULL
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        workspace_id TEXT NOT NULL,
+        mode TEXT NOT NULL CHECK (
+          mode IN ('workspace_only', 'workspace_and_sessions')
+        ),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (execution_target_id, workspace_id),
+        FOREIGN KEY (execution_target_id, workspace_id)
+          REFERENCES workspace(execution_target_id, id) ON DELETE CASCADE
+      ) STRICT`,
+      `CREATE INDEX workspace_visibility_policy_updated_idx
+       ON workspace_visibility_policy (execution_target_id, updated_at DESC)`
+    ]
   }
 ];
 

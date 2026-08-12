@@ -48,6 +48,7 @@ import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTargetIpc } from './ipc/register-target-ipc';
 import { registerTerminalIpc } from './ipc/register-terminal-ipc';
 import { registerTransferIpc } from './ipc/register-transfer-ipc';
+import { registerWorkspaceVisibilityIpc } from './ipc/register-workspace-visibility-ipc';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
@@ -109,6 +110,7 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
 interface ExecutionTargetServices {
   readonly catalog: CatalogRuntime['service'];
+  readonly workspaceVisibility: CatalogRuntime['workspaceVisibility'];
   readonly terminal: TerminalRuntime;
   readonly environmentScanner: ReturnType<
     typeof createDeveloperEnvironmentScanner
@@ -658,6 +660,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     LOCAL_EXECUTION_TARGET_ID,
     Object.freeze({
       catalog: catalogRuntime.service,
+      workspaceVisibility: catalogRuntime.workspaceVisibility,
       terminal: terminalRuntime,
       environmentScanner: developerEnvironmentScanner,
       providers: Object.freeze({
@@ -766,6 +769,22 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     onCatalogRefreshed: () => {
       terminalRuntime!.synchronizeCatalogSessions();
       trayController?.refresh();
+    },
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerWorkspaceVisibilityIpc({
+    ipc: ipcMain,
+    authorize: authorizeTargetIpc,
+    resolveService: (context) => {
+      if (context.executionTargetId === LOCAL_EXECUTION_TARGET_ID) {
+        return executionTargetGateway.resolve(context).workspaceVisibility;
+      }
+      if (remoteTargetRuntime === null) {
+        throw new Error('Remote target storage is unavailable.');
+      }
+      return remoteTargetRuntime.service.resolveSessionRuntime(
+        RemoteExecutionTargetIdSchema.parse(context.executionTargetId)
+      ).workspaceVisibility;
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });

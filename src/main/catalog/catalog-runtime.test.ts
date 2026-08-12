@@ -63,6 +63,15 @@ describe('createCatalogRuntime', () => {
       available: true,
       origin: 'manual'
     });
+    expect(runtime.workspaceVisibility.setPolicy({
+      workspaceId: snapshot.workspaces[0]!.id,
+      mode: 'workspace_only'
+    })).toEqual([
+      expect.objectContaining({
+        workspaceId: snapshot.workspaces[0]!.id,
+        mode: 'workspace_only'
+      })
+    ]);
     expect(
       runtime.transferRegistry
         .capabilities(testPlatform)

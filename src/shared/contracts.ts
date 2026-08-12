@@ -582,6 +582,30 @@ export const WorkspaceSummarySchema = z.strictObject({
   lastActivityAt: z.iso.datetime().nullable()
 });
 
+export const WorkspaceVisibilityModeSchema = z.enum([
+  'workspace_only',
+  'workspace_and_sessions'
+]);
+
+export const WorkspaceVisibilityPolicySchema = z.strictObject({
+  workspaceId: StableIdSchema,
+  mode: WorkspaceVisibilityModeSchema,
+  updatedAt: z.iso.datetime()
+});
+
+export const WorkspaceVisibilityPolicyListSchema = z
+  .array(WorkspaceVisibilityPolicySchema)
+  .max(25_000);
+
+export const WorkspaceVisibilitySetRequestSchema = z.strictObject({
+  workspaceId: StableIdSchema,
+  mode: WorkspaceVisibilityModeSchema
+});
+
+export const WorkspaceVisibilityRestoreRequestSchema = z.strictObject({
+  workspaceIds: z.array(StableIdSchema).min(1).max(25_000)
+});
+
 export const WorkspaceTrustDecisionSchema = z.strictObject({
   workspaceId: StableIdSchema,
   canonicalPath: WorkspaceSummarySchema.shape.canonicalPath,
@@ -667,6 +691,18 @@ export const CatalogQuerySchema = z.strictObject({
 
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
 export type WorkspaceOrigin = z.infer<typeof WorkspaceOriginSchema>;
+export type WorkspaceVisibilityMode = z.infer<
+  typeof WorkspaceVisibilityModeSchema
+>;
+export type WorkspaceVisibilityPolicy = z.infer<
+  typeof WorkspaceVisibilityPolicySchema
+>;
+export type WorkspaceVisibilitySetRequest = z.infer<
+  typeof WorkspaceVisibilitySetRequestSchema
+>;
+export type WorkspaceVisibilityRestoreRequest = z.infer<
+  typeof WorkspaceVisibilityRestoreRequestSchema
+>;
 export type WorkspaceTrustDecision = z.infer<
   typeof WorkspaceTrustDecisionSchema
 >;
@@ -960,8 +996,10 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
 } as const satisfies AppearanceSettings;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(7),
+  version: z.literal(8),
   showInformationalNotices: z.boolean(),
+  showUnavailableWorkspaces: z.boolean(),
+  showUnusableSessions: z.boolean(),
   startMaximized: z.boolean(),
   checkProviderUpdatesAutomatically: z.boolean(),
   autoExpandSidebar: z.boolean(),
@@ -1094,8 +1132,10 @@ export type RemoteWindowCloseResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 7,
+  version: 8,
   showInformationalNotices: true,
+  showUnavailableWorkspaces: true,
+  showUnusableSessions: true,
   startMaximized: true,
   checkProviderUpdatesAutomatically: true,
   autoExpandSidebar: true,
@@ -1106,6 +1146,20 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   enabledProviders: [...PROVIDER_IDS],
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
+
+const VersionSevenGeneralSettingsSchema = z.strictObject({
+  version: z.literal(7),
+  showInformationalNotices: z.boolean(),
+  startMaximized: z.boolean(),
+  checkProviderUpdatesAutomatically: z.boolean(),
+  autoExpandSidebar: z.boolean(),
+  windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
+  remoteWindowCloseBehavior: z.enum(['keep_connected', 'disconnect']),
+  crossAgentWorkflowEnabled: z.boolean(),
+  crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
+  enabledProviders: EnabledProviderIdsSchema,
+  appearance: AppearanceSettingsSchema
+});
 
 const VersionSixGeneralSettingsSchema = z.strictObject({
   version: z.literal(6),
@@ -1178,12 +1232,24 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionSeven = VersionSevenGeneralSettingsSchema.safeParse(value);
+  if (versionSeven.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionSeven.data,
+      version: 8,
+      showUnavailableWorkspaces: true,
+      showUnusableSessions: true
+    });
+  }
+
   const versionSix = VersionSixGeneralSettingsSchema.safeParse(value);
   if (versionSix.success) {
     return GeneralSettingsSchema.parse({
       ...versionSix.data,
-      version: 7,
-      remoteWindowCloseBehavior: 'keep_connected'
+      version: 8,
+      remoteWindowCloseBehavior: 'keep_connected',
+      showUnavailableWorkspaces: true,
+      showUnusableSessions: true
     });
   }
 
@@ -1191,8 +1257,10 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionFive.success) {
     return GeneralSettingsSchema.parse({
       ...versionFive.data,
-      version: 7,
+      version: 8,
       remoteWindowCloseBehavior: 'keep_connected',
+      showUnavailableWorkspaces: true,
+      showUnusableSessions: true,
       appearance: {
         ...versionFive.data.appearance,
         theme: versionFive.data.appearance.theme === 'system'
@@ -1208,7 +1276,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 7
+      version: 8
     });
   }
 
@@ -1217,7 +1285,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 7
+      version: 8
     });
   }
 
@@ -1226,7 +1294,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 7
+      version: 8
     });
   }
 
@@ -1636,6 +1704,10 @@ export const IPC_CHANNELS = {
   catalogGet: 'lumora:catalog:get',
   catalogRefresh: 'lumora:catalog:refresh',
   workspaceChoose: 'lumora:workspace:choose',
+  workspaceVisibilityGet: 'lumora:workspace-visibility:get',
+  workspaceVisibilitySet: 'lumora:workspace-visibility:set',
+  workspaceVisibilityRestore: 'lumora:workspace-visibility:restore',
+  workspaceVisibilityRestoreAll: 'lumora:workspace-visibility:restore-all',
   trayResumeSession: 'lumora:tray:resume-session',
   clipboardTextRead: 'lumora:clipboard:text:read',
   clipboardTextWrite: 'lumora:clipboard:text:write',
@@ -1745,6 +1817,14 @@ export interface LumoraApi {
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   chooseWorkspace(): Promise<CatalogSnapshot | null>;
+  getWorkspaceVisibilityPolicies(): Promise<WorkspaceVisibilityPolicy[]>;
+  setWorkspaceVisibilityPolicy(
+    input: WorkspaceVisibilitySetRequest
+  ): Promise<WorkspaceVisibilityPolicy[]>;
+  restoreWorkspaceVisibility(
+    input: WorkspaceVisibilityRestoreRequest
+  ): Promise<WorkspaceVisibilityPolicy[]>;
+  restoreAllWorkspaceVisibility(): Promise<WorkspaceVisibilityPolicy[]>;
   onTrayResumeSessionRequested(
     listener: (sessionId: string) => void
   ): () => void;

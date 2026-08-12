@@ -14,6 +14,7 @@ import type {
 } from '../../shared/contracts';
 import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
 import { CatalogRepository } from '../storage/catalog-repository';
+import { WorkspaceVisibilityRepository } from '../storage/workspace-visibility-repository';
 import { TerminalRepository } from '../storage/terminal-repository';
 import { resolvePtyInvocation } from '../platform/pty-invocation';
 import {
@@ -24,6 +25,7 @@ import {
   validateInstalledProviderCompatibility
 } from '../providers/session-catalog-adapter';
 import { LaunchService } from '../terminal/launch-service';
+import { WorkspaceVisibilityService } from '../catalog/workspace-visibility-service';
 import { NewSessionReconciler } from '../terminal/new-session-reconciler';
 import {
   RuntimeHost,
@@ -101,6 +103,13 @@ export function createRemoteSessionRuntime(
     options.database,
     options.executionTargetId
   );
+  const workspaceVisibility = new WorkspaceVisibilityService({
+    repository: new WorkspaceVisibilityRepository(
+      options.database,
+      options.executionTargetId
+    ),
+    clock
+  });
   const repository = new TerminalRepository(
     options.database,
     options.executionTargetId
@@ -268,6 +277,7 @@ export function createRemoteSessionRuntime(
 
   let closed = false;
   return {
+    workspaceVisibility,
     updateCatalog,
     getProfiles: () => repository.listProfiles(),
     async saveProfile() {

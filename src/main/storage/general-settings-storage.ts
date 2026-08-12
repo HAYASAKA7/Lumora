@@ -25,6 +25,8 @@ type GlobalGeneralSettings = Pick<
 
 type TargetGeneralSettings = Pick<
   GeneralSettings,
+  | 'showUnavailableWorkspaces'
+  | 'showUnusableSessions'
   | 'checkProviderUpdatesAutomatically'
   | 'crossAgentWorkflowEnabled'
   | 'crossAgentHandoffRetentionDays'
@@ -48,6 +50,8 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
 
 function targetProjection(settings: GeneralSettings): TargetGeneralSettings {
   return {
+    showUnavailableWorkspaces: settings.showUnavailableWorkspaces,
+    showUnusableSessions: settings.showUnusableSessions,
     checkProviderUpdatesAutomatically: settings.checkProviderUpdatesAutomatically,
     crossAgentWorkflowEnabled: settings.crossAgentWorkflowEnabled,
     crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays,
@@ -83,7 +87,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 7,
+      version: 8,
       ...globalProjection(global),
       ...targetProjection(target)
     });
@@ -120,7 +124,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...(row === undefined ? {} : objectValue(parseJson(row.value_json))),
-      version: 7
+      version: 8
     });
     return parsed.success ? parsed.data : fallback;
   }
@@ -139,7 +143,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...objectValue(parseJson(row.value_json)),
-      version: 7
+      version: 8
     });
     return parsed.success ? parsed.data : fallback;
   }

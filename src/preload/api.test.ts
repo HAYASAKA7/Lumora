@@ -333,6 +333,61 @@ describe('createLumoraApi', () => {
     await expect(selected.chooseWorkspace()).resolves.toEqual(emptyCatalog);
   });
 
+  it('validates and routes workspace visibility operations without target ids', async () => {
+    const workspaceId = 'a'.repeat(64);
+    const policy = {
+      workspaceId,
+      mode: 'workspace_only' as const,
+      updatedAt: '2026-08-12T01:00:00.000Z'
+    };
+    const invocations: { channel: string; args: readonly unknown[] }[] = [];
+    const api = createLumoraApi(async (channel, ...args) => {
+      invocations.push({ channel, args });
+      return channel === IPC_CHANNELS.workspaceVisibilityRestore ||
+        channel === IPC_CHANNELS.workspaceVisibilityRestoreAll
+        ? []
+        : [policy];
+    });
+
+    await expect(api.getWorkspaceVisibilityPolicies()).resolves.toEqual([policy]);
+    await expect(api.setWorkspaceVisibilityPolicy({
+      workspaceId,
+      mode: 'workspace_only'
+    })).resolves.toEqual([policy]);
+    await expect(api.restoreWorkspaceVisibility({
+      workspaceIds: [workspaceId]
+    })).resolves.toEqual([]);
+    await expect(api.restoreAllWorkspaceVisibility()).resolves.toEqual([]);
+
+    expect(invocations).toEqual([
+      { channel: IPC_CHANNELS.workspaceVisibilityGet, args: [] },
+      {
+        channel: IPC_CHANNELS.workspaceVisibilitySet,
+        args: [{ workspaceId, mode: 'workspace_only' }]
+      },
+      {
+        channel: IPC_CHANNELS.workspaceVisibilityRestore,
+        args: [{ workspaceIds: [workspaceId] }]
+      },
+      { channel: IPC_CHANNELS.workspaceVisibilityRestoreAll, args: [] }
+    ]);
+  });
+
+  it('rejects malformed workspace visibility requests and responses', async () => {
+    const invoke = vi.fn(async () => [{ workspaceId: '../escape' }]);
+    const api = createLumoraApi(invoke);
+
+    await expect(api.getWorkspaceVisibilityPolicies()).rejects.toBeDefined();
+    await expect(api.setWorkspaceVisibilityPolicy({
+      workspaceId: '../escape',
+      mode: 'workspace_only'
+    } as never)).rejects.toBeDefined();
+    await expect(api.restoreWorkspaceVisibility({
+      workspaceIds: []
+    })).rejects.toBeDefined();
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
   it('reads clipboard text through only the dedicated channel', async () => {
     const invocations: { channel: string; args: readonly unknown[] }[] = [];
     const api = createLumoraApi(async (channel, ...args) => {

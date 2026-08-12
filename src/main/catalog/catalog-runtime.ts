@@ -34,8 +34,10 @@ import {
   hasNativeForkSupport
 } from '../../shared/provider-definitions';
 import { CatalogRepository } from '../storage/catalog-repository';
+import { WorkspaceVisibilityRepository } from '../storage/workspace-visibility-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { CatalogService } from './catalog-service';
+import { WorkspaceVisibilityService } from './workspace-visibility-service';
 import { createOpenCodeTransferAdapter } from '../transfer/adapters/opencode-transfer-adapter';
 import { createGeminiTransferAdapter } from '../transfer/adapters/gemini-transfer-adapter';
 import { createQwenTransferAdapter } from '../transfer/adapters/qwen-transfer-adapter';
@@ -69,6 +71,7 @@ export type CatalogTransferPort = Pick<
 
 export interface CatalogRuntime {
   service: CatalogService;
+  workspaceVisibility: WorkspaceVisibilityService;
   registry: SessionCatalogRegistry;
   transferRegistry: TransferAdapterRegistry;
   transferCatalog: CatalogTransferPort;
@@ -108,6 +111,10 @@ export function createCatalogRuntime({
   }
 
   const repository = new CatalogRepository(database, executionTargetId);
+  const workspaceVisibility = new WorkspaceVisibilityService({
+    repository: new WorkspaceVisibilityRepository(database, executionTargetId),
+    clock
+  });
   const lookupSource = async (provider: ProviderId, sourceKey: string) =>
     repository.findSource(provider, sourceKey);
   const adapter = (
@@ -222,6 +229,7 @@ export function createCatalogRuntime({
 
   return {
     service,
+    workspaceVisibility,
     registry,
     transferRegistry,
     transferCatalog,

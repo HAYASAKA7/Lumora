@@ -223,6 +223,15 @@ describe('remote session runtime', () => {
       crossAgentWorkflowEnabled: false,
       enabledProviders: SESSION_PROVIDER_IDS
     });
+    expect(runtime.workspaceVisibility.setPolicy({
+      workspaceId: WORKSPACE_ID,
+      mode: 'workspace_and_sessions'
+    })).toEqual([
+      expect.objectContaining({
+        workspaceId: WORKSPACE_ID,
+        mode: 'workspace_and_sessions'
+      })
+    ]);
 
     runtime.close();
     database.close();

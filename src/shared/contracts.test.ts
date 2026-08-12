@@ -38,7 +38,11 @@ import {
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
   WorkspaceTrustGrantRequestSchema,
-  WorkspaceTrustRevokeRequestSchema
+  WorkspaceTrustRevokeRequestSchema,
+  WorkspaceVisibilityModeSchema,
+  WorkspaceVisibilityPolicySchema,
+  WorkspaceVisibilityRestoreRequestSchema,
+  WorkspaceVisibilitySetRequestSchema
 } from './contracts';
 import * as contracts from './contracts';
 
@@ -193,6 +197,63 @@ describe('session transfer IPC contracts', () => {
       'lumora:transfer:import:execute'
     );
     expect(IPC_CHANNELS.transferEvent).toBe('lumora:transfer:event');
+  });
+});
+
+describe('workspace visibility contracts', () => {
+  const workspaceId = 'a'.repeat(64);
+
+  it('accepts only the two non-destructive workspace visibility modes', () => {
+    expect(WorkspaceVisibilityModeSchema.parse('workspace_only')).toBe(
+      'workspace_only'
+    );
+    expect(WorkspaceVisibilityModeSchema.parse('workspace_and_sessions')).toBe(
+      'workspace_and_sessions'
+    );
+    expect(WorkspaceVisibilityModeSchema.safeParse('delete').success).toBe(false);
+  });
+
+  it('validates strict set, restore, and policy payloads', () => {
+    expect(WorkspaceVisibilitySetRequestSchema.parse({
+      workspaceId,
+      mode: 'workspace_only'
+    })).toEqual({ workspaceId, mode: 'workspace_only' });
+    expect(WorkspaceVisibilityRestoreRequestSchema.parse({
+      workspaceIds: [workspaceId]
+    })).toEqual({ workspaceIds: [workspaceId] });
+    expect(WorkspaceVisibilityPolicySchema.parse({
+      workspaceId,
+      mode: 'workspace_and_sessions',
+      updatedAt: '2026-08-12T01:00:00.000Z'
+    })).toEqual({
+      workspaceId,
+      mode: 'workspace_and_sessions',
+      updatedAt: '2026-08-12T01:00:00.000Z'
+    });
+
+    expect(WorkspaceVisibilitySetRequestSchema.safeParse({
+      workspaceId,
+      mode: 'workspace_only',
+      executionTargetId: 'local'
+    }).success).toBe(false);
+    expect(WorkspaceVisibilityRestoreRequestSchema.safeParse({
+      workspaceIds: []
+    }).success).toBe(false);
+  });
+
+  it('defines target-authorized visibility channels', () => {
+    expect(IPC_CHANNELS.workspaceVisibilityGet).toBe(
+      'lumora:workspace-visibility:get'
+    );
+    expect(IPC_CHANNELS.workspaceVisibilitySet).toBe(
+      'lumora:workspace-visibility:set'
+    );
+    expect(IPC_CHANNELS.workspaceVisibilityRestore).toBe(
+      'lumora:workspace-visibility:restore'
+    );
+    expect(IPC_CHANNELS.workspaceVisibilityRestoreAll).toBe(
+      'lumora:workspace-visibility:restore-all'
+    );
   });
 });
 describe('SystemInfoSchema', () => {
@@ -1327,8 +1388,10 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 7,
+      version: 8,
       showInformationalNotices: true,
+      showUnavailableWorkspaces: true,
+      showUnusableSessions: true,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
       autoExpandSidebar: true,
@@ -1462,7 +1525,12 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
-    const versionSix = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    const versionSeven = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    versionSeven.version = 7;
+    delete versionSeven.showUnavailableWorkspaces;
+    delete versionSeven.showUnusableSessions;
+    expect(parseStoredGeneralSettings(versionSeven)).toEqual(DEFAULT_GENERAL_SETTINGS);
+    const versionSix = { ...versionSeven } as Record<string, unknown>;
     versionSix.version = 6;
     delete versionSix.remoteWindowCloseBehavior;
     expect(parseStoredGeneralSettings(versionSix)).toEqual(DEFAULT_GENERAL_SETTINGS);
