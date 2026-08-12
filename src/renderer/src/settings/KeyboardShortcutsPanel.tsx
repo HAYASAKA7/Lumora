@@ -63,16 +63,16 @@ const SHORTCUT_ROWS = [
     ariaLabel: 'Record go to Terminal Profiles shortcut'
   },
   {
+    key: 'openRemote',
+    label: 'Go to Remote computers',
+    description: 'Open remote computer connections.',
+    ariaLabel: 'Record go to Remote computers shortcut'
+  },
+  {
     key: 'openSettings',
     label: 'Go to Settings',
     description: 'Open Lumora settings.',
     ariaLabel: 'Record go to Settings shortcut'
-  },
-  {
-    key: 'openSettingsAlias',
-    label: 'Go to Settings (alternate)',
-    description: 'Keep a second convenient shortcut for Settings.',
-    ariaLabel: 'Record go to Settings alternate shortcut'
   }
 ] as const satisfies ReadonlyArray<{
   key: ShortcutSettingKey;

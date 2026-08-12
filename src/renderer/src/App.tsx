@@ -99,6 +99,7 @@ type NavigationShortcutKey =
   | 'openWorkspaces'
   | 'openSessions'
   | 'openProfiles'
+  | 'openRemote'
   | 'openSettings';
 
 interface RouteDefinition {
@@ -196,7 +197,7 @@ const ROUTES = [
     description:
       'Configure SSH access and open one isolated Lumora window for each remote computer.',
     icon: 'remote',
-    shortcut: null
+    shortcut: 'openRemote'
   },
   {
     id: 'settings',
@@ -209,8 +210,8 @@ const ROUTES = [
   }
 ] as const satisfies readonly RouteDefinition[];
 
-const PRIMARY_ROUTES = ROUTES.filter((route) => route.id !== 'remote');
-const REMOTE_ROUTE = ROUTES.find((route) => route.id === 'remote')!;
+const PRIMARY_ROUTES = ROUTES.filter((route) => route.id !== 'settings');
+const SETTINGS_ROUTE = ROUTES.find((route) => route.id === 'settings')!;
 
 const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
@@ -1231,8 +1232,8 @@ function AppContent(): ReactNode {
         [keyboardSettings.openWorkspaces, 'workspaces'],
         [keyboardSettings.openSessions, 'sessions'],
         [keyboardSettings.openProfiles, 'profiles'],
-        [keyboardSettings.openSettings, 'settings'],
-        [keyboardSettings.openSettingsAlias, 'settings']
+        [keyboardSettings.openRemote, 'remote'],
+        [keyboardSettings.openSettings, 'settings']
       ];
       const destination = routeShortcuts.find(([shortcut]) =>
         keyboardEventMatchesChord(event, shortcut)
@@ -1528,21 +1529,27 @@ function AppContent(): ReactNode {
                 : formatShortcutChord(
                     keyboardSettings[route.shortcut],
                     shortcutPlatform
-                  )
+                  ),
+            status: route.id === 'remote' && onlineRemoteTargetCount > 0
+              ? `${onlineRemoteTargetCount} ${onlineRemoteTargetCount === 1
+                  ? 'computer'
+                  : 'computers'} online`
+              : undefined
           }))
         }}
         secondaryNavigation={{
-          label: 'Remote access',
+          label: 'Application',
           routes: [
             {
-              id: REMOTE_ROUTE.id,
-              icon: REMOTE_ROUTE.icon,
-              label: REMOTE_ROUTE.label,
-              status: onlineRemoteTargetCount > 0
-                ? `${onlineRemoteTargetCount} ${onlineRemoteTargetCount === 1
-                    ? 'computer'
-                    : 'computers'} online`
-                : undefined
+              id: SETTINGS_ROUTE.id,
+              icon: SETTINGS_ROUTE.icon,
+              label: SETTINGS_ROUTE.label,
+              shortcut: shortcutPlatform === null
+                ? undefined
+                : formatShortcutChord(
+                    keyboardSettings.openSettings,
+                    shortcutPlatform
+                  )
             }
           ]
         }}

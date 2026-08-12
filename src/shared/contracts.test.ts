@@ -1315,7 +1315,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned keyboard settings with a real modified key', () => {
     expect(KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS)).toEqual({
-      version: 2,
+      version: 3,
       terminalSwitcher: {
         code: 'Tab',
         control: true,
@@ -1337,11 +1337,11 @@ describe('managed terminal contracts', () => {
       openWorkspaces: expect.objectContaining({ code: 'Digit2', control: true }),
       openSessions: expect.objectContaining({ code: 'Digit3', control: true }),
       openProfiles: expect.objectContaining({ code: 'Digit4', control: true }),
-      openSettings: expect.objectContaining({ code: 'Digit5', control: true }),
-      openSettingsAlias: expect.objectContaining({ code: 'Comma', control: true })
+      openRemote: expect.objectContaining({ code: 'Digit5', control: true }),
+      openSettings: expect.objectContaining({ code: 'Comma', control: true })
     });
     expect(KeyboardSettingsSchema.parse({
-      version: 2,
+      version: 3,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -1376,10 +1376,55 @@ describe('managed terminal contracts', () => {
     }).success).toBe(false);
   });
 
-  it('migrates the former open-terminal default to Ctrl+Shift+T', () => {
+  it('migrates untouched version-two navigation shortcuts to Remote and Settings', () => {
+    const { openRemote: _openRemote, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+
     expect(parseKeyboardSettings({
+      ...current,
+      version: 2,
+      openSettings: {
+        code: 'Digit5', control: true, alt: false, shift: false, meta: false
+      },
+      openSettingsAlias: {
+        code: 'Comma', control: true, alt: false, shift: false, meta: false
+      }
+    })).toEqual(DEFAULT_KEYBOARD_SETTINGS);
+  });
+
+  it('preserves a customized version-two Settings shortcut', () => {
+    const { openRemote: _openRemote, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const custom = {
+      code: 'KeyS', control: true, alt: true, shift: false, meta: false
+    };
+
+    expect(parseKeyboardSettings({
+      ...current,
+      version: 2,
+      openSettings: custom,
+      openSettingsAlias: {
+        code: 'Comma', control: true, alt: false, shift: false, meta: false
+      }
+    })).toEqual({
       ...DEFAULT_KEYBOARD_SETTINGS,
+      openSettings: custom
+    });
+  });
+
+  it('migrates the former open-terminal default to Ctrl+Shift+T', () => {
+    const {
+      openRemote: _openRemote,
+      openSettings: _openSettings,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
+    expect(parseKeyboardSettings({
+      ...current,
       version: 1,
+      openSettings: {
+        code: 'Digit5', control: true, alt: false, shift: false, meta: false
+      },
+      openSettingsAlias: {
+        code: 'Comma', control: true, alt: false, shift: false, meta: false
+      },
       openTerminals: {
         code: 'KeyT',
         control: true,
@@ -1400,6 +1445,11 @@ describe('managed terminal contracts', () => {
   });
 
   it('preserves a customized version-one open-terminal shortcut', () => {
+    const {
+      openRemote: _openRemote,
+      openSettings: _openSettings,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
     const custom = {
       code: 'KeyO',
       control: true,
@@ -1409,8 +1459,14 @@ describe('managed terminal contracts', () => {
     };
 
     expect(parseKeyboardSettings({
-      ...DEFAULT_KEYBOARD_SETTINGS,
+      ...current,
       version: 1,
+      openSettings: {
+        code: 'Digit5', control: true, alt: false, shift: false, meta: false
+      },
+      openSettingsAlias: {
+        code: 'Comma', control: true, alt: false, shift: false, meta: false
+      },
       openTerminals: custom
     })).toEqual({
       ...DEFAULT_KEYBOARD_SETTINGS,

@@ -269,6 +269,18 @@ describe('RemoteTargetWindow', () => {
     for (const route of ['Home', 'Workspaces', 'All sessions', 'Settings']) {
       expect(screen.getByRole('button', { name: route })).toBeInTheDocument();
     }
+    const primaryNavigation = screen.getByRole('navigation', {
+      name: 'Primary navigation'
+    });
+    const applicationNavigation = screen.getByRole('navigation', {
+      name: 'Application'
+    });
+    expect(within(primaryNavigation).queryByRole('button', {
+      name: 'Settings'
+    })).not.toBeInTheDocument();
+    expect(within(applicationNavigation).getByRole('button', {
+      name: 'Settings'
+    })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Overview' })).not.toBeInTheDocument();
@@ -1362,6 +1374,13 @@ describe('RemoteTargetWindow', () => {
 
     expect(await screen.findByRole('heading', {
       name: 'All sessions', level: 1
+    })).toBeInTheDocument();
+
+    fireEvent.keyDown(ptyInput, {
+      code: 'Comma', key: ',', ctrlKey: true
+    });
+    expect(await screen.findByRole('heading', {
+      name: 'Settings', level: 1
     })).toBeInTheDocument();
     ptyInput.remove();
   });

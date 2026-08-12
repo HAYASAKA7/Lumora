@@ -379,6 +379,7 @@ function setSystemInfoResult(
       onTrayResumeSessionRequested:
         catalogApi.onTrayResumeSessionRequested ??
         vi.fn(() => () => undefined),
+      listRemoteTargets: vi.fn().mockResolvedValue([]),
       getTransferCapabilities:
         catalogApi.getTransferCapabilities ?? vi.fn().mockResolvedValue([]),
       prepareSessionExport: catalogApi.prepareSessionExport ?? vi.fn(),
@@ -618,33 +619,38 @@ describe('App', () => {
       'Workspaces',
       'All sessions',
       'Terminal profiles',
-      'Settings'
+      'Remote computers'
     ]) {
       expect(screen.getByRole('button', { name: destination })).toBeInTheDocument();
     }
   });
 
-  it('keeps Remote computers in its own lower sidebar entrance', () => {
+  it('places Remote computers fifth and Settings below the separator', () => {
     render(<App />);
 
     const primaryNavigation = screen.getByRole('navigation', {
       name: 'Primary navigation'
     });
-    const remoteNavigation = screen.getByRole('navigation', {
-      name: 'Remote access'
+    const applicationNavigation = screen.getByRole('navigation', {
+      name: 'Application'
     });
 
-    expect(
-      within(primaryNavigation).queryByRole('button', {
-        name: 'Remote computers'
-      })
-    ).not.toBeInTheDocument();
-    expect(
-      within(remoteNavigation).getByRole('button', {
-        name: 'Remote computers'
-      })
-    ).toBeInTheDocument();
-    expect(remoteNavigation).toHaveClass('sidebar-remote-nav');
+    expect(within(primaryNavigation).getAllByRole('button').map(
+      (button) => button.textContent
+    )).toEqual([
+      'Home',
+      'Workspaces',
+      'All sessions',
+      'Terminal profiles',
+      'Remote computers'
+    ]);
+    expect(within(primaryNavigation).queryByRole('button', {
+      name: 'Settings'
+    })).not.toBeInTheDocument();
+    expect(within(applicationNavigation).getByRole('button', {
+      name: 'Settings'
+    })).toBeInTheDocument();
+    expect(applicationNavigation).toHaveClass('sidebar-remote-nav');
   });
 
   it('resets the shared page scroll position when navigation changes', async () => {
@@ -1635,7 +1641,9 @@ describe('App', () => {
     fireEvent.keyDown(window, { code: 'Digit4', key: '4', ctrlKey: true });
     expect(screen.getByRole('heading', { name: 'Terminal profiles' })).toBeInTheDocument();
     fireEvent.keyDown(window, { code: 'Digit5', key: '5', ctrlKey: true });
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Remote computers'
+    })).toHaveAttribute('aria-current', 'page');
     fireEvent.keyDown(window, { code: 'Digit1', key: '1', ctrlKey: true });
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
     fireEvent.keyDown(window, { code: 'Comma', key: ',', ctrlKey: true });

@@ -1330,8 +1330,10 @@ const DEFAULT_OPEN_HOME = controlShortcut('Digit1');
 const DEFAULT_OPEN_WORKSPACES = controlShortcut('Digit2');
 const DEFAULT_OPEN_SESSIONS = controlShortcut('Digit3');
 const DEFAULT_OPEN_PROFILES = controlShortcut('Digit4');
-const DEFAULT_OPEN_SETTINGS = controlShortcut('Digit5');
-const DEFAULT_OPEN_SETTINGS_ALIAS = controlShortcut('Comma');
+const DEFAULT_OPEN_REMOTE = controlShortcut('Digit5');
+const DEFAULT_OPEN_SETTINGS = controlShortcut('Comma');
+const FORMER_DEFAULT_OPEN_SETTINGS = controlShortcut('Digit5');
+const FORMER_DEFAULT_OPEN_SETTINGS_ALIAS = controlShortcut('Comma');
 
 const VersionOneKeyboardSettingsSchema = z.strictObject({
   version: z.literal(1),
@@ -1344,13 +1346,13 @@ const VersionOneKeyboardSettingsSchema = z.strictObject({
   openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
   openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
   openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
-  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS),
+  openSettings: KeyboardShortcutChordSchema.default(FORMER_DEFAULT_OPEN_SETTINGS),
   openSettingsAlias: KeyboardShortcutChordSchema.default(
-    DEFAULT_OPEN_SETTINGS_ALIAS
+    FORMER_DEFAULT_OPEN_SETTINGS_ALIAS
   )
 });
 
-export const KeyboardSettingsSchema = z.strictObject({
+const VersionTwoKeyboardSettingsSchema = z.strictObject({
   version: z.literal(2),
   terminalSwitcher: KeyboardShortcutChordSchema,
   openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
@@ -1359,16 +1361,29 @@ export const KeyboardSettingsSchema = z.strictObject({
   openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
   openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
   openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
-  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS),
+  openSettings: KeyboardShortcutChordSchema.default(FORMER_DEFAULT_OPEN_SETTINGS),
   openSettingsAlias: KeyboardShortcutChordSchema.default(
-    DEFAULT_OPEN_SETTINGS_ALIAS
+    FORMER_DEFAULT_OPEN_SETTINGS_ALIAS
   )
+});
+
+export const KeyboardSettingsSchema = z.strictObject({
+  version: z.literal(3),
+  terminalSwitcher: KeyboardShortcutChordSchema,
+  openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
+  toggleSidebar: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_SIDEBAR),
+  openHome: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_HOME),
+  openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
+  openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
+  openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
+  openRemote: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_REMOTE),
+  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS)
 });
 
 export type KeyboardSettings = z.infer<typeof KeyboardSettingsSchema>;
 
 export const DEFAULT_KEYBOARD_SETTINGS = {
-  version: 2,
+  version: 3,
   terminalSwitcher: DEFAULT_TERMINAL_SWITCHER,
   openTerminals: DEFAULT_OPEN_TERMINALS,
   toggleSidebar: DEFAULT_TOGGLE_SIDEBAR,
@@ -1376,8 +1391,8 @@ export const DEFAULT_KEYBOARD_SETTINGS = {
   openWorkspaces: DEFAULT_OPEN_WORKSPACES,
   openSessions: DEFAULT_OPEN_SESSIONS,
   openProfiles: DEFAULT_OPEN_PROFILES,
-  openSettings: DEFAULT_OPEN_SETTINGS,
-  openSettingsAlias: DEFAULT_OPEN_SETTINGS_ALIAS
+  openRemote: DEFAULT_OPEN_REMOTE,
+  openSettings: DEFAULT_OPEN_SETTINGS
 } as const satisfies KeyboardSettings;
 
 function shortcutChordEquals(
@@ -1395,20 +1410,58 @@ export function parseKeyboardSettings(value: unknown): KeyboardSettings {
   const current = KeyboardSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionTwo = VersionTwoKeyboardSettingsSchema.safeParse(value);
+  if (versionTwo.success) return migrateLegacyKeyboardSettings(versionTwo.data);
+
   const versionOne = VersionOneKeyboardSettingsSchema.safeParse(value);
   if (!versionOne.success) {
     return KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS);
   }
 
-  return KeyboardSettingsSchema.parse({
-    ...versionOne.data,
-    version: 2,
+  return migrateLegacyKeyboardSettings(versionOne.data, {
     openTerminals: shortcutChordEquals(
       versionOne.data.openTerminals,
       FORMER_DEFAULT_OPEN_TERMINALS
     )
       ? DEFAULT_OPEN_TERMINALS
       : versionOne.data.openTerminals
+  });
+}
+
+function migrateLegacyKeyboardSettings(
+  legacy:
+    | z.infer<typeof VersionOneKeyboardSettingsSchema>
+    | z.infer<typeof VersionTwoKeyboardSettingsSchema>,
+  overrides: Partial<Pick<KeyboardSettings, 'openTerminals'>> = {}
+): KeyboardSettings {
+  const primaryCustomized = !shortcutChordEquals(
+    legacy.openSettings,
+    FORMER_DEFAULT_OPEN_SETTINGS
+  );
+  const aliasCustomized = !shortcutChordEquals(
+    legacy.openSettingsAlias,
+    FORMER_DEFAULT_OPEN_SETTINGS_ALIAS
+  );
+  const candidate = primaryCustomized
+    ? legacy.openSettings
+    : aliasCustomized
+      ? legacy.openSettingsAlias
+      : DEFAULT_OPEN_SETTINGS;
+  const openSettings = shortcutChordEquals(candidate, DEFAULT_OPEN_REMOTE)
+    ? DEFAULT_OPEN_SETTINGS
+    : candidate;
+
+  return KeyboardSettingsSchema.parse({
+    version: 3,
+    terminalSwitcher: legacy.terminalSwitcher,
+    openTerminals: overrides.openTerminals ?? legacy.openTerminals,
+    toggleSidebar: legacy.toggleSidebar,
+    openHome: legacy.openHome,
+    openWorkspaces: legacy.openWorkspaces,
+    openSessions: legacy.openSessions,
+    openProfiles: legacy.openProfiles,
+    openRemote: DEFAULT_OPEN_REMOTE,
+    openSettings
   });
 }
 

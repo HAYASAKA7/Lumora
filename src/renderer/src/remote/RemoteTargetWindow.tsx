@@ -64,7 +64,10 @@ import {
 import { NewSessionDialog } from '../terminal/NewSessionDialog';
 import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
-import { keyboardEventMatchesChord } from '../keyboard/shortcut';
+import {
+  formatShortcutChord,
+  keyboardEventMatchesChord
+} from '../keyboard/shortcut';
 import { ProviderSettings } from '../providers/ProviderSettings';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
@@ -144,6 +147,13 @@ const REMOTE_ROUTES = [
     description: 'Configure target-scoped providers and inspect this connection.'
   }
 ] as const;
+
+const REMOTE_PRIMARY_ROUTES = REMOTE_ROUTES.filter(
+  (route) => route.id !== 'settings'
+);
+const REMOTE_SETTINGS_ROUTE = REMOTE_ROUTES.find(
+  (route) => route.id === 'settings'
+)!;
 
 const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
   ready: 'Detected',
@@ -740,8 +750,7 @@ export function RemoteTargetWindow({
         [keyboardSettings.openWorkspaces, 'workspaces'],
         [keyboardSettings.openSessions, 'sessions'],
         [keyboardSettings.openProfiles, 'settings', 'launch'],
-        [keyboardSettings.openSettings, 'settings', 'providers'],
-        [keyboardSettings.openSettingsAlias, 'settings', 'providers']
+        [keyboardSettings.openSettings, 'settings', 'providers']
       ];
       const destination = routeShortcuts.find(([shortcut]) =>
         keyboardEventMatchesChord(event, shortcut)
@@ -1639,7 +1648,21 @@ export function RemoteTargetWindow({
         primaryNavigation={{
           ariaLabel: 'Primary navigation',
           label: 'Remote',
-          routes: REMOTE_ROUTES
+          routes: REMOTE_PRIMARY_ROUTES
+        }}
+        secondaryNavigation={{
+          label: 'Application',
+          routes: [
+            {
+              ...REMOTE_SETTINGS_ROUTE,
+              shortcut: formatShortcutChord(
+                keyboardSettings.openSettings,
+                summary.target.platform === 'unknown'
+                  ? 'linux'
+                  : summary.target.platform
+              )
+            }
+          ]
         }}
         sidebarExpanded={sidebarExpanded}
         statusBar={

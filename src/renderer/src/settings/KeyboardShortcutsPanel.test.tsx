@@ -72,8 +72,14 @@ describe('KeyboardShortcutsPanel', () => {
       name: 'Record go to Home shortcut'
     })).toHaveTextContent('Ctrl + 1');
     expect(screen.getByRole('button', {
-      name: 'Record go to Settings alternate shortcut'
+      name: 'Record go to Remote computers shortcut'
+    })).toHaveTextContent('Ctrl + 5');
+    expect(screen.getByRole('button', {
+      name: 'Record go to Settings shortcut'
     })).toHaveTextContent('Ctrl + ,');
+    expect(screen.queryByRole('button', {
+      name: 'Record go to Settings alternate shortcut'
+    })).not.toBeInTheDocument();
   });
 
   it('rejects a shortcut already assigned to another action', async () => {

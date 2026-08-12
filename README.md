@@ -340,7 +340,7 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | `Ctrl+2` | Open Workspaces |
 | `Ctrl+3` | Open All sessions |
 | `Ctrl+4` | Open Terminal profiles |
-| `Ctrl+5` | Open Settings |
+| `Ctrl+5` | Open Remote computers |
 | `Ctrl+,` | Open Settings |
 
 <details>
