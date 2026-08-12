@@ -448,6 +448,45 @@ describe('App', () => {
     expect(document.querySelector('.release-badge')).not.toBeInTheDocument();
   });
 
+  it('shows the live local agent count instead of the obsolete local-only label', async () => {
+    render(<App />);
+
+    expect(await screen.findByText('0 active agents')).toBeInTheDocument();
+    expect(screen.queryByText('Local only')).not.toBeInTheDocument();
+  });
+
+  it('uses singular and plural labels for active local agents', async () => {
+    const first = runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789b01');
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime: first,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    const { unmount } = render(<App />);
+
+    expect(await screen.findByText('1 active agent')).toBeInTheDocument();
+    unmount();
+
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789b02',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    expect(await screen.findByText('2 active agents')).toBeInTheDocument();
+  });
+
   it('restores and persists the sidebar expansion state', async () => {
     window.localStorage.setItem(
       SIDEBAR_EXPANSION_STORAGE_KEY,

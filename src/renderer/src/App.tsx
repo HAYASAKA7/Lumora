@@ -252,7 +252,13 @@ function DestinationPlaceholder({ route }: { route: RouteDefinition }): ReactNod
   );
 }
 
-function SystemStatusBar({ status }: { status: SystemStatus }): ReactNode {
+function SystemStatusBar({
+  activeAgentCount,
+  status
+}: {
+  activeAgentCount: number;
+  status: SystemStatus;
+}): ReactNode {
   let systemContent: ReactNode;
 
   if (status.state === 'loading') {
@@ -285,7 +291,9 @@ function SystemStatusBar({ status }: { status: SystemStatus }): ReactNode {
     <footer className="status-bar" role="status" aria-live="polite">
       <div className="status-cluster">{systemContent}</div>
       <div className="status-cluster status-cluster-secondary">
-        <span className="status-item">Local only</span>
+        <span className="status-item">
+          {activeAgentCount} active {activeAgentCount === 1 ? 'agent' : 'agents'}
+        </span>
         <span className="status-divider" aria-hidden="true" />
         <span className="status-item">Sandboxed renderer</span>
       </div>
@@ -1762,7 +1770,12 @@ function AppContent(): ReactNode {
           ) : null}
           </>
         }
-        statusBar={<SystemStatusBar status={systemStatus} />}
+        statusBar={(
+          <SystemStatusBar
+            activeAgentCount={liveRuntimes.length}
+            status={systemStatus}
+          />
+        )}
         floatingContent={
           <>
           {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
