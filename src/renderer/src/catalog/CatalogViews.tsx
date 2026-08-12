@@ -22,6 +22,7 @@ import {
 import { formatLifetimeTokens } from './session-usage';
 import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
+import { ActionMenu } from '../ui/ActionMenu';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -36,15 +37,20 @@ interface WorkspacesViewProps {
   isRefreshing: boolean;
   onRefresh(): void;
   onAddWorkspace?: (() => void) | undefined;
+  hiddenWorkspaceCount?: number | undefined;
+  onHideWorkspace?: ((workspace: WorkspaceSummary) => void) | undefined;
+  onManageHiddenWorkspaces?: (() => void) | undefined;
   onOpenWorkspace(workspaceId: string): void;
   scopeLabel?: string | undefined;
 }
 
 const WorkspaceCard = memo(function WorkspaceCard({
   workspace,
+  onHideWorkspace,
   onOpenWorkspace
 }: {
   workspace: WorkspaceSummary;
+  onHideWorkspace?: ((workspace: WorkspaceSummary) => void) | undefined;
   onOpenWorkspace(workspaceId: string): void;
 }): ReactNode {
   return (
@@ -56,9 +62,23 @@ const WorkspaceCard = memo(function WorkspaceCard({
             <span className="availability-badge">Unavailable</span>
           ) : null}
         </div>
-        <span className={`origin-badge origin-${workspace.origin}`}>
-          {workspace.origin === 'manual' ? 'Manual' : 'Discovered'}
-        </span>
+        <div className="workspace-card-heading-actions">
+          <span className={`origin-badge origin-${workspace.origin}`}>
+            {workspace.origin === 'manual' ? 'Manual' : 'Discovered'}
+          </span>
+          {onHideWorkspace === undefined ? null : (
+            <ActionMenu
+              className="workspace-card-menu-button"
+              items={[{ id: 'hide', label: 'Hide workspace' }]}
+              label={`More actions for ${workspace.displayName}`}
+              onSelect={() => onHideWorkspace(workspace)}
+            >
+              <Tooltip content="Workspace actions">
+                  <span aria-hidden="true">•••</span>
+              </Tooltip>
+            </ActionMenu>
+          )}
+        </div>
       </header>
       <p className="workspace-path">{workspace.canonicalPath}</p>
       <div className="workspace-metadata">
@@ -100,6 +120,9 @@ export function WorkspacesView({
   isRefreshing,
   onRefresh,
   onAddWorkspace,
+  hiddenWorkspaceCount = 0,
+  onHideWorkspace,
+  onManageHiddenWorkspaces,
   onOpenWorkspace,
   scopeLabel = 'Canonical local folders'
 }: WorkspacesViewProps): ReactNode {
@@ -162,6 +185,17 @@ export function WorkspacesView({
           />
         </label>
         <div className="catalog-actions">
+          {onManageHiddenWorkspaces === undefined ? null : (
+            <button
+              className="secondary-button"
+              data-lumora-command
+              onClick={onManageHiddenWorkspaces}
+              tabIndex={-1}
+              type="button"
+            >
+              Hidden workspaces ({hiddenWorkspaceCount})
+            </button>
+          )}
           <button
             className="secondary-button"
             disabled={isRefreshing}
@@ -215,6 +249,7 @@ export function WorkspacesView({
               .map((workspace) => (
                 <WorkspaceCard
                   key={workspace.id}
+                  onHideWorkspace={onHideWorkspace}
                   onOpenWorkspace={onOpenWorkspace}
                   workspace={workspace}
                 />
@@ -239,6 +274,7 @@ interface SessionsViewProps {
   provider: ProviderId | null;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
+  workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   showInformationalNotices: boolean;
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
@@ -345,6 +381,7 @@ export function SessionsView({
   provider,
   providerScan,
   profiles,
+  workspaceById,
   showInformationalNotices,
   onSearchChange,
   onProviderChange,
@@ -390,7 +427,7 @@ export function SessionsView({
   }
 
   const { snapshot } = status;
-  const workspaces = new Map(
+  const workspaces = workspaceById ?? new Map(
     snapshot.workspaces.map((workspace) => [workspace.id, workspace])
   );
   const hasFilters = queryText.trim().length > 0 || provider !== null;
@@ -538,6 +575,7 @@ export function CatalogHomeSummary({
   providerScan,
   profiles,
   runtimes = [],
+  workspaceById,
   onRecover,
   onResume
 }: {
@@ -546,6 +584,7 @@ export function CatalogHomeSummary({
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   runtimes?: readonly RuntimeSummary[];
+  workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   onRecover?(runtime: RuntimeSummary): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
@@ -568,7 +607,7 @@ export function CatalogHomeSummary({
 
   const { snapshot } = status;
   const recentSessions = snapshot.sessions.slice(0, 3);
-  const workspaces = new Map(
+  const workspaces = workspaceById ?? new Map(
     snapshot.workspaces.map((workspace) => [workspace.id, workspace])
   );
   const liveRuntimes = runtimes.filter(

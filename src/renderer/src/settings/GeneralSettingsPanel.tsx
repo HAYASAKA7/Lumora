@@ -13,6 +13,8 @@ type BooleanGeneralSettingKey =
   | 'checkProviderUpdatesAutomatically'
   | 'autoExpandSidebar'
   | 'showInformationalNotices'
+  | 'showUnavailableWorkspaces'
+  | 'showUnusableSessions'
   | 'crossAgentWorkflowEnabled';
 
 interface BooleanGeneralSettingDefinition {
@@ -45,6 +47,18 @@ const GENERAL_SETTING_DEFINITIONS = {
     label: 'Show informational notices',
     description:
       'Display non-critical diagnostics and helpful guidance throughout Lumora.'
+  },
+  showUnavailableWorkspaces: {
+    key: 'showUnavailableWorkspaces',
+    label: 'Show unavailable workspaces',
+    description:
+      'Keep workspaces visible when their folders are not currently available.'
+  },
+  showUnusableSessions: {
+    key: 'showUnusableSessions',
+    label: 'Show unusable sessions',
+    description:
+      'Keep sessions visible when Lumora cannot currently resume them.'
   },
   crossAgentWorkflowEnabled: {
     key: 'crossAgentWorkflowEnabled',
@@ -153,6 +167,20 @@ export function GeneralSettingsPanel({
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.autoExpandSidebar)}
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showInformationalNotices)}
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="general-catalog-visibility-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-catalog-visibility-title">
+          Catalog visibility
+        </h3>
+        <div className="general-setting-group-rows">
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showUnavailableWorkspaces)}
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showUnusableSessions)}
         </div>
       </section>
 

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode
@@ -27,7 +28,9 @@ import type {
   RuntimeSummary,
   SessionSummary,
   TerminalProfile,
-  WorkspaceSummary
+  WorkspaceSummary,
+  WorkspaceVisibilityMode,
+  WorkspaceVisibilityPolicy
 } from '../../../shared/contracts';
 import {
   DEFAULT_GENERAL_SETTINGS,
@@ -41,6 +44,9 @@ import {
   type CatalogViewStatus
 } from '../catalog/CatalogViews';
 import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
+import { HiddenWorkspacesDialog } from '../catalog/HiddenWorkspacesDialog';
+import { HideWorkspaceDialog } from '../catalog/HideWorkspaceDialog';
+import { projectCatalogVisibility } from '../catalog/catalog-visibility';
 import { terminalThemeFor } from '../appearance/theme';
 import { LaunchSettingsPanel } from '../settings/LaunchSettingsPanel';
 import {
@@ -61,6 +67,7 @@ import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
 import { keyboardEventMatchesChord } from '../keyboard/shortcut';
 import { ProviderSettings } from '../providers/ProviderSettings';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -70,6 +77,7 @@ interface RemoteTargetWindowProps {
 
 type RemotePage = 'home' | 'workspaces' | 'sessions' | 'settings';
 type RemoteSettingsCategory =
+  | 'general'
   | 'providers'
   | 'environment'
   | 'launch'
@@ -243,6 +251,14 @@ export function RemoteTargetWindow({
   const [sessionCatalog, setSessionCatalog] = useState<SessionCatalogStatus>({
     state: 'idle'
   });
+  const [workspaceVisibilityPolicies, setWorkspaceVisibilityPolicies] =
+    useState<readonly WorkspaceVisibilityPolicy[] | null | undefined>(undefined);
+  const [workspaceVisibilityBusy, setWorkspaceVisibilityBusy] = useState(false);
+  const [workspaceVisibilityError, setWorkspaceVisibilityError] =
+    useState<string | null>(null);
+  const [hideWorkspaceIntent, setHideWorkspaceIntent] =
+    useState<WorkspaceSummary | null>(null);
+  const [hiddenWorkspacesOpen, setHiddenWorkspacesOpen] = useState(false);
   const [secret, setSecret] = useState('');
   const [credentialStatus, setCredentialStatus] =
     useState<RemoteCredentialStatus | null>(null);
@@ -260,6 +276,9 @@ export function RemoteTargetWindow({
     ...DEFAULT_GENERAL_SETTINGS,
     crossAgentWorkflowEnabled: false
   });
+  const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
+  const [generalSettingsSaveError, setGeneralSettingsSaveError] =
+    useState<string | null>(null);
   const [keyboardSettings, setKeyboardSettings] = useState<KeyboardSettings>(
     DEFAULT_KEYBOARD_SETTINGS
   );
@@ -546,6 +565,26 @@ export function RemoteTargetWindow({
 
   useEffect(() => {
     if (summary?.target.connectionState !== 'ready') return;
+    let active = true;
+    if (typeof api.getWorkspaceVisibilityPolicies !== 'function') {
+      setWorkspaceVisibilityPolicies([]);
+      return;
+    }
+    void api.getWorkspaceVisibilityPolicies().then(
+      (policies) => {
+        if (active) setWorkspaceVisibilityPolicies(policies);
+      },
+      () => {
+        if (active) setWorkspaceVisibilityPolicies(null);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [api, summary?.target.connectionState]);
+
+  useEffect(() => {
+    if (summary?.target.connectionState !== 'ready') return;
     if (
       typeof api.getTerminalProfiles !== 'function' ||
       typeof api.listRuntimes !== 'function' ||
@@ -565,7 +604,12 @@ export function RemoteTargetWindow({
         if (!active) return;
         setTerminalProfiles(profiles);
         setGeneralSettings({
+          ...DEFAULT_GENERAL_SETTINGS,
           ...settings,
+          appearance: {
+            ...DEFAULT_GENERAL_SETTINGS.appearance,
+            ...settings.appearance
+          },
           crossAgentWorkflowEnabled: false
         });
         setKeyboardSettings(shortcuts);
@@ -717,6 +761,64 @@ export function RemoteTargetWindow({
       return next;
     });
   }, []);
+
+  const providerScan = discovery.state === 'ready'
+    ? discovery.snapshot.providers
+    : null;
+  const baseCatalogStatus: CatalogViewStatus = sessionCatalog.state === 'ready'
+    ? { state: 'ready', snapshot: sessionCatalog.catalog.snapshot }
+    : sessionCatalog.state === 'error' || sessionCatalog.state === 'unsupported'
+      ? { state: 'error' }
+      : { state: 'loading' };
+  const visibilityCatalogStatus: CatalogViewStatus =
+    baseCatalogStatus.state === 'ready' && workspaceVisibilityPolicies === undefined
+      ? { state: 'loading' }
+      : baseCatalogStatus;
+  const catalogPresentation = useMemo(() =>
+    baseCatalogStatus.state === 'ready' && workspaceVisibilityPolicies !== undefined
+      ? projectCatalogVisibility({
+          snapshot: baseCatalogStatus.snapshot,
+          policies: workspaceVisibilityPolicies,
+          settings: generalSettings,
+          providerScan,
+          profiles: terminalProfiles,
+          query: { text: sessionSearch, provider: sessionProvider }
+        })
+      : null,
+  [
+    baseCatalogStatus,
+    generalSettings,
+    providerScan,
+    sessionProvider,
+    sessionSearch,
+    terminalProfiles,
+    workspaceVisibilityPolicies
+  ]);
+  const workspaceCatalogPresentation = useMemo(() =>
+    baseCatalogStatus.state === 'ready' && workspaceVisibilityPolicies !== undefined
+      ? projectCatalogVisibility({
+          snapshot: baseCatalogStatus.snapshot,
+          policies: workspaceVisibilityPolicies,
+          settings: generalSettings,
+          providerScan,
+          profiles: terminalProfiles,
+          query: { text: '', provider: null }
+        })
+      : null,
+  [
+    baseCatalogStatus,
+    generalSettings,
+    providerScan,
+    terminalProfiles,
+    workspaceVisibilityPolicies
+  ]);
+  const visibleCatalogStatus: CatalogViewStatus = catalogPresentation === null
+    ? visibilityCatalogStatus
+    : { state: 'ready', snapshot: catalogPresentation.snapshot };
+  const visibleWorkspaceCatalogStatus: CatalogViewStatus =
+    workspaceCatalogPresentation === null
+      ? visibilityCatalogStatus
+      : { state: 'ready', snapshot: workspaceCatalogPresentation.snapshot };
 
   if (summary === null) {
     return (
@@ -1143,8 +1245,95 @@ export function RemoteTargetWindow({
     />
   );
 
+  const updateGeneralSettings = async (next: GeneralSettings) => {
+    if (generalSettingsSaving || typeof api.saveGeneralSettings !== 'function') return;
+    const previous = generalSettings;
+    setGeneralSettings(next);
+    setGeneralSettingsSaving(true);
+    setGeneralSettingsSaveError(null);
+    try {
+      const saved = await api.saveGeneralSettings({
+        ...next,
+        crossAgentWorkflowEnabled: false
+      });
+      setGeneralSettings({ ...saved, crossAgentWorkflowEnabled: false });
+    } catch {
+      setGeneralSettings(previous);
+      setGeneralSettingsSaveError('Lumora could not save this remote setting.');
+    } finally {
+      setGeneralSettingsSaving(false);
+    }
+  };
+
+  const hideWorkspace = async (mode: WorkspaceVisibilityMode) => {
+    if (
+      hideWorkspaceIntent === null ||
+      workspaceVisibilityBusy ||
+      typeof api.setWorkspaceVisibilityPolicy !== 'function'
+    ) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      const policies = await api.setWorkspaceVisibilityPolicy({
+        workspaceId: hideWorkspaceIntent.id,
+        mode
+      });
+      setWorkspaceVisibilityPolicies(policies);
+      if (selectedWorkspaceId === hideWorkspaceIntent.id) {
+        setSelectedWorkspaceId(null);
+      }
+      setHideWorkspaceIntent(null);
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not hide this remote workspace. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  };
+
+  const restoreWorkspaceVisibility = async (workspaceIds: readonly string[]) => {
+    if (
+      workspaceIds.length === 0 ||
+      workspaceVisibilityBusy ||
+      typeof api.restoreWorkspaceVisibility !== 'function'
+    ) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      setWorkspaceVisibilityPolicies(await api.restoreWorkspaceVisibility({
+        workspaceIds: [...workspaceIds]
+      }));
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not restore the selected remote workspaces. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  };
+
+  const restoreAllWorkspaceVisibility = async () => {
+    if (
+      workspaceVisibilityBusy ||
+      typeof api.restoreAllWorkspaceVisibility !== 'function'
+    ) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      setWorkspaceVisibilityPolicies(await api.restoreAllWorkspaceVisibility());
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not restore hidden remote workspaces. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  };
+
   const renderRemoteSettings = () => {
     const categories = [
+      { id: 'general' as const, label: 'General' },
       { id: 'providers' as const, label: 'Providers' },
       { id: 'environment' as const, label: 'Environment' },
       { id: 'launch' as const, label: 'Launch' },
@@ -1179,7 +1368,16 @@ export function RemoteTargetWindow({
           id={`remote-settings-panel-${settingsCategory}`}
           role="tabpanel"
         >
-          {settingsCategory === 'providers'
+          {settingsCategory === 'general'
+            ? (
+              <GeneralSettingsPanel
+                onChange={(next) => void updateGeneralSettings(next)}
+                saveError={generalSettingsSaveError}
+                saving={generalSettingsSaving}
+                settings={generalSettings}
+              />
+            )
+            : settingsCategory === 'providers'
             ? renderProviders()
             : settingsCategory === 'environment'
               ? renderEnvironment()
@@ -1211,38 +1409,6 @@ export function RemoteTargetWindow({
 
   if (connected || shellOpened) {
     const activeRoute = REMOTE_ROUTES.find((route) => route.id === page)!;
-    const providerScan = discovery.state === 'ready'
-      ? discovery.snapshot.providers
-      : null;
-    const baseCatalogStatus: CatalogViewStatus = sessionCatalog.state === 'ready'
-      ? { state: 'ready', snapshot: sessionCatalog.catalog.snapshot }
-      : sessionCatalog.state === 'error' || sessionCatalog.state === 'unsupported'
-        ? { state: 'error' }
-        : { state: 'loading' };
-    const filteredCatalogStatus: CatalogViewStatus =
-      baseCatalogStatus.state !== 'ready'
-        ? baseCatalogStatus
-        : {
-            state: 'ready',
-            snapshot: {
-              ...baseCatalogStatus.snapshot,
-              sessions: baseCatalogStatus.snapshot.sessions.filter((session) => {
-                if (sessionProvider !== null && session.provider !== sessionProvider) {
-                  return false;
-                }
-                const query = sessionSearch.trim().toLocaleLowerCase();
-                if (query.length === 0) return true;
-                const workspace = baseCatalogStatus.snapshot.workspaces.find(
-                  (candidate) => candidate.id === session.workspaceId
-                );
-                return [
-                  session.title,
-                  workspace?.displayName ?? '',
-                  workspace?.canonicalPath ?? ''
-                ].some((value) => value.toLocaleLowerCase().includes(query));
-              })
-            }
-          };
     const catalogSnapshot = baseCatalogStatus.state === 'ready'
       ? baseCatalogStatus.snapshot
       : null;
@@ -1272,16 +1438,26 @@ export function RemoteTargetWindow({
             : `${providerScan.providers.filter((provider) => provider.state === 'ready').length} of ${providerScan.providers.length} providers ready`
         }
         runtimes={runtimes}
-        status={baseCatalogStatus}
+        status={visibleWorkspaceCatalogStatus}
+        workspaceById={workspaceCatalogPresentation?.workspaceById}
       />
     ) : page === 'workspaces' ? (
       selectedWorkspaceId === null ? (
         <WorkspacesView
+          hiddenWorkspaceCount={workspaceCatalogPresentation?.hiddenWorkspaces.length ?? 0}
           isRefreshing={sessionCatalog.state === 'loading'}
+          onHideWorkspace={(workspace) => {
+            setWorkspaceVisibilityError(null);
+            setHideWorkspaceIntent(workspace);
+          }}
+          onManageHiddenWorkspaces={() => {
+            setWorkspaceVisibilityError(null);
+            setHiddenWorkspacesOpen(true);
+          }}
           onOpenWorkspace={setSelectedWorkspaceId}
           onRefresh={() => void refreshSessions()}
           scopeLabel="Remote provider folders"
-          status={baseCatalogStatus}
+          status={visibleWorkspaceCatalogStatus}
         />
       ) : (
         <WorkspaceSessionsView
@@ -1293,7 +1469,7 @@ export function RemoteTargetWindow({
           operationError={null}
           profiles={terminalProfiles}
           providerScan={providerScan}
-          status={baseCatalogStatus}
+          status={visibleWorkspaceCatalogStatus}
           workspaceId={selectedWorkspaceId}
         />
       )
@@ -1315,7 +1491,8 @@ export function RemoteTargetWindow({
         providerScan={providerScan}
         queryText={sessionSearch}
         showInformationalNotices
-        status={filteredCatalogStatus}
+        status={visibleCatalogStatus}
+        workspaceById={catalogPresentation?.workspaceById}
       />
     ) : renderRemoteSettings();
 
@@ -1427,7 +1604,7 @@ export function RemoteTargetWindow({
                     type="button"
                   >Open terminals</button>
                 ) : null}
-                {!terminalActive && catalogSnapshot?.workspaces.some(
+                {!terminalActive && workspaceCatalogPresentation?.snapshot.workspaces.some(
                   (workspace) => workspace.available
                 ) ? (
                   <button
@@ -1474,7 +1651,34 @@ export function RemoteTargetWindow({
                 onConfirm={() => void resolveWindowClose('disconnect')}
               />
             ) : null}
-            {newSessionIntent !== null && catalogSnapshot !== null ? (
+            {hideWorkspaceIntent === null ? null : (
+              <HideWorkspaceDialog
+                busy={workspaceVisibilityBusy}
+                error={workspaceVisibilityError}
+                onClose={() => {
+                  if (workspaceVisibilityBusy) return;
+                  setWorkspaceVisibilityError(null);
+                  setHideWorkspaceIntent(null);
+                }}
+                onHide={(mode) => void hideWorkspace(mode)}
+                workspace={hideWorkspaceIntent}
+              />
+            )}
+            {!hiddenWorkspacesOpen || workspaceCatalogPresentation === null ? null : (
+              <HiddenWorkspacesDialog
+                busy={workspaceVisibilityBusy}
+                entries={workspaceCatalogPresentation.hiddenWorkspaces}
+                error={workspaceVisibilityError}
+                onClose={() => {
+                  if (workspaceVisibilityBusy) return;
+                  setWorkspaceVisibilityError(null);
+                  setHiddenWorkspacesOpen(false);
+                }}
+                onRestore={(workspaceIds) => void restoreWorkspaceVisibility(workspaceIds)}
+                onRestoreAll={() => void restoreAllWorkspaceVisibility()}
+              />
+            )}
+            {newSessionIntent !== null && workspaceCatalogPresentation !== null ? (
               <NewSessionDialog
                 api={api}
                 initialWorkspaceId={newSessionIntent.initialWorkspaceId}
@@ -1482,7 +1686,7 @@ export function RemoteTargetWindow({
                 onStarted={handleRuntimeStarted}
                 profiles={terminalProfiles}
                 providerScan={providerScan}
-                workspaces={catalogSnapshot.workspaces}
+                workspaces={workspaceCatalogPresentation.snapshot.workspaces}
               />
             ) : null}
             {resumeIntent !== null ? (

@@ -271,6 +271,79 @@ describe('RemoteTargetWindow', () => {
     expect(screen.queryByRole('tab', { name: 'Overview' })).not.toBeInTheDocument();
   });
 
+  it('keeps hidden workspace policies isolated in the remote window', async () => {
+    const workspaceId = 'a'.repeat(64);
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const catalog = {
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-12T01:00:00.000Z',
+      sessions: [], providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-12T01:00:00.000Z',
+        workspaces: [{
+          id: workspaceId,
+          displayName: 'Remote project',
+          canonicalPath: '/srv/remote-project',
+          available: true,
+          origin: 'discovered' as const,
+          sessionCount: 0,
+          providerCounts: {},
+          lastActivityAt: null
+        }],
+        sessions: [], providerStatus: [], providerFacets: [], diagnostics: []
+      }
+    };
+    const policy = {
+      workspaceId,
+      mode: 'workspace_only' as const,
+      updatedAt: '2026-08-12T01:01:00.000Z'
+    };
+    const setWorkspaceVisibilityPolicy = vi.fn().mockResolvedValue([policy]);
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteLifecycleSnapshots: vi.fn().mockResolvedValue([{
+        summary: readySummary,
+        generation: 1,
+        discovery,
+        catalog,
+        discoveryState: 'ready',
+        catalogState: 'ready',
+        activeTerminalCount: 0
+      }]),
+      onRemoteLifecycleEvent: vi.fn(() => () => undefined),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      getWorkspaceVisibilityPolicies: vi.fn().mockResolvedValue([]),
+      setWorkspaceVisibilityPolicy
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Workspaces' }));
+    expect(await screen.findByRole('heading', { name: 'Remote project' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Remote project' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide workspace' }));
+    fireEvent.click(within(screen.getByRole('dialog', {
+      name: 'Hide Remote project'
+    })).getByRole('button', { name: 'Hide workspace' }));
+
+    await waitFor(() => expect(setWorkspaceVisibilityPolicy).toHaveBeenCalledWith({
+      workspaceId,
+      mode: 'workspace_only'
+    }));
+    expect(screen.queryByRole('heading', { name: 'Remote project' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Hidden workspaces (1)' })).toBeVisible();
+  });
+
   it('keeps the current shell and cached page visible after disconnection', async () => {
     const readySummary = {
       ...summary,

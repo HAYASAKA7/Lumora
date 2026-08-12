@@ -338,6 +338,49 @@ describe('WorkspacesView', () => {
     expect(screen.queryByText('View sessions')).not.toBeInTheDocument();
   });
 
+  it('opens a workspace action menu without navigating and requests hiding', () => {
+    const onHideWorkspace = vi.fn();
+    const onOpenWorkspace = vi.fn();
+    render(
+      <WorkspacesView
+        isRefreshing={false}
+        onHideWorkspace={onHideWorkspace}
+        onOpenWorkspace={onOpenWorkspace}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'More actions for Lumora' })
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide workspace' }));
+
+    expect(onHideWorkspace).toHaveBeenCalledWith(
+      catalogSnapshot.workspaces[0]
+    );
+    expect(onOpenWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('opens the hidden-workspace manager from the toolbar', () => {
+    const onManageHiddenWorkspaces = vi.fn();
+    render(
+      <WorkspacesView
+        hiddenWorkspaceCount={2}
+        isRefreshing={false}
+        onManageHiddenWorkspaces={onManageHiddenWorkspaces}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Hidden workspaces (2)' })
+    );
+    expect(onManageHiddenWorkspaces).toHaveBeenCalledOnce();
+  });
+
   it('keeps unavailable workspace cards natively navigable', () => {
     const onOpenWorkspace = vi.fn();
     render(

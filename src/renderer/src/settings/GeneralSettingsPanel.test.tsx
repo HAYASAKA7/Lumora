@@ -21,6 +21,8 @@ describe('GeneralSettingsPanel', () => {
       'Check provider updates automatically',
       'Auto-expand sidebar when navigating',
       'Show informational notices',
+      'Show unavailable workspaces',
+      'Show unusable sessions',
       'Enable cross-agent session handoff',
       'Keep Lumora running after closing the window',
       'Disconnect when a remote window closes'
@@ -46,6 +48,14 @@ describe('GeneralSettingsPanel', () => {
       name: 'Show informational notices'
     })).toBeVisible();
 
+    const catalogGroup = screen.getByRole('group', { name: 'Catalog visibility' });
+    expect(within(catalogGroup).getByRole('switch', {
+      name: 'Show unavailable workspaces'
+    })).toBeVisible();
+    expect(within(catalogGroup).getByRole('switch', {
+      name: 'Show unusable sessions'
+    })).toBeVisible();
+
     expect(within(screen.getByRole('group', { name: 'Provider maintenance' })).getByRole(
       'switch',
       { name: 'Check provider updates automatically' }
@@ -63,7 +73,7 @@ describe('GeneralSettingsPanel', () => {
       name: 'Temporary handoff retention'
     })).toBeDisabled();
 
-    for (const name of switches.slice(0, 4)) {
+    for (const name of switches.slice(0, 6)) {
       expect(screen.getByRole('switch', { name })).toBeChecked();
     }
     expect(screen.getByRole('switch', {
@@ -92,6 +102,14 @@ describe('GeneralSettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       checkProviderUpdatesAutomatically: false
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Show unavailable workspaces'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showUnavailableWorkspaces: false
     });
 
     fireEvent.click(screen.getByRole('switch', {

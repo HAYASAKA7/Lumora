@@ -15,7 +15,6 @@ import {
   DEFAULT_KEYBOARD_SETTINGS
 } from '../../shared/contracts';
 import type {
-  CatalogQuery,
   CatalogSnapshot,
   DeveloperEnvironmentScanResult,
   LaunchPreview,
@@ -250,6 +249,10 @@ interface CatalogApiOverrides {
   getCatalog?: ReturnType<typeof vi.fn>;
   refreshCatalog?: ReturnType<typeof vi.fn>;
   chooseWorkspace?: ReturnType<typeof vi.fn>;
+  getWorkspaceVisibilityPolicies?: ReturnType<typeof vi.fn>;
+  setWorkspaceVisibilityPolicy?: ReturnType<typeof vi.fn>;
+  restoreWorkspaceVisibility?: ReturnType<typeof vi.fn>;
+  restoreAllWorkspaceVisibility?: ReturnType<typeof vi.fn>;
   getTerminalProfiles?: ReturnType<typeof vi.fn>;
   getGeneralSettings?: ReturnType<typeof vi.fn>;
   getAppearanceBackground?: ReturnType<typeof vi.fn>;
@@ -314,6 +317,14 @@ function setSystemInfoResult(
         catalogApi.refreshCatalog ?? vi.fn().mockResolvedValue(readyCatalog),
       chooseWorkspace:
         catalogApi.chooseWorkspace ?? vi.fn().mockResolvedValue(null),
+      getWorkspaceVisibilityPolicies:
+        catalogApi.getWorkspaceVisibilityPolicies ?? vi.fn().mockResolvedValue([]),
+      setWorkspaceVisibilityPolicy:
+        catalogApi.setWorkspaceVisibilityPolicy ?? vi.fn().mockResolvedValue([]),
+      restoreWorkspaceVisibility:
+        catalogApi.restoreWorkspaceVisibility ?? vi.fn().mockResolvedValue([]),
+      restoreAllWorkspaceVisibility:
+        catalogApi.restoreAllWorkspaceVisibility ?? vi.fn().mockResolvedValue([]),
       readClipboardText:
         catalogApi.readClipboardText ?? vi.fn().mockResolvedValue(''),
       writeClipboardText:
@@ -2796,6 +2807,33 @@ describe('App', () => {
     expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null });
   });
 
+  it('does not flash hidden workspaces while visibility policies load', async () => {
+    const policies = deferred<readonly [{
+      workspaceId: string;
+      mode: 'workspace_only';
+      updatedAt: string;
+    }]>();
+    setSystemInfoResult(undefined, undefined, {
+      getWorkspaceVisibilityPolicies: vi.fn(() => policies.promise)
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(await screen.findByText('Loading catalog')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Lumora' })).toBeNull();
+
+    await act(async () => policies.resolve([{
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      mode: 'workspace_only',
+      updatedAt: '2026-08-12T01:00:00.000Z'
+    }]));
+
+    expect(await screen.findByRole('button', {
+      name: 'Hidden workspaces (1)'
+    })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Lumora' })).toBeNull();
+  });
+
   it('uses the native workspace picker and preserves data when it is cancelled', async () => {
     const chooseWorkspace = vi.fn().mockResolvedValue(null);
     setSystemInfoResult(undefined, undefined, { chooseWorkspace });
@@ -2809,6 +2847,46 @@ describe('App', () => {
 
     await waitFor(() => expect(chooseWorkspace).toHaveBeenCalledOnce());
     expect(screen.getByRole('heading', { name: 'Lumora' })).toBeInTheDocument();
+  });
+
+  it('hides and restores a workspace without deleting provider data', async () => {
+    const policy = {
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      mode: 'workspace_only' as const,
+      updatedAt: '2026-08-12T01:00:00.000Z'
+    };
+    const setWorkspaceVisibilityPolicy = vi.fn().mockResolvedValue([policy]);
+    const restoreWorkspaceVisibility = vi.fn().mockResolvedValue([]);
+    setSystemInfoResult(undefined, undefined, {
+      setWorkspaceVisibilityPolicy,
+      restoreWorkspaceVisibility
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(await screen.findByRole('heading', { name: 'Lumora' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Lumora' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Hide workspace' }));
+    const hideDialog = screen.getByRole('dialog', { name: 'Hide Lumora' });
+    fireEvent.click(within(hideDialog).getByRole('button', { name: 'Hide workspace' }));
+
+    await waitFor(() => expect(setWorkspaceVisibilityPolicy).toHaveBeenCalledWith({
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      mode: 'workspace_only'
+    }));
+    await waitFor(() => expect(
+      screen.queryByRole('heading', { name: 'Lumora' })
+    ).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hidden workspaces (1)' }));
+    const restoreDialog = screen.getByRole('dialog', { name: 'Hidden workspaces' });
+    fireEvent.click(within(restoreDialog).getByRole('checkbox', { name: 'Lumora' }));
+    fireEvent.click(within(restoreDialog).getByRole('button', { name: 'Restore selected' }));
+
+    await waitFor(() => expect(restoreWorkspaceVisibility).toHaveBeenCalledWith({
+      workspaceIds: [readyCatalog.workspaces[0]!.id]
+    }));
+    expect(await screen.findByRole('heading', { name: 'Lumora' })).toBeInTheDocument();
   });
 
   it('loads complete workspace history and resumes from the workspace detail', async () => {
@@ -2832,10 +2910,7 @@ describe('App', () => {
       ]
     };
     let unfilteredReads = 0;
-    const getCatalog = vi.fn(async (query: { text: string }) => {
-      if (query.text === 'hidden') {
-        return { ...readyCatalog, sessions: [] };
-      }
+    const getCatalog = vi.fn(async () => {
       unfilteredReads += 1;
       return unfilteredReads === 1 ? readyCatalog : detailCatalog;
     });
@@ -2856,10 +2931,8 @@ describe('App', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'hidden' }
     });
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({ text: 'hidden', provider: null })
-    );
-    expect(screen.getByText('No sessions match these filters')).toBeInTheDocument();
+    expect(await screen.findByText('No sessions match these filters')).toBeInTheDocument();
+    expect(getCatalog).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
@@ -2954,19 +3027,25 @@ describe('App', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('debounces session search and applies provider filters immediately', async () => {
-    const getCatalog = vi
-      .fn()
-      .mockResolvedValueOnce(readyCatalog)
-      .mockImplementation(async (query: CatalogQuery) => ({
-        ...readyCatalog,
-        sessions: [],
-        providerFacets:
-          query.provider === 'claude'
-            ? [{ provider: 'codex' as const, sessionCount: 1 }]
-            : readyCatalog.providerFacets
-      }));
-    setSystemInfoResult(undefined, undefined, { getCatalog });
+  it('debounces session search and applies provider filters without catalog reads', async () => {
+    const catalogWithClaude: CatalogSnapshot = {
+      ...readyCatalog,
+      sessions: [
+        ...readyCatalog.sessions,
+        {
+          ...readyCatalog.sessions[0]!,
+          id: 'c'.repeat(64),
+          nativeId: 'claude-1',
+          provider: 'claude',
+          title: 'Other provider task'
+        }
+      ]
+    };
+    const getCatalog = vi.fn().mockResolvedValue(catalogWithClaude);
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog,
+      refreshCatalog: vi.fn().mockResolvedValue(catalogWithClaude)
+    });
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
@@ -2975,28 +3054,16 @@ describe('App', () => {
       target: { value: 'catalog' }
     });
 
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({ text: 'catalog', provider: null })
-    );
+    await waitFor(() => expect(screen.getByText('1 session')).toBeInTheDocument());
+    expect(getCatalog).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Provider' }));
     fireEvent.click(screen.getByRole('option', { name: /Claude Code/ }));
     await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({
-        text: 'catalog',
-        provider: 'claude'
-      })
-    );
-    await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Provider' })).toHaveTextContent(
-        'All providers'
+        'Claude Code'
       )
     );
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({
-        text: 'catalog',
-        provider: null
-      })
-    );
+    expect(getCatalog).toHaveBeenCalledTimes(1);
     expect(screen.getByText('No sessions match these filters')).toBeInTheDocument();
   });
 
@@ -3030,15 +3097,8 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('ignores a stale search response that resolves after a newer query', async () => {
-    const first = deferred<CatalogSnapshot>();
-    const second = deferred<CatalogSnapshot>();
-    const getCatalog = vi
-      .fn()
-      .mockResolvedValueOnce(readyCatalog)
-      .mockImplementation((query: { text: string }) =>
-        query.text === 'first' ? first.promise : second.promise
-      );
+  it('applies the latest client-side search without stale catalog responses', async () => {
+    const getCatalog = vi.fn().mockResolvedValue(readyCatalog);
     setSystemInfoResult(undefined, undefined, { getCatalog });
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
@@ -3046,31 +3106,13 @@ describe('App', () => {
 
     const search = screen.getByRole('searchbox', { name: 'Search sessions' });
     fireEvent.change(search, { target: { value: 'first' } });
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({ text: 'first', provider: null })
-    );
+    expect(await screen.findByText('No sessions match these filters')).toBeInTheDocument();
     fireEvent.change(search, { target: { value: 'second' } });
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({ text: 'second', provider: null })
-    );
-
-    const secondSnapshot: CatalogSnapshot = {
-      ...readyCatalog,
-      sessions: [{ ...readyCatalog.sessions[0]!, title: 'Second result' }]
-    };
-    await act(async () => second.resolve(secondSnapshot));
-    expect(await screen.findByText('Second result')).toBeInTheDocument();
-
-    const staleSnapshot: CatalogSnapshot = {
-      ...readyCatalog,
-      sessions: [{ ...readyCatalog.sessions[0]!, title: 'Stale first result' }]
-    };
-    await act(async () => first.resolve(staleSnapshot));
-    expect(screen.getByText('Second result')).toBeInTheDocument();
-    expect(screen.queryByText('Stale first result')).not.toBeInTheDocument();
+    expect(await screen.findByText('No sessions match these filters')).toBeInTheDocument();
+    expect(getCatalog).toHaveBeenCalledTimes(1);
   });
 
-  it('clears obsolete refresh activity when a newer search takes ownership', async () => {
+  it('keeps genuine refresh activity visible while client-side search changes', async () => {
     const getCatalog = vi
       .fn()
       .mockResolvedValueOnce(readyCatalog)
@@ -3089,16 +3131,11 @@ describe('App', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'new query' }
     });
-    await waitFor(() =>
-      expect(getCatalog).toHaveBeenCalledWith({
-        text: 'new query',
-        provider: null
-      })
-    );
-
+    expect(await screen.findByText('No sessions match these filters')).toBeInTheDocument();
+    expect(getCatalog).toHaveBeenCalledTimes(1);
     expect(
-      screen.getByRole('button', { name: 'Refresh catalog' })
-    ).toBeEnabled();
+      screen.getByRole('button', { name: 'Refreshing catalog' })
+    ).toBeDisabled();
   });
 
   it('holds startup through the real catalog refresh instead of showing cached zero counts', async () => {

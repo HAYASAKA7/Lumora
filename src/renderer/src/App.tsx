@@ -25,6 +25,8 @@ import type {
   RuntimeSummary,
   SessionSummary,
   SystemInfo,
+  WorkspaceVisibilityMode,
+  WorkspaceVisibilityPolicy,
   WorkspaceSummary
 } from '../../shared/contracts';
 import {
@@ -34,6 +36,9 @@ import {
   type CatalogViewStatus
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
+import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
+import { HideWorkspaceDialog } from './catalog/HideWorkspaceDialog';
+import { projectCatalogVisibility } from './catalog/catalog-visibility';
 import {
   buildAppearancePresentation
 } from './appearance/presentation';
@@ -127,6 +132,7 @@ type StartupTask =
   | 'providers'
   | 'environment'
   | 'catalog'
+  | 'workspaceVisibility'
   | 'profiles'
   | 'runtimes'
   | 'keyboard'
@@ -138,6 +144,7 @@ const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   providers: false,
   environment: false,
   catalog: false,
+  workspaceVisibility: false,
   profiles: false,
   runtimes: false,
   keyboard: false,
@@ -303,6 +310,14 @@ function AppContent(): ReactNode {
   const [catalogStatus, setCatalogStatus] = useState<CatalogViewStatus>({
     state: 'loading'
   });
+  const [workspaceVisibilityPolicies, setWorkspaceVisibilityPolicies] =
+    useState<readonly WorkspaceVisibilityPolicy[] | null | undefined>(undefined);
+  const [workspaceVisibilityBusy, setWorkspaceVisibilityBusy] = useState(false);
+  const [workspaceVisibilityError, setWorkspaceVisibilityError] =
+    useState<string | null>(null);
+  const [hideWorkspaceIntent, setHideWorkspaceIntent] =
+    useState<WorkspaceSummary | null>(null);
+  const [hiddenWorkspacesOpen, setHiddenWorkspacesOpen] = useState(false);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
     null
   );
@@ -366,9 +381,7 @@ function AppContent(): ReactNode {
   const environmentRequestId = useRef(0);
   const catalogRequestId = useRef(0);
   const workspaceDetailRequestId = useRef(0);
-  const catalogReadyForQueries = useRef(false);
   const mainContentRef = useRef<HTMLElement | null>(null);
-  const catalogQueryRef = useRef<CatalogQuery>(EMPTY_CATALOG_QUERY);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
 
@@ -427,10 +440,6 @@ function AppContent(): ReactNode {
       current[task] ? current : { ...current, [task]: true }
     );
   }, []);
-  catalogQueryRef.current = {
-    text: debouncedSessionSearch,
-    provider: sessionProvider
-  };
   selectedWorkspaceIdRef.current = selectedWorkspaceId;
 
   const activeRoute = useMemo(
@@ -576,6 +585,27 @@ function AppContent(): ReactNode {
 
   useEffect(() => {
     let isCurrent = true;
+    void window.lumora.getWorkspaceVisibilityPolicies().then(
+      (policies) => {
+        if (isCurrent) {
+          setWorkspaceVisibilityPolicies(policies);
+          settleStartupTask('workspaceVisibility');
+        }
+      },
+      () => {
+        if (isCurrent) {
+          setWorkspaceVisibilityPolicies(null);
+          settleStartupTask('workspaceVisibility');
+        }
+      }
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [settleStartupTask]);
+
+  useEffect(() => {
+    let isCurrent = true;
     void window.lumora.getAppearanceBackground().then(
       (state) => {
         if (isCurrent) {
@@ -653,19 +683,11 @@ function AppContent(): ReactNode {
   }, []);
 
   const backgroundRefreshCatalog = useCallback(async () => {
-    const fullSnapshot = await window.lumora.refreshCatalog(
-      EMPTY_CATALOG_QUERY
-    );
+    const fullSnapshot = await window.lumora.refreshCatalog(EMPTY_CATALOG_QUERY);
     const requestId = catalogRequestId.current + 1;
     catalogRequestId.current = requestId;
-    const query = catalogQueryRef.current;
-    const snapshot =
-      query.text.length === 0 && query.provider === null
-        ? fullSnapshot
-        : await window.lumora.getCatalog(query);
     if (catalogRequestId.current === requestId) {
-      catalogReadyForQueries.current = true;
-      setCatalogStatus({ state: 'ready', snapshot });
+      setCatalogStatus({ state: 'ready', snapshot: fullSnapshot });
       setCatalogOperationError(null);
     }
     if (selectedWorkspaceIdRef.current !== null) {
@@ -746,7 +768,6 @@ function AppContent(): ReactNode {
           return;
         }
         setCatalogStatus({ state: 'ready', snapshot });
-        catalogReadyForQueries.current = true;
 
         const refreshRequestId = catalogRequestId.current + 1;
         catalogRequestId.current = refreshRequestId;
@@ -773,7 +794,6 @@ function AppContent(): ReactNode {
       },
       () => {
         if (catalogRequestId.current === requestId) {
-          catalogReadyForQueries.current = true;
           setCatalogStatus({ state: 'error' });
           settleStartupTask('catalog');
         }
@@ -785,53 +805,12 @@ function AppContent(): ReactNode {
     };
   }, [settleStartupTask]);
 
-  useEffect(() => {
-    if (!catalogReadyForQueries.current) {
-      return;
-    }
-
-    const requestId = catalogRequestId.current + 1;
-    catalogRequestId.current = requestId;
-    setIsCatalogRefreshing(false);
-    const query: CatalogQuery = {
-      text: debouncedSessionSearch,
-      provider: sessionProvider
-    };
-    void window.lumora.getCatalog(query).then(
-      (snapshot) => {
-        if (catalogRequestId.current === requestId) {
-          setCatalogStatus({ state: 'ready', snapshot });
-          setCatalogOperationError(null);
-        }
-      },
-      () => {
-        if (catalogRequestId.current === requestId) {
-          setCatalogOperationError(
-            'Catalog search failed. Last saved data is still shown.'
-          );
-        }
-      }
-    );
-  }, [debouncedSessionSearch, sessionProvider]);
-
-  useEffect(() => {
-    if (
-      catalogStatus.state === 'ready' &&
-      sessionProvider !== null &&
-      !catalogStatus.snapshot.providerFacets.some(
-        ({ provider }) => provider === sessionProvider
-      )
-    ) {
-      setSessionProvider(null);
-    }
-  }, [catalogStatus, sessionProvider]);
-
-  const refreshCatalogWithQuery = useCallback((query: CatalogQuery) => {
+  const refreshCatalogWithQuery = useCallback((_query: CatalogQuery) => {
     const requestId = catalogRequestId.current + 1;
     catalogRequestId.current = requestId;
     setIsCatalogRefreshing(true);
     setCatalogOperationError(null);
-    return window.lumora.refreshCatalog(query).then(
+    return window.lumora.refreshCatalog(EMPTY_CATALOG_QUERY).then(
       (snapshot) => {
         if (catalogRequestId.current === requestId) {
           setCatalogStatus({ state: 'ready', snapshot });
@@ -945,6 +924,65 @@ function AppContent(): ReactNode {
       }
     );
   }, [selectedWorkspaceId]);
+
+  const hideWorkspace = useCallback(async (mode: WorkspaceVisibilityMode) => {
+    if (hideWorkspaceIntent === null || workspaceVisibilityBusy) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      const policies = await window.lumora.setWorkspaceVisibilityPolicy({
+        workspaceId: hideWorkspaceIntent.id,
+        mode
+      });
+      setWorkspaceVisibilityPolicies(policies);
+      if (selectedWorkspaceIdRef.current === hideWorkspaceIntent.id) {
+        closeWorkspaceDetail();
+      }
+      setHideWorkspaceIntent(null);
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not hide this workspace. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  }, [closeWorkspaceDetail, hideWorkspaceIntent, workspaceVisibilityBusy]);
+
+  const restoreWorkspaceVisibility = useCallback(async (
+    workspaceIds: readonly string[]
+  ) => {
+    if (workspaceIds.length === 0 || workspaceVisibilityBusy) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      const policies = await window.lumora.restoreWorkspaceVisibility({
+        workspaceIds: [...workspaceIds]
+      });
+      setWorkspaceVisibilityPolicies(policies);
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not restore the selected workspaces. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  }, [workspaceVisibilityBusy]);
+
+  const restoreAllWorkspaceVisibility = useCallback(async () => {
+    if (workspaceVisibilityBusy) return;
+    setWorkspaceVisibilityBusy(true);
+    setWorkspaceVisibilityError(null);
+    try {
+      const policies = await window.lumora.restoreAllWorkspaceVisibility();
+      setWorkspaceVisibilityPolicies(policies);
+    } catch {
+      setWorkspaceVisibilityError(
+        'Lumora could not restore hidden workspaces. Try again.'
+      );
+    } finally {
+      setWorkspaceVisibilityBusy(false);
+    }
+  }, [workspaceVisibilityBusy]);
 
   const handleRuntimeStarted = useCallback(
     (runtime: RuntimeSummary, preview: LaunchPreview) => {
@@ -1364,10 +1402,76 @@ function AppContent(): ReactNode {
   const startupReady = Object.values(startupTasks).every(Boolean);
   const startupPresentationActive =
     startupShouldPlay === true && !startupDismissed;
-  const visibleCatalogStatus: CatalogViewStatus =
+  const startupCatalogStatus: CatalogViewStatus =
     startupShouldPlay === true && !startupTasks.catalog
       ? { state: 'loading' }
       : catalogStatus;
+  const catalogPresentation = useMemo(() =>
+    startupCatalogStatus.state === 'ready' &&
+    workspaceVisibilityPolicies !== undefined
+      ? projectCatalogVisibility({
+          snapshot: startupCatalogStatus.snapshot,
+          policies: workspaceVisibilityPolicies,
+          settings: generalSettings ?? DEFAULT_GENERAL_SETTINGS,
+          providerScan:
+            providerStatus.state === 'ready' ? providerStatus.scan : null,
+          profiles: terminalProfiles,
+          query: {
+            text: debouncedSessionSearch,
+            provider: sessionProvider
+          }
+        })
+      : null,
+  [
+    debouncedSessionSearch,
+    generalSettings,
+    providerStatus,
+    sessionProvider,
+    startupCatalogStatus,
+    terminalProfiles,
+    workspaceVisibilityPolicies
+  ]);
+  const visibilityCatalogStatus: CatalogViewStatus =
+    startupCatalogStatus.state === 'ready' &&
+    workspaceVisibilityPolicies === undefined
+      ? { state: 'loading' }
+      : startupCatalogStatus;
+  const visibleCatalogStatus: CatalogViewStatus = catalogPresentation === null
+    ? visibilityCatalogStatus
+    : { state: 'ready', snapshot: catalogPresentation.snapshot };
+  useEffect(() => {
+    if (
+      catalogPresentation !== null &&
+      sessionProvider !== null &&
+      !catalogPresentation.snapshot.providerFacets.some(
+        ({ provider }) => provider === sessionProvider
+      )
+    ) {
+      setSessionProvider(null);
+    }
+  }, [catalogPresentation, sessionProvider]);
+  const visibleWorkspaceDetailStatus = useMemo<CatalogViewStatus>(() => {
+    if (workspaceDetailStatus.state !== 'ready') return workspaceDetailStatus;
+    if (workspaceVisibilityPolicies === undefined) return { state: 'loading' };
+    return {
+      state: 'ready',
+      snapshot: projectCatalogVisibility({
+        snapshot: workspaceDetailStatus.snapshot,
+        policies: workspaceVisibilityPolicies,
+        settings: generalSettings ?? DEFAULT_GENERAL_SETTINGS,
+        providerScan:
+          providerStatus.state === 'ready' ? providerStatus.scan : null,
+        profiles: terminalProfiles,
+        query: EMPTY_CATALOG_QUERY
+      }).snapshot
+    };
+  }, [
+    generalSettings,
+    providerStatus,
+    terminalProfiles,
+    workspaceDetailStatus,
+    workspaceVisibilityPolicies
+  ]);
   const appearance = generalSettings?.appearance ??
     DEFAULT_GENERAL_SETTINGS.appearance;
   const appearancePresentation = buildAppearancePresentation(
@@ -1502,12 +1606,22 @@ function AppContent(): ReactNode {
                 providerSummary={providerSummary(providerStatus)}
                 runtimes={runtimes}
                 status={visibleCatalogStatus}
+                workspaceById={catalogPresentation?.workspaceById}
               />
             ) : activeRoute.id === 'workspaces' ? (
               selectedWorkspaceId === null ? (
                 <WorkspacesView
+                  hiddenWorkspaceCount={catalogPresentation?.hiddenWorkspaces.length ?? 0}
                   isRefreshing={isCatalogRefreshing}
                   onAddWorkspace={addWorkspace}
+                  onHideWorkspace={(workspace) => {
+                    setWorkspaceVisibilityError(null);
+                    setHideWorkspaceIntent(workspace);
+                  }}
+                  onManageHiddenWorkspaces={() => {
+                    setWorkspaceVisibilityError(null);
+                    setHiddenWorkspacesOpen(true);
+                  }}
                   onOpenWorkspace={openWorkspaceDetail}
                   onRefresh={refreshCatalog}
                   status={visibleCatalogStatus}
@@ -1525,7 +1639,7 @@ function AppContent(): ReactNode {
                   providerScan={
                     providerStatus.state === 'ready' ? providerStatus.scan : null
                   }
-                  status={workspaceDetailStatus}
+                  status={visibleWorkspaceDetailStatus}
                   workspaceId={selectedWorkspaceId}
                 />
               )
@@ -1549,6 +1663,7 @@ function AppContent(): ReactNode {
                   generalSettings?.showInformationalNotices ?? false
                 }
                 status={visibleCatalogStatus}
+                workspaceById={catalogPresentation?.workspaceById}
               />
             ) : activeRoute.id === 'settings' ? (
               <SettingsView
@@ -1587,9 +1702,9 @@ function AppContent(): ReactNode {
                     : []
                 }
                 workspaces={
-                  visibleCatalogStatus.state === 'ready'
-                    ? visibleCatalogStatus.snapshot.workspaces
-                    : []
+                  catalogPresentation === null
+                    ? []
+                    : [...catalogPresentation.workspaceById.values()]
                 }
               />
             ) : activeRoute.id === 'profiles' ? (
@@ -1622,9 +1737,9 @@ function AppContent(): ReactNode {
                 theme={resolvedTerminalTheme}
                 visible={terminalActive}
                 workspaces={
-                  visibleCatalogStatus.state === 'ready'
-                    ? visibleCatalogStatus.snapshot.workspaces
-                    : []
+                  catalogPresentation === null
+                    ? []
+                    : [...catalogPresentation.workspaceById.values()]
                 }
               />
             </div>
@@ -1639,12 +1754,41 @@ function AppContent(): ReactNode {
           runtimes={runtimeSwitcherRuntimes}
           selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
           workspaces={
-            visibleCatalogStatus.state === 'ready'
-              ? visibleCatalogStatus.snapshot.workspaces
-              : []
+            catalogPresentation === null
+              ? []
+              : [...catalogPresentation.workspaceById.values()]
           }
         />
       ) : null}
+
+      {hideWorkspaceIntent === null ? null : (
+        <HideWorkspaceDialog
+          busy={workspaceVisibilityBusy}
+          error={workspaceVisibilityError}
+          onClose={() => {
+            if (workspaceVisibilityBusy) return;
+            setWorkspaceVisibilityError(null);
+            setHideWorkspaceIntent(null);
+          }}
+          onHide={hideWorkspace}
+          workspace={hideWorkspaceIntent}
+        />
+      )}
+
+      {!hiddenWorkspacesOpen || catalogPresentation === null ? null : (
+        <HiddenWorkspacesDialog
+          busy={workspaceVisibilityBusy}
+          entries={catalogPresentation.hiddenWorkspaces}
+          error={workspaceVisibilityError}
+          onClose={() => {
+            if (workspaceVisibilityBusy) return;
+            setWorkspaceVisibilityError(null);
+            setHiddenWorkspacesOpen(false);
+          }}
+          onRestore={restoreWorkspaceVisibility}
+          onRestoreAll={restoreAllWorkspaceVisibility}
+        />
+      )}
 
       {newSessionIntent !== null && visibleCatalogStatus.state === 'ready' ? (
         <NewSessionDialog
