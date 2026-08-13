@@ -118,7 +118,7 @@ export function DiagnosticsPanel({
             Refresh diagnostics
           </button>
           <button
-            className="primary-button"
+            className="refresh-button"
             disabled={exporting}
             onClick={() => void exportDiagnostics()}
             type="button"

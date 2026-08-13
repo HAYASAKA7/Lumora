@@ -94,6 +94,10 @@ describe('DiagnosticsPanel', () => {
     render(<DiagnosticsPanel active api={api} />);
     await screen.findByText('2.0 MB');
 
+    expect(screen.getByRole('button', { name: 'Export diagnostics' })).toHaveClass(
+      'refresh-button'
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'Refresh diagnostics' }));
     await waitFor(() => expect(api.getDiagnosticSummary).toHaveBeenCalledTimes(2));
 
