@@ -11,13 +11,24 @@ interface ActiveScan {
   promise: Promise<ProviderScanResult>;
 }
 
+interface PendingFreshScan extends ActiveScan {
+  providers: readonly ProviderId[];
+  resolve(value: ProviderScanResult): void;
+  reject(error: unknown): void;
+}
+
 export class ProviderScanCoordinator {
   private readonly active = new Map<string, ActiveScan>();
+  private readonly pendingFresh = new Map<string, PendingFreshScan>();
 
   constructor(private readonly scanProviders: ScanProviders) {}
 
   scan(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
     const key = this.keyOf(providers);
+    const pendingFresh = this.pendingFresh.get(key);
+    if (pendingFresh !== undefined) {
+      return pendingFresh.promise;
+    }
     const current = this.active.get(key);
     if (current !== undefined) {
       return current.promise;
@@ -26,7 +37,34 @@ export class ProviderScanCoordinator {
   }
 
   scanFresh(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
-    return this.startScan(this.keyOf(providers), providers);
+    const key = this.keyOf(providers);
+    const current = this.active.get(key);
+    if (current === undefined) return this.startScan(key, providers);
+
+    const existing = this.pendingFresh.get(key);
+    if (existing !== undefined) return existing.promise;
+
+    let resolve!: (value: ProviderScanResult) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<ProviderScanResult>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    });
+    const pending: PendingFreshScan = {
+      providers: [...providers],
+      promise,
+      resolve,
+      reject
+    };
+    this.pendingFresh.set(key, pending);
+    void current.promise
+      .finally(() => {
+        if (this.pendingFresh.get(key) !== pending) return;
+        this.pendingFresh.delete(key);
+        void this.startScan(key, pending.providers).then(resolve, reject);
+      })
+      .catch(() => undefined);
+    return promise;
   }
 
   private keyOf(providers: readonly ProviderId[]): string {

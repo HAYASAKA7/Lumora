@@ -8,13 +8,15 @@ import {
   createUnexpectedScanFailure,
   type ProviderAdapter
 } from './provider-adapter';
+import { mapWithConcurrency } from '../performance/map-with-concurrency';
 
 type Clock = () => Date;
 
 export class ProviderRegistry {
   constructor(
     private readonly adapters: readonly ProviderAdapter[],
-    private readonly now: Clock = () => new Date()
+    private readonly now: Clock = () => new Date(),
+    private readonly concurrency = 4
   ) {}
 
   async scan(
@@ -22,10 +24,13 @@ export class ProviderRegistry {
   ): Promise<ProviderScanResult> {
     const enabled =
       enabledProviders === undefined ? null : new Set(enabledProviders);
-    const providers = await Promise.all(
-      this.adapters
-        .filter((adapter) => enabled === null || enabled.has(adapter.provider))
-        .map((adapter) => this.scanIsolated(adapter))
+    const selectedAdapters = this.adapters.filter(
+      (adapter) => enabled === null || enabled.has(adapter.provider)
+    );
+    const providers = await mapWithConcurrency(
+      selectedAdapters,
+      this.concurrency,
+      (adapter) => this.scanIsolated(adapter)
     );
 
     return ProviderScanResultSchema.parse({

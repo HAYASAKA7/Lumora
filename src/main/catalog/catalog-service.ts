@@ -20,6 +20,7 @@ import {
   type ProviderSessionDiscoveryResult
 } from '../providers/session-discovery';
 import type { CatalogCandidate } from './catalog-candidate';
+import { mapWithConcurrency } from '../performance/map-with-concurrency';
 
 interface ProviderScanWrite {
   provider: ProviderId;
@@ -58,6 +59,7 @@ interface CatalogServiceDependencies {
   repository: CatalogRepositoryPort;
   clock(): Date;
   createScanId(provider: ProviderId): string;
+  discoveryConcurrency?: number;
 }
 
 interface DiscoverySuccess {
@@ -324,8 +326,10 @@ export class CatalogService {
     }
     const outcomes = new Map<ProviderId, DiscoveryOutcome>();
 
-    await Promise.all(
-      providers.map(async (provider) => {
+    await mapWithConcurrency(
+      providers,
+      this.dependencies.discoveryConcurrency ?? 3,
+      async (provider) => {
         const installation = readyInstallations.get(provider);
         const adapter = this.dependencies.registry.get(provider);
         if (!installation || !adapter) return;
@@ -337,7 +341,7 @@ export class CatalogService {
         } catch {
           outcomes.set(provider, { ok: false });
         }
-      })
+      }
     );
 
     const nextStatus: CatalogProviderStatus[] = [];

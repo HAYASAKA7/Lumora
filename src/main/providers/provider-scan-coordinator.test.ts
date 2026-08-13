@@ -76,7 +76,7 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
-  it('starts and publishes a force-fresh scan over older active work', async () => {
+  it('queues one force-fresh follow-up instead of overlapping older work', async () => {
     const older = deferred<ProviderScanResult>();
     const fresh = deferred<ProviderScanResult>();
     const scan = vi
@@ -88,16 +88,19 @@ describe('ProviderScanCoordinator', () => {
 
     const olderRequest = coordinator.scan(['codex']);
     const freshRequest = coordinator.scanFresh(['codex']);
+    const duplicateFreshRequest = coordinator.scanFresh(['codex']);
     const sharedFreshRequest = coordinator.scan(['codex']);
 
-    expect(scan).toHaveBeenCalledTimes(2);
-    fresh.resolve(result(['codex']));
-    await expect(
-      Promise.all([freshRequest, sharedFreshRequest])
-    ).resolves.toHaveLength(2);
-
+    expect(scan).toHaveBeenCalledOnce();
     older.resolve(result(['codex']));
     await expect(olderRequest).resolves.toEqual(result(['codex']));
+    await vi.waitFor(() => expect(scan).toHaveBeenCalledTimes(2));
+
+    fresh.resolve(result(['codex']));
+    await expect(
+      Promise.all([freshRequest, duplicateFreshRequest, sharedFreshRequest])
+    ).resolves.toHaveLength(3);
+
     await coordinator.scan(['codex']);
     expect(scan).toHaveBeenCalledTimes(3);
   });

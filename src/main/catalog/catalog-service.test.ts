@@ -197,6 +197,47 @@ function deferred<T>() {
 }
 
 describe('CatalogService', () => {
+  it('bounds concurrent provider session discovery', async () => {
+    const providers = ['codex', 'claude', 'gemini', 'opencode', 'copilot'] as const;
+    const gates = providers.map(() => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => { resolve = done; });
+      return { promise, resolve };
+    });
+    let active = 0;
+    let maximumActive = 0;
+    const discoveryOverrides = Object.fromEntries(
+      providers.map((provider, index) => [provider, async () => {
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await gates[index]!.promise;
+        active -= 1;
+        return discovery(provider, []);
+      }])
+    ) as Partial<Record<ProviderId, SessionCatalogAdapter['discover']>>;
+    const adapters = registry(discoveryOverrides);
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => providers,
+      scanProviders: async () => scan(providers.map(ready)),
+      registry: adapters,
+      discoveryConcurrency: 2
+    }));
+
+    const pending = service.refreshCatalog();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(maximumActive).toBe(2);
+    gates[0]!.resolve();
+    gates[1]!.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(maximumActive).toBe(2);
+    gates.slice(2).forEach(({ resolve }) => resolve());
+
+    await pending;
+    expect(maximumActive).toBe(2);
+  });
+
   it('discovers and exposes only enabled providers without touching disabled scans', async () => {
     let enabledProviders: readonly ProviderId[] = ['codex'];
     const repository = createRepository();
@@ -320,7 +361,7 @@ describe('CatalogService', () => {
     expect(scanProviders).toHaveBeenCalledTimes(2);
   });
 
-  it('discovers all complete providers concurrently and commits in definition order', async () => {
+  it('discovers complete providers in bounded batches and commits in definition order', async () => {
     const repository = createRepository();
     const pending = new Map(
       SESSION_PROVIDER_IDS.map((provider) => [
@@ -341,15 +382,18 @@ describe('CatalogService', () => {
     );
 
     const refresh = service.refreshCatalog();
-    await vi.waitFor(() => {
-      for (const provider of SESSION_PROVIDER_IDS) {
-        expect(adapters.get(provider)!.discover).toHaveBeenCalledOnce();
+    for (let offset = 0; offset < SESSION_PROVIDER_IDS.length; offset += 3) {
+      const batch = SESSION_PROVIDER_IDS.slice(offset, offset + 3);
+      await vi.waitFor(() => {
+        for (const provider of batch) {
+          expect(adapters.get(provider)!.discover).toHaveBeenCalledOnce();
+        }
+      });
+      for (const provider of [...batch].reverse()) {
+        pending
+          .get(provider)!
+          .resolve(discovery(provider, [record(provider, `${provider}-1`)]));
       }
-    });
-    for (const provider of [...SESSION_PROVIDER_IDS].reverse()) {
-      pending
-        .get(provider)!
-        .resolve(discovery(provider, [record(provider, `${provider}-1`)]));
     }
     const result = await refresh;
 

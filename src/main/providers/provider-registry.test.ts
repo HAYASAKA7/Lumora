@@ -87,6 +87,49 @@ describe('provider adapters', () => {
 });
 
 describe('ProviderRegistry', () => {
+  it('bounds concurrent provider probes while preserving provider order', async () => {
+    let active = 0;
+    let maximumActive = 0;
+    const gates = Array.from({ length: 5 }, () => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => { resolve = done; });
+      return { promise, resolve };
+    });
+    const providers = ['codex', 'claude', 'gemini', 'opencode', 'copilot'] as const;
+    const registry = new ProviderRegistry(
+      providers.map((provider, index) => ({
+        ...identity(provider, provider),
+        scan: async () => {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          await gates[index]!.promise;
+          active -= 1;
+          return {
+            ...readyCodex,
+            provider,
+            displayName: provider
+          };
+        }
+      })),
+      () => new Date('2026-07-11T01:02:03.000Z'),
+      2
+    );
+
+    const pending = registry.scan();
+    await Promise.resolve();
+    expect(maximumActive).toBe(2);
+    gates[0]!.resolve();
+    gates[1]!.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(maximumActive).toBe(2);
+    gates.slice(2).forEach(({ resolve }) => resolve());
+
+    const result = await pending;
+    expect(result.providers.map(({ provider }) => provider)).toEqual(providers);
+    expect(maximumActive).toBe(2);
+  });
+
   it('scans only requested providers while preserving adapter order', async () => {
     const scanCodex = vi.fn(async () => readyCodex);
     const scanGemini = vi.fn(async () => ({
