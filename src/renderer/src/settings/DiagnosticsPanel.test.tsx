@@ -82,8 +82,8 @@ function createApi() {
 }
 
 describe('DiagnosticsPanel', () => {
-  it('uses Lumora typography for diagnostic storage paths', () => {
-    const rule = styles.match(/\.diagnostics-storage-copy code\s*\{([^}]*)\}/)?.[1];
+  it('uses Lumora typography for every diagnostic code and path value', () => {
+    const rule = styles.match(/\.diagnostics-panel code\s*\{([^}]*)\}/)?.[1];
 
     expect(rule).toContain('font-family: inherit');
   });
