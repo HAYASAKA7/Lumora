@@ -63,6 +63,11 @@ Download the package for your system from
 | macOS Intel | `Lumora-*-mac-x64.dmg` |
 | Linux x64 | `Lumora-*-linux-x86_64.AppImage` |
 
+The assisted Windows installer lets you choose whether Lumora creates Start
+Menu and desktop shortcuts. The Start Menu shortcut is selected by default;
+the desktop shortcut is optional and is cleared by default. macOS DMG and
+Linux AppImage packages do not show these Windows-specific choices.
+
 ### Unsigned build notices
 
 The current packages are not code-signed or notarized.
