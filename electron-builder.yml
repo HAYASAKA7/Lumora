@@ -42,6 +42,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  include: windows/installer-shortcut-options.nsh
   installerIcon: windows/LumoraTransparent.ico
   uninstallerIcon: windows/LumoraTransparent.ico
   installerHeaderIcon: windows/LumoraTransparent.ico

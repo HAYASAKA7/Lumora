@@ -124,7 +124,15 @@ describe('release packaging configuration', () => {
     expect(nsis).toContain('  installerIcon: windows/LumoraTransparent.ico');
     expect(nsis).toContain('  uninstallerIcon: windows/LumoraTransparent.ico');
     expect(nsis).toContain('  installerHeaderIcon: windows/LumoraTransparent.ico');
+    expect(shortcutOptions.trim()).toMatch(
+      /^!ifndef BUILD_UNINSTALLER[\s\S]*!endif$/
+    );
     expect(shortcutOptions).toContain('!macro customInit');
+    const customInit = shortcutOptions.match(
+      /!macro customInit([\s\S]*?)!macroend/
+    )?.[1];
+    expect(customInit).toContain('${If} ${isUpdated}');
+    expect(customInit).toContain('${If} ${Silent}');
     expect(shortcutOptions).toContain(
       'StrCpy $LumoraCreateStartMenuShortcut ${BST_CHECKED}'
     );
@@ -136,7 +144,7 @@ describe('release packaging configuration', () => {
       'Page custom LumoraShortcutOptionsPageCreate LumoraShortcutOptionsPageLeave'
     );
     expect(shortcutOptions).toMatch(
-      /Function LumoraShortcutOptionsPageCreate[\s\S]*\$\{If\} \$\{isUpdated\}[\s\S]*Abort[\s\S]*\$\{If\} \$\{Silent\}[\s\S]*Abort/
+      /Function LumoraShortcutOptionsPageCreate[\s\S]*\$LumoraShowShortcutOptions != "true"[\s\S]*Abort/
     );
     expect(shortcutOptions).toContain('!macro customInstall');
     expect(shortcutOptions).toMatch(
