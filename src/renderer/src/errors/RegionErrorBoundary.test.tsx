@@ -17,8 +17,8 @@ describe('RegionErrorBoundary', () => {
         <p>Navigation remains available</p>
         <RegionErrorBoundary
           description="Lumora kept the rest of the window available."
+          heading="View unavailable"
           retryLabel="Retry this view"
-          title="View unavailable"
         >
           <BrokenRegion broken={broken} />
         </RegionErrorBoundary>
@@ -35,8 +35,8 @@ describe('RegionErrorBoundary', () => {
         <p>Navigation remains available</p>
         <RegionErrorBoundary
           description="Lumora kept the rest of the window available."
+          heading="View unavailable"
           retryLabel="Retry this view"
-          title="View unavailable"
         >
           <BrokenRegion broken={broken} />
         </RegionErrorBoundary>
@@ -53,9 +53,9 @@ describe('RegionErrorBoundary', () => {
     const view = render(
       <RegionErrorBoundary
         description="Another terminal remains available."
+        heading="Terminal view unavailable"
         resetKey="runtime-a"
         retryLabel="Retry terminal view"
-        title="Terminal view unavailable"
       >
         <BrokenRegion broken />
       </RegionErrorBoundary>
@@ -64,9 +64,9 @@ describe('RegionErrorBoundary', () => {
     view.rerender(
       <RegionErrorBoundary
         description="Another terminal remains available."
+        heading="Terminal view unavailable"
         resetKey="runtime-b"
         retryLabel="Retry terminal view"
-        title="Terminal view unavailable"
       >
         <BrokenRegion broken={false} />
       </RegionErrorBoundary>

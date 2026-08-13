@@ -1631,9 +1631,9 @@ function AppContent(): ReactNode {
           <div className="route-surface" hidden={terminalActive}>
             <RegionErrorBoundary
               description="Lumora kept navigation, terminals, and saved data available. Retry only this page when you are ready."
+              heading="Page unavailable"
               resetKey={`${activeRouteId}:${selectedWorkspaceId ?? ''}:${settingsCategory}`}
               retryLabel="Retry page"
-              title="Page unavailable"
             >
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
@@ -1767,9 +1767,9 @@ function AppContent(): ReactNode {
             <div className="terminal-surface" hidden={!terminalActive}>
               <RegionErrorBoundary
                 description="Managed terminal processes are still owned by Lumora. Retry the terminal controls without restarting unrelated sessions."
+                heading="Terminal controls unavailable"
                 resetKey={activeRuntimeId}
                 retryLabel="Retry terminal controls"
-                title="Terminal controls unavailable"
               >
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}

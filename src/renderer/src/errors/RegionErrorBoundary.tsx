@@ -9,7 +9,7 @@ interface RegionErrorBoundaryProps {
   description: string;
   resetKey?: string | number | null;
   retryLabel: string;
-  title: string;
+  heading: string;
   onError?(): void;
 }
 
@@ -49,13 +49,13 @@ export class RegionErrorBoundary extends Component<
 
     return (
       <section
-        aria-label={this.props.title}
+        aria-label={this.props.heading}
         className="region-error-boundary"
         role="alert"
       >
         <span aria-hidden="true" className="status-warning-icon">!</span>
         <div>
-          <h2>{this.props.title}</h2>
+          <h2>{this.props.heading}</h2>
           <p>{this.props.description}</p>
           <button
             className="secondary-button"

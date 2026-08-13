@@ -330,9 +330,9 @@ export function TerminalWorkspace({
           >
             <RegionErrorBoundary
               description="This terminal process remains active. Retry its view to reattach without affecting other tabs."
+              heading="Terminal view unavailable"
               resetKey={`${item.id}:${item.state}`}
               retryLabel="Retry terminal view"
-              title="Terminal view unavailable"
             >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
