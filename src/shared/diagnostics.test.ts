@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DiagnosticBundleSchema,
   DiagnosticEventSchema,
+  DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema
 } from './diagnostics';
 
@@ -78,6 +79,29 @@ describe('diagnostic contracts', () => {
     expect(() => DiagnosticSummarySchema.parse({
       ...summary,
       recentEvents: Array.from({ length: 101 }, () => event)
+    })).toThrow();
+  });
+
+  it('validates strict diagnostic storage presentations', () => {
+    const settings = {
+      selectedJournalDirectory: 'D:\\Lumora diagnostics',
+      effectiveJournalDirectory: 'C:\\Users\\test\\Lumora\\diagnostics',
+      selectedExportDirectory: 'D:\\Support bundles',
+      effectiveExportDirectory: 'D:\\Support bundles',
+      journalUsesDefault: false,
+      exportUsesDefault: false,
+      restartRequired: true,
+      fallbackActive: false
+    } as const;
+
+    expect(DiagnosticStorageSettingsSchema.parse(settings)).toEqual(settings);
+    expect(() => DiagnosticStorageSettingsSchema.parse({
+      ...settings,
+      privateValue: 'must not be accepted'
+    })).toThrow();
+    expect(() => DiagnosticStorageSettingsSchema.parse({
+      ...settings,
+      selectedJournalDirectory: 'x'.repeat(32_769)
     })).toThrow();
   });
 });

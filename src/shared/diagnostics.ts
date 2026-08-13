@@ -97,3 +97,20 @@ export const DiagnosticExportResultSchema = z.discriminatedUnion('status', [
 export type DiagnosticExportResult = z.infer<
   typeof DiagnosticExportResultSchema
 >;
+
+const DiagnosticDirectorySchema = z.string().min(1).max(32_768);
+
+export const DiagnosticStorageSettingsSchema = z.strictObject({
+  selectedJournalDirectory: DiagnosticDirectorySchema.nullable(),
+  effectiveJournalDirectory: DiagnosticDirectorySchema,
+  selectedExportDirectory: DiagnosticDirectorySchema.nullable(),
+  effectiveExportDirectory: DiagnosticDirectorySchema,
+  journalUsesDefault: z.boolean(),
+  exportUsesDefault: z.boolean(),
+  restartRequired: z.boolean(),
+  fallbackActive: z.boolean()
+});
+
+export type DiagnosticStorageSettings = z.infer<
+  typeof DiagnosticStorageSettingsSchema
+>;

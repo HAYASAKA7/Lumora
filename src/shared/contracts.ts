@@ -17,6 +17,7 @@ import type {
 } from './session-transfer';
 import type {
   DiagnosticExportResult,
+  DiagnosticStorageSettings,
   DiagnosticSummary
 } from './diagnostics';
 export * from './session-transfer';
@@ -1772,6 +1773,11 @@ export const IPC_CHANNELS = {
   startupPresentationComplete: 'lumora:system:startup-presentation:complete',
   diagnosticSummaryGet: 'lumora:diagnostics:summary:get',
   diagnosticBundleExport: 'lumora:diagnostics:bundle:export',
+  diagnosticStorageGet: 'lumora:diagnostics:storage:get',
+  diagnosticJournalDirectoryChoose: 'lumora:diagnostics:journal-directory:choose',
+  diagnosticJournalDirectoryReset: 'lumora:diagnostics:journal-directory:reset',
+  diagnosticExportDirectoryChoose: 'lumora:diagnostics:export-directory:choose',
+  diagnosticExportDirectoryReset: 'lumora:diagnostics:export-directory:reset',
   environmentScan: 'lumora:environment:scan',
   nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
@@ -1886,6 +1892,11 @@ export interface LumoraApi {
   getAppearancePresentation(): Promise<AppearancePresentation>;
   getDiagnosticSummary(): Promise<DiagnosticSummary>;
   exportDiagnosticBundle(): Promise<DiagnosticExportResult>;
+  getDiagnosticStorageSettings(): Promise<DiagnosticStorageSettings>;
+  chooseDiagnosticJournalDirectory(): Promise<DiagnosticStorageSettings>;
+  resetDiagnosticJournalDirectory(): Promise<DiagnosticStorageSettings>;
+  chooseDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
+  resetDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   getSystemInfo(): Promise<SystemInfo>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;
