@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,7 +12,7 @@ const ID = 'session_123e4567-e89b-42d3-a456-426614174000';
 const temporaryDirectories: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'lumora-kimi-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'lumora-kimi-')));
   temporaryDirectories.push(root);
   return root;
 }

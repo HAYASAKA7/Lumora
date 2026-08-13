@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function directory(name: string): Promise<string> {
-  const value = await mkdtemp(join(tmpdir(), `lumora-${name}-`));
+  const value = await realpath(await mkdtemp(join(tmpdir(), `lumora-${name}-`)));
   roots.push(value);
   return value;
 }
