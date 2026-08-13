@@ -80,7 +80,12 @@ describe('release packaging configuration', () => {
   });
 
   it('defines the unsigned cross-platform packaging contract', async () => {
-    const config = await readRepoFile('electron-builder.yml');
+    const [config, shortcutOptions] = await Promise.all([
+      readRepoFile('electron-builder.yml'),
+      readRepoFile(
+        'resources/icons/lumora/windows/installer-shortcut-options.nsh'
+      )
+    ]);
     const directories = topLevelSection(config, 'directories');
     const files = topLevelSection(config, 'files');
     const asarUnpack = topLevelSection(config, 'asarUnpack');
@@ -115,9 +120,34 @@ describe('release packaging configuration', () => {
     expect(nsis).toContain('  oneClick: false');
     expect(nsis).toContain('  perMachine: false');
     expect(nsis).toContain('  allowToChangeInstallationDirectory: true');
+    expect(nsis).toContain('  include: windows/installer-shortcut-options.nsh');
     expect(nsis).toContain('  installerIcon: windows/LumoraTransparent.ico');
     expect(nsis).toContain('  uninstallerIcon: windows/LumoraTransparent.ico');
     expect(nsis).toContain('  installerHeaderIcon: windows/LumoraTransparent.ico');
+    expect(shortcutOptions).toContain('!macro customInit');
+    expect(shortcutOptions).toContain(
+      'StrCpy $LumoraCreateStartMenuShortcut ${BST_CHECKED}'
+    );
+    expect(shortcutOptions).toContain(
+      'StrCpy $LumoraCreateDesktopShortcut ${BST_UNCHECKED}'
+    );
+    expect(shortcutOptions).toContain('!macro customPageAfterChangeDir');
+    expect(shortcutOptions).toContain(
+      'Page custom LumoraShortcutOptionsPageCreate LumoraShortcutOptionsPageLeave'
+    );
+    expect(shortcutOptions).toMatch(
+      /Function LumoraShortcutOptionsPageCreate[\s\S]*\$\{If\} \$\{isUpdated\}[\s\S]*Abort[\s\S]*\$\{If\} \$\{Silent\}[\s\S]*Abort/
+    );
+    expect(shortcutOptions).toContain('!macro customInstall');
+    expect(shortcutOptions).toMatch(
+      /!macro customInstall[\s\S]*\$\{IfNot\} \$\{isUpdated\}/
+    );
+    expect(shortcutOptions).toContain('Delete "$newStartMenuLink"');
+    expect(shortcutOptions).toContain('Delete "$newDesktopLink"');
+    expect(shortcutOptions).toContain(
+      'StrCpy $launchLink "$INSTDIR\\${APP_EXECUTABLE_FILENAME}"'
+    );
+    expect(shortcutOptions).not.toContain('Lumora.exe');
 
     expect(mac).toContain('  executableName: Lumora');
     expect(mac).toContain('  icon: macos/Lumora.icns');
