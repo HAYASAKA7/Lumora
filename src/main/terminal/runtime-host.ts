@@ -98,12 +98,14 @@ interface RuntimeExitOutcome {
 export type TerminalRuntimeErrorCode =
   | 'PTY_SPAWN_FAILED'
   | 'RUNTIME_NOT_LIVE'
-  | 'RUNTIME_NOT_FOUND';
+  | 'RUNTIME_NOT_FOUND'
+  | 'RUNTIME_SHUTTING_DOWN';
 
 const RUNTIME_ERROR_MESSAGES: Record<TerminalRuntimeErrorCode, string> = {
   PTY_SPAWN_FAILED: 'The provider terminal could not be started.',
   RUNTIME_NOT_LIVE: 'The terminal runtime is no longer live.',
-  RUNTIME_NOT_FOUND: 'The terminal runtime was not found.'
+  RUNTIME_NOT_FOUND: 'The terminal runtime was not found.',
+  RUNTIME_SHUTTING_DOWN: 'The terminal runtime is shutting down.'
 };
 
 export class TerminalRuntimeError extends Error {
@@ -126,6 +128,7 @@ function defaultWait(milliseconds: number): Promise<void> {
 
 export class RuntimeHost {
   private readonly live = new Map<string, LiveRuntime>();
+  private readonly pendingStarts = new Set<Promise<RuntimeSummary>>();
   private readonly listeners = new Set<(event: RuntimeEvent) => void>();
   private readonly clock: () => Date;
   private readonly createRuntimeId: () => string;
@@ -134,6 +137,8 @@ export class RuntimeHost {
   private readonly resolveInvocation: NonNullable<
     RuntimeHostDependencies['resolveInvocation']
   >;
+  private lifecycleState: 'active' | 'shutting_down' | 'shut_down' = 'active';
+  private shutdownPromise: Promise<void> | null = null;
 
   constructor(private readonly dependencies: RuntimeHostDependencies) {
     this.clock = dependencies.clock ?? (() => new Date());
@@ -157,7 +162,18 @@ export class RuntimeHost {
     return () => this.listeners.delete(listener);
   }
 
-  async start(token: string): Promise<RuntimeSummary> {
+  start(token: string): Promise<RuntimeSummary> {
+    if (this.lifecycleState !== 'active') {
+      return Promise.reject(new TerminalRuntimeError('RUNTIME_SHUTTING_DOWN'));
+    }
+    const pending = this.startOwned(token);
+    this.pendingStarts.add(pending);
+    const removePending = () => this.pendingStarts.delete(pending);
+    void pending.then(removePending, removePending);
+    return pending;
+  }
+
+  private async startOwned(token: string): Promise<RuntimeSummary> {
     const spec = await this.dependencies.consumeLaunch(token);
     const runtimeId = this.createRuntimeId();
     const launching = RuntimeSummarySchema.parse({
@@ -399,7 +415,15 @@ export class RuntimeHost {
     ]);
   }
 
-  async shutdown(): Promise<void> {
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise !== null) return this.shutdownPromise;
+    this.lifecycleState = 'shutting_down';
+    this.shutdownPromise = this.shutdownOwned();
+    return this.shutdownPromise;
+  }
+
+  private async shutdownOwned(): Promise<void> {
+    await Promise.allSettled([...this.pendingStarts]);
     await Promise.all(
       [...this.live.keys()].map(async (runtimeId) => {
         try {
@@ -409,6 +433,7 @@ export class RuntimeHost {
         }
       })
     );
+    this.lifecycleState = 'shut_down';
   }
 
   private commandTarget(runtimeId: string): LiveRuntime | null {

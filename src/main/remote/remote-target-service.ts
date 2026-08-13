@@ -431,6 +431,27 @@ export function createRemoteTargetService({
     event: RuntimeEvent
   ) => void>();
   let closed = false;
+  let activeConnectionAttempts = 0;
+  let resolveConnectionDrain: (() => void) | null = null;
+  let closePromise: Promise<void> | null = null;
+
+  const beginConnectionAttempt = (): void => {
+    if (closed) throw new RemoteTargetServiceError();
+    activeConnectionAttempts += 1;
+  };
+  const finishConnectionAttempt = (): void => {
+    activeConnectionAttempts -= 1;
+    if (activeConnectionAttempts === 0) {
+      resolveConnectionDrain?.();
+      resolveConnectionDrain = null;
+    }
+  };
+  const waitForConnectionDrain = (): Promise<void> =>
+    activeConnectionAttempts === 0
+      ? Promise.resolve()
+      : new Promise((resolve) => {
+          resolveConnectionDrain = resolve;
+        });
 
   const disposeActive = async (
     active: ActiveRemoteTarget | undefined
@@ -950,6 +971,8 @@ export function createRemoteTargetService({
       connectionInput: RemoteConnectionInput
     ): Promise<RemoteTargetConnectionDetails> {
       const id = RemoteExecutionTargetIdSchema.parse(input);
+      beginConnectionAttempt();
+      try {
       const profile = summary(id).profile;
       let resolved: Awaited<ReturnType<typeof resolveCredentials>>;
       try {
@@ -1086,6 +1109,9 @@ export function createRemoteTargetService({
         targets.updateRemoteConnection(id, { connectionState: 'error' });
         lifecycle.invalidateConnection(id);
         throw new RemoteTargetServiceError(connectionFailureCode(stage, error));
+      }
+      } finally {
+        finishConnectionAttempt();
       }
     },
 
@@ -1317,21 +1343,25 @@ export function createRemoteTargetService({
 
     disconnect,
 
-    async close(): Promise<void> {
-      if (closed) return;
+    close(): Promise<void> {
+      if (closePromise !== null) return closePromise;
       closed = true;
-      const disposing: Promise<void>[] = [];
-      for (const [id, active] of activeTargets) {
-        disposing.push(disposeActive(active));
-        targets.updateRemoteConnection(id, { connectionState: 'offline' });
-        lifecycle.invalidateConnection(id);
-      }
-      activeTargets.clear();
-      providerUpdateServices.clear();
-      pendingDiscoveryScans.clear();
-      pendingCatalogScans.clear();
-      sessionRuntimeListeners.clear();
-      await Promise.allSettled(disposing);
+      closePromise = (async () => {
+        await waitForConnectionDrain();
+        const disposing: Promise<void>[] = [];
+        for (const [id, active] of activeTargets) {
+          disposing.push(disposeActive(active));
+          targets.updateRemoteConnection(id, { connectionState: 'offline' });
+          lifecycle.invalidateConnection(id);
+        }
+        activeTargets.clear();
+        providerUpdateServices.clear();
+        pendingDiscoveryScans.clear();
+        pendingCatalogScans.clear();
+        sessionRuntimeListeners.clear();
+        await Promise.allSettled(disposing);
+      })();
+      return closePromise;
     }
   };
 }

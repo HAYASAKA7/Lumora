@@ -58,6 +58,14 @@ const launchSpec: LaunchSpec = {
   createdAt: '2026-07-11T04:00:00.000Z'
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 class FakePty implements PtyProcess {
   constructor(readonly pid: number | null = 4321) {}
   readonly writes: string[] = [];
@@ -135,6 +143,7 @@ function harness(options: {
   exitOnWaitCall?: number;
   exitOnWaitCode?: number;
   remote?: boolean;
+  spawnGate?: Promise<PtyProcess>;
 } = {}) {
   const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
@@ -169,6 +178,7 @@ function harness(options: {
   let spawnCount = 0;
   const spawn = vi.fn(async (_options: PtySpawnOptions) => {
     if (options.spawnError !== undefined) throw options.spawnError;
+    if (options.spawnGate !== undefined) return options.spawnGate;
     const current = ptys[spawnCount] ?? new FakePty();
     if (ptys[spawnCount] === undefined) ptys.push(current);
     spawnCount += 1;
@@ -710,5 +720,37 @@ describe('RuntimeHost', () => {
       expect.objectContaining({ state: 'runtime_lost' }),
       expect.objectContaining({ state: 'runtime_lost' })
     ]);
+  });
+
+  it('waits for a launch already spawning and then drains its PTY', async () => {
+    const spawnGate = deferred<PtyProcess>();
+    const { host, pty, spawn } = harness({ spawnGate: spawnGate.promise });
+    const starting = host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledOnce());
+
+    const shuttingDown = host.shutdown();
+    spawnGate.resolve(pty);
+
+    await expect(starting).resolves.toMatchObject({ state: 'running' });
+    await expect(shuttingDown).resolves.toBeUndefined();
+    expect(pty.writes).toEqual(['\u0003', '\u0003']);
+    expect(pty.killCount).toBe(1);
+    expect(host.list()).toEqual([
+      expect.objectContaining({ state: 'runtime_lost' })
+    ]);
+  });
+
+  it('coalesces shutdown and rejects launches after teardown starts', async () => {
+    const { host, pty, spawn } = harness();
+    await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    await Promise.all([host.shutdown(), host.shutdown()]);
+
+    expect(pty.writes).toEqual(['\u0003', '\u0003']);
+    expect(pty.killCount).toBe(1);
+    await expect(
+      host.start('0198f8b6-18f3-7ca0-9f0f-123456789abd')
+    ).rejects.toMatchObject({ code: 'RUNTIME_SHUTTING_DOWN' });
+    expect(spawn).toHaveBeenCalledOnce();
   });
 });

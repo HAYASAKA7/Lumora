@@ -16,6 +16,14 @@ import {
 
 const TARGET_ID = 'b032eb7d-70d0-4b78-b8ce-f228458b44e3';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 const storedProfile: RemoteConnectionProfile = {
   executionTargetId: TARGET_ID,
   displayName: 'Build server',
@@ -1068,6 +1076,36 @@ describe('remote target service', () => {
     );
     await expect(service.close()).resolves.toBeUndefined();
     await expect(service.close()).resolves.toBeUndefined();
+  });
+
+  it('waits for an in-flight connection before closing its resources', async () => {
+    const harness = createHarness();
+    const connection = deferred<typeof harness.connected>();
+    harness.ssh.connect.mockImplementationOnce(() => connection.promise);
+    const connecting = harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    });
+    await vi.waitFor(() => expect(harness.ssh.connect).toHaveBeenCalledOnce());
+
+    const firstClose = harness.service.close();
+    const secondClose = harness.service.close();
+    expect(firstClose).toBe(secondClose);
+    connection.resolve(harness.connected);
+
+    await expect(connecting).resolves.toMatchObject({
+      target: { id: TARGET_ID }
+    });
+    await expect(firstClose).resolves.toBeUndefined();
+    expect(harness.connected.close).toHaveBeenCalledOnce();
+    expect(harness.targets.updateRemoteConnection).toHaveBeenLastCalledWith(
+      TARGET_ID,
+      { connectionState: 'offline' }
+    );
+
+    await expect(harness.service.connect(TARGET_ID, {
+      method: 'password', password: 'memory-only'
+    })).rejects.toBeInstanceOf(Error);
+    expect(harness.ssh.connect).toHaveBeenCalledOnce();
   });
 
   it('returns a retryable provider diagnostic when a helper session scan times out', async () => {
