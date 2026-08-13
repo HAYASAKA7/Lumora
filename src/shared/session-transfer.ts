@@ -9,6 +9,7 @@ const TRANSFER_PROVIDER_IDS = [
   'cursor',
   'copilot',
   'qwen',
+  'kimi',
   'amp',
   'crush',
   'goose',

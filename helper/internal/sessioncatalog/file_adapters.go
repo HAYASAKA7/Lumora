@@ -2,6 +2,7 @@ package sessioncatalog
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ const (
 
 var (
 	uuidPattern              = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	kimiSessionPattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$`)
 	copilotTitleEventPattern = regexp.MustCompile(`creat|start|rename|name|title|metadata`)
 )
 
@@ -311,6 +313,226 @@ func truncateTitle(value string) string {
 		runes = runes[:256]
 	}
 	return string(runes)
+}
+
+type kimiIndexRecord struct {
+	SessionID  string `json:"sessionId"`
+	SessionDir string `json:"sessionDir"`
+	WorkDir    string `json:"workDir"`
+}
+
+type kimiState struct {
+	Title        string `json:"title"`
+	LastPrompt   string `json:"lastPrompt"`
+	CreatedAt    any    `json:"createdAt"`
+	CreatedSnake any    `json:"created_at"`
+	CreationTime any    `json:"creationTime"`
+	UpdatedAt    any    `json:"updatedAt"`
+	UpdatedSnake any    `json:"updated_at"`
+	UpdateTime   any    `json:"updateTime"`
+}
+
+func pathInside(root string, candidate string) bool {
+	relativePath, err := filepath.Rel(root, candidate)
+	return err == nil && relativePath != ".." && !strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) && !filepath.IsAbs(relativePath)
+}
+
+func safeKimiRegularFile(root string, source string, maxBytes int64) (string, os.FileInfo, error) {
+	entry, err := os.Lstat(source)
+	if err != nil {
+		return "", nil, err
+	}
+	if entry.Mode()&os.ModeSymlink != 0 || !entry.Mode().IsRegular() || entry.Size() < 1 || entry.Size() > maxBytes {
+		return "", nil, errors.New("Kimi source is outside bounds")
+	}
+	canonical, err := filepath.EvalSymlinks(source)
+	if err != nil || !pathInside(root, canonical) {
+		return "", nil, errors.New("Kimi source escaped its data root")
+	}
+	return canonical, entry, nil
+}
+
+func readStableKimiFile(root string, source string, maxBytes int64) ([]byte, string, os.FileInfo, error) {
+	canonical, before, err := safeKimiRegularFile(root, source, maxBytes)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	value, err := os.ReadFile(canonical)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	_, after, err := safeKimiRegularFile(root, source, maxBytes)
+	if err != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
+		return nil, "", nil, errors.New("Kimi source changed during scan")
+	}
+	return value, canonical, before, nil
+}
+
+func firstTimestamp(values ...any) (time.Time, bool) {
+	for _, value := range values {
+		if parsed, ok := timestamp(value); ok {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func kimiUsageTokens(record map[string]any) (int64, bool, bool) {
+	if record["type"] != "usage.record" {
+		return 0, false, true
+	}
+	usage, ok := record["usage"].(map[string]any)
+	if !ok {
+		return 0, true, false
+	}
+	input, inputOK := numeric(usage["inputOther"])
+	output, outputOK := numeric(usage["output"])
+	if !inputOK || !outputOK || input > int64(^uint64(0)>>1)-output {
+		return 0, true, false
+	}
+	return input + output, true, true
+}
+
+func kimiLifetimeTokens(root string, sessionDir string) *int64 {
+	agentsRoot := filepath.Join(sessionDir, "agents")
+	agents, err := os.ReadDir(agentsRoot)
+	if err != nil {
+		return nil
+	}
+	directories := []os.DirEntry{}
+	for _, agent := range agents {
+		if agent.IsDir() && agent.Type()&os.ModeSymlink == 0 {
+			directories = append(directories, agent)
+		}
+	}
+	if len(directories) == 0 || len(directories) > 256 {
+		return nil
+	}
+	sort.Slice(directories, func(left, right int) bool { return directories[left].Name() < directories[right].Name() })
+	remaining := int64(maxSessionBytes)
+	var total int64
+	sawUsage := false
+	for _, agent := range directories {
+		wire := filepath.Join(agentsRoot, agent.Name(), "wire.jsonl")
+		value, _, info, readErr := readStableKimiFile(root, wire, remaining)
+		if readErr != nil {
+			return nil
+		}
+		remaining -= info.Size()
+		scanner := bufio.NewScanner(bytes.NewReader(value))
+		scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
+		for scanner.Scan() {
+			if len(bytes.TrimSpace(scanner.Bytes())) == 0 {
+				continue
+			}
+			var record map[string]any
+			if json.Unmarshal(scanner.Bytes(), &record) != nil || record == nil {
+				return nil
+			}
+			tokens, usage, valid := kimiUsageTokens(record)
+			if !valid {
+				return nil
+			}
+			if usage {
+				sawUsage = true
+				if total > int64(^uint64(0)>>1)-tokens {
+					return nil
+				}
+				total += tokens
+			}
+		}
+		if scanner.Err() != nil {
+			return nil
+		}
+	}
+	if !sawUsage {
+		return nil
+	}
+	return &total
+}
+
+func scanKimi(_ context.Context, _ string, dependencies Dependencies) ([]Session, int, error) {
+	root, err := providerRoot(dependencies, "KIMI_CODE_HOME", ".kimi-code")
+	if err != nil {
+		return nil, 0, err
+	}
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return []Session{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	indexPath := filepath.Join(canonicalRoot, "session_index.jsonl")
+	index, _, _, err := readStableKimiFile(canonicalRoot, indexPath, 16*1024*1024)
+	if errors.Is(err, os.ErrNotExist) {
+		return []Session{}, 0, nil
+	}
+	if err != nil {
+		return nil, 1, nil
+	}
+	sessionsRoot := filepath.Join(canonicalRoot, "sessions")
+	byID := map[string]Session{}
+	invalid := 0
+	records := 0
+	scanner := bufio.NewScanner(bytes.NewReader(index))
+	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
+	for scanner.Scan() {
+		if len(bytes.TrimSpace(scanner.Bytes())) == 0 {
+			continue
+		}
+		if records >= maxProviderFiles {
+			invalid++
+			continue
+		}
+		records++
+		var indexRecord kimiIndexRecord
+		if json.Unmarshal(scanner.Bytes(), &indexRecord) != nil ||
+			!kimiSessionPattern.MatchString(strings.TrimSpace(indexRecord.SessionID)) ||
+			!isPortableAbsolutePath(indexRecord.SessionDir) ||
+			!isPortableAbsolutePath(indexRecord.WorkDir) {
+			invalid++
+			continue
+		}
+		sessionEntry, entryErr := os.Lstat(indexRecord.SessionDir)
+		canonicalSession, canonicalErr := filepath.EvalSymlinks(indexRecord.SessionDir)
+		if entryErr != nil || canonicalErr != nil || sessionEntry.Mode()&os.ModeSymlink != 0 || !sessionEntry.IsDir() || !pathInside(sessionsRoot, canonicalSession) {
+			invalid++
+			continue
+		}
+		stateValue, statePath, _, stateErr := readStableKimiFile(canonicalRoot, filepath.Join(canonicalSession, "state.json"), metadataBytes)
+		if stateErr != nil {
+			invalid++
+			continue
+		}
+		var state kimiState
+		if json.Unmarshal(stateValue, &state) != nil {
+			invalid++
+			continue
+		}
+		created, createdOK := firstTimestamp(state.CreatedAt, state.CreatedSnake, state.CreationTime)
+		updated, updatedOK := firstTimestamp(state.UpdatedAt, state.UpdatedSnake, state.UpdateTime)
+		if !createdOK || !updatedOK || created.After(updated) {
+			invalid++
+			continue
+		}
+		title := truncateTitle(state.Title)
+		if title == "" {
+			title = truncateTitle(state.LastPrompt)
+		}
+		if title == "" {
+			title = "Untitled session"
+		}
+		addNewest(byID, Session{
+			NativeID: strings.TrimSpace(indexRecord.SessionID), WorkspacePath: cleanPortablePath(indexRecord.WorkDir),
+			Title: title, CreatedAt: created.UTC().Format(time.RFC3339Nano), UpdatedAt: updated.UTC().Format(time.RFC3339Nano),
+			LifetimeTokens: kimiLifetimeTokens(canonicalRoot, canonicalSession), SourceKey: statePath,
+		})
+	}
+	if scanner.Err() != nil {
+		return nil, invalid + 1, nil
+	}
+	return orderedSessions(byID), invalid, nil
 }
 
 func scanClaude(_ context.Context, _ string, dependencies Dependencies) ([]Session, int, error) {

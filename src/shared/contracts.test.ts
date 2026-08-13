@@ -174,12 +174,13 @@ describe('ProviderIdSchema', () => {
         'cursor',
         'copilot',
         'qwen',
+        'kimi',
         'amp',
         'crush',
         'goose',
         'aider'
       ].map((provider) => ProviderIdSchema.parse(provider))
-    ).toHaveLength(12);
+    ).toHaveLength(13);
   });
 
   it('rejects provider identifiers that Lumora did not ship', () => {

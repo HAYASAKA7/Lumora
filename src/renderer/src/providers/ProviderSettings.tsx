@@ -19,7 +19,8 @@ import type {
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import {
   PROVIDER_DEFINITIONS,
-  providerDefinition
+  providerDefinition,
+  supportsManagedProviderUpdate
 } from '../../../shared/provider-definitions';
 
 export type ProviderScanStatus =
@@ -231,7 +232,17 @@ function ProviderCard({
                 ? `Update available · ${release.latestVersion}`
                 : `Up to date · ${release.latestVersion}`}
             </p>
-            {release.state === 'update_available' && confirmingUpdate ? (
+            {release.state === 'update_available' &&
+            !supportsManagedProviderUpdate(installation.provider) ? (
+              <button
+                aria-label={`Open ${installation.displayName} update guide`}
+                className="secondary-button provider-update-button"
+                onClick={onOpenGuide}
+                type="button"
+              >
+                Official update guide
+              </button>
+            ) : release.state === 'update_available' && confirmingUpdate ? (
               <div className="provider-install-confirmation">
                 <p>
                   Lumora will run a global npm update. If {installation.displayName} was

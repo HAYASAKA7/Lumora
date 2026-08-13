@@ -4,11 +4,11 @@
 
 Remote Lumora must provide the same usable session workflow for every provider
 with complete session management: Codex, Claude Code, Gemini CLI, OpenCode,
-GitHub Copilot CLI, and Qwen Code. A connected Windows, macOS, or Linux target
+GitHub Copilot CLI, Qwen Code, and Kimi Code. A connected Windows, macOS, or Linux target
 can start a new provider session or resume an exact provider-owned session in a
 native interactive terminal inside the isolated remote Lumora window.
 
-The feature is complete only when all six providers share the remote runtime
+The feature is complete only when all seven providers share the remote runtime
 path and every remote-platform branch has automated coverage. Manual acceptance
 uses any available target/provider combination; it is not the product scope.
 
@@ -46,7 +46,7 @@ new/resume request schema and then:
 Cross-agent handoff and native fork are not silently mapped onto resume in this
 phase. They remain unavailable remotely until their separate remote file and
 lifecycle semantics are implemented. New session and exact same-provider resume
-are complete for all six managed providers.
+are complete for all seven managed providers.
 
 ## Cross-platform command execution
 
@@ -100,7 +100,7 @@ The implementation uses red-green-refactor tests at these boundaries:
 
 - SSH PTY allocation, input, resize, exit, termination, timeout, and late events;
 - safe command construction for Windows, macOS, and Linux;
-- new/resume arguments for all six managed providers;
+- new/resume arguments for all seven managed providers;
 - target-scoped preparation, trust, token consumption, and stale-catalog checks;
 - local/remote IPC authorization and runtime-event isolation;
 - preload parsing and terminal component API injection;

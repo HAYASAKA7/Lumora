@@ -9,7 +9,7 @@ const outputPath = join(
 );
 const providerIds = [
   'codex', 'claude', 'gemini', 'antigravity', 'opencode', 'cursor',
-  'copilot', 'qwen', 'amp', 'crush', 'goose', 'aider'
+  'copilot', 'qwen', 'kimi', 'amp', 'crush', 'goose', 'aider'
 ];
 const commandPattern = /^[A-Za-z0-9._-]{1,80}$/;
 const packagePattern = /^(@[a-z0-9-]+\/)?[a-z0-9-]+$/i;

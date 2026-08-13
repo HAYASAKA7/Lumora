@@ -64,6 +64,12 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     installGuideUrl: 'https://qwenlm.github.io/qwen-code-docs/en/'
   },
   {
+    ...providerProbe('kimi'),
+    displayName: 'Kimi Code',
+    sessionSupport: 'complete',
+    installGuideUrl: 'https://www.kimi.com/help/kimi-code/cli-getting-started'
+  },
+  {
     ...providerProbe('amp'),
     displayName: 'Amp',
     sessionSupport: 'launch_only',
@@ -111,6 +117,15 @@ const NATIVE_FORK_PROVIDER_IDS = new Set<ProviderId>([
   'opencode'
 ]);
 
+const SESSION_HANDOFF_DESTINATION_PROVIDER_IDS = new Set<ProviderId>([
+  'codex',
+  'claude',
+  'gemini',
+  'opencode',
+  'copilot',
+  'qwen'
+]);
+
 const NATIVE_FORK_MINIMUM_VERSIONS: Readonly<
   Partial<Record<ProviderId, readonly [number, number, number]>>
 > = Object.freeze({
@@ -141,6 +156,26 @@ export function hasVerifiedStartPromptSupport(
 
 export function hasNativeForkSupport(provider: ProviderId): boolean {
   return NATIVE_FORK_PROVIDER_IDS.has(provider);
+}
+
+export function hasSessionHandoffSourceSupport(provider: ProviderId): boolean {
+  return hasCompleteSessionSupport(provider);
+}
+
+export function hasSessionHandoffDestinationSupport(
+  provider: ProviderId
+): boolean {
+  return SESSION_HANDOFF_DESTINATION_PROVIDER_IDS.has(provider);
+}
+
+export function supportsManagedProviderUpdate(provider: ProviderId): boolean {
+  return provider !== 'kimi' && providerDefinition(provider).npmPackage !== null;
+}
+
+export function providerMinimumInstallNodeVersion(
+  provider: ProviderId
+): readonly [number, number, number] | null {
+  return provider === 'kimi' ? [22, 19, 0] : null;
 }
 
 export function nativeForkMinimumVersion(provider: ProviderId): string | null {

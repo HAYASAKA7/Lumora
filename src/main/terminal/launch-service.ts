@@ -14,6 +14,8 @@ import {
   type WorkspaceTrustDecision
 } from '../../shared/contracts';
 import {
+  hasSessionHandoffDestinationSupport,
+  hasSessionHandoffSourceSupport,
   providerDefinition,
   supportsNativeForkVersion
 } from '../../shared/provider-definitions';
@@ -306,6 +308,8 @@ export class LaunchService {
           throw new TerminalLaunchError('CROSS_AGENT_DISABLED');
         }
         if (
+          !hasSessionHandoffSourceSupport(session.provider) ||
+          !hasSessionHandoffDestinationSupport(destinationProvider) ||
           !settings.enabledProviders.includes(session.provider) ||
           !settings.enabledProviders.includes(destinationProvider) ||
           this.dependencies.sessionCatalogRegistry.get(session.provider) === null ||

@@ -3,8 +3,8 @@
 ## Purpose
 
 Lumora will discover provider-owned sessions on a connected remote computer for
-the same six providers that have complete local session management: Codex,
-Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen Code. The remote
+the same seven providers that have complete local session management: Codex,
+Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, Qwen Code, and Kimi Code. The remote
 catalog remains read-only in this phase. It does not create a Lumora-owned
 session format. The catalog layer remains metadata-only; the separate remote
 runtime consumes its validated identities for exact resume and terminal launch.
@@ -42,10 +42,13 @@ session-capable providers.
   `workspace.yaml` as the legacy metadata source.
 - **Qwen Code:** enumerate provider recordings below the configured Qwen
   projects root and parse bounded JSONL metadata and token usage.
+- **Kimi Code:** stream the bounded native `session_index.jsonl`, validate each
+  contained session directory, read bounded `state.json` metadata, and sum
+  effective lifetime usage from bounded agent `wire.jsonl` files.
 
 Provider storage roots honor the same environment overrides as local Lumora:
 `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `GEMINI_CLI_HOME`, `COPILOT_HOME`,
-`QWEN_RUNTIME_DIR`, and `QWEN_HOME`. Empty or relative overrides are rejected in
+`QWEN_RUNTIME_DIR`, `QWEN_HOME`, and `KIMI_CODE_HOME`. Empty or relative overrides are rejected in
 favor of the provider's default directory below the remote home directory.
 
 ## Data and privacy boundaries
@@ -96,7 +99,7 @@ metadata.
 
 Each provider adapter uses provider-shaped fixtures for valid metadata,
 renamed sessions, duplicates, malformed records, oversized sources, and token
-totals. Registry tests cover all six adapters and isolate failures. Snapshot
+totals. Registry tests cover all seven adapters and isolate failures. Snapshot
 tests prove that later pages do not rescan and cursor zero refreshes the cache.
 Protocol tests cover the new `failed` status, maximum records, maximum frame
 size, and source-key removal. The complete Go, TypeScript, renderer, typecheck,

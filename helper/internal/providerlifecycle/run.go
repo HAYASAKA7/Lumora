@@ -66,10 +66,29 @@ type Invocation struct {
 }
 
 type Dependencies struct {
-	FindNPM  func(context.Context) (string, error)
-	Execute  func(context.Context, Invocation) error
-	Now      func() time.Time
-	Platform string
+	FindNPM          func(context.Context) (string, error)
+	FindNode         func(context.Context) (string, error)
+	ProbeNodeVersion func(context.Context, string) (string, error)
+	Execute          func(context.Context, Invocation) error
+	Now              func() time.Time
+	Platform         string
+}
+
+func semanticVersionAtLeast(output string, minimum [3]int) bool {
+	match := regexp.MustCompile(`(^|[^0-9])([0-9]+)\.([0-9]+)\.([0-9]+)([^0-9]|$)`).FindStringSubmatch(output)
+	if len(match) != 6 {
+		return false
+	}
+	for index := 0; index < 3; index++ {
+		value := 0
+		for _, digit := range match[index+2] {
+			value = value*10 + int(digit-'0')
+		}
+		if value != minimum[index] {
+			return value > minimum[index]
+		}
+	}
+	return true
 }
 
 func providerPackage(provider string) (string, bool) {
@@ -182,6 +201,31 @@ func Run(parent context.Context, request Request, dependencies Dependencies) (Re
 	}
 	if npmPackage == "" {
 		return Result{}, &Error{Code: CodeGuideRequired}
+	}
+	if request.Provider == "kimi" && request.Action == ActionUpdate {
+		return Result{}, &Error{Code: CodeGuideRequired}
+	}
+	if request.Provider == "kimi" {
+		findNode := dependencies.FindNode
+		if findNode == nil {
+			findNode = func(ctx context.Context) (string, error) {
+				return providerprobe.LocateTool(ctx, "node", providerprobe.DefaultDependencies())
+			}
+		}
+		nodePath, err := findNode(parent)
+		if err != nil || nodePath == "" {
+			return Result{}, &Error{Code: CodePackageManagerUnavailable}
+		}
+		probeNodeVersion := dependencies.ProbeNodeVersion
+		if probeNodeVersion == nil {
+			probeNodeVersion = func(ctx context.Context, executable string) (string, error) {
+				return providerprobe.DefaultDependencies().ProbeVersion(ctx, executable, []string{"--version"})
+			}
+		}
+		version, err := probeNodeVersion(parent, nodePath)
+		if err != nil || !semanticVersionAtLeast(version, [3]int{22, 19, 0}) {
+			return Result{}, &Error{Code: CodePackageManagerUnavailable}
+		}
 	}
 	findNPM := dependencies.FindNPM
 	if findNPM == nil {

@@ -95,6 +95,7 @@ func defaultDependencies() Dependencies {
 			},
 			"copilot": scanCopilot,
 			"qwen":    scanQwen,
+			"kimi":    scanKimi,
 		},
 	}
 }

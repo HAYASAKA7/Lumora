@@ -9,7 +9,10 @@ import {
   type ProviderUpdateStatus
 } from '../../shared/contracts';
 import type { ProviderReleaseSource } from './provider-release-source';
-import { providerDefinition } from '../../shared/provider-definitions';
+import {
+  providerDefinition,
+  supportsManagedProviderUpdate
+} from '../../shared/provider-definitions';
 import { PROVIDER_IDS } from '../../shared/contracts';
 import {
   compareSemanticVersions,
@@ -267,7 +270,7 @@ export function createProviderUpdateService({
             'The provider is not ready to update.'
           );
         }
-        if (providerDefinition(provider).npmPackage === null) {
+        if (!supportsManagedProviderUpdate(provider)) {
           throw new ProviderUpdateServiceError(
             'PROVIDER_UPDATE_GUIDE_REQUIRED',
             `Use ${installation.displayName}'s official installation guide to update it.`

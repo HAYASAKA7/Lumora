@@ -471,12 +471,13 @@ describe('remote session runtime', () => {
 
     for (const [index, provider] of SESSION_PROVIDER_IDS.entries()) {
       const nativeId = `${provider}-native-${index}`;
+      const startPrompt = provider === 'kimi' ? '' : 'Continue safely';
       const preview = await runtime.prepareLaunch({
         strategy: 'resume',
         sessionId: createSessionId(provider, nativeId, TARGET_ID),
         provider,
         terminalProfileId: null,
-        startPrompt: 'Continue safely',
+        startPrompt,
         cols: 100,
         rows: 30
       });
@@ -486,7 +487,7 @@ describe('remote session runtime', () => {
         provider,
         sessionId: createSessionId(provider, nativeId, TARGET_ID),
         executablePath: `/opt/lumora/${provider}`,
-        args: buildResumeArguments(provider as ProviderId, nativeId, 'Continue safely'),
+        args: buildResumeArguments(provider as ProviderId, nativeId, startPrompt),
         workingDirectory: WORKSPACE_PATH,
         environmentNames: []
       });
@@ -553,12 +554,13 @@ describe('remote session runtime', () => {
     const { database, runtime, openPty } = createHarness();
 
     for (const provider of SESSION_PROVIDER_IDS) {
+      const startPrompt = provider === 'kimi' ? '' : 'Start remotely';
       const preview = await runtime.prepareLaunch({
         strategy: 'new',
         workspaceId: WORKSPACE_ID,
         provider,
         terminalProfileId: null,
-        startPrompt: 'Start remotely',
+        startPrompt,
         cols: 90,
         rows: 28
       });
@@ -584,9 +586,13 @@ describe('remote session runtime', () => {
           args: [
             '-l',
             '-c',
-            'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
-            'lumora-provider',
-            ...buildNewArguments(provider, 'Start remotely')
+            ...(buildNewArguments(provider, startPrompt).length === 0
+              ? ['exec "$LUMORA_PROVIDER_EXECUTABLE"']
+              : [
+                  'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
+                  'lumora-provider',
+                  ...buildNewArguments(provider, startPrompt)
+                ])
           ],
           env: {
             LUMORA_PROVIDER_EXECUTABLE: `/opt/lumora/${provider}`

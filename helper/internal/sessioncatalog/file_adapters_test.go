@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -66,6 +67,42 @@ func TestQwenFileAdapterDiscoversCustomTitle(t *testing.T) {
 	sessions, invalid, err := scanQwen(context.Background(), "/usr/bin/qwen", dependencies)
 	if err != nil || invalid != 0 || len(sessions) != 1 || sessions[0].Title != "Remote Qwen" || sessions[0].LifetimeTokens == nil || *sessions[0].LifetimeTokens != 23 {
 		t.Fatalf("unexpected Qwen scan: sessions=%#v invalid=%d err=%v", sessions, invalid, err)
+	}
+}
+
+func TestKimiFileAdapterDiscoversIndexedStateAndEffectiveTokens(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, ".kimi-code")
+	id := "session_123e4567-e89b-42d3-a456-426614174000"
+	sessionDir := filepath.Join(root, "sessions", "wd_lumora", id)
+	writeFixture(t, filepath.Join(root, "session_index.jsonl"),
+		`{"sessionId":"`+id+`","sessionDir":"`+strings.ReplaceAll(sessionDir, `\`, `\\`)+`","workDir":"/work/kimi"}`+"\n")
+	writeFixture(t, filepath.Join(sessionDir, "state.json"),
+		`{"title":"Remote Kimi","lastPrompt":"private prompt","createdAt":"2026-08-12T01:00:00Z","updatedAt":"2026-08-12T02:00:00Z"}`)
+	writeFixture(t, filepath.Join(sessionDir, "agents", "main", "wire.jsonl"),
+		`{"type":"usage.record","usage":{"inputOther":1163,"output":352,"inputCacheRead":22272,"inputCacheCreation":17}}`+"\n")
+	dependencies := fileAdapterDependencies(home, nil)
+	sessions, invalid, err := scanKimi(context.Background(), "/usr/bin/kimi", dependencies)
+	if err != nil || invalid != 0 || len(sessions) != 1 {
+		t.Fatalf("unexpected Kimi scan: sessions=%#v invalid=%d err=%v", sessions, invalid, err)
+	}
+	if sessions[0].NativeID != id || sessions[0].Title != "Remote Kimi" || sessions[0].WorkspacePath != "/work/kimi" || sessions[0].LifetimeTokens == nil || *sessions[0].LifetimeTokens != 1515 {
+		t.Fatalf("unexpected Kimi session: %#v", sessions[0])
+	}
+}
+
+func TestKimiFileAdapterRejectsEscapedAndMalformedIndexRecords(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, ".kimi-code")
+	outside := t.TempDir()
+	writeFixture(t, filepath.Join(outside, "state.json"),
+		`{"title":"Escaped","createdAt":"2026-08-12T01:00:00Z","updatedAt":"2026-08-12T02:00:00Z"}`)
+	writeFixture(t, filepath.Join(root, "session_index.jsonl"),
+		"{bad json\n"+`{"sessionId":"session_escaped","sessionDir":"`+strings.ReplaceAll(outside, `\`, `\\`)+`","workDir":"/work/escaped"}`+"\n")
+	dependencies := fileAdapterDependencies(home, nil)
+	sessions, invalid, err := scanKimi(context.Background(), "/usr/bin/kimi", dependencies)
+	if err != nil || len(sessions) != 0 || invalid != 2 {
+		t.Fatalf("unsafe Kimi records were accepted: sessions=%#v invalid=%d err=%v", sessions, invalid, err)
 	}
 }
 

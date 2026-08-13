@@ -23,7 +23,8 @@ describe('createSessionCatalogRegistry', () => {
     adapter('gemini'),
     adapter('opencode'),
     adapter('copilot'),
-    adapter('qwen')
+    adapter('qwen'),
+    adapter('kimi')
   ];
 
   it('keeps complete adapters in shared definition order', () => {
@@ -34,7 +35,8 @@ describe('createSessionCatalogRegistry', () => {
       'gemini',
       'opencode',
       'copilot',
-      'qwen'
+      'qwen',
+      'kimi'
     ]);
     expect(registry.get('gemini')?.provider).toBe('gemini');
     expect(registry.get('aider')).toBeNull();
@@ -46,7 +48,7 @@ describe('createSessionCatalogRegistry', () => {
       createSessionCatalogRegistry([...adapters, adapters[0]!])
     ).toThrow('Duplicate session catalog adapter');
     expect(() => createSessionCatalogRegistry(adapters.slice(0, -1))).toThrow(
-      'Missing session catalog adapter for qwen'
+      'Missing session catalog adapter for kimi'
     );
     expect(() =>
       createSessionCatalogRegistry([...adapters, adapter('aider')])

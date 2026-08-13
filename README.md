@@ -205,7 +205,7 @@ root access.
 The isolated window also checks remote Node.js, npm, and the providers enabled
 for that target. Home, Workspaces, and All sessions discover provider-owned
 metadata for Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and
-Qwen Code. From the same remote window, you can start a new session or resume
+Qwen Code, and Kimi Code. From the same remote window, you can start a new session or resume
 an exact session in an SSH-backed terminal. Provider start commands can be
 customized per remote computer from the shared **Settings > Providers** cards
 or layered under **Settings > Launch** without changing local launch settings.
@@ -390,6 +390,7 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | OpenCode | Confirmed npm action | Yes | Yes | Yes |
 | GitHub Copilot CLI | Confirmed npm action | Yes | Yes | No |
 | Qwen Code | Confirmed npm action | Yes | Yes | No |
+| Kimi Code | Confirmed npm install; official updater | Yes | Yes | No |
 | Antigravity | Official guide | Yes | No | No |
 | Cursor CLI | Official guide | Yes | No | No |
 | Amp | Official guide | Yes | No | No |
@@ -401,10 +402,12 @@ All providers can be launched on Windows, macOS, and Linux when their command
 is installed and compatible. Launch-only providers remain available in
 Settings and New session, but do not appear in saved-session pages or filters.
 
-The six providers with complete session support can be the source or
-destination of an opt-in cross-agent handoff. A handoff starts a new native
-session in the destination provider; it never converts or replaces the source
-provider's session.
+The seven providers with complete session support can be used as handoff
+sources. Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and Qwen
+Code can also be handoff destinations. Kimi remains source-only because its
+documented prompt flag is non-interactive and cannot safely create an
+interactive destination session. A handoff never converts or replaces the
+source provider's session.
 
 See [Provider support and verification](docs/PROVIDER_SUPPORT.md) for detection
 commands, tested native-fork versions, and the manual release matrix.
@@ -450,7 +453,7 @@ provider may contact its own services according to its terms and configuration.
   resumes the provider nor imports its transcript into Lumora's catalog.
 - Terminal viewport sizing remains a known issue on some layouts.
 - Remote computers are experimental. New sessions and exact native resume are
-  available for the six session-managed providers on supported SSH targets;
+  available for the seven session-managed providers on supported SSH targets;
   remote cross-agent handoff, native fork, and session transfer remain future
   phases.
 

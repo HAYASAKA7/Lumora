@@ -10,7 +10,10 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import type { ProviderId } from '../../shared/contracts';
-import { hasCompleteSessionSupport } from '../../shared/provider-definitions';
+import {
+  hasSessionHandoffDestinationSupport,
+  hasSessionHandoffSourceSupport
+} from '../../shared/provider-definitions';
 import {
   normalizeSessionHandoff,
   type HandoffActivity,
@@ -221,11 +224,11 @@ export class HandoffService {
 
   reserve(input: HandoffReservationInput): HandoffPlan {
     if (
-      !hasCompleteSessionSupport(input.sourceProvider) ||
-      !hasCompleteSessionSupport(input.destinationProvider) ||
+      !hasSessionHandoffSourceSupport(input.sourceProvider) ||
+      !hasSessionHandoffDestinationSupport(input.destinationProvider) ||
       input.sourceProvider === input.destinationProvider
     ) {
-      throw new Error('A handoff requires two different session providers.');
+      throw new Error('The selected provider does not support session handoff in that direction.');
     }
     const retentionDays = validRetentionDays(input.retentionDays);
     const id = this.createId();

@@ -8,6 +8,20 @@ import {
 } from './launch-command';
 
 describe('buildResumeArguments', () => {
+  it('builds Kimi Code exact resume without claiming prompt support', () => {
+    expect(buildNewArguments('kimi', '')).toEqual([]);
+    expect(buildResumeArguments('kimi', 'session_123')).toEqual([
+      '--session',
+      'session_123'
+    ]);
+    expect(() => buildNewArguments('kimi', 'inspect this')).toThrow(
+      'Kimi Code does not support a start prompt in Lumora.'
+    );
+    expect(() => buildResumeArguments('kimi', 'session_123', 'continue')).toThrow(
+      'Kimi Code does not support a start prompt in Lumora.'
+    );
+  });
+
   it('builds atomic Codex resume arguments', () => {
     expect(buildResumeArguments('codex', 'thread-123')).toEqual([
       'resume',

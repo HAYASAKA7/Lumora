@@ -88,7 +88,8 @@ describe('createCatalogRuntime', () => {
       'gemini',
       'opencode',
       'copilot',
-      'qwen'
+      'qwen',
+      'kimi'
     ]);
     expect(snapshot.providerStatus.map(({ provider }) => provider)).toEqual([
       'codex'

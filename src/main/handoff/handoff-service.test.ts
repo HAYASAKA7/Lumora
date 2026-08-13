@@ -23,6 +23,26 @@ async function root(): Promise<string> {
 }
 
 describe('HandoffService', () => {
+  it('allows Kimi as a source but rejects it as a destination', async () => {
+    const rootDirectory = await root();
+    const service = new HandoffService({ rootDirectory });
+    expect(() => service.reserve({
+      sourceSessionId: 'a'.repeat(64),
+      sourceNativeId: 'session_1',
+      sourceProvider: 'kimi',
+      destinationProvider: 'codex',
+      startPrompt: '',
+      retentionDays: 7
+    })).not.toThrow();
+    expect(() => service.reserve({
+      sourceSessionId: 'a'.repeat(64),
+      sourceNativeId: 'native-1',
+      sourceProvider: 'codex',
+      destinationProvider: 'kimi',
+      startPrompt: '',
+      retentionDays: 7
+    })).toThrow('does not support session handoff');
+  });
   it('materializes an immutable source copy, manifest, context, and bounded prompt', async () => {
     const rootDirectory = await root();
     const service = new HandoffService({

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createFileHandoffSnapshotter,
+  createKimiHandoffSnapshotter,
   createOpenCodeHandoffSnapshotter
 } from './session-handoff-source';
 
@@ -25,6 +26,58 @@ async function directory(name: string): Promise<string> {
 }
 
 describe('session handoff source snapshots', () => {
+  it('copies only Kimi main-agent wire data from a state-backed catalog source', async () => {
+    const sourceRoot = await directory('kimi-source');
+    const destination = await directory('kimi-destination');
+    const sessionDir = join(sourceRoot, 'sessions', 'wd_lumora', 'session_1');
+    await mkdir(join(sessionDir, 'agents', 'main'), { recursive: true });
+    const statePath = join(sessionDir, 'state.json');
+    const wirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+    await writeFile(statePath, '{"title":"Kimi"}', 'utf8');
+    await writeFile(wirePath, '{"type":"turn.prompt","content":"Hello"}\n', 'utf8');
+
+    const result = await createKimiHandoffSnapshotter()({
+      nativeSessionId: 'session_1',
+      sourceKeys: [statePath],
+      installation: {
+        provider: 'kimi', displayName: 'Kimi Code', state: 'ready',
+        executablePath: '/tools/kimi', version: '0.30.0', issue: null
+      },
+      sourceDirectory: destination
+    });
+
+    expect(result.raw).toContain('turn.prompt');
+    expect(result.sourceFiles).toHaveLength(1);
+    expect(result.sourceFiles[0]).not.toBe(wirePath);
+  });
+
+  it('rejects a Kimi wire source redirected through a symbolic link', async () => {
+    const sourceRoot = await directory('kimi-link-source');
+    const outside = await directory('kimi-link-outside');
+    const destination = await directory('kimi-link-destination');
+    const sessionDir = join(sourceRoot, 'sessions', 'wd_lumora', 'session_1');
+    await mkdir(join(sessionDir, 'agents', 'main'), { recursive: true });
+    const statePath = join(sessionDir, 'state.json');
+    const outsideWire = join(outside, 'wire.jsonl');
+    await writeFile(statePath, '{"title":"Kimi"}', 'utf8');
+    await writeFile(outsideWire, '{"type":"turn.prompt"}\n', 'utf8');
+    try {
+      await symlink(outsideWire, join(sessionDir, 'agents', 'main', 'wire.jsonl'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') return;
+      throw error;
+    }
+
+    await expect(createKimiHandoffSnapshotter()({
+      nativeSessionId: 'session_1',
+      sourceKeys: [statePath],
+      installation: {
+        provider: 'kimi', displayName: 'Kimi Code', state: 'ready',
+        executablePath: '/tools/kimi', version: '0.30.0', issue: null
+      },
+      sourceDirectory: destination
+    })).rejects.toThrow('unavailable');
+  });
   it('copies a file-backed provider source before returning its content', async () => {
     const sourceRoot = await directory('source');
     const destination = await directory('destination');

@@ -256,7 +256,7 @@ describe('TerminalRepository', () => {
       ): string | null;
     };
 
-    expect(configurable.listProviderLaunchConfigs()).toHaveLength(12);
+    expect(configurable.listProviderLaunchConfigs()).toHaveLength(13);
     expect(configurable.listProviderLaunchConfigs()).toContainEqual({
       provider: 'gemini',
       command: null

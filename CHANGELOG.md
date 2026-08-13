@@ -7,6 +7,23 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add Kimi Code as a complete local and remote session provider on Windows,
+  macOS, and Linux: detection, provider enablement, custom launch commands,
+  new sessions, metadata-only catalog discovery, exact `--session` resume,
+  rename refresh, effective lifetime-token totals, and source-only cross-agent
+  handoff.
+- Add explicitly confirmed npm installation for Kimi Code when Node.js 22.19
+  or newer is available. Existing Kimi installations use the official updater
+  or installation guide instead of an unverified npm overwrite.
+
+### Security
+
+- Bound and validate Kimi's session index, state, agent wire data, paths,
+  symlinks, record counts, line sizes, token arithmetic, and handoff snapshots.
+  Prompts and raw session content remain outside Lumora's searchable catalog.
+
 ## [0.3.1] - 2026-08-12
 
 ### Added

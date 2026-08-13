@@ -19,8 +19,10 @@ import {
 } from '../providers/launch-command';
 import { discoverOpenCodeSessions } from '../providers/opencode-session-source';
 import { discoverQwenSessions } from '../providers/qwen-session-source';
+import { discoverKimiSessions } from '../providers/kimi-session-source';
 import {
   createFileHandoffSnapshotter,
+  createKimiHandoffSnapshotter,
   createOpenCodeHandoffSnapshotter
 } from '../providers/session-handoff-source';
 import {
@@ -157,6 +159,7 @@ export function createCatalogRuntime({
   const configuredQwenRuntime = environmentHome(env, 'QWEN_RUNTIME_DIR', '').trim();
   const configuredQwenHome = environmentHome(env, 'QWEN_HOME', '').trim();
   const qwenRoot = configuredQwenRuntime || configuredQwenHome || join(homeDirectory, '.qwen');
+  const kimiRoot = environmentHome(env, 'KIMI_CODE_HOME', join(homeDirectory, '.kimi-code'));
   const registry = createSessionCatalogRegistry([
     adapter('codex', (installation) =>
       discoverCodexSessions({
@@ -183,7 +186,12 @@ export function createCatalogRuntime({
     adapter('copilot', () =>
       discoverCopilotSessions({ homeDirectory, env, lookupSource })
     ),
-    adapter('qwen', () => discoverQwenSessions({ qwenRoot, lookupSource }))
+    adapter('qwen', () => discoverQwenSessions({ qwenRoot, lookupSource })),
+    adapter(
+      'kimi',
+      () => discoverKimiSessions({ kimiRoot, lookupSource }),
+      createKimiHandoffSnapshotter()
+    )
   ]);
   const transferRegistry = createTransferAdapterRegistry({
     adapters: [

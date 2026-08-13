@@ -29,14 +29,14 @@ describe('RemoteProviderPreferenceRepository', () => {
     insertTarget(database, SECOND);
     const repository = new RemoteProviderPreferenceRepository(database);
 
-    expect(repository.get(FIRST)).toHaveLength(12);
+    expect(repository.get(FIRST)).toHaveLength(13);
     expect(repository.save(
       FIRST,
       ['opencode', 'codex'],
       new Date('2026-08-05T04:00:00.000Z')
     )).toEqual(['codex', 'opencode']);
     expect(repository.get(FIRST)).toEqual(['codex', 'opencode']);
-    expect(repository.get(SECOND)).toHaveLength(12);
+    expect(repository.get(SECOND)).toHaveLength(13);
     expect(() => repository.save(FIRST, [], new Date())).toThrow();
   });
 });

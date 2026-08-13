@@ -19,6 +19,7 @@ var Registry = []Definition{
 	{Provider: "cursor", Command: "cursor-agent", VersionArgs: []string{"--version"}, NPMPackage: ""},
 	{Provider: "copilot", Command: "copilot", VersionArgs: []string{"version"}, NPMPackage: "@github/copilot"},
 	{Provider: "qwen", Command: "qwen", VersionArgs: []string{"--version"}, NPMPackage: "@qwen-code/qwen-code"},
+	{Provider: "kimi", Command: "kimi", VersionArgs: []string{"--version"}, NPMPackage: "@moonshot-ai/kimi-code"},
 	{Provider: "amp", Command: "amp", VersionArgs: []string{"--version"}, NPMPackage: ""},
 	{Provider: "crush", Command: "crush", VersionArgs: []string{"--version"}, NPMPackage: "@charmland/crush"},
 	{Provider: "goose", Command: "goose", VersionArgs: []string{"--version"}, NPMPackage: ""},

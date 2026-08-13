@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { normalizeSessionHandoff } from './session-handoff-export';
 
 describe('normalizeSessionHandoff', () => {
+  it('normalizes Kimi wire messages without reasoning or tool output', () => {
+    const raw = [
+      { type: 'turn.prompt', content: 'Kimi question', time: 1786500000000 },
+      { type: 'context.append_message', message: { role: 'assistant', content: [{ type: 'text', text: 'Kimi answer' }, { type: 'think', think: 'private reasoning' }] }, time: 1786500001000 },
+      { type: 'tool.call', toolName: 'ReadFile', arguments: { path: '/work/file.ts', token: 'secret' }, time: 1786500002000 }
+    ].map((value) => JSON.stringify(value)).join('\n');
+
+    const result = normalizeSessionHandoff('kimi', raw);
+
+    expect(result.messages.map(({ role, content }) => ({ role, content }))).toEqual([
+      { role: 'user', content: 'Kimi question' },
+      { role: 'assistant', content: 'Kimi answer' }
+    ]);
+    expect(result.activities[0]).toMatchObject({
+      toolName: 'ReadFile',
+      referencedPaths: ['/work/file.ts']
+    });
+    expect(JSON.stringify(result)).not.toContain('private reasoning');
+    expect(JSON.stringify(result)).not.toContain('secret');
+  });
   it('normalizes Codex messages and a safe activity ledger', () => {
     const raw = [
       {

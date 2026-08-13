@@ -8,9 +8,11 @@ two levels:
 - **Launch only**: detection, configuration, version checking where available,
   and new-session launch. Saved sessions are not imported or resumed.
 
-Every full-session provider can participate in the optional cross-agent
-handoff workflow as either source or destination. A handoff creates a new
-destination session from a temporary copy; it is not exact native resume.
+Every full-session provider can be a source for the optional cross-agent
+handoff workflow. Kimi Code is source-only because its documented prompt mode
+is non-interactive; the other full-session providers can also be destinations.
+A handoff creates a new destination session from a temporary copy; it is not
+exact native resume.
 
 Codex, Claude Code, and OpenCode additionally support provider-native session
 forks. Lumora passes the source session identity and, when supplied, an optional
@@ -37,6 +39,7 @@ cell pending until that complete check has been performed.
 | OpenCode | Full session support | Pending manual verification | Pending manual verification | Pending manual verification |
 | GitHub Copilot CLI | Full session support | Pending manual verification | Pending manual verification | Pending manual verification |
 | Qwen Code | Full session support | Pending manual verification | Pending manual verification | Pending manual verification |
+| Kimi Code | Full session support | Pending manual verification | Pending manual verification | Pending manual verification |
 | Antigravity | Launch only | Pending manual verification | Pending manual verification | Pending manual verification |
 | Cursor CLI | Launch only | Pending manual verification | Pending manual verification | Pending manual verification |
 | Amp | Launch only | Pending manual verification | Pending manual verification | Pending manual verification |
@@ -113,6 +116,7 @@ Lumora uses these commands to identify an installed provider:
 | Cursor CLI | `cursor-agent --version` |
 | GitHub Copilot CLI | `copilot version` |
 | Qwen Code | `qwen --version` |
+| Kimi Code | `kimi --version` |
 | Amp | `amp --version` |
 | Crush | `crush --version` |
 | goose | `goose --version` |

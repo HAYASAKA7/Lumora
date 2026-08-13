@@ -15,6 +15,7 @@ import type {
 import {
   SESSION_PROVIDER_IDS,
   hasNativeForkSupport,
+  hasSessionHandoffDestinationSupport,
   hasVerifiedStartPromptSupport,
   supportsNativeForkVersion
 } from '../../../shared/provider-definitions';
@@ -112,7 +113,8 @@ export function ResumeSessionDialog({
       installation.provider === session.provider
         ? hasNativeForkSupport(session.provider) &&
           supportsNativeForkVersion(session.provider, installation.version)
-        : generalSettings.crossAgentWorkflowEnabled
+        : generalSettings.crossAgentWorkflowEnabled &&
+          hasSessionHandoffDestinationSupport(installation.provider)
   );
   const newSessionDestinationKey = newSessionDestinations
     .map((installation) => installation.provider)

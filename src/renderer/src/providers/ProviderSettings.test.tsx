@@ -100,7 +100,7 @@ describe('ProviderSettings', () => {
       />
     );
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(12);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(13);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Use Claude Code' }));
     expect(
       screen.getByRole('checkbox', { name: 'Use Codex' })

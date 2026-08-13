@@ -2,7 +2,11 @@ import { execFile } from 'node:child_process';
 import { posix, win32 } from 'node:path';
 
 import type { ProviderId, SystemInfo } from '../../shared/contracts';
-import { providerDefinition } from '../../shared/provider-definitions';
+import {
+  providerDefinition,
+  providerMinimumInstallNodeVersion,
+  supportsManagedProviderUpdate
+} from '../../shared/provider-definitions';
 
 type Platform = SystemInfo['platform'];
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -117,11 +121,18 @@ export async function runProviderLifecycle(
     platform,
     env,
     findExecutable,
+    probeVersion,
+    action = 'install',
     execute
   }: {
     platform: Platform;
     env: Environment;
     findExecutable(command: string): Promise<string | null>;
+    probeVersion?(
+      executablePath: string,
+      args: readonly string[]
+    ): Promise<string>;
+    action?: 'install' | 'update';
     execute?: ExecuteProviderLifecycle;
   }
 ): Promise<void> {
@@ -130,6 +141,43 @@ export async function runProviderLifecycle(
       'PROVIDER_INSTALL_GUIDE_REQUIRED',
       `Use ${providerDefinition(provider).displayName}'s official installation guide.`
     );
+  }
+  if (action === 'update' && !supportsManagedProviderUpdate(provider)) {
+    throw new ProviderLifecycleError(
+      'PROVIDER_INSTALL_GUIDE_REQUIRED',
+      `Use ${providerDefinition(provider).displayName}'s official updater or installation guide.`
+    );
+  }
+  const minimumNodeVersion = providerMinimumInstallNodeVersion(provider);
+  if (minimumNodeVersion !== null) {
+    const nodePath = await findExecutable('node');
+    if (nodePath === null || probeVersion === undefined) {
+      throw new ProviderLifecycleError(
+        'PROVIDER_PACKAGE_MANAGER_UNAVAILABLE',
+        `Install Node.js ${minimumNodeVersion.join('.')} or newer before installing ${providerDefinition(provider).displayName}.`
+      );
+    }
+    let version: string;
+    try {
+      version = await probeVersion(nodePath, ['--version']);
+    } catch {
+      throw new ProviderLifecycleError(
+        'PROVIDER_PACKAGE_MANAGER_UNAVAILABLE',
+        `Lumora could not verify Node.js ${minimumNodeVersion.join('.')} or newer.`
+      );
+    }
+    const match = /(?:^|[^0-9])(\d+)\.(\d+)\.(\d+)(?![0-9])/u.exec(version);
+    const installed = match?.slice(1, 4).map(Number) ?? null;
+    const compare = installed === null ? -1 : installed.reduce(
+      (result, value, index) => result !== 0 ? result : Math.sign(value - minimumNodeVersion[index]!),
+      0
+    );
+    if (compare < 0) {
+      throw new ProviderLifecycleError(
+        'PROVIDER_PACKAGE_MANAGER_UNAVAILABLE',
+        `${providerDefinition(provider).displayName} requires Node.js ${minimumNodeVersion.join('.')} or newer for npm installation.`
+      );
+    }
   }
   const npmPath = await findExecutable('npm');
   if (npmPath === null) {

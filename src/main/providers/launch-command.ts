@@ -68,7 +68,15 @@ const RESUME_ARGUMENTS: Partial<
     '--resume',
     nativeSessionId,
     ...attachedPromptArgument('--prompt-interactive', startPrompt)
-  ]
+  ],
+  kimi: (nativeSessionId, startPrompt) => {
+    if (startPrompt !== '') {
+      throw new Error(
+        'Kimi Code does not support a start prompt in Lumora.'
+      );
+    }
+    return ['--session', nativeSessionId];
+  }
 };
 
 const FORK_ARGUMENTS: Partial<

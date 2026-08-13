@@ -180,11 +180,13 @@ const providerUpdateService = createProviderUpdateService({
   },
   enabledProviders: () => providerPolicy.providers(),
   releases: providerReleaseSource,
-  runLifecycle: (provider) =>
+  runLifecycle: (provider, action) =>
     runProviderLifecycle(provider, {
+      action,
       platform,
       env: applicationEnvironment,
-      findExecutable: providerDependencies.findExecutable
+      findExecutable: providerDependencies.findExecutable,
+      probeVersion: providerDependencies.probeVersion
     })
 });
 const developerEnvironmentScanner = createDeveloperEnvironmentScanner(

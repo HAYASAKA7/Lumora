@@ -379,6 +379,38 @@ function normalizeOpenCode(
   }
 }
 
+function normalizeKimi(
+  records: readonly Record<string, unknown>[],
+  messages: HandoffMessage[],
+  activities: HandoffActivity[]
+): void {
+  for (const record of records) {
+    const timestamp = parseTimestamp(record.time ?? record.timestamp);
+    if (record.type === 'turn.prompt') {
+      addMessage(messages, 'user', record.content ?? record.prompt ?? record.userInput, timestamp);
+      continue;
+    }
+    if (record.type === 'context.append_message') {
+      const message = objectValue(record.message ?? record.payload);
+      if (message !== null) {
+        addMessage(messages, message.role, message.content ?? message.parts, timestamp);
+      }
+      continue;
+    }
+    if (record.type === 'tool.call' || record.type === 'tool_call') {
+      const payload = objectValue(record.payload) ?? record;
+      const name = payload.toolName ?? payload.name ?? payload.tool;
+      if (typeof name !== 'string' || name.trim().length === 0) continue;
+      activities.push({
+        toolName: name.trim().slice(0, 256),
+        referencedPaths: referencedPaths(payload.arguments ?? payload.input),
+        timestamp,
+        status: activityStatus(payload.status)
+      });
+    }
+  }
+}
+
 function activityCoverage(provider: ProviderId): HandoffCoverage {
   if (provider === 'codex' || provider === 'claude' || provider === 'opencode') {
     return 'complete';
@@ -419,6 +451,9 @@ export function normalizeSessionHandoff(
       break;
     case 'opencode':
       normalizeOpenCode(document, messages, activities);
+      break;
+    case 'kimi':
+      normalizeKimi(records, messages, activities);
       break;
     default:
       throw new SessionHandoffExportError(

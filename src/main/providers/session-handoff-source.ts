@@ -1,6 +1,6 @@
 import { constants } from 'node:fs';
-import { copyFile, readFile, stat, writeFile } from 'node:fs/promises';
-import { extname, isAbsolute, join } from 'node:path';
+import { copyFile, lstat, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, extname, isAbsolute, join } from 'node:path';
 
 import type { ProviderId, SystemInfo } from '../../shared/contracts';
 import {
@@ -56,6 +56,49 @@ export function createFileHandoffSnapshotter(
     const raw = await readFile(destinationPath, 'utf8');
     if (Buffer.byteLength(raw, 'utf8') !== before.size) {
       throw new Error(`${provider} handoff snapshot is incomplete.`);
+    }
+    return { raw, sourceFiles: [destinationPath] };
+  };
+}
+
+export function createKimiHandoffSnapshotter(): SessionHandoffSnapshotter {
+  return async ({ sourceKeys, sourceDirectory, installation, nativeSessionId }) => {
+    if (installation.provider !== 'kimi' || sourceKeys.length !== 1) {
+      throw new Error('Kimi handoff requires exactly one current source.');
+    }
+    const statePath = sourceKeys[0]!;
+    if (
+      !isAbsolute(statePath) || statePath.includes('\0') ||
+      basename(statePath) !== 'state.json' ||
+      basename(dirname(statePath)) !== nativeSessionId
+    ) {
+      throw new Error('Kimi handoff source is not a local file.');
+    }
+    const sourcePath = join(dirname(statePath), 'agents', 'main', 'wire.jsonl');
+    const stateEntry = await lstat(statePath);
+    const before = await lstat(sourcePath);
+    if (
+      stateEntry.isSymbolicLink() || !stateEntry.isFile() ||
+      before.isSymbolicLink() || !before.isFile() ||
+      before.size < 1 || before.size > MAX_SOURCE_BYTES
+    ) {
+      throw new Error('Kimi handoff source is unavailable or too large.');
+    }
+    const canonicalStatePath = await realpath(statePath);
+    const canonicalSourcePath = await realpath(sourcePath);
+    if (
+      canonicalStatePath !== statePath ||
+      dirname(dirname(dirname(canonicalSourcePath))) !== dirname(canonicalStatePath)
+    ) throw new Error('Kimi handoff source is unavailable or too large.');
+    const destinationPath = join(sourceDirectory, 'kimi-session.jsonl');
+    await copyFile(canonicalSourcePath, destinationPath, constants.COPYFILE_EXCL);
+    const after = await stat(canonicalSourcePath);
+    if (!sameFileState(before, after)) {
+      throw new Error('Kimi handoff source changed while copying.');
+    }
+    const raw = await readFile(destinationPath, 'utf8');
+    if (Buffer.byteLength(raw, 'utf8') !== before.size) {
+      throw new Error('Kimi handoff snapshot is incomplete.');
     }
     return { raw, sourceFiles: [destinationPath] };
   };

@@ -7,9 +7,12 @@ import {
   SESSION_PROVIDER_IDS,
   hasCompleteSessionSupport,
   hasNativeForkSupport,
+  hasSessionHandoffDestinationSupport,
+  hasSessionHandoffSourceSupport,
   hasVerifiedStartPromptSupport,
   nativeForkMinimumVersion,
   providerDefinition,
+  supportsManagedProviderUpdate,
   supportsNativeForkVersion
 } from './provider-definitions';
 
@@ -43,6 +46,7 @@ describe('provider definitions', () => {
       'cursor',
       'copilot',
       'qwen',
+      'kimi',
       'amp',
       'crush',
       'goose',
@@ -58,6 +62,12 @@ describe('provider definitions', () => {
       command: 'agy',
       npmPackage: null
     });
+    expect(providerDefinition('kimi')).toMatchObject({
+      displayName: 'Kimi Code',
+      command: 'kimi',
+      npmPackage: '@moonshot-ai/kimi-code',
+      sessionSupport: 'complete'
+    });
   });
 
   it('requires discovery and exact resume for complete session support', () => {
@@ -67,7 +77,8 @@ describe('provider definitions', () => {
       'gemini',
       'opencode',
       'copilot',
-      'qwen'
+      'qwen',
+      'kimi'
     ]);
     expect(hasCompleteSessionSupport('gemini')).toBe(true);
     expect(hasCompleteSessionSupport('cursor')).toBe(false);
@@ -88,6 +99,7 @@ describe('provider definitions', () => {
     expect(hasVerifiedStartPromptSupport('qwen')).toBe(true);
     expect(hasVerifiedStartPromptSupport('cursor')).toBe(false);
     expect(hasVerifiedStartPromptSupport('aider')).toBe(false);
+    expect(hasVerifiedStartPromptSupport('kimi')).toBe(false);
   });
 
   it('exposes native fork support only for providers with stable launch commands', () => {
@@ -100,6 +112,20 @@ describe('provider definitions', () => {
     expect(hasNativeForkSupport('copilot')).toBe(false);
     expect(hasNativeForkSupport('qwen')).toBe(false);
     expect(hasNativeForkSupport('aider')).toBe(false);
+    expect(hasNativeForkSupport('kimi')).toBe(false);
+  });
+
+  it('keeps handoff source and destination capabilities explicit', () => {
+    expect(hasSessionHandoffSourceSupport('kimi')).toBe(true);
+    expect(hasSessionHandoffDestinationSupport('kimi')).toBe(false);
+    expect(hasSessionHandoffDestinationSupport('codex')).toBe(true);
+    expect(hasSessionHandoffSourceSupport('cursor')).toBe(false);
+  });
+
+  it('keeps Kimi installation managed but defers updates to its official updater', () => {
+    expect(supportsManagedProviderUpdate('kimi')).toBe(false);
+    expect(supportsManagedProviderUpdate('codex')).toBe(true);
+    expect(supportsManagedProviderUpdate('amp')).toBe(false);
   });
 
   it.each([

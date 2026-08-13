@@ -384,6 +384,7 @@ export const PROVIDER_IDS = [
   'cursor',
   'copilot',
   'qwen',
+  'kimi',
   'amp',
   'crush',
   'goose',

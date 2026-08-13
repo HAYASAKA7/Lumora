@@ -7,6 +7,7 @@
   { "provider": "cursor", "command": "cursor-agent", "versionArgs": ["--version"], "npmPackage": null },
   { "provider": "copilot", "command": "copilot", "versionArgs": ["version"], "npmPackage": "@github/copilot" },
   { "provider": "qwen", "command": "qwen", "versionArgs": ["--version"], "npmPackage": "@qwen-code/qwen-code" },
+  { "provider": "kimi", "command": "kimi", "versionArgs": ["--version"], "npmPackage": "@moonshot-ai/kimi-code" },
   { "provider": "amp", "command": "amp", "versionArgs": ["--version"], "npmPackage": null },
   { "provider": "crush", "command": "crush", "versionArgs": ["--version"], "npmPackage": "@charmland/crush" },
   { "provider": "goose", "command": "goose", "versionArgs": ["--version"], "npmPackage": null },

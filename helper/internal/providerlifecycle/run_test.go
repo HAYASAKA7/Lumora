@@ -79,6 +79,32 @@ func TestRunReportsMissingNPMAndLifecycleFailureWithoutOutput(t *testing.T) {
 	}
 }
 
+func TestRunRequiresSupportedNodeForKimiNPMInstall(t *testing.T) {
+	executed := false
+	dependencies := Dependencies{
+		FindNPM:          func(context.Context) (string, error) { return "/usr/bin/npm", nil },
+		FindNode:         func(context.Context) (string, error) { return "/usr/bin/node", nil },
+		ProbeNodeVersion: func(context.Context, string) (string, error) { return "v22.18.0", nil },
+		Execute:          func(context.Context, Invocation) error { executed = true; return nil },
+		Platform:         "linux",
+	}
+	_, err := Run(context.Background(), Request{Provider: "kimi", Action: ActionInstall}, dependencies)
+	assertLifecycleCode(t, err, CodePackageManagerUnavailable)
+	if executed {
+		t.Fatal("Run executed Kimi installation with an unsupported Node version")
+	}
+
+	dependencies.ProbeNodeVersion = func(context.Context, string) (string, error) { return "v22.19.0", nil }
+	if _, err := Run(context.Background(), Request{Provider: "kimi", Action: ActionInstall}, dependencies); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+}
+
+func TestRunRequiresOfficialUpdaterForKimiUpdates(t *testing.T) {
+	_, err := Run(context.Background(), Request{Provider: "kimi", Action: ActionUpdate}, Dependencies{})
+	assertLifecycleCode(t, err, CodeGuideRequired)
+}
+
 func TestBuildInvocationBridgesWindowsWrappersWithoutShellConcatenation(t *testing.T) {
 	invocation, err := BuildInvocation("windows", `C:\\Users\\work\\AppData\\Roaming\\npm\\npm.cmd`, "@openai/codex")
 	if err != nil {
