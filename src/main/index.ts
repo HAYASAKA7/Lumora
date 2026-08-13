@@ -36,6 +36,8 @@ import {
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
 import { DiagnosticJournal } from './diagnostics/diagnostic-journal';
+import { resolveDiagnosticJournalStorage } from './diagnostics/diagnostic-journal-migration';
+import { DiagnosticPreferencesStore } from './diagnostics/diagnostic-preferences-store';
 import {
   createDiagnosticService,
   type DiagnosticService
@@ -254,6 +256,7 @@ let trayController: TrayController | null = null;
 let appearanceBackgroundStore: AppearanceBackgroundStore | null = null;
 let diagnosticJournal: DiagnosticJournal | null = null;
 let diagnosticService: DiagnosticService | null = null;
+let diagnosticPreferencesStore: DiagnosticPreferencesStore | null = null;
 let disposeDiagnosticProcessObservers: (() => void) | null = null;
 let shutdownStarted = false;
 const pendingRemoteWindowCloses = new Set<string>();
@@ -569,8 +572,19 @@ if (!hasSingleInstanceLock) {
 }
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
+  const userDataDirectory = app.getPath('userData');
+  const defaultDiagnosticDirectory = join(userDataDirectory, 'diagnostics');
+  diagnosticPreferencesStore = new DiagnosticPreferencesStore({
+    preferencesPath: join(userDataDirectory, 'diagnostic-preferences.json'),
+    defaultJournalDirectory: defaultDiagnosticDirectory,
+    defaultExportDirectory: app.getPath('documents')
+  });
+  const diagnosticStorage = await resolveDiagnosticJournalStorage({
+    store: diagnosticPreferencesStore,
+    defaultDirectory: defaultDiagnosticDirectory
+  });
   diagnosticJournal = new DiagnosticJournal({
-    directory: join(app.getPath('userData'), 'diagnostics')
+    directory: diagnosticStorage.directory
   });
   const diagnosticRun = await diagnosticJournal.startRun();
   diagnosticService = createDiagnosticService({

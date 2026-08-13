@@ -6,9 +6,12 @@ const source = readFileSync(new URL('../index.ts', import.meta.url), 'utf8');
 
 describe('diagnostic application integration', () => {
   it('starts diagnostics before runtime composition and exposes local-only IPC', () => {
+    const resolveStorage = source.indexOf('resolveDiagnosticJournalStorage({');
     const startJournal = source.indexOf('await diagnosticJournal.startRun()');
     const createCatalog = source.indexOf('createCatalogRuntime({');
 
+    expect(resolveStorage).toBeGreaterThan(-1);
+    expect(startJournal).toBeGreaterThan(resolveStorage);
     expect(startJournal).toBeGreaterThan(-1);
     expect(createCatalog).toBeGreaterThan(startJournal);
     expect(source).toContain('registerDiagnosticIpc({');
