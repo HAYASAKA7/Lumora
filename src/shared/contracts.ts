@@ -16,6 +16,7 @@ import type {
   TransferHistoryEntry
 } from './session-transfer';
 export * from './session-transfer';
+export * from './diagnostics';
 
 export const PlatformSchema = z.enum(['win32', 'darwin', 'linux']);
 
@@ -1765,6 +1766,8 @@ export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
   startupPresentationComplete: 'lumora:system:startup-presentation:complete',
+  diagnosticSummaryGet: 'lumora:diagnostics:summary:get',
+  diagnosticBundleExport: 'lumora:diagnostics:bundle:export',
   environmentScan: 'lumora:environment:scan',
   nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
