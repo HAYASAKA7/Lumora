@@ -15,6 +15,10 @@ import type {
   SessionTransferResult,
   TransferHistoryEntry
 } from './session-transfer';
+import type {
+  DiagnosticExportResult,
+  DiagnosticSummary
+} from './diagnostics';
 export * from './session-transfer';
 export * from './diagnostics';
 
@@ -1880,6 +1884,8 @@ export interface LumoraApi {
     executionTargetId: RemoteExecutionTargetId
   ): Promise<void>;
   getAppearancePresentation(): Promise<AppearancePresentation>;
+  getDiagnosticSummary(): Promise<DiagnosticSummary>;
+  exportDiagnosticBundle(): Promise<DiagnosticExportResult>;
   getSystemInfo(): Promise<SystemInfo>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;

@@ -9,6 +9,8 @@ import {
   TerminalClipboardReadResultSchema,
   CustomTerminalProfileInputSchema,
   DeveloperEnvironmentScanResultSchema,
+  DiagnosticExportResultSchema,
+  DiagnosticSummarySchema,
   ExternalOpenResultSchema,
   GeneralSettingsChangedSchema,
   GeneralSettingsSchema,
@@ -235,6 +237,14 @@ export function createLumoraApi(
     async getAppearancePresentation() {
       const value = await invoke(IPC_CHANNELS.appearancePresentationGet);
       return AppearancePresentationSchema.parse(value);
+    },
+    async getDiagnosticSummary() {
+      const value = await invoke(IPC_CHANNELS.diagnosticSummaryGet);
+      return DiagnosticSummarySchema.parse(value);
+    },
+    async exportDiagnosticBundle() {
+      const value = await invoke(IPC_CHANNELS.diagnosticBundleExport);
+      return DiagnosticExportResultSchema.parse(value);
     },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(

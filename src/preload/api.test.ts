@@ -32,6 +32,36 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
+  it('exposes validated diagnostic summary and export operations', async () => {
+    const invocations: string[] = [];
+    const summary = {
+      generatedAt: '2026-08-13T08:00:00.000Z',
+      previousRunAbnormal: false,
+      journal: { storedEvents: 2, invalidRecords: 0 },
+      processes: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
+      recentEvents: []
+    } as const;
+    const api = createLumoraApi(async (channel) => {
+      invocations.push(channel);
+      return channel === IPC_CHANNELS.diagnosticSummaryGet
+        ? summary
+        : { status: 'saved' };
+    });
+
+    await expect(api.getDiagnosticSummary()).resolves.toEqual(summary);
+    await expect(api.exportDiagnosticBundle()).resolves.toEqual({
+      status: 'saved'
+    });
+    expect(invocations).toEqual([
+      IPC_CHANNELS.diagnosticSummaryGet,
+      IPC_CHANNELS.diagnosticBundleExport
+    ]);
+
+    const invalidApi = createLumoraApi(vi.fn().mockResolvedValue({}));
+    await expect(invalidApi.getDiagnosticSummary()).rejects.toBeDefined();
+    await expect(invalidApi.exportDiagnosticBundle()).rejects.toBeDefined();
+  });
+
   it('uses target-derived remote discovery and provider-preference channels', async () => {
     const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
     const snapshot = {
