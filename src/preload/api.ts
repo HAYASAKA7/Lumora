@@ -10,6 +10,7 @@ import {
   CustomTerminalProfileInputSchema,
   DeveloperEnvironmentScanResultSchema,
   DiagnosticExportResultSchema,
+  DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema,
   ExternalOpenResultSchema,
   GeneralSettingsChangedSchema,
@@ -245,6 +246,26 @@ export function createLumoraApi(
     async exportDiagnosticBundle() {
       const value = await invoke(IPC_CHANNELS.diagnosticBundleExport);
       return DiagnosticExportResultSchema.parse(value);
+    },
+    async getDiagnosticStorageSettings() {
+      const value = await invoke(IPC_CHANNELS.diagnosticStorageGet);
+      return DiagnosticStorageSettingsSchema.parse(value);
+    },
+    async chooseDiagnosticJournalDirectory() {
+      const value = await invoke(IPC_CHANNELS.diagnosticJournalDirectoryChoose);
+      return DiagnosticStorageSettingsSchema.parse(value);
+    },
+    async resetDiagnosticJournalDirectory() {
+      const value = await invoke(IPC_CHANNELS.diagnosticJournalDirectoryReset);
+      return DiagnosticStorageSettingsSchema.parse(value);
+    },
+    async chooseDiagnosticExportDirectory() {
+      const value = await invoke(IPC_CHANNELS.diagnosticExportDirectoryChoose);
+      return DiagnosticStorageSettingsSchema.parse(value);
+    },
+    async resetDiagnosticExportDirectory() {
+      const value = await invoke(IPC_CHANNELS.diagnosticExportDirectoryReset);
+      return DiagnosticStorageSettingsSchema.parse(value);
     },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(

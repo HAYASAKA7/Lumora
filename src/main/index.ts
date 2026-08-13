@@ -829,7 +829,20 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   registerDiagnosticIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    service: diagnosticService
+    service: diagnosticService,
+    storage: diagnosticPreferencesStore!,
+    chooseDirectory: async (kind, currentDirectory) => {
+      const result = await dialog.showOpenDialog({
+        title: kind === 'journal'
+          ? 'Choose diagnostic journal folder'
+          : 'Choose diagnostic export folder',
+        defaultPath: currentDirectory,
+        properties: ['openDirectory', 'createDirectory']
+      });
+      return result.canceled || result.filePaths.length !== 1
+        ? null
+        : result.filePaths[0]!;
+    }
   });
   registerEnvironmentIpc({
     ipc: ipcMain,

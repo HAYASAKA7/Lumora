@@ -32,7 +32,7 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
-  it('exposes validated diagnostic summary and export operations', async () => {
+  it('exposes validated diagnostic summary, export, and storage operations', async () => {
     const invocations: string[] = [];
     const summary = {
       generatedAt: '2026-08-13T08:00:00.000Z',
@@ -41,25 +41,46 @@ describe('createLumoraApi', () => {
       processes: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
       recentEvents: []
     } as const;
+    const storage = {
+      selectedJournalDirectory: null,
+      effectiveJournalDirectory: 'C:\\Lumora\\diagnostics',
+      selectedExportDirectory: null,
+      effectiveExportDirectory: 'C:\\Documents',
+      journalUsesDefault: true,
+      exportUsesDefault: true,
+      restartRequired: false,
+      fallbackActive: false
+    } as const;
     const api = createLumoraApi(async (channel) => {
       invocations.push(channel);
-      return channel === IPC_CHANNELS.diagnosticSummaryGet
-        ? summary
-        : { status: 'saved' };
+      if (channel === IPC_CHANNELS.diagnosticSummaryGet) return summary;
+      if (channel === IPC_CHANNELS.diagnosticBundleExport) return { status: 'saved' };
+      return storage;
     });
 
     await expect(api.getDiagnosticSummary()).resolves.toEqual(summary);
     await expect(api.exportDiagnosticBundle()).resolves.toEqual({
       status: 'saved'
     });
+    await expect(api.getDiagnosticStorageSettings()).resolves.toEqual(storage);
+    await expect(api.chooseDiagnosticJournalDirectory()).resolves.toEqual(storage);
+    await expect(api.resetDiagnosticJournalDirectory()).resolves.toEqual(storage);
+    await expect(api.chooseDiagnosticExportDirectory()).resolves.toEqual(storage);
+    await expect(api.resetDiagnosticExportDirectory()).resolves.toEqual(storage);
     expect(invocations).toEqual([
       IPC_CHANNELS.diagnosticSummaryGet,
-      IPC_CHANNELS.diagnosticBundleExport
+      IPC_CHANNELS.diagnosticBundleExport,
+      IPC_CHANNELS.diagnosticStorageGet,
+      IPC_CHANNELS.diagnosticJournalDirectoryChoose,
+      IPC_CHANNELS.diagnosticJournalDirectoryReset,
+      IPC_CHANNELS.diagnosticExportDirectoryChoose,
+      IPC_CHANNELS.diagnosticExportDirectoryReset
     ]);
 
     const invalidApi = createLumoraApi(vi.fn().mockResolvedValue({}));
     await expect(invalidApi.getDiagnosticSummary()).rejects.toBeDefined();
     await expect(invalidApi.exportDiagnosticBundle()).rejects.toBeDefined();
+    await expect(invalidApi.getDiagnosticStorageSettings()).rejects.toBeDefined();
   });
 
   it('uses target-derived remote discovery and provider-preference channels', async () => {
