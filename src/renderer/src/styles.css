@@ -5623,6 +5623,40 @@ button {
   color: var(--text-muted);
 }
 
+.region-error-boundary {
+  display: flex;
+  width: 100%;
+  min-height: 180px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--warning-border);
+  border-radius: 11px;
+}
+
+.region-error-boundary > div {
+  display: grid;
+  gap: 8px;
+}
+
+.region-error-boundary h2,
+.region-error-boundary p {
+  margin: 0;
+}
+
+.region-error-boundary p {
+  max-width: 62ch;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.region-error-boundary .secondary-button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
 @media (max-width: 720px) {
   .remote-targets-heading,
   .remote-window-header,

@@ -45,6 +45,7 @@ import {
 import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
+import { RegionErrorBoundary } from './errors/RegionErrorBoundary';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import { RemoteTargetsView } from './remote/RemoteTargetsView';
 import {
@@ -1628,6 +1629,12 @@ function AppContent(): ReactNode {
           )}
 
           <div className="route-surface" hidden={terminalActive}>
+            <RegionErrorBoundary
+              description="Lumora kept navigation, terminals, and saved data available. Retry only this page when you are ready."
+              resetKey={`${activeRouteId}:${selectedWorkspaceId ?? ''}:${settingsCategory}`}
+              retryLabel="Retry page"
+              title="Page unavailable"
+            >
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
                 onRecover={(runtime) => {
@@ -1753,10 +1760,17 @@ function AppContent(): ReactNode {
             ) : (
               <DestinationPlaceholder route={activeRoute} />
             )}
+            </RegionErrorBoundary>
           </div>
 
           {openRuntimes.length > 0 ? (
             <div className="terminal-surface" hidden={!terminalActive}>
+              <RegionErrorBoundary
+                description="Managed terminal processes are still owned by Lumora. Retry the terminal controls without restarting unrelated sessions."
+                resetKey={activeRuntimeId}
+                retryLabel="Retry terminal controls"
+                title="Terminal controls unavailable"
+              >
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
                 focusRequestKey={terminalFocusRequestKey}
@@ -1781,6 +1795,7 @@ function AppContent(): ReactNode {
                     : [...catalogPresentation.workspaceById.values()]
                 }
               />
+              </RegionErrorBoundary>
             </div>
           ) : null}
           </>

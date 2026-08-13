@@ -18,13 +18,18 @@ vi.mock('./ManagedTerminal', () => ({
     active: boolean;
     platform: SystemInfo['platform'];
     runtime: RuntimeSummary;
-  }) => (
-    <div
-      data-active={active}
-      data-platform={platform}
-      data-testid={`managed-terminal-${runtime.id}`}
-    />
-  )
+  }) => {
+    if (runtime.displayName === 'Broken terminal') {
+      throw new Error('private terminal render detail');
+    }
+    return (
+      <div
+        data-active={active}
+        data-platform={platform}
+        data-testid={`managed-terminal-${runtime.id}`}
+      />
+    );
+  }
 }));
 
 const sessionId = 'd'.repeat(64);
@@ -105,6 +110,38 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('contains one terminal render failure without removing other tabs', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const brokenRuntime: RuntimeSummary = {
+      ...runtime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+      displayName: 'Broken terminal'
+    };
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={brokenRuntime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime, brokenRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    expect(
+      screen.getByRole('alert', { name: 'Terminal view unavailable' })
+    ).toBeVisible();
+    expect(screen.getByTestId(`managed-terminal-${runtime.id}`))
+      .toBeInTheDocument();
+    expect(screen.queryByText('private terminal render detail'))
+      .not.toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
   it('reorders a tab after a pointer drag without activating it', () => {
     const secondRuntime: RuntimeSummary = {
       ...runtime,

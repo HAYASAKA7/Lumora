@@ -17,6 +17,7 @@ import type {
 import { ManagedTerminal } from './ManagedTerminal';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
 
 interface TerminalWorkspaceProps {
   api?: LumoraApi;
@@ -327,6 +328,12 @@ export function TerminalWorkspace({
             hidden={item.id !== runtime.id}
             key={item.id}
           >
+            <RegionErrorBoundary
+              description="This terminal process remains active. Retry its view to reattach without affecting other tabs."
+              resetKey={`${item.id}:${item.state}`}
+              retryLabel="Retry terminal view"
+              title="Terminal view unavailable"
+            >
             <ManagedTerminal
               active={visible && item.id === runtime.id}
               api={api}
@@ -337,6 +344,7 @@ export function TerminalWorkspace({
               theme={theme}
               onRuntimeChange={onRuntimeChange}
             />
+            </RegionErrorBoundary>
           </div>
         ))}
       </div>
