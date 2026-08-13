@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-13
+
 ### Added
 
 - Add Kimi Code as a complete local and remote session provider on Windows,
@@ -17,6 +19,17 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add explicitly confirmed npm installation for Kimi Code when Node.js 22.19
   or newer is available. Existing Kimi installations use the official updater
   or installation guide instead of an unverified npm overwrite.
+- Add Start Menu and desktop shortcut choices to the assisted Windows
+  installer. Start Menu is selected by default, desktop is cleared by default,
+  silent installations use those defaults, and upgrades preserve the existing
+  shortcut state.
+
+### Fixed
+
+- Keep npm-based provider installation, version checks, and terminal launch on
+  one compatible Node.js runtime when multiple Node installations are present.
+  This prevents a newly installed provider such as Kimi Code from launching
+  under an older incompatible Node.js executable.
 
 ### Security
 
