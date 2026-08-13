@@ -1,8 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DiagnosticSummary, LumoraApi } from '../../../shared/contracts';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+
+const styles = readFileSync(
+  join(process.cwd(), 'src', 'renderer', 'src', 'styles.css'),
+  'utf8'
+);
 
 const summary: DiagnosticSummary = {
   generatedAt: '2026-08-13T08:00:00.000Z',
@@ -74,6 +82,12 @@ function createApi() {
 }
 
 describe('DiagnosticsPanel', () => {
+  it('uses Lumora typography for diagnostic storage paths', () => {
+    const rule = styles.match(/\.diagnostics-storage-copy code\s*\{([^}]*)\}/)?.[1];
+
+    expect(rule).toContain('font-family: inherit');
+  });
+
   it('loads only when active and presents bounded process and event summaries', async () => {
     const api = createApi();
     const view = render(<DiagnosticsPanel active={false} api={api} />);

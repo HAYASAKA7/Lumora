@@ -1386,6 +1386,7 @@ button {
   display: block;
   overflow: hidden;
   color: var(--text);
+  font-family: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
