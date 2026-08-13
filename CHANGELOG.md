@@ -23,6 +23,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   installer. Start Menu is selected by default, desktop is cleared by default,
   silent installations use those defaults, and upgrades preserve the existing
   shortcut state.
+- Add Experimental cross-device export and import for Kimi Code sessions.
+  Lumora copies the complete selected provider-owned session directory,
+  preserves its native identity, maps it to the chosen destination workspace,
+  and updates Kimi's append-only session index without transferring account
+  credentials or global provider configuration.
 
 ### Fixed
 
@@ -36,6 +41,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Bound and validate Kimi's session index, state, agent wire data, paths,
   symlinks, record counts, line sizes, token arithmetic, and handoff snapshots.
   Prompts and raw session content remain outside Lumora's searchable catalog.
+- Validate every Kimi transfer file path, type, size, digest, native identity,
+  workspace bucket, and required session artifact before writing provider data.
+  Duplicate imports are skipped, and failed imports remove only the newly
+  staged native session and append a Kimi deletion record.
 
 ## [0.3.1] - 2026-08-12
 

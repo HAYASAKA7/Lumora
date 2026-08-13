@@ -1,4 +1,12 @@
-import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  appendFile,
+  mkdtemp,
+  mkdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -116,5 +124,21 @@ describe('discoverKimiSessions', () => {
     const result = await discoverKimiSessions({ kimiRoot: root });
     expect(result.sessions[0]?.lifetimeTokens).toBeNull();
     expect(result.discoveredCount).toBe(1);
+  });
+
+  it('honors the latest native deletion record without reporting invalid data', async () => {
+    const root = await temporaryRoot();
+    await writeSession(root);
+    await appendFile(
+      join(root, 'session_index.jsonl'),
+      `${JSON.stringify({ sessionId: ID, deleted: true })}\n`,
+      'utf8'
+    );
+
+    const result = await discoverKimiSessions({ kimiRoot: root });
+
+    expect(result.sessions).toEqual([]);
+    expect(result.discoveredCount).toBe(0);
+    expect(result.invalidCount).toBe(0);
   });
 });

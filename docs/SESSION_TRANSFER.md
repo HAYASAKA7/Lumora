@@ -123,9 +123,9 @@ skipped.
 
 ## Provider and operating-system support
 
-Implementation alone does not enable a route. The table records packaged
-verification evidence; **Verification pending** means the route remains
-disabled in Lumora.
+Implementation alone does not verify a route. The table records packaged
+verification evidence; an implemented route with **Verification pending** is
+shown as **Experimental**, while an unimplemented route remains unavailable.
 
 | Provider | Export | Same-OS import | Cross-platform import |
 | --- | --- | --- | --- |
@@ -135,8 +135,9 @@ disabled in Lumora.
 | Gemini CLI | Verification pending | Verification pending | Verification pending |
 | GitHub Copilot CLI | Verification pending | Verification pending | Verification pending |
 | Qwen Code | Verification pending | Verification pending | Verification pending |
+| Kimi Code | Verification pending | Verification pending | Verification pending |
 
-All six full-session providers have provider-specific transfer adapters:
+All seven full-session providers have provider-specific transfer adapters:
 
 - OpenCode uses its structured native export and import commands.
 - Codex packages the native rollout, then uses prompt-free app-server fork,
@@ -149,10 +150,13 @@ All six full-session providers have provider-specific transfer adapters:
 - GitHub Copilot CLI packages only the provider-owned session-state directory,
   preserves its UUID, and excludes global configuration and databases.
 - Qwen Code packages its native project chat JSONL and preserves its identity.
+- Kimi Code packages the complete selected native session directory, preserves
+  its identity, maps it into the destination workspace bucket, and records the
+  session in Kimi's append-only native index.
 
-These implementations are available as **Experimental** routes in development
-builds. Packaged routes remain unavailable until each exact provider version
-and operating-system pair passes the transfer matrix.
+These implementations are available as **Experimental** routes in packaged and
+development builds. They become **Supported** only after each exact provider
+version and operating-system pair passes the transfer matrix.
 
 See [Provider support and verification](PROVIDER_SUPPORT.md) for the release
 matrix and [Troubleshooting Lumora](TROUBLESHOOTING.md#cross-device-session-transfer)

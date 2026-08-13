@@ -46,6 +46,7 @@ import { createQwenTransferAdapter } from '../transfer/adapters/qwen-transfer-ad
 import { createClaudeTransferAdapter } from '../transfer/adapters/claude-transfer-adapter';
 import { createCodexTransferAdapter } from '../transfer/adapters/codex-transfer-adapter';
 import { createCopilotTransferAdapter } from '../transfer/adapters/copilot-transfer-adapter';
+import { createKimiTransferAdapter } from '../transfer/adapters/kimi-transfer-adapter';
 import {
   createTransferAdapterRegistry,
   type TransferAdapterRegistry
@@ -212,7 +213,8 @@ export function createCatalogRuntime({
         configRoot: claudeConfigRoot,
         homeDirectory,
         env
-      })
+      }),
+      createKimiTransferAdapter({ platform, kimiRoot })
     ],
     allowExperimentalRoutes: allowExperimentalTransferRoutes
   });

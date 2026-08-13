@@ -171,6 +171,10 @@ describe('unsigned MVP release documentation', () => {
     expect(architecture).toContain('provider-owned session files');
     expect(architecture).toContain('never transfers provider credentials');
     expect(providerSupport).toContain('## Cross-device transfer verification');
+    expect(providerSupport).toContain(
+      '| Kimi Code | Implemented; native session directory and append-only index |'
+    );
+    expect(providerSupport).toContain('The seven implemented adapters');
     expect(troubleshooting).toContain('## Cross-device session transfer');
     expect(releaseGuide).toContain('record-transfer-verification.cjs');
     expect(releaseGuide).toContain('Never edit the verified route table by hand');

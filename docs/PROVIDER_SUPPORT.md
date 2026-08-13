@@ -68,8 +68,9 @@ same-device run still do not make an experimental route verified.
 | Gemini CLI | Implemented; native session-file import | Verification pending | Verification pending | Verification pending |
 | GitHub Copilot CLI | Implemented; native session-state directory | Verification pending | Verification pending | Verification pending |
 | Qwen Code | Implemented; native project chat JSONL | Verification pending | Verification pending | Verification pending |
+| Kimi Code | Implemented; native session directory and append-only index | Verification pending | Verification pending | Verification pending |
 
-The six implemented adapters are reported as **Experimental** until native
+The seven implemented adapters are reported as **Experimental** until native
 packaged tests record evidence for their exact routes. Experimental routes are
 selectable in release and development builds without altering the verification
 matrix. Unimplemented combinations remain **Not verified** and unavailable.

@@ -156,6 +156,11 @@ describe('createCatalogRuntime', () => {
         .capabilities(testPlatform)
         .find(({ provider }) => provider === 'copilot')
     ).toMatchObject({ export: 'experimental', import: 'experimental' });
+    expect(
+      runtime.transferRegistry
+        .capabilities(testPlatform)
+        .find(({ provider }) => provider === 'kimi')
+    ).toMatchObject({ export: 'experimental', import: 'experimental' });
 
     runtime.close();
   });

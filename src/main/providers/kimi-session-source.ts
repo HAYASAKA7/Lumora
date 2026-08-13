@@ -48,6 +48,13 @@ interface IndexRecord {
   workDir: string;
 }
 
+interface DeletedIndexRecord {
+  sessionId: string;
+  deleted: true;
+}
+
+type NormalizedIndexRecord = IndexRecord | DeletedIndexRecord;
+
 const DEFAULT_INDEX_BYTES = 16 * 1024 * 1024;
 const DEFAULT_INDEX_RECORDS = 25_000;
 const DEFAULT_STATE_BYTES = 256 * 1024;
@@ -143,14 +150,15 @@ async function boundedJsonLines(
   return { records, invalid };
 }
 
-function normalizeIndexRecord(value: unknown): IndexRecord | null {
+function normalizeIndexRecord(value: unknown): NormalizedIndexRecord | null {
   const record = objectValue(value);
   if (record === null) return null;
   const sessionId = boundedString(record.sessionId, 256);
+  if (sessionId === null || !SESSION_ID_PATTERN.test(sessionId)) return null;
+  if (record.deleted === true) return { sessionId, deleted: true };
   const sessionDir = boundedString(record.sessionDir, 32_768);
   const workDir = boundedString(record.workDir, 32_768);
   if (
-    sessionId === null || !SESSION_ID_PATTERN.test(sessionId) ||
     sessionDir === null || !isPortableAbsolutePath(sessionDir) ||
     workDir === null || !isPortableAbsolutePath(workDir)
   ) return null;
@@ -330,9 +338,20 @@ export async function discoverKimiSessions({
   const sessions = new Map<string, ProviderSessionRecord>();
   let invalidCount = index.invalid;
   let unchangedCount = 0;
+  const latestRecords = new Map<string, IndexRecord | null>();
   for (const rawRecord of index.records) {
-    const record = normalizeIndexRecord(rawRecord);
-    if (record === null) { invalidCount += 1; continue; }
+    const normalized = normalizeIndexRecord(rawRecord);
+    if (normalized === null) {
+      invalidCount += 1;
+      continue;
+    }
+    latestRecords.set(
+      normalized.sessionId,
+      'deleted' in normalized ? null : normalized
+    );
+  }
+  for (const record of latestRecords.values()) {
+    if (record === null) continue;
     try {
       const canonicalSessionDir = await realpath(record.sessionDir);
       if (!inside(sessionsRoot, canonicalSessionDir)) throw new Error('Kimi session escaped its root.');

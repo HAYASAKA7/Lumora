@@ -414,6 +414,12 @@ documented prompt flag is non-interactive and cannot safely create an
 interactive destination session. A handoff never converts or replaces the
 source provider's session.
 
+Cross-device transfer is available as an explicit Experimental workflow for
+all seven full-session providers, including Kimi Code. Kimi archives preserve
+the selected native session directory and identity, exclude credentials and
+global provider configuration, and require destination-workspace mapping on
+import.
+
 See [Provider support and verification](docs/PROVIDER_SUPPORT.md) for detection
 commands, tested native-fork versions, and the manual release matrix.
 
