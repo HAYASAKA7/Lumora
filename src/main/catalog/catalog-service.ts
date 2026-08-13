@@ -60,6 +60,19 @@ interface CatalogServiceDependencies {
   clock(): Date;
   createScanId(provider: ProviderId): string;
   discoveryConcurrency?: number;
+  monotonicClock?: () => number;
+  onRefreshSettled?: (measurement: {
+    outcome: 'succeeded' | 'failed';
+    durationMs: number;
+    cacheHits: number;
+    counts: { discovered: number; unchanged: number; invalid: number };
+  }) => void;
+}
+
+interface CatalogRefreshCounts {
+  discovered: number;
+  unchanged: number;
+  invalid: number;
 }
 
 interface DiscoverySuccess {
@@ -184,7 +197,8 @@ export class CatalogService {
   private refreshedAt: string;
   private refreshInFlight: {
     providersKey: string;
-    promise: Promise<void>;
+    promise: Promise<CatalogRefreshCounts>;
+    cacheHits: number;
   } | null = null;
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
@@ -240,9 +254,42 @@ export class CatalogService {
       const providersKey = providers.join('\u0000');
       const currentRefresh = this.refreshInFlight;
       if (currentRefresh === null) {
-        const entry = {
+        const monotonicClock = this.dependencies.monotonicClock ?? (() => performance.now());
+        const startedAt = monotonicClock();
+        let entry!: NonNullable<CatalogService['refreshInFlight']>;
+        const promise = (async () => {
+          let outcome: 'succeeded' | 'failed' = 'succeeded';
+          let counts: CatalogRefreshCounts = {
+            discovered: 0,
+            unchanged: 0,
+            invalid: 0
+          };
+          try {
+            counts = await this.refreshProviders(providers);
+            return counts;
+          } catch (error) {
+            outcome = 'failed';
+            throw error;
+          } finally {
+            try {
+              this.dependencies.onRefreshSettled?.({
+                outcome,
+                durationMs: Math.max(
+                  0,
+                  Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
+                ),
+                cacheHits: entry.cacheHits,
+                counts
+              });
+            } catch {
+              // Measurement consumers cannot change catalog behavior.
+            }
+          }
+        })();
+        entry = {
           providersKey,
-          promise: this.refreshProviders(providers)
+          promise,
+          cacheHits: 0
         };
         this.refreshInFlight = entry;
         void entry.promise
@@ -257,6 +304,7 @@ export class CatalogService {
       }
 
       if (currentRefresh.providersKey === providersKey) {
+        currentRefresh.cacheHits += 1;
         await currentRefresh.promise;
         break;
       }
@@ -277,7 +325,7 @@ export class CatalogService {
 
   private async refreshProviders(
     providers: readonly ProviderId[]
-  ): Promise<void> {
+  ): Promise<CatalogRefreshCounts> {
     const scannedAt = this.dependencies.clock().toISOString();
     const canonicalWorkspaces = new Map<
       string,
@@ -429,6 +477,14 @@ export class CatalogService {
     );
     this.diagnostics = nextDiagnostics;
     this.refreshedAt = scannedAt;
+    return nextStatus.reduce<CatalogRefreshCounts>(
+      (counts, status) => ({
+        discovered: counts.discovered + status.discoveredCount,
+        unchanged: counts.unchanged + status.unchangedCount,
+        invalid: counts.invalid + status.invalidCount
+      }),
+      { discovered: 0, unchanged: 0, invalid: 0 }
+    );
   }
 
   async registerWorkspace(

@@ -36,6 +36,30 @@ function deferred<T>() {
 }
 
 describe('ProviderScanCoordinator', () => {
+  it('reports one measurement with coalesced caller counts', async () => {
+    const onSettled = vi.fn();
+    let elapsed = 10;
+    const pending = deferred<ProviderScanResult>();
+    const coordinator = new ProviderScanCoordinator(
+      () => pending.promise,
+      { monotonicClock: () => elapsed, onSettled }
+    );
+
+    const first = coordinator.scan(['codex']);
+    const second = coordinator.scan(['codex']);
+    elapsed = 42;
+    pending.resolve(result(['codex']));
+    await Promise.all([first, second]);
+
+    expect(onSettled).toHaveBeenCalledOnce();
+    expect(onSettled).toHaveBeenCalledWith({
+      outcome: 'succeeded',
+      durationMs: 32,
+      cacheHits: 1,
+      queued: 0
+    });
+  });
+
   it('shares one active scan for the same enabled-provider set', async () => {
     const pending = deferred<ProviderScanResult>();
     const scan = vi.fn(() => pending.promise);

@@ -3,6 +3,37 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDeveloperEnvironmentScanner } from './developer-environment';
 
 describe('createDeveloperEnvironmentScanner', () => {
+  it('coalesces overlapping scans and reports one bounded measurement', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const findExecutable = vi.fn(async (command: string) => {
+      await gate;
+      return `/usr/bin/${command}`;
+    });
+    const onSettled = vi.fn();
+    let elapsed = 100;
+    const scanner = createDeveloperEnvironmentScanner(
+      { findExecutable, probeVersion: vi.fn(async () => '1.0.0') },
+      () => new Date('2026-07-17T01:00:00.000Z'),
+      { monotonicClock: () => elapsed, onSettled }
+    );
+
+    const first = scanner.scan();
+    const second = scanner.scan();
+    expect(findExecutable).toHaveBeenCalledTimes(2);
+    elapsed = 125;
+    release();
+    await Promise.all([first, second]);
+
+    expect(findExecutable).toHaveBeenCalledTimes(2);
+    expect(onSettled).toHaveBeenCalledOnce();
+    expect(onSettled).toHaveBeenCalledWith({
+      outcome: 'succeeded',
+      durationMs: 25,
+      cacheHits: 1
+    });
+  });
+
   it('reports Node and npm independently', async () => {
     const findExecutable = vi.fn(async (command: string) =>
       command === 'node' ? '/usr/bin/node' : null

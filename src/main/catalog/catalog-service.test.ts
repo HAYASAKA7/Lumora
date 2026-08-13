@@ -197,6 +197,35 @@ function deferred<T>() {
 }
 
 describe('CatalogService', () => {
+  it('reports one catalog measurement for coalesced refresh callers', async () => {
+    const onRefreshSettled = vi.fn();
+    let elapsed = 200;
+    const pending = deferred<ProviderScanResult>();
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => ['codex'],
+      scanProviders: () => pending.promise,
+      registry: registry({
+        codex: async () => discovery('codex', [record('codex', 'one')], 2, 3)
+      }),
+      monotonicClock: () => elapsed,
+      onRefreshSettled
+    }));
+
+    const first = service.refreshCatalog();
+    const second = service.refreshCatalog();
+    elapsed = 245;
+    pending.resolve(scan([ready('codex')]));
+    await Promise.all([first, second]);
+
+    expect(onRefreshSettled).toHaveBeenCalledOnce();
+    expect(onRefreshSettled).toHaveBeenCalledWith({
+      outcome: 'succeeded',
+      durationMs: 45,
+      cacheHits: 1,
+      counts: { discovered: 1, unchanged: 3, invalid: 2 }
+    });
+  });
+
   it('bounds concurrent provider session discovery', async () => {
     const providers = ['codex', 'claude', 'gemini', 'opencode', 'copilot'] as const;
     const gates = providers.map(() => {

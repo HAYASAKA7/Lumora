@@ -9,6 +9,8 @@ type ScanProviders = (
 
 interface ActiveScan {
   promise: Promise<ProviderScanResult>;
+  cacheHits: number;
+  queued: number;
 }
 
 interface PendingFreshScan extends ActiveScan {
@@ -17,20 +19,37 @@ interface PendingFreshScan extends ActiveScan {
   reject(error: unknown): void;
 }
 
+interface ProviderScanMeasurement {
+  outcome: 'succeeded' | 'failed';
+  durationMs: number;
+  cacheHits: number;
+  queued: number;
+}
+
+interface ProviderScanCoordinatorOptions {
+  monotonicClock?: () => number;
+  onSettled?: (measurement: ProviderScanMeasurement) => void;
+}
+
 export class ProviderScanCoordinator {
   private readonly active = new Map<string, ActiveScan>();
   private readonly pendingFresh = new Map<string, PendingFreshScan>();
 
-  constructor(private readonly scanProviders: ScanProviders) {}
+  constructor(
+    private readonly scanProviders: ScanProviders,
+    private readonly options: ProviderScanCoordinatorOptions = {}
+  ) {}
 
   scan(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
     const key = this.keyOf(providers);
     const pendingFresh = this.pendingFresh.get(key);
     if (pendingFresh !== undefined) {
+      pendingFresh.cacheHits += 1;
       return pendingFresh.promise;
     }
     const current = this.active.get(key);
     if (current !== undefined) {
+      current.cacheHits += 1;
       return current.promise;
     }
     return this.startScan(key, providers);
@@ -42,7 +61,10 @@ export class ProviderScanCoordinator {
     if (current === undefined) return this.startScan(key, providers);
 
     const existing = this.pendingFresh.get(key);
-    if (existing !== undefined) return existing.promise;
+    if (existing !== undefined) {
+      existing.cacheHits += 1;
+      return existing.promise;
+    }
 
     let resolve!: (value: ProviderScanResult) => void;
     let reject!: (error: unknown) => void;
@@ -53,6 +75,8 @@ export class ProviderScanCoordinator {
     const pending: PendingFreshScan = {
       providers: [...providers],
       promise,
+      cacheHits: 0,
+      queued: 1,
       resolve,
       reject
     };
@@ -61,7 +85,12 @@ export class ProviderScanCoordinator {
       .finally(() => {
         if (this.pendingFresh.get(key) !== pending) return;
         this.pendingFresh.delete(key);
-        void this.startScan(key, pending.providers).then(resolve, reject);
+        void this.startScan(
+          key,
+          pending.providers,
+          pending.cacheHits,
+          pending.queued
+        ).then(resolve, reject);
       })
       .catch(() => undefined);
     return promise;
@@ -73,12 +102,38 @@ export class ProviderScanCoordinator {
 
   private startScan(
     key: string,
-    providers: readonly ProviderId[]
+    providers: readonly ProviderId[],
+    cacheHits = 0,
+    queued = 0
   ): Promise<ProviderScanResult> {
     const selectedProviders = [...providers];
-    const entry: ActiveScan = {
-      promise: this.scanProviders(selectedProviders)
-    };
+    const monotonicClock = this.options.monotonicClock ?? (() => performance.now());
+    const startedAt = monotonicClock();
+    let entry!: ActiveScan;
+    const promise = (async () => {
+      let outcome: ProviderScanMeasurement['outcome'] = 'succeeded';
+      try {
+        return await this.scanProviders(selectedProviders);
+      } catch (error) {
+        outcome = 'failed';
+        throw error;
+      } finally {
+        try {
+          this.options.onSettled?.({
+            outcome,
+            durationMs: Math.max(
+              0,
+              Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
+            ),
+            cacheHits: entry.cacheHits,
+            queued: entry.queued
+          });
+        } catch {
+          // Measurement consumers cannot change discovery behavior.
+        }
+      }
+    })();
+    entry = { promise, cacheHits, queued };
     this.active.set(key, entry);
     void entry.promise
       .finally(() => {

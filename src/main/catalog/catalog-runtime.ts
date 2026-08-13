@@ -65,6 +65,12 @@ interface CreateCatalogRuntimeOptions {
   allowExperimentalTransferRoutes?: boolean;
   clock?: () => Date;
   createScanId?: (provider: ProviderId) => string;
+  onRefreshSettled?: (measurement: {
+    outcome: 'succeeded' | 'failed';
+    durationMs: number;
+    cacheHits: number;
+    counts: { discovered: number; unchanged: number; invalid: number };
+  }) => void;
 }
 
 export type CatalogTransferPort = Pick<
@@ -103,7 +109,8 @@ export function createCatalogRuntime({
   enabledProviders = () => SESSION_PROVIDER_IDS,
   allowExperimentalTransferRoutes = false,
   clock = () => new Date(),
-  createScanId = () => randomUUID()
+  createScanId = () => randomUUID(),
+  onRefreshSettled
 }: CreateCatalogRuntimeOptions): CatalogRuntime {
   const database = new DatabaseSync(databasePath);
   try {
@@ -226,7 +233,8 @@ export function createCatalogRuntime({
       canonicalizeWorkspacePath(path, { platform }),
     repository,
     clock,
-    createScanId
+    createScanId,
+    ...(onRefreshSettled === undefined ? {} : { onRefreshSettled })
   });
   const transferCatalog: CatalogTransferPort = Object.freeze({
     getTransferSession: (sessionId) => service.getTransferSession(sessionId),

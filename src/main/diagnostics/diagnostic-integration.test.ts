@@ -14,6 +14,9 @@ describe('diagnostic application integration', () => {
     expect(source).toContain('registerDiagnosticIpc({');
     expect(source).toContain('authorize: authorizeLocalIpc');
     expect(source).toContain('installDiagnosticProcessObservers({');
+    expect(source).toContain("operation: 'environment-scan'");
+    expect(source).toContain("operation: 'provider-scan'");
+    expect(source).toContain("operation: 'catalog-refresh'");
   });
 
   it('marks the run clean only after orderly runtime shutdown', () => {

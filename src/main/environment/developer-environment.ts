@@ -11,6 +11,22 @@ interface DeveloperEnvironmentDependencies {
 
 type Clock = () => Date;
 
+interface EnvironmentScanMeasurement {
+  outcome: 'succeeded' | 'failed';
+  durationMs: number;
+  cacheHits: number;
+}
+
+interface EnvironmentScannerOptions {
+  monotonicClock?: () => number;
+  onSettled?: (measurement: EnvironmentScanMeasurement) => void;
+}
+
+interface ActiveEnvironmentScan {
+  promise: Promise<DeveloperEnvironmentScanResult>;
+  cacheHits: number;
+}
+
 async function scanTool(
   command: 'node' | 'npm',
   dependencies: DeveloperEnvironmentDependencies
@@ -33,20 +49,60 @@ async function scanTool(
 
 export function createDeveloperEnvironmentScanner(
   dependencies: DeveloperEnvironmentDependencies,
-  now: Clock = () => new Date()
+  now: Clock = () => new Date(),
+  options: EnvironmentScannerOptions = {}
 ) {
-  return Object.freeze({
-    async scan(): Promise<DeveloperEnvironmentScanResult> {
-      const [node, npm] = await Promise.all([
-        scanTool('node', dependencies),
-        scanTool('npm', dependencies)
-      ]);
+  const monotonicClock = options.monotonicClock ?? (() => performance.now());
+  let active: ActiveEnvironmentScan | null = null;
 
-      return DeveloperEnvironmentScanResultSchema.parse({
-        checkedAt: now().toISOString(),
-        node,
-        npm
-      });
+  const performScan = async (): Promise<DeveloperEnvironmentScanResult> => {
+    const [node, npm] = await Promise.all([
+      scanTool('node', dependencies),
+      scanTool('npm', dependencies)
+    ]);
+
+    return DeveloperEnvironmentScanResultSchema.parse({
+      checkedAt: now().toISOString(),
+      node,
+      npm
+    });
+  };
+
+  return Object.freeze({
+    scan(): Promise<DeveloperEnvironmentScanResult> {
+      if (active !== null) {
+        active.cacheHits += 1;
+        return active.promise;
+      }
+      const startedAt = monotonicClock();
+      let entry!: ActiveEnvironmentScan;
+      const promise = (async () => {
+        let outcome: EnvironmentScanMeasurement['outcome'] = 'succeeded';
+        try {
+          return await performScan();
+        } catch (error) {
+          outcome = 'failed';
+          throw error;
+        } finally {
+          const durationMs = Math.max(
+            0,
+            Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
+          );
+          try {
+            options.onSettled?.({
+              outcome,
+              durationMs,
+              cacheHits: entry.cacheHits
+            });
+          } catch {
+            // Measurement consumers cannot change discovery behavior.
+          }
+          if (active === entry) active = null;
+        }
+      })();
+      entry = { promise, cacheHits: 0 };
+      active = entry;
+      return promise;
     }
   });
 }

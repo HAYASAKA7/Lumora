@@ -170,8 +170,24 @@ const providerDependencies = {
 const providerRegistry = new ProviderRegistry(
   createProviderAdapters(providerDependencies)
 );
-const providerScanCoordinator = new ProviderScanCoordinator((providers) =>
-  providerRegistry.scan(providers)
+const providerScanCoordinator = new ProviderScanCoordinator(
+  (providers) => providerRegistry.scan(providers),
+  {
+    onSettled: (measurement) => {
+      void diagnosticService?.record({
+        severity: measurement.outcome === 'failed' ? 'warning' : 'info',
+        subsystem: 'provider',
+        operation: 'provider-scan',
+        outcome: measurement.outcome,
+        targetKind: 'local',
+        durationMs: measurement.durationMs,
+        counts: {
+          cacheHits: measurement.cacheHits,
+          queued: measurement.queued
+        }
+      }).catch(() => undefined);
+    }
+  }
 );
 const providerPolicy = createProviderPolicy();
 const scanEnabledProviders = () =>
@@ -201,6 +217,20 @@ const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
     findExecutable: providerDependencies.findExecutable,
     probeVersion: (executablePath) =>
       providerDependencies.probeVersion(executablePath, ['--version'])
+  },
+  () => new Date(),
+  {
+    onSettled: (measurement) => {
+      void diagnosticService?.record({
+        severity: measurement.outcome === 'failed' ? 'warning' : 'info',
+        subsystem: 'environment',
+        operation: 'environment-scan',
+        outcome: measurement.outcome,
+        targetKind: 'local',
+        durationMs: measurement.durationMs,
+        counts: { cacheHits: measurement.cacheHits }
+      }).catch(() => undefined);
+    }
   }
 );
 const startupPresentation = createStartupPresentationController();
@@ -611,7 +641,21 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: applicationEnvironment,
     scanProviders: scanEnabledProviders,
     enabledProviders: () => providerPolicy.providers(),
-    allowExperimentalTransferRoutes: true
+    allowExperimentalTransferRoutes: true,
+    onRefreshSettled: (measurement) => {
+      void diagnosticService?.record({
+        severity: measurement.outcome === 'failed' ? 'warning' : 'info',
+        subsystem: 'catalog',
+        operation: 'catalog-refresh',
+        outcome: measurement.outcome,
+        targetKind: 'local',
+        durationMs: measurement.durationMs,
+        counts: {
+          ...measurement.counts,
+          cacheHits: measurement.cacheHits
+        }
+      }).catch(() => undefined);
+    }
   });
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
