@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-13
+
 ### Added
 
 - Add privacy-safe local diagnostics with bounded process metrics, structured

@@ -153,6 +153,7 @@ Never edit the verified route table by hand. Review the generated diff, run
 `npm run verify`, build the affected native packages again, and commit the route
 evidence separately. A failing or untested combination must remain absent and
 will continue to show **Not verified** in Lumora.
+
 ## Prepare a version
 
 Update both `package.json` and `package-lock.json` to the same semantic version.
@@ -169,11 +170,11 @@ change before creating the tag. The tag-triggered workflow runs
 
 ## Create the draft prerelease
 
-Push a tag that exactly matches the package version. For version `0.3.2`:
+Push a tag that exactly matches the package version. For version `0.3.3`:
 
 ```powershell
-git tag v0.3.2
-git push origin v0.3.2
+git tag v0.3.3
+git push origin v0.3.3
 ```
 
 The **Lumora unsigned prerelease** workflow then:
