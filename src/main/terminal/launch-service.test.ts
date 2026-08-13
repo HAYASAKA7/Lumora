@@ -119,6 +119,7 @@ function harness(overrides: {
   sourceKeys?: readonly string[];
   createToken?: () => string;
   scanProviders?: () => Promise<ProviderScanResult>;
+  resolveProviderRuntimeDirectory?: (provider: string) => Promise<string | null>;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
   let currentWorkspace =
@@ -219,6 +220,12 @@ function harness(overrides: {
     handoffService,
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
+    ...(overrides.resolveProviderRuntimeDirectory === undefined
+      ? {}
+      : {
+          resolveProviderRuntimeDirectory:
+            overrides.resolveProviderRuntimeDirectory
+        }),
     clock: () => now,
     createToken:
       overrides.createToken ??
@@ -251,6 +258,49 @@ function harness(overrides: {
 }
 
 describe('LaunchService', () => {
+  it('pins a verified runtime directory for a default provider command', async () => {
+    const resolveProviderRuntimeDirectory = vi.fn(async () => '/opt/node/bin');
+    const { service } = harness({
+      trusted: true,
+      resolveProviderRuntimeDirectory
+    });
+    const preview = await service.prepare({
+      strategy: 'new', startPrompt: '', workspaceId, provider: 'kimi',
+      terminalProfileId: profileId, cols: 100, rows: 30
+    });
+
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      environment: {
+        PATH: '/usr/local/bin:/usr/bin',
+        LUMORA_PROVIDER_RUNTIME_PATH: '/opt/node/bin'
+      }
+    });
+    expect(resolveProviderRuntimeDirectory).toHaveBeenCalledWith('kimi');
+  });
+
+  it('does not override the runtime selected by a custom provider command', async () => {
+    const resolveProviderRuntimeDirectory = vi.fn(async () => '/opt/node/bin');
+    const { service } = harness({
+      trusted: true,
+      layers: [{
+        scope: 'provider',
+        targetId: 'kimi',
+        settings: { providerCommands: { kimi: 'mise exec -- kimi' } },
+        updatedAt: '2026-07-11T04:00:00.000Z'
+      } as LaunchSettingsLayer],
+      resolveProviderRuntimeDirectory
+    });
+    const preview = await service.prepare({
+      strategy: 'new', startPrompt: '', workspaceId, provider: 'kimi',
+      terminalProfileId: profileId, cols: 100, rows: 30
+    });
+
+    await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
+      environment: { PATH: '/usr/local/bin:/usr/bin' }
+    });
+    expect(resolveProviderRuntimeDirectory).not.toHaveBeenCalled();
+  });
+
   it('submits provider-native start prompts for new and exact resume launches', async () => {
     const newPreview = await harness().service.prepare({
       strategy: 'new',

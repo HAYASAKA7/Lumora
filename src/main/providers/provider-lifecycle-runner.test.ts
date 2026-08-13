@@ -129,8 +129,27 @@ describe('runProviderLifecycle', () => {
     });
     expect(execute).toHaveBeenCalledWith({
       file: '/usr/bin/npm',
-      args: ['install', '--global', '@moonshot-ai/kimi-code@latest']
+      args: ['install', '--global', '@moonshot-ai/kimi-code@latest'],
+      runtimePath: '/usr/bin'
     });
+  });
+
+  it('uses the Node installation it verified when npm comes from another prefix', async () => {
+    const execute = vi.fn(async () => undefined);
+    await runProviderLifecycle('kimi', {
+      platform: 'win32',
+      env: { PATH: 'C:\\OldNode;D:\\npm-global' },
+      findExecutable: async (command) =>
+        command === 'node'
+          ? 'C:\\VerifiedNode\\node.exe'
+          : 'D:\\npm-global\\npm.cmd',
+      probeVersion: async () => 'v24.0.0',
+      execute
+    });
+
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      runtimePath: 'C:\\VerifiedNode'
+    }));
   });
 
   it('does not replace Kimi Code through npm during updates', async () => {

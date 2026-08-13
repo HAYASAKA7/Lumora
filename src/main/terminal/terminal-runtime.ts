@@ -34,6 +34,7 @@ import { HandoffService } from '../handoff/handoff-service';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
 import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
+import { providerDefinition } from '../../shared/provider-definitions';
 import { LaunchService } from './launch-service';
 import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
@@ -205,6 +206,12 @@ export async function createTerminalRuntime({
     handoffService,
     platform,
     env,
+    resolveProviderRuntimeDirectory: async (provider) => {
+      if (providerDefinition(provider).npmPackage === null) return null;
+      const nodePath = await locate('node');
+      if (nodePath === null) return null;
+      return (platform === 'win32' ? win32 : posix).dirname(nodePath);
+    },
     clock
   });
   let host!: RuntimeHost;

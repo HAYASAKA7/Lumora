@@ -41,6 +41,24 @@ function powershellArgumentsEnvironment(
   };
 }
 
+function powershellRuntimePrefix(env: Environment): string {
+  return readEnvironmentValue(env, 'LUMORA_PROVIDER_RUNTIME_PATH') === undefined
+    ? ''
+    : '$env:PATH = $env:LUMORA_PROVIDER_RUNTIME_PATH + [IO.Path]::PathSeparator + $env:PATH; ';
+}
+
+function posixRuntimePrefix(env: Environment): string {
+  return readEnvironmentValue(env, 'LUMORA_PROVIDER_RUNTIME_PATH') === undefined
+    ? 'exec '
+    : 'exec env "PATH=$LUMORA_PROVIDER_RUNTIME_PATH:$PATH" ';
+}
+
+function cmdRuntimePrefix(env: Environment): string {
+  return readEnvironmentValue(env, 'LUMORA_PROVIDER_RUNTIME_PATH') === undefined
+    ? ''
+    : 'set "PATH=%LUMORA_PROVIDER_RUNTIME_PATH%;%PATH%" && ';
+}
+
 function cmdArguments(args: readonly string[]): string {
   return args.map((argument) => {
     if (/^[A-Za-z0-9._:@/\\-]+$/.test(argument)) return argument;
@@ -99,7 +117,7 @@ function powershellProviderInvocation(
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      '$lumoraArgs = @($env:LUMORA_PROVIDER_ARGUMENTS | ConvertFrom-Json); & $env:LUMORA_PROVIDER_EXECUTABLE @lumoraArgs; exit $LASTEXITCODE'
+      `${powershellRuntimePrefix(env)}$lumoraArgs = @($env:LUMORA_PROVIDER_ARGUMENTS | ConvertFrom-Json); & $env:LUMORA_PROVIDER_EXECUTABLE @lumoraArgs; exit $LASTEXITCODE`
     ],
     env: powershellArgumentsEnvironment(providerEnvironment, args)
   };
@@ -196,13 +214,14 @@ export function resolvePtyInvocation({
     LUMORA_PROVIDER_EXECUTABLE: executablePath
   };
   if (platform !== 'win32' && terminalProfile.shellFamily !== 'other') {
+    const runtimePrefix = posixRuntimePrefix(env);
     if (args.length !== 0) {
       return {
         executablePath: terminalProfile.executablePath,
         args: [
           ...terminalProfile.args,
           '-c',
-          'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
+          `${runtimePrefix}"$LUMORA_PROVIDER_EXECUTABLE" "$@"`,
           'lumora-provider',
           ...args
         ],
@@ -214,7 +233,7 @@ export function resolvePtyInvocation({
       args: [
         ...terminalProfile.args,
         '-c',
-        'exec "$LUMORA_PROVIDER_EXECUTABLE"'
+        `${runtimePrefix}"$LUMORA_PROVIDER_EXECUTABLE"`
       ],
       env: providerEnvironment
     };
@@ -225,6 +244,7 @@ export function resolvePtyInvocation({
     (terminalProfile.shellFamily === 'pwsh' ||
       terminalProfile.shellFamily === 'powershell')
   ) {
+    const runtimePrefix = powershellRuntimePrefix(env);
     if (args.length !== 0) {
       return {
         executablePath: terminalProfile.executablePath,
@@ -232,7 +252,7 @@ export function resolvePtyInvocation({
           ...terminalProfile.args,
           '-NoLogo',
           '-Command',
-          '$lumoraArgs = @($env:LUMORA_PROVIDER_ARGUMENTS | ConvertFrom-Json); & $env:LUMORA_PROVIDER_EXECUTABLE @lumoraArgs; exit $LASTEXITCODE'
+          `${runtimePrefix}$lumoraArgs = @($env:LUMORA_PROVIDER_ARGUMENTS | ConvertFrom-Json); & $env:LUMORA_PROVIDER_EXECUTABLE @lumoraArgs; exit $LASTEXITCODE`
         ],
         env: powershellArgumentsEnvironment(providerEnvironment, args)
       };
@@ -243,7 +263,7 @@ export function resolvePtyInvocation({
         ...terminalProfile.args,
         '-NoLogo',
         '-Command',
-        '& $env:LUMORA_PROVIDER_EXECUTABLE; exit $LASTEXITCODE'
+        `${runtimePrefix}& $env:LUMORA_PROVIDER_EXECUTABLE; exit $LASTEXITCODE`
       ],
       env: providerEnvironment
     };
@@ -263,6 +283,7 @@ export function resolvePtyInvocation({
       return { executablePath, args: [...args], env: { ...env } };
     }
     const suffix = args.length === 0 ? '' : ` ${cmdArguments(args)}`;
+    const runtimePrefix = cmdRuntimePrefix(env);
     return {
       executablePath: terminalProfile.executablePath,
       args: [
@@ -271,8 +292,8 @@ export function resolvePtyInvocation({
         '/s',
         '/c',
         args.length === 0
-          ? '""%LUMORA_PROVIDER_EXECUTABLE%""'
-          : `call "%LUMORA_PROVIDER_EXECUTABLE%"${suffix}`
+          ? `${runtimePrefix}""%LUMORA_PROVIDER_EXECUTABLE%""`
+          : `${runtimePrefix}call "%LUMORA_PROVIDER_EXECUTABLE%"${suffix}`
       ],
       env: providerEnvironment
     };
@@ -300,8 +321,8 @@ export function resolvePtyInvocation({
       '/s',
       '/c',
       args.length === 0
-        ? '""%LUMORA_PROVIDER_EXECUTABLE%""'
-        : `call "%LUMORA_PROVIDER_EXECUTABLE%" ${cmdArguments(args)}`
+        ? `${cmdRuntimePrefix(env)}""%LUMORA_PROVIDER_EXECUTABLE%""`
+        : `${cmdRuntimePrefix(env)}call "%LUMORA_PROVIDER_EXECUTABLE%" ${cmdArguments(args)}`
     ],
     env: {
       ...providerEnvironment

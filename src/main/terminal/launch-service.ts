@@ -67,6 +67,7 @@ interface LaunchServiceDependencies {
     env: Environment,
     profile: TerminalProfile
   ): Record<string, string | undefined>;
+  resolveProviderRuntimeDirectory?(provider: ProviderId): Promise<string | null>;
   clock?: () => Date;
   createToken?: () => string;
 }
@@ -409,6 +410,16 @@ export class LaunchService {
       profile
     ) ?? environmentWithProfile(this.dependencies.env, profile);
     const command = resolved.command;
+    if (
+      command === null &&
+      this.dependencies.resolveProviderRuntimeDirectory !== undefined
+    ) {
+      const runtimeDirectory =
+        await this.dependencies.resolveProviderRuntimeDirectory(provider);
+      if (runtimeDirectory !== null) {
+        environment.LUMORA_PROVIDER_RUNTIME_PATH = runtimeDirectory;
+      }
+    }
     let reconciliationBaselineNativeIds: string[] | null = null;
     if (
       (

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { posix, win32 } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 import type {
@@ -12,7 +13,10 @@ import type {
   SystemInfo,
   TerminalProfile
 } from '../../shared/contracts';
-import { SESSION_PROVIDER_IDS } from '../../shared/provider-definitions';
+import {
+  SESSION_PROVIDER_IDS,
+  providerDefinition
+} from '../../shared/provider-definitions';
 import { CatalogRepository } from '../storage/catalog-repository';
 import { WorkspaceVisibilityRepository } from '../storage/workspace-visibility-repository';
 import { TerminalRepository } from '../storage/terminal-repository';
@@ -135,6 +139,7 @@ export function createRemoteSessionRuntime(
   };
   repository.reconcileDetectedProfiles([terminalProfile], clock().toISOString());
   let executablePaths = new Set<string>();
+  let nodeRuntimeDirectory: string | null = null;
 
   const updateCatalog = (catalog: RemoteSessionCatalog): void => {
     if (catalog.executionTargetId !== options.executionTargetId) {
@@ -194,6 +199,11 @@ export function createRemoteSessionRuntime(
         provider.state === 'ready' ? [provider.executablePath] : []
       )
     );
+    nodeRuntimeDirectory = snapshot.environment.node.state === 'ready'
+      ? (options.platform === 'win32' ? win32 : posix).dirname(
+          snapshot.environment.node.executablePath
+        )
+      : null;
     return snapshot.providers;
   };
 
@@ -225,6 +235,10 @@ export function createRemoteSessionRuntime(
     platform: options.platform,
     env: {},
     buildEnvironment: () => ({}),
+    resolveProviderRuntimeDirectory: async (provider) =>
+      providerDefinition(provider).npmPackage === null
+        ? null
+        : nodeRuntimeDirectory,
     clock
   });
 
@@ -264,7 +278,7 @@ export function createRemoteSessionRuntime(
       executablePath: spec.executablePath,
       args: spec.args,
       command: spec.command,
-      env: {},
+      env: spec.environment,
       terminalProfile: spec.terminalProfile,
       isExecutableFile: () => true
     }),

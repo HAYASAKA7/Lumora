@@ -179,6 +179,53 @@ describe('resolvePtyInvocation', () => {
     });
   });
 
+  it('reapplies a verified provider runtime path after PowerShell profiles load', () => {
+    const invocation = resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'D:\\Tools\\kimi.cmd',
+      args: [],
+      command: null,
+      env: {
+        PATH: 'C:\\OldNode;C:\\Windows\\System32',
+        LUMORA_PROVIDER_RUNTIME_PATH: 'C:\\VerifiedNode'
+      },
+      terminalProfile: {
+        id: 'b'.repeat(64), kind: 'detected', name: 'PowerShell',
+        shellFamily: 'powershell', executablePath: 'powershell.exe',
+        args: [], available: true, recommended: true
+      }
+    });
+
+    expect(invocation.args.at(-1)).toContain(
+      '$env:PATH = $env:LUMORA_PROVIDER_RUNTIME_PATH + [IO.Path]::PathSeparator + $env:PATH'
+    );
+    expect(invocation.args.at(-1)).toContain(
+      '& $env:LUMORA_PROVIDER_EXECUTABLE'
+    );
+  });
+
+  it('reapplies a verified provider runtime path for a Windows command shim fallback', () => {
+    const invocation = resolvePtyInvocation({
+      platform: 'win32',
+      executablePath: 'D:\\Tools\\kimi.cmd',
+      args: [],
+      command: null,
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        LUMORA_PROVIDER_RUNTIME_PATH: 'C:\\VerifiedNode'
+      },
+      terminalProfile: {
+        id: 'b'.repeat(64), kind: 'custom', name: 'Native host',
+        shellFamily: 'other', executablePath: 'native', args: [],
+        available: true, recommended: false
+      }
+    });
+
+    expect(invocation.args.at(-1)).toBe(
+      'set "PATH=%LUMORA_PROVIDER_RUNTIME_PATH%;%PATH%" && ""%LUMORA_PROVIDER_EXECUTABLE%""'
+    );
+  });
+
   it('evaluates a custom command through the selected PowerShell profile', () => {
     const invocation = resolvePtyInvocation({
       platform: 'win32',

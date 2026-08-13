@@ -489,7 +489,7 @@ describe('remote session runtime', () => {
         executablePath: `/opt/lumora/${provider}`,
         args: buildResumeArguments(provider as ProviderId, nativeId, startPrompt),
         workingDirectory: WORKSPACE_PATH,
-        environmentNames: []
+        environmentNames: ['LUMORA_PROVIDER_RUNTIME_PATH']
       });
     }
 
@@ -533,12 +533,13 @@ describe('remote session runtime', () => {
           args: [
             '-l',
             '-c',
-            'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
+            'exec env "PATH=$LUMORA_PROVIDER_RUNTIME_PATH:$PATH" "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
             'lumora-provider',
             ...buildResumeArguments(provider, nativeId)
           ],
           env: {
-            LUMORA_PROVIDER_EXECUTABLE: `/opt/lumora/${provider}`
+            LUMORA_PROVIDER_EXECUTABLE: `/opt/lumora/${provider}`,
+            LUMORA_PROVIDER_RUNTIME_PATH: '/usr/bin'
           }
         }),
         { cols: 110, rows: 32 }
@@ -587,15 +588,16 @@ describe('remote session runtime', () => {
             '-l',
             '-c',
             ...(buildNewArguments(provider, startPrompt).length === 0
-              ? ['exec "$LUMORA_PROVIDER_EXECUTABLE"']
+              ? ['exec env "PATH=$LUMORA_PROVIDER_RUNTIME_PATH:$PATH" "$LUMORA_PROVIDER_EXECUTABLE"']
               : [
-                  'exec "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
+                  'exec env "PATH=$LUMORA_PROVIDER_RUNTIME_PATH:$PATH" "$LUMORA_PROVIDER_EXECUTABLE" "$@"',
                   'lumora-provider',
                   ...buildNewArguments(provider, startPrompt)
                 ])
           ],
           env: {
-            LUMORA_PROVIDER_EXECUTABLE: `/opt/lumora/${provider}`
+            LUMORA_PROVIDER_EXECUTABLE: `/opt/lumora/${provider}`,
+            LUMORA_PROVIDER_RUNTIME_PATH: '/usr/bin'
           }
         }),
         { cols: 90, rows: 28 }

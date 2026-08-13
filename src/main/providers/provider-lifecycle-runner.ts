@@ -15,6 +15,7 @@ export interface ProviderLifecycleInvocation {
   file: string;
   args: readonly string[];
   windowsVerbatimArguments?: boolean;
+  runtimePath?: string;
 }
 
 type ExecuteProviderLifecycle = (
@@ -92,15 +93,31 @@ export function buildProviderLifecycleInvocation(
 
 function executeLifecycle(
   invocation: ProviderLifecycleInvocation,
-  env: Environment
+  env: Environment,
+  platform: Platform
 ): Promise<void> {
+  const pathKey = Object.keys(env).find(
+    (key) => key.toLowerCase() === 'path'
+  ) ?? 'PATH';
+  const delimiter = platform === 'win32' ? ';' : ':';
+  const executionEnvironment = {
+    ...env,
+    ...(invocation.runtimePath === undefined
+      ? {}
+      : {
+          [pathKey]: [invocation.runtimePath, env[pathKey]]
+            .filter((value): value is string => value !== undefined && value.length > 0)
+            .join(delimiter)
+        }),
+    NO_COLOR: '1'
+  };
   return new Promise((resolve, reject) => {
     execFile(
       invocation.file,
       [...invocation.args],
       {
         encoding: 'utf8',
-        env: { ...env, NO_COLOR: '1' },
+        env: executionEnvironment,
         maxBuffer: 64 * 1024,
         timeout: 10 * 60 * 1_000,
         windowsHide: true,
@@ -149,6 +166,7 @@ export async function runProviderLifecycle(
     );
   }
   const minimumNodeVersion = providerMinimumInstallNodeVersion(provider);
+  let runtimePath: string | undefined;
   if (minimumNodeVersion !== null) {
     const nodePath = await findExecutable('node');
     if (nodePath === null || probeVersion === undefined) {
@@ -178,6 +196,7 @@ export async function runProviderLifecycle(
         `${providerDefinition(provider).displayName} requires Node.js ${minimumNodeVersion.join('.')} or newer for npm installation.`
       );
     }
+    runtimePath = (platform === 'win32' ? win32 : posix).dirname(nodePath);
   }
   const npmPath = await findExecutable('npm');
   if (npmPath === null) {
@@ -186,12 +205,17 @@ export async function runProviderLifecycle(
       'Install Node.js and npm before installing this provider.'
     );
   }
-  const invocation = buildProviderLifecycleInvocation(provider, npmPath, {
-    platform,
-    env
-  });
+  const invocation = {
+    ...buildProviderLifecycleInvocation(provider, npmPath, {
+      platform,
+      env
+    }),
+    ...(runtimePath === undefined ? {} : { runtimePath })
+  };
   try {
-    await (execute ?? ((value) => executeLifecycle(value, env)))(invocation);
+    await (execute ?? ((value) => executeLifecycle(value, env, platform)))(
+      invocation
+    );
   } catch (error) {
     if (error instanceof ProviderLifecycleError) throw error;
     throw new ProviderLifecycleError('PROVIDER_LIFECYCLE_FAILED');
