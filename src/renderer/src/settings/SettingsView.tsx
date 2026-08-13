@@ -23,6 +23,7 @@ import { AppearanceSettingsPanel } from './AppearanceSettingsPanel';
 import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 import { SessionTransferPanel } from '../transfer/SessionTransferPanel';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 
 export type SettingsCategory =
   | 'general'
@@ -32,7 +33,8 @@ export type SettingsCategory =
   | 'launch'
   | 'security'
   | 'keyboard'
-  | 'transfer';
+  | 'transfer'
+  | 'diagnostics';
 
 interface SettingsViewProps {
   appearanceBackground: AppearanceBackgroundState;
@@ -72,7 +74,8 @@ const SETTINGS_CATEGORIES = [
   { id: 'launch', label: 'Launch' },
   { id: 'security', label: 'Security' },
   { id: 'keyboard', label: 'Keyboard' },
-  { id: 'transfer', label: 'Transfer' }
+  { id: 'transfer', label: 'Transfer' },
+  { id: 'diagnostics', label: 'Diagnostics' }
 ] as const;
 
 export function SettingsView({
@@ -296,6 +299,16 @@ export function SettingsView({
           sessions={sessions}
           workspaces={workspaces}
         />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-diagnostics"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'diagnostics'}
+        id="settings-panel-diagnostics"
+        role="tabpanel"
+      >
+        <DiagnosticsPanel active={activeCategory === 'diagnostics'} />
       </section>
     </div>
   );

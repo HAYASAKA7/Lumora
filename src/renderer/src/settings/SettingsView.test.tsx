@@ -84,6 +84,12 @@ vi.mock('../transfer/SessionTransferPanel', () => ({
   )
 }));
 
+vi.mock('./DiagnosticsPanel', () => ({
+  DiagnosticsPanel: ({ active }: { active: boolean }) => (
+    <div data-active={String(active)}>Diagnostics content</div>
+  )
+}));
+
 const KEYBOARD_SETTINGS: KeyboardSettings = {
   ...DEFAULT_KEYBOARD_SETTINGS,
   terminalSwitcher: {
@@ -163,7 +169,8 @@ describe('SettingsView', () => {
       'Launch',
       'Security',
       'Keyboard',
-      'Transfer'
+      'Transfer',
+      'Diagnostics'
     ]);
     expect(screen.getByRole('tablist')).toHaveAccessibleName(
       'Settings categories'
@@ -189,6 +196,7 @@ describe('SettingsView', () => {
     expect(screen.getByText('Security content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
+    expect(screen.getByText('Diagnostics content')).toBeInTheDocument();
   });
 
   it('changes the visible category when a tab is clicked', () => {
@@ -223,16 +231,16 @@ describe('SettingsView', () => {
     expect(general).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(general, { key: 'ArrowLeft' });
-    const transfer = screen.getByRole('tab', { name: 'Transfer' });
-    expect(transfer).toHaveFocus();
-    expect(transfer).toHaveAttribute('aria-selected', 'true');
+    const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' });
+    expect(diagnostics).toHaveFocus();
+    expect(diagnostics).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(transfer, { key: 'Home' });
+    fireEvent.keyDown(diagnostics, { key: 'Home' });
     expect(general).toHaveFocus();
 
     fireEvent.keyDown(general, { key: 'End' });
-    expect(transfer).toHaveFocus();
-    expect(transfer).toHaveAttribute('aria-selected', 'true');
+    expect(diagnostics).toHaveFocus();
+    expect(diagnostics).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps category wrappers while catalog-dependent content is unavailable', () => {
@@ -246,11 +254,13 @@ describe('SettingsView', () => {
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-keyboard')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-transfer')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-diagnostics')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('General content')).toBeInTheDocument();
     expect(screen.getByText('Appearance content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
+    expect(screen.getByText('Diagnostics content')).toBeInTheDocument();
     expect(screen.queryByText('Launch content')).not.toBeInTheDocument();
     expect(screen.queryByText('Security content')).not.toBeInTheDocument();
   });
