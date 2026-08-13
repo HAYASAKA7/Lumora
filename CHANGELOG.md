@@ -14,6 +14,33 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   local JSON export from **Settings > Diagnostics**. Diagnostic storage and
   exports exclude prompts, terminal output, session content, credentials,
   environment values, raw exception text, stack traces, identities, and paths.
+- Add Lumora-styled page and per-terminal recovery boundaries so a renderer
+  component failure keeps navigation, unrelated terminals, and managed PTYs
+  available for retry.
+
+### Changed
+
+- End startup presentation as soon as persisted application state is ready,
+  while provider, environment, and catalog discovery continue in the
+  background with the last valid cards and counts kept visible.
+
+### Fixed
+
+- Drain terminal launches that are still spawning when shutdown begins,
+  coalesce repeated shutdown requests, and reject new launches once teardown
+  owns the runtime.
+- Wait for in-flight SSH connection attempts before closing remote resources,
+  and make concurrent remote shutdown callers share the same completion.
+
+### Performance
+
+- Bound provider and session discovery concurrency, coalesce duplicate
+  environment/provider/catalog scans, retain at most one required fresh
+  follow-up, and reject stale renderer completions.
+- Record bounded scan durations, cache hits, queue counts, and catalog result
+  counts in local privacy-safe diagnostics.
+- Add a deterministic startup scan-coordination benchmark alongside the
+  catalog, terminal-output, and transfer benchmarks.
 
 ## [0.3.2] - 2026-08-13
 

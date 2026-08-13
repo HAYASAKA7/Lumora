@@ -53,6 +53,7 @@ or window state.
 | `npm run typecheck` | Check main/preload and renderer TypeScript projects |
 | `npm run verify` | Run tests, typechecking, and a production build |
 | `npm run benchmark:catalog` | Benchmark catalog refresh planning |
+| `npm run benchmark:startup` | Benchmark startup and refresh scan coalescing |
 | `npm run benchmark:transfer` | Benchmark transfer planning and streamed archive memory |
 | `npm run benchmark:terminal` | Compare batched and per-fragment terminal output processing |
 | `npm run build` | Build main, preload, and renderer bundles into `out/` |
@@ -134,6 +135,18 @@ Diagnostics** to inspect or explicitly export the local summary while testing
 failure paths.
 
 ## Performance checks
+
+Run the startup coordination benchmark when changing provider discovery,
+startup loading, refresh scheduling, or scan cache behavior:
+
+```powershell
+npm run benchmark:startup
+```
+
+It submits a 500-request mixed cached/fresh burst across all supported provider
+identifiers and verifies that only the active scan plus one required fresh
+follow-up reaches the native scanner. Timing is a local comparison signal; the
+deterministic two-operation assertion is the regression gate.
 
 Run the synthetic catalog benchmark when changing provider discovery, session
 normalization, workspace canonicalization, or catalog persistence:
