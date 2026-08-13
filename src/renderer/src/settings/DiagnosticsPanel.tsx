@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { DiagnosticSummary, LumoraApi } from '../../../shared/contracts';
+import type {
+  DiagnosticStorageSettings,
+  DiagnosticSummary,
+  LumoraApi
+} from '../../../shared/contracts';
 
 type DiagnosticApi = Pick<
   LumoraApi,
-  'getDiagnosticSummary' | 'exportDiagnosticBundle'
+  | 'getDiagnosticSummary'
+  | 'exportDiagnosticBundle'
+  | 'getDiagnosticStorageSettings'
+  | 'chooseDiagnosticJournalDirectory'
+  | 'resetDiagnosticJournalDirectory'
+  | 'chooseDiagnosticExportDirectory'
+  | 'resetDiagnosticExportDirectory'
 >;
 
 interface DiagnosticsPanelProps {
@@ -32,6 +42,9 @@ export function DiagnosticsPanel({
   const [status, setStatus] = useState<DiagnosticStatus>({ state: 'idle' });
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [storage, setStorage] = useState<DiagnosticStorageSettings | null>(null);
+  const [storageBusy, setStorageBusy] = useState(false);
+  const [storageError, setStorageError] = useState(false);
 
   const refresh = useCallback(async () => {
     setStatus({ state: 'loading' });
@@ -43,15 +56,38 @@ export function DiagnosticsPanel({
   }, [api]);
 
   useEffect(() => {
-    if (active && status.state === 'idle') void refresh();
-  }, [active, refresh, status.state]);
+    if (!active || status.state !== 'idle') return;
+    void refresh();
+    void api.getDiagnosticStorageSettings().then(
+      (settings) => setStorage(settings),
+      () => setStorageError(true)
+    );
+  }, [active, api, refresh, status.state]);
+
+  const updateStorage = async (
+    operation: () => Promise<DiagnosticStorageSettings>
+  ) => {
+    if (storageBusy) return;
+    setStorageBusy(true);
+    setStorageError(false);
+    try {
+      setStorage(await operation());
+    } catch {
+      setStorageError(true);
+    } finally {
+      setStorageBusy(false);
+    }
+  };
 
   const exportDiagnostics = async () => {
     setExporting(true);
     setExportNotice(null);
     try {
       const result = await api.exportDiagnosticBundle();
-      if (result.status === 'saved') setExportNotice('Diagnostics saved.');
+      if (result.status === 'saved') {
+        setExportNotice('Diagnostics saved.');
+        setStorage(await api.getDiagnosticStorageSettings());
+      }
     } catch {
       setExportNotice('Diagnostics could not be exported.');
     } finally {
@@ -108,6 +144,102 @@ export function DiagnosticsPanel({
       ) : null}
       {exportNotice !== null ? (
         <p className="diagnostics-export-notice" role="status">{exportNotice}</p>
+      ) : null}
+
+      {storage !== null ? (
+        <section
+          aria-labelledby="diagnostic-storage-title"
+          className="diagnostics-storage"
+        >
+          <div className="diagnostics-events-heading">
+            <div>
+              <p className="card-label">Local files</p>
+              <h3 id="diagnostic-storage-title">Storage locations</h3>
+            </div>
+          </div>
+
+          {storage.fallbackActive ? (
+            <div className="diagnostics-state diagnostics-state-warning" role="status">
+              <strong>Using the default journal folder for this run</strong>
+              <span>Check the selected folder, then restart Lumora to try it again.</span>
+            </div>
+          ) : null}
+          {storageError ? (
+            <div className="diagnostics-state diagnostics-state-error" role="alert">
+              Lumora could not update the diagnostic storage location.
+            </div>
+          ) : null}
+
+          <div className="diagnostics-storage-row">
+            <div className="diagnostics-storage-copy">
+              <strong>Journal storage</strong>
+              <code aria-label={`Journal folder: ${
+                storage.selectedJournalDirectory ?? storage.effectiveJournalDirectory
+              }`}>
+                {storage.selectedJournalDirectory ?? storage.effectiveJournalDirectory}
+              </code>
+              <span>
+                {storage.restartRequired
+                  ? 'Restart Lumora to use this journal folder.'
+                  : 'Bounded lifecycle and performance events are stored here.'}
+              </span>
+            </div>
+            <div className="diagnostics-storage-actions">
+              <button
+                className="secondary-button"
+                disabled={storageBusy}
+                onClick={() => void updateStorage(
+                  () => api.chooseDiagnosticJournalDirectory()
+                )}
+                type="button"
+              >
+                Choose journal folder
+              </button>
+              <button
+                className="secondary-button"
+                disabled={storageBusy || storage.journalUsesDefault}
+                onClick={() => void updateStorage(
+                  () => api.resetDiagnosticJournalDirectory()
+                )}
+                type="button"
+              >
+                Restore default journal folder
+              </button>
+            </div>
+          </div>
+
+          <div className="diagnostics-storage-row">
+            <div className="diagnostics-storage-copy">
+              <strong>Export destination</strong>
+              <code aria-label={`Export folder: ${storage.effectiveExportDirectory}`}>
+                {storage.effectiveExportDirectory}
+              </code>
+              <span>New diagnostic export dialogs start in this folder.</span>
+            </div>
+            <div className="diagnostics-storage-actions">
+              <button
+                className="secondary-button"
+                disabled={storageBusy}
+                onClick={() => void updateStorage(
+                  () => api.chooseDiagnosticExportDirectory()
+                )}
+                type="button"
+              >
+                Choose export folder
+              </button>
+              <button
+                className="secondary-button"
+                disabled={storageBusy || storage.exportUsesDefault}
+                onClick={() => void updateStorage(
+                  () => api.resetDiagnosticExportDirectory()
+                )}
+                type="button"
+              >
+                Use Documents for exports
+              </button>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {summary !== null ? (

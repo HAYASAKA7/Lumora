@@ -29,12 +29,47 @@ const summary: DiagnosticSummary = {
 };
 
 function createApi() {
+  const storage = {
+    selectedJournalDirectory: null,
+    effectiveJournalDirectory: 'C:\\Lumora\\diagnostics',
+    selectedExportDirectory: 'D:\\Support bundles',
+    effectiveExportDirectory: 'D:\\Support bundles',
+    journalUsesDefault: true,
+    exportUsesDefault: false,
+    restartRequired: false,
+    fallbackActive: false
+  } as const;
   return {
     getDiagnosticSummary: vi.fn().mockResolvedValue(summary),
-    exportDiagnosticBundle: vi.fn().mockResolvedValue({ status: 'saved' })
+    exportDiagnosticBundle: vi.fn().mockResolvedValue({ status: 'saved' }),
+    getDiagnosticStorageSettings: vi.fn().mockResolvedValue(storage),
+    chooseDiagnosticJournalDirectory: vi.fn().mockResolvedValue({
+      ...storage,
+      selectedJournalDirectory: 'E:\\Lumora journal',
+      journalUsesDefault: false,
+      restartRequired: true
+    }),
+    resetDiagnosticJournalDirectory: vi.fn().mockResolvedValue(storage),
+    chooseDiagnosticExportDirectory: vi.fn().mockResolvedValue({
+      ...storage,
+      selectedExportDirectory: 'E:\\Exports',
+      effectiveExportDirectory: 'E:\\Exports'
+    }),
+    resetDiagnosticExportDirectory: vi.fn().mockResolvedValue({
+      ...storage,
+      selectedExportDirectory: null,
+      effectiveExportDirectory: 'C:\\Documents',
+      exportUsesDefault: true
+    })
   } satisfies Pick<
     LumoraApi,
-    'getDiagnosticSummary' | 'exportDiagnosticBundle'
+    | 'getDiagnosticSummary'
+    | 'exportDiagnosticBundle'
+    | 'getDiagnosticStorageSettings'
+    | 'chooseDiagnosticJournalDirectory'
+    | 'resetDiagnosticJournalDirectory'
+    | 'chooseDiagnosticExportDirectory'
+    | 'resetDiagnosticExportDirectory'
   >;
 }
 
@@ -76,5 +111,42 @@ describe('DiagnosticsPanel', () => {
       'Diagnostics are temporarily unavailable.'
     );
     expect(screen.queryByText(/secret/i)).not.toBeInTheDocument();
+  });
+
+  it('configures journal and export folders with restart guidance', async () => {
+    const api = createApi();
+    render(<DiagnosticsPanel active api={api} />);
+
+    expect(await screen.findByText('C:\\Lumora\\diagnostics')).toBeVisible();
+    expect(screen.getByText('D:\\Support bundles')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose journal folder' }));
+    expect(await screen.findByText('E:\\Lumora journal')).toBeVisible();
+    expect(screen.getByText(/restart Lumora to use this journal folder/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose export folder' }));
+    expect(await screen.findByText('E:\\Exports')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Use Documents for exports' }));
+    expect(await screen.findByText('C:\\Documents')).toBeVisible();
+  });
+
+  it('shows a safe fallback notice without exposing an operation error', async () => {
+    const api = createApi();
+    api.getDiagnosticStorageSettings.mockResolvedValueOnce({
+      ...await api.getDiagnosticStorageSettings(),
+      fallbackActive: true,
+      restartRequired: true
+    });
+    api.chooseDiagnosticJournalDirectory.mockRejectedValueOnce(
+      new Error('E:\\private\\unavailable')
+    );
+    render(<DiagnosticsPanel active api={api} />);
+
+    expect(await screen.findByText(/default journal folder for this run/i)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose journal folder' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Lumora could not update the diagnostic storage location.'
+    );
+    expect(screen.queryByText(/private\\unavailable/i)).not.toBeInTheDocument();
   });
 });

@@ -1358,6 +1358,60 @@ button {
   box-shadow: var(--panel-shadow-soft);
 }
 
+.diagnostics-storage {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.diagnostics-storage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.diagnostics-storage-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.diagnostics-storage-copy code {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostics-storage-copy span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.diagnostics-storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 780px) {
+  .diagnostics-storage-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .diagnostics-storage-actions {
+    justify-content: flex-start;
+  }
+}
+
 .diagnostics-panel-header,
 .diagnostics-panel-actions,
 .diagnostics-events-heading,
