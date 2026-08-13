@@ -179,4 +179,24 @@ describe('unsigned MVP release documentation', () => {
     expect(releaseGuide).toContain('record-transfer-verification.cjs');
     expect(releaseGuide).toContain('Never edit the verified route table by hand');
   });
+
+  it('documents local privacy-safe diagnostics and support export', async () => {
+    const [readme, architecture, troubleshooting, development, changelog] =
+      await Promise.all([
+        readFile(readmePath, 'utf8'),
+        readFile(new URL('../../../docs/ARCHITECTURE.md', import.meta.url), 'utf8'),
+        readFile(troubleshootingGuidePath, 'utf8'),
+        readFile(new URL('../../../docs/DEVELOPMENT.md', import.meta.url), 'utf8'),
+        readFile(new URL('../../../CHANGELOG.md', import.meta.url), 'utf8')
+      ]);
+
+    expect(readme).toContain('Settings > Diagnostics');
+    expect(architecture).toContain('bounded diagnostic journal');
+    expect(architecture).toContain('never contains prompts');
+    expect(troubleshooting).toContain('## Diagnostics and abnormal shutdown');
+    expect(troubleshooting).toContain('Export diagnostics');
+    expect(development).toContain('diagnostic journal');
+    expect(development).toContain('npm run benchmark');
+    expect(changelog).toContain('privacy-safe local diagnostics');
+  });
 });

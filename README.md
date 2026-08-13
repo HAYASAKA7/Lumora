@@ -331,6 +331,16 @@ You can revoke it from Settings; a changed path requires a new decision.
 Workspace trust is a consent gate, not an operating-system sandbox. The agent
 still runs with your user account's permissions.
 
+### Diagnostics
+
+Open **Settings > Diagnostics** to review Lumora's current process count,
+working-set memory, CPU use, recent lifecycle events, and whether the previous
+run ended unexpectedly. The bounded local journal stores structured health
+signals only—it excludes prompts, terminal output, session content,
+credentials, environment values, and filesystem paths. **Export diagnostics**
+creates a local JSON support bundle at a location you choose; Lumora never
+uploads it.
+
 ### Keyboard
 
 All application shortcuts below can be changed in **Settings > Keyboard**.

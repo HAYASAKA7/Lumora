@@ -375,6 +375,19 @@ shutdown remove staging data, and startup removes abandoned operation
 directories. Full paths, passwords, archive contents, and provider payloads are
 not written to transfer history.
 
+Lumora also keeps a bounded diagnostic journal in a dedicated `diagnostics`
+directory under `userData`. One active NDJSON file and two rotated files retain
+schema-validated lifecycle and process-health events. An atomic active-run
+marker reports an abnormal previous shutdown and is removed only after orderly
+terminal, remote, transfer, and storage shutdown. The journal never contains prompts,
+terminal output, session content, credentials, environment values,
+exception text, stack traces, session identities, or filesystem paths.
+
+Diagnostic IPC is local-window-only. The renderer receives a validated summary
+of recent structured events and bounded Electron process metrics. Export is an
+explicit native save-dialog action that creates a local JSON file; there is no
+diagnostic upload or native crash-dump collection.
+
 ## Privacy and trust
 
 Lumora has no Lumora cloud synchronization. Provider session sources are read

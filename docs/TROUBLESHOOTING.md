@@ -384,6 +384,37 @@ the remote provider's own session directory and permissions if it remains
 empty. Remote provider discovery, catalogs, and SSH PTY execution are available
 in the current experimental remote feature.
 
+## Diagnostics and abnormal shutdown
+
+### Lumora reports that the previous run ended unexpectedly
+
+**Symptom:** **Settings > Diagnostics** shows an abnormal-shutdown notice after
+Lumora starts.
+
+**Likely cause:** The previous process ended before Lumora completed orderly
+terminal, remote, transfer, and storage cleanup. A forced operating-system
+shutdown, process crash, or manually terminated development process can all
+leave this marker.
+
+**Resolution:** Review the bounded recent events, reproduce the issue once if it
+is safe, then select **Export diagnostics** and attach the resulting JSON file
+to a private support report. The export excludes prompts, terminal output,
+session content, credentials, environment values, exception text, and paths.
+Do not attach provider session files unless you separately intend to share
+their contents.
+
+### The Diagnostics page cannot load or export
+
+**Symptom:** The page reports that diagnostics are temporarily unavailable, or
+the save action fails.
+
+**Likely cause:** Lumora cannot read its bounded diagnostic journal or cannot
+write to the selected destination.
+
+**Resolution:** Select **Refresh diagnostics**. For export, choose a writable
+user directory and try again. Do not delete application data as a first step;
+the journal rotates automatically and cannot block normal provider use.
+
 ## Development builds
 
 ### Development and packaged Lumora show different data

@@ -126,6 +126,13 @@ npm test -- --maxWorkers=2
 Tests that spawn Vite or esbuild child processes may require an unrestricted
 local shell in tightly sandboxed development environments.
 
+The main process stores a bounded privacy-safe diagnostic journal under the
+development `userData` directory. Diagnostic events must use fixed schemas and
+must not add free-form messages, paths, stack traces, prompts, terminal output,
+session content, credentials, or environment values. Use **Settings >
+Diagnostics** to inspect or explicitly export the local summary while testing
+failure paths.
+
 ## Performance checks
 
 Run the synthetic catalog benchmark when changing provider discovery, session

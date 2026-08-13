@@ -7,6 +7,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add privacy-safe local diagnostics with bounded process metrics, structured
+  lifecycle events, abnormal-shutdown detection, manual refresh, and explicit
+  local JSON export from **Settings > Diagnostics**. Diagnostic storage and
+  exports exclude prompts, terminal output, session content, credentials,
+  environment values, raw exception text, stack traces, identities, and paths.
+
 ## [0.3.2] - 2026-08-13
 
 ### Added
