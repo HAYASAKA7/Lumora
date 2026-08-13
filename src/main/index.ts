@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { stat, statfs } from 'node:fs/promises';
+import { stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -35,6 +35,12 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
+import { DiagnosticJournal } from './diagnostics/diagnostic-journal';
+import {
+  createDiagnosticService,
+  type DiagnosticService
+} from './diagnostics/diagnostic-service';
+import { installDiagnosticProcessObservers } from './diagnostics/diagnostic-process-observers';
 import {
   createIpcAuthorizer,
   createLocalIpcAuthorizer
@@ -42,6 +48,7 @@ import {
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
+import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
@@ -215,6 +222,9 @@ let pendingWindowStateFlush: Promise<void> = Promise.resolve();
 let activeStartupBackgroundActivityId: number | null = null;
 let trayController: TrayController | null = null;
 let appearanceBackgroundStore: AppearanceBackgroundStore | null = null;
+let diagnosticJournal: DiagnosticJournal | null = null;
+let diagnosticService: DiagnosticService | null = null;
+let disposeDiagnosticProcessObservers: (() => void) | null = null;
 let shutdownStarted = false;
 const pendingRemoteWindowCloses = new Set<string>();
 
@@ -529,6 +539,40 @@ if (!hasSingleInstanceLock) {
 }
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
+  diagnosticJournal = new DiagnosticJournal({
+    directory: join(app.getPath('userData'), 'diagnostics')
+  });
+  const diagnosticRun = await diagnosticJournal.startRun();
+  diagnosticService = createDiagnosticService({
+    journal: diagnosticJournal,
+    previousRunAbnormal: diagnosticRun.previousRunAbnormal,
+    appVersion: app.getVersion(),
+    platform,
+    architecture: process.arch,
+    getProcessMetrics: () => app.getAppMetrics(),
+    chooseExportPath: async (suggestedName) => {
+      const result = await dialog.showSaveDialog({
+        title: 'Export Lumora diagnostics',
+        defaultPath: join(app.getPath('documents'), suggestedName),
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+      return result.canceled || result.filePath === '' ? null : result.filePath;
+    },
+    writeFile: (path, data) =>
+      writeTextFile(path, data, { encoding: 'utf8', mode: 0o600 })
+  });
+  disposeDiagnosticProcessObservers = installDiagnosticProcessObservers({
+    processHost: process,
+    appHost: app,
+    record: (input) => diagnosticService!.record(input)
+  });
+  await diagnosticService.record({
+    severity: 'info',
+    subsystem: 'startup',
+    operation: 'application-start',
+    outcome: 'started',
+    targetKind: 'local'
+  });
   applicationEnvironment = await resolveApplicationEnvironment({
     platform,
     env: process.env
@@ -716,6 +760,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       }
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerDiagnosticIpc({
+    ipc: ipcMain,
+    authorize: authorizeLocalIpc,
+    service: diagnosticService
   });
   registerEnvironmentIpc({
     ipc: ipcMain,
@@ -954,11 +1003,26 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 
   await mainWindowCreation.ensureCreated();
   createApplicationTray();
+  await diagnosticService.record({
+    severity: 'info',
+    subsystem: 'startup',
+    operation: 'application-start',
+    outcome: 'succeeded',
+    targetKind: 'local'
+  });
 
   app.on('activate', () => {
     void showOrCreateMainWindow();
   });
 }).catch((error) => {
+  void diagnosticService?.record({
+    severity: 'error',
+    subsystem: 'startup',
+    operation: 'application-start',
+    outcome: 'failed',
+    targetKind: 'local',
+    code: 'STARTUP_FAILED'
+  });
   console.error('Unable to initialize Lumora.', error);
   if (!shutdownStarted) {
     app.quit();
@@ -1013,6 +1077,14 @@ app.on('before-quit', (event) => {
       if (shutdownErrors.length > 0) {
         throw shutdownErrors[0];
       }
+      await diagnosticService?.record({
+        severity: 'info',
+        subsystem: 'application',
+        operation: 'application-stop',
+        outcome: 'succeeded',
+        targetKind: 'local'
+      }).catch(() => undefined);
+      await diagnosticJournal?.finishRun();
     } catch (error) {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
     } finally {
@@ -1031,6 +1103,8 @@ app.on('before-quit', (event) => {
       }
       catalogRuntime?.close();
       catalogRuntime = null;
+      disposeDiagnosticProcessObservers?.();
+      disposeDiagnosticProcessObservers = null;
       app.quit();
     }
   })();
