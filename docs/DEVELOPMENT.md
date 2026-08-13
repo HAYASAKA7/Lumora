@@ -128,7 +128,11 @@ Tests that spawn Vite or esbuild child processes may require an unrestricted
 local shell in tightly sandboxed development environments.
 
 The main process stores a bounded privacy-safe diagnostic journal under the
-development `userData` directory. Diagnostic events must use fixed schemas and
+development `userData` directory by default. **Settings > Diagnostics** can
+select a separate journal folder for the next launch and a remembered export
+folder. Preferences remain under development `userData`, directory selection is
+local-window-only, and startup falls back to the default folder when a custom
+location is unavailable. Diagnostic events must use fixed schemas and
 must not add free-form messages, paths, stack traces, prompts, terminal output,
 session content, credentials, or environment values. Use **Settings >
 Diagnostics** to inspect or explicitly export the local summary while testing

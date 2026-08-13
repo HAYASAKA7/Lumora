@@ -415,6 +415,19 @@ write to the selected destination.
 user directory and try again. Do not delete application data as a first step;
 the journal rotates automatically and cannot block normal provider use.
 
+### Lumora is using the default diagnostic folder instead of my selection
+
+**Symptom:** **Settings > Diagnostics** reports that Lumora is using its default
+journal folder for the current run.
+
+**Likely cause:** The selected drive or directory was unavailable or not
+writable when Lumora started.
+
+**Resolution:** Reconnect the drive or choose another journal folder, then
+restart Lumora. The custom selection is retained so a temporary unavailable
+drive does not silently erase the preference. Use **Restore default journal
+folder** if you want to return permanently to Lumora's application-data folder.
+
 ## Development builds
 
 ### Development and packaged Lumora show different data

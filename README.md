@@ -337,9 +337,11 @@ Open **Settings > Diagnostics** to review Lumora's current process count,
 working-set memory, CPU use, recent lifecycle events, and whether the previous
 run ended unexpectedly. The bounded local journal stores structured health
 signals only—it excludes prompts, terminal output, session content,
-credentials, environment values, and filesystem paths. **Export diagnostics**
-creates a local JSON support bundle at a location you choose; Lumora never
-uploads it.
+credentials, environment values, and filesystem paths. The same page lets you
+choose the automatic journal folder; that change is applied safely on the next
+launch. Lumora also remembers the last successful export folder, while every
+**Export diagnostics** action still lets you choose another filename or
+location. Lumora never uploads diagnostic data.
 
 ### Keyboard
 

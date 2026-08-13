@@ -14,6 +14,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   local JSON export from **Settings > Diagnostics**. Diagnostic storage and
   exports exclude prompts, terminal output, session content, credentials,
   environment values, raw exception text, stack traces, identities, and paths.
+- Allow users to choose the bounded automatic diagnostic journal folder and
+  remember the last successful diagnostic export directory. Custom journal
+  changes apply on restart and safely fall back to Lumora's default folder when
+  unavailable.
 - Add Lumora-styled page and per-terminal recovery boundaries so a renderer
   component failure keeps navigation, unrelated terminals, and managed PTYs
   available for retry.

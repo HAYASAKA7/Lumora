@@ -175,13 +175,20 @@ export async function migrateDiagnosticJournal({
     ? []
     : journalFileNames(chunks.length - 1);
   const transactionId = randomUUID();
-  const staged = destinationNames.map((name) => ({
-    name,
-    path: join(destination, `${name}.${transactionId}.tmp`)
-  }));
+  const staged = chunks.map((content, index) => {
+    const name = destinationNames[index];
+    if (name === undefined) {
+      throw new Error('Diagnostic migration file mapping is incomplete.');
+    }
+    return {
+      name,
+      path: join(destination, `${name}.${transactionId}.tmp`),
+      content
+    };
+  });
 
   try {
-    await Promise.all(staged.map(({ path }, index) => writeFile(path, chunks[index], {
+    await Promise.all(staged.map(({ path, content }) => writeFile(path, content, {
       encoding: 'utf8',
       flag: 'wx',
       mode: 0o600
@@ -190,7 +197,7 @@ export async function migrateDiagnosticJournal({
     const markerStage = marker === null
       ? null
       : join(destination, `${MARKER_FILE}.${transactionId}.tmp`);
-    if (markerStage !== null) {
+    if (marker !== null && markerStage !== null) {
       await writeFile(markerStage, marker, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
     }
 
