@@ -18,6 +18,7 @@ interface EnvironmentComponentProps {
 
 interface EnvironmentPanelProps extends EnvironmentComponentProps {
   onRefresh(): void;
+  refreshing?: boolean;
 }
 
 const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
@@ -184,7 +185,8 @@ function DeveloperToolCard({
 export function DeveloperEnvironmentPanel({
   status,
   onOpenNodeDownload,
-  onRefresh
+  onRefresh,
+  refreshing = false
 }: EnvironmentPanelProps): ReactNode {
   const { opening, openError, openDownload } = useNodeDownload(
     onOpenNodeDownload
@@ -204,7 +206,7 @@ export function DeveloperEnvironmentPanel({
           onClick={onRefresh}
           type="button"
         >
-          Refresh
+          {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 

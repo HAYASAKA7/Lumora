@@ -3216,7 +3216,7 @@ describe('App', () => {
     ).toBeDisabled();
   });
 
-  it('holds startup through the real catalog refresh instead of showing cached zero counts', async () => {
+  it('releases startup from cached catalog data while the fresh scan continues', async () => {
     const cachedCatalog: CatalogSnapshot = {
       ...readyCatalog,
       workspaces: [],
@@ -3243,30 +3243,20 @@ describe('App', () => {
       expect(element).not.toBeNull();
       return element!;
     });
-    await waitFor(() =>
-      expect(screen.getByText('Loading catalog')).toBeInTheDocument()
-    );
-
     fireEvent.ended(video);
-    expect(
-      screen.getByRole('img', { name: 'Lumora startup final frame' })
-    ).toBeVisible();
-    expect(
-      screen.getByRole('status', { name: 'Lumora is starting' })
-    ).toHaveAttribute('data-state', 'holding-final-frame');
-
-    await act(async () => refreshed.resolve(readyCatalog));
-
     await waitFor(() =>
       expect(
         screen.queryByRole('status', { name: 'Lumora is starting' })
       ).not.toBeInTheDocument()
     );
     expect(completeStartupPresentation).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(screen.getByText('0 workspaces')).toBeInTheDocument();
+
+    await act(async () => refreshed.resolve(readyCatalog));
+    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
   });
 
-  it('does not settle startup from StrictMode provider scans that were superseded', async () => {
+  it('does not hold startup on background provider scans in StrictMode', async () => {
     const firstScan = deferred<ProviderScanResult>();
     const activeScan = deferred<ProviderScanResult>();
     const scanProviders = vi
@@ -3291,18 +3281,16 @@ describe('App', () => {
     });
     fireEvent.ended(video);
 
-    await act(async () => firstScan.resolve(readyProviderScan));
-
-    expect(
-      screen.getByRole('status', { name: 'Lumora is starting' })
-    ).toHaveAttribute('data-state', 'holding-final-frame');
-
-    await act(async () => activeScan.resolve(readyProviderScan));
     await waitFor(() =>
       expect(
         screen.queryByRole('status', { name: 'Lumora is starting' })
       ).not.toBeInTheDocument()
     );
+
+    await act(async () => {
+      firstScan.resolve(readyProviderScan);
+      activeScan.resolve(readyProviderScan);
+    });
   });
   it('keeps main navigation out of the browser Tab cycle and releases stale focus', () => {
     render(<App />);

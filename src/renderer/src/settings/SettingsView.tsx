@@ -43,6 +43,7 @@ interface SettingsViewProps {
   activeCategory: SettingsCategory;
   catalogReady: boolean;
   environmentStatus: DeveloperEnvironmentStatus;
+  environmentRefreshing?: boolean;
   generalSettings: GeneralSettings;
   generalSettingsSaveError: string | null;
   generalSettingsSaving: boolean;
@@ -61,6 +62,7 @@ interface SettingsViewProps {
   platform: SystemInfo['platform'];
   profiles: readonly TerminalProfile[];
   providerStatus: ProviderScanStatus;
+  providerRefreshing?: boolean;
   runningSessionIds: ReadonlySet<string>;
   sessions: readonly SessionSummary[];
   workspaces: readonly WorkspaceSummary[];
@@ -85,6 +87,7 @@ export function SettingsView({
   activeCategory,
   catalogReady,
   environmentStatus,
+  environmentRefreshing = false,
   generalSettings,
   generalSettingsSaveError,
   generalSettingsSaving,
@@ -101,6 +104,7 @@ export function SettingsView({
   platform,
   profiles,
   providerStatus,
+  providerRefreshing = false,
   runningSessionIds,
   sessions,
   workspaces
@@ -223,6 +227,7 @@ export function SettingsView({
           generalSettingsSaveError={generalSettingsSaveError}
           generalSettingsSaving={generalSettingsSaving}
           onRefresh={onRefreshProviders}
+          refreshing={providerRefreshing}
           onSaveEnabledProviders={onSaveEnabledProviders}
           status={providerStatus}
         />
@@ -238,6 +243,7 @@ export function SettingsView({
         <DeveloperEnvironmentPanel
           onOpenNodeDownload={onOpenNodeDownload}
           onRefresh={onRefreshEnvironment}
+          refreshing={environmentRefreshing}
           status={environmentStatus}
         />
       </section>

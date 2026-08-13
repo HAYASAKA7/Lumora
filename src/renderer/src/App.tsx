@@ -316,6 +316,8 @@ function AppContent(): ReactNode {
   });
   const [environmentStatus, setEnvironmentStatus] =
     useState<DeveloperEnvironmentStatus>({ state: 'loading' });
+  const [isProviderRefreshing, setIsProviderRefreshing] = useState(false);
+  const [isEnvironmentRefreshing, setIsEnvironmentRefreshing] = useState(false);
   const [catalogStatus, setCatalogStatus] = useState<CatalogViewStatus>({
     state: 'loading'
   });
@@ -467,19 +469,26 @@ function AppContent(): ReactNode {
   const refreshProviders = useCallback(async () => {
     const requestId = providerRequestId.current + 1;
     providerRequestId.current = requestId;
-    setProviderStatus({ state: 'loading' });
+    setIsProviderRefreshing(true);
+    setProviderStatus((current) =>
+      current.state === 'ready' ? current : { state: 'loading' }
+    );
 
     return window.lumora.scanProviders().then(
       (scan) => {
         if (providerRequestId.current === requestId) {
           setProviderStatus({ state: 'ready', scan });
+          setIsProviderRefreshing(false);
           return true;
         }
         return false;
       },
       () => {
         if (providerRequestId.current === requestId) {
-          setProviderStatus({ state: 'error' });
+          setProviderStatus((current) =>
+            current.state === 'ready' ? current : { state: 'error' }
+          );
+          setIsProviderRefreshing(false);
           return true;
         }
         return false;
@@ -490,19 +499,26 @@ function AppContent(): ReactNode {
   const refreshEnvironment = useCallback(async () => {
     const requestId = environmentRequestId.current + 1;
     environmentRequestId.current = requestId;
-    setEnvironmentStatus({ state: 'loading' });
+    setIsEnvironmentRefreshing(true);
+    setEnvironmentStatus((current) =>
+      current.state === 'ready' ? current : { state: 'loading' }
+    );
 
     return window.lumora.scanDeveloperEnvironment().then(
       (scan) => {
         if (environmentRequestId.current === requestId) {
           setEnvironmentStatus({ state: 'ready', scan });
+          setIsEnvironmentRefreshing(false);
           return true;
         }
         return false;
       },
       () => {
         if (environmentRequestId.current === requestId) {
-          setEnvironmentStatus({ state: 'error' });
+          setEnvironmentStatus((current) =>
+            current.state === 'ready' ? current : { state: 'error' }
+          );
+          setIsEnvironmentRefreshing(false);
           return true;
         }
         return false;
@@ -641,9 +657,8 @@ function AppContent(): ReactNode {
   }, [settleStartupTask]);
 
   useEffect(() => {
-    void refreshProviders().then((settled) => {
-      if (settled) settleStartupTask('providers');
-    });
+    void refreshProviders();
+    settleStartupTask('providers');
 
     return () => {
       providerRequestId.current += 1;
@@ -651,9 +666,8 @@ function AppContent(): ReactNode {
   }, [refreshProviders, settleStartupTask]);
 
   useEffect(() => {
-    void refreshEnvironment().then((settled) => {
-      if (settled) settleStartupTask('environment');
-    });
+    void refreshEnvironment();
+    settleStartupTask('environment');
 
     return () => {
       environmentRequestId.current += 1;
@@ -786,6 +800,7 @@ function AppContent(): ReactNode {
           return;
         }
         setCatalogStatus({ state: 'ready', snapshot });
+        settleStartupTask('catalog');
 
         const refreshRequestId = catalogRequestId.current + 1;
         catalogRequestId.current = refreshRequestId;
@@ -796,7 +811,6 @@ function AppContent(): ReactNode {
               setCatalogStatus({ state: 'ready', snapshot: refreshedSnapshot });
               setCatalogOperationError(null);
               setIsCatalogRefreshing(false);
-              settleStartupTask('catalog');
             }
           },
           () => {
@@ -805,7 +819,6 @@ function AppContent(): ReactNode {
                 'Catalog refresh failed. Last saved data is still shown.'
               );
               setIsCatalogRefreshing(false);
-              settleStartupTask('catalog');
             }
           }
         );
@@ -1697,6 +1710,7 @@ function AppContent(): ReactNode {
                 appearanceBackgroundError={appearanceBackgroundError}
                 catalogReady={visibleCatalogStatus.state === 'ready'}
                 environmentStatus={environmentStatus}
+                environmentRefreshing={isEnvironmentRefreshing}
                 generalSettings={
                   generalSettings ?? DEFAULT_GENERAL_SETTINGS
                 }
@@ -1719,6 +1733,7 @@ function AppContent(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 providerStatus={providerStatus}
+                providerRefreshing={isProviderRefreshing}
                 runningSessionIds={runningSessionIds}
                 sessions={
                   visibleCatalogStatus.state === 'ready'

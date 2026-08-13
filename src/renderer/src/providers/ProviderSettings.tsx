@@ -342,6 +342,7 @@ export function ProviderSettings({
   generalSettings = DEFAULT_GENERAL_SETTINGS,
   generalSettingsSaving = false,
   generalSettingsSaveError = null,
+  refreshing = false,
   onSaveEnabledProviders = async () => true
 }: {
   status: ProviderScanStatus;
@@ -351,6 +352,7 @@ export function ProviderSettings({
   generalSettings?: GeneralSettings;
   generalSettingsSaving?: boolean;
   generalSettingsSaveError?: string | null;
+  refreshing?: boolean;
   onSaveEnabledProviders?: (
     providers: readonly ProviderId[]
   ) => Promise<boolean>;
@@ -661,7 +663,7 @@ export function ProviderSettings({
             type="button"
           >
             <ScanIcon />
-            Refresh
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
           <button
             aria-label="Check for provider updates"
