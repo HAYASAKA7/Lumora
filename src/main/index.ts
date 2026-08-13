@@ -594,13 +594,20 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     platform,
     architecture: process.arch,
     getProcessMetrics: () => app.getAppMetrics(),
-    chooseExportPath: async (suggestedName) => {
+    getExportDirectory: async () => (
+      await diagnosticPreferencesStore!.getSettings()
+    ).effectiveExportDirectory,
+    getFallbackExportDirectory: () => app.getPath('documents'),
+    chooseExportPath: async (suggestedName, initialDirectory) => {
       const result = await dialog.showSaveDialog({
         title: 'Export Lumora diagnostics',
-        defaultPath: join(app.getPath('documents'), suggestedName),
+        defaultPath: join(initialDirectory, suggestedName),
         filters: [{ name: 'JSON', extensions: ['json'] }]
       });
       return result.canceled || result.filePath === '' ? null : result.filePath;
+    },
+    rememberExportDirectory: async (directory) => {
+      await diagnosticPreferencesStore!.selectExportDirectory(directory);
     },
     writeFile: (path, data) =>
       writeTextFile(path, data, { encoding: 'utf8', mode: 0o600 })

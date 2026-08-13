@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { dirname } from 'node:path';
 
 import {
   DiagnosticBundleSchema,
@@ -37,7 +38,13 @@ interface CreateDiagnosticServiceOptions {
   platform: SystemInfo['platform'];
   architecture: string;
   getProcessMetrics(): readonly ProcessMetricLike[];
-  chooseExportPath(suggestedName: string): Promise<string | null>;
+  getExportDirectory(): Promise<string>;
+  getFallbackExportDirectory(): string;
+  chooseExportPath(
+    suggestedName: string,
+    initialDirectory: string
+  ): Promise<string | null>;
+  rememberExportDirectory(directory: string): Promise<void>;
   writeFile(path: string, data: string): Promise<void>;
   clock?: () => Date;
   createId?: () => string;
@@ -62,7 +69,10 @@ export function createDiagnosticService({
   platform,
   architecture,
   getProcessMetrics,
+  getExportDirectory,
+  getFallbackExportDirectory,
   chooseExportPath,
+  rememberExportDirectory,
   writeFile,
   clock = () => new Date(),
   createId = randomUUID
@@ -108,7 +118,13 @@ export function createDiagnosticService({
     async exportBundle() {
       const generatedAt = clock().toISOString();
       const suggestedName = `Lumora-diagnostics-${generatedAt.slice(0, 10)}.json`;
-      const path = await chooseExportPath(suggestedName);
+      let initialDirectory: string;
+      try {
+        initialDirectory = await getExportDirectory();
+      } catch {
+        initialDirectory = getFallbackExportDirectory();
+      }
+      const path = await chooseExportPath(suggestedName, initialDirectory);
       if (path === null) {
         return DiagnosticExportResultSchema.parse({ status: 'cancelled' });
       }
@@ -119,6 +135,7 @@ export function createDiagnosticService({
         summary: await getSummary()
       });
       await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
+      await rememberExportDirectory(dirname(path));
       return DiagnosticExportResultSchema.parse({ status: 'saved' });
     },
     async record(input: DiagnosticRecordInput) {

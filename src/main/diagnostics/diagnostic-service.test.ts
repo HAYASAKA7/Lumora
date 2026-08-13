@@ -15,9 +15,15 @@ const event: DiagnosticEvent = {
   code: 'PREVIOUS_RUN_ABNORMAL'
 };
 
-function harness(options: { path?: string | null } = {}) {
+function harness(options: {
+  path?: string | null;
+  exportDirectory?: string;
+  fallbackDirectory?: string;
+} = {}) {
   const write = vi.fn(async (_path: string, _data: string) => undefined);
   const record = vi.fn(async () => undefined);
+  const chooseExportPath = vi.fn(async () => options.path ?? null);
+  const rememberExportDirectory = vi.fn(async () => undefined);
   const service = createDiagnosticService({
     journal: {
       readRecent: vi.fn(async () => ({
@@ -45,10 +51,13 @@ function harness(options: { path?: string | null } = {}) {
         terminalOutput: 'secret output'
       }
     ],
-    chooseExportPath: vi.fn(async () => options.path ?? null),
+    getExportDirectory: vi.fn(async () => options.exportDirectory ?? 'C:\\Documents'),
+    getFallbackExportDirectory: () => options.fallbackDirectory ?? 'C:\\Documents',
+    chooseExportPath,
+    rememberExportDirectory,
     writeFile: write
   });
-  return { record, service, write };
+  return { chooseExportPath, record, rememberExportDirectory, service, write };
 }
 
 describe('diagnostic service', () => {
@@ -69,14 +78,16 @@ describe('diagnostic service', () => {
   });
 
   it('returns cancelled without writing when no destination is selected', async () => {
-    const { service, write } = harness();
+    const { rememberExportDirectory, service, write } = harness();
 
     await expect(service.exportBundle()).resolves.toEqual({ status: 'cancelled' });
     expect(write).not.toHaveBeenCalled();
+    expect(rememberExportDirectory).not.toHaveBeenCalled();
   });
 
   it('exports a validated local bundle without incidental sensitive fields', async () => {
-    const { service, write } = harness({
+    const { chooseExportPath, rememberExportDirectory, service, write } = harness({
+      exportDirectory: 'D:\\Existing exports',
       path: 'C:\\Users\\private\\Lumora-diagnostics.json'
     });
 
@@ -87,6 +98,40 @@ describe('diagnostic service', () => {
     expect(raw).toContain('"schemaVersion": 1');
     expect(raw).not.toContain('C:\\\\Users\\\\private');
     expect(raw).not.toContain('secret output');
+    expect(chooseExportPath).toHaveBeenCalledWith(
+      'Lumora-diagnostics-2026-08-13.json',
+      'D:\\Existing exports'
+    );
+    expect(rememberExportDirectory).toHaveBeenCalledWith('C:\\Users\\private');
+  });
+
+  it('falls back to Documents when the remembered export directory is unavailable', async () => {
+    const chooseExportPath = vi.fn(async () => null);
+    const service = createDiagnosticService({
+      journal: {
+        readRecent: vi.fn(async () => ({ events: [], storedEvents: 0, invalidRecords: 0 })),
+        record: vi.fn(async () => undefined)
+      },
+      previousRunAbnormal: false,
+      appVersion: '0.3.2',
+      platform: 'win32',
+      architecture: 'x64',
+      getProcessMetrics: () => [],
+      getExportDirectory: vi.fn(async () => {
+        throw new Error('directory unavailable');
+      }),
+      getFallbackExportDirectory: () => 'C:\\Documents',
+      chooseExportPath,
+      rememberExportDirectory: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined)
+    });
+
+    await service.exportBundle();
+
+    expect(chooseExportPath).toHaveBeenCalledWith(
+      expect.stringContaining('Lumora-diagnostics-'),
+      'C:\\Documents'
+    );
   });
 
   it('constructs journal events and rejects arbitrary diagnostic text', async () => {
