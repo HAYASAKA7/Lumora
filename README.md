@@ -5,12 +5,12 @@
 <h1 align="center">Lumora</h1>
 
 <p align="center">
-  <strong>Your local command center for native AI-agent CLIs.</strong>
+  <strong>Your local-first command center for native AI-agent CLIs.</strong>
 </p>
 
 <p align="center">
-  Manage workspaces, find saved sessions, and run your coding agents in one
-  focused desktop app—without taking ownership away from the provider.
+  Manage workspaces, find saved sessions, and run your coding agents locally or
+  on trusted SSH computers—without taking ownership away from the provider.
 </p>
 
 <p align="center">
@@ -28,19 +28,19 @@
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
-  <img src="docs/screenshots/home_sidebar_expanded.png" alt="Lumora Home showing recent workspaces, saved sessions, and the expanded sidebar" width="1100">
+  <img src="docs/screenshots/0.3/lumora_home.png" alt="Lumora 0.3 Home showing recent workspaces, saved sessions, and active-agent status" width="1100">
 </p>
 
 Lumora gives installed AI-agent command-line tools a shared desktop home for
-workspace navigation, saved sessions, launch settings, and managed terminals.
-Each provider keeps control of its own session files, authentication,
-permissions, and usage limits.
+workspace navigation, saved sessions, launch settings, managed terminals, and
+experimental remote-computer access. Each provider keeps control of its own
+session files, authentication, permissions, and usage limits.
 
 ## Why Lumora
 
 | One place to work | Native sessions stay native | Local-first by design |
 | --- | --- | --- |
-| Move between projects, saved sessions, and live terminals without rebuilding your context. | Start, resume, and—where supported—fork the provider's real session instead of wrapping it in a proprietary format. | Lumora catalogs local metadata. Provider transcripts remain provider-owned read-only inputs unless you explicitly start a temporary cross-agent handoff. |
+| Move between projects, saved sessions, live terminals, and trusted remote computers without rebuilding your context. | Start, resume, and—where supported—fork the provider's real session instead of wrapping it in a proprietary format. | Lumora catalogs metadata locally. Provider transcripts remain provider-owned read-only inputs unless you explicitly start a temporary cross-agent handoff. |
 | **Flexible launches** | **Provider-aware workflows** | **Workspace trust** |
 | Layer commands and environment settings globally or per provider, workspace, session, and launch. | Detect installed CLIs, check versions, install allowlisted npm providers, and show only supported actions. | Approve each canonical workspace path before an agent runs there, then revoke that decision whenever you want. |
 
@@ -48,7 +48,6 @@ permissions, and usage limits.
 
 | 1. Check your providers | 2. Find your work | 3. Run the native CLI |
 | --- | --- | --- |
-| <img src="docs/screenshots/settings_installed_providers.png" alt="Lumora Providers settings showing installed AI-agent CLIs"> | <img src="docs/screenshots/workspace_all.png" alt="Lumora Workspaces page showing all local workspaces"> | <img src="docs/screenshots/terminal_session.png" alt="A native AI-agent CLI running inside a Lumora managed terminal"> |
 | Detect installed agents, review their versions, or install a supported npm package. | Browse provider-owned sessions by workspace, provider, title, or recent activity. | Start or resume the real provider process in a terminal that stays active while you navigate. |
 
 ## Get Lumora
@@ -128,7 +127,7 @@ Open a workspace to see its sessions, or use **All sessions** to search across
 projects by title, workspace, and provider.
 
 <p align="center">
-  <img src="docs/screenshots/sessions.png" alt="Lumora All sessions page with provider filters and saved-session cards" width="1100">
+  <img src="docs/screenshots/0.3/lumora_workspace.png" alt="Lumora 0.3 Workspaces page with search, hidden-workspace management, and catalog controls" width="1100">
 </p>
 
 Select a saved session to continue it. Lumora can:
@@ -146,6 +145,10 @@ The **Home** page keeps a smaller recent-session list with direct Resume
 actions. Provider filters only include installed providers for which Lumora
 found resumable sessions.
 
+<p align="center">
+  <img src="docs/screenshots/0.3/lumora_all_sessions.png" alt="Lumora 0.3 All sessions page with search, provider filters, token totals, and saved-session cards" width="1100">
+</p>
+
 To remove an old project from everyday navigation without deleting anything,
 open its workspace actions and choose **Hide workspace**. You can hide only the
 workspace card while keeping its sessions in Home and All sessions, or hide the
@@ -153,23 +156,6 @@ workspace together with those sessions. Use **Hidden workspaces** on the
 Workspaces page to search, select, and restore hidden entries. General settings
 can also omit unavailable workspaces and currently unusable sessions. These
 choices are isolated between local Lumora and each remote computer.
-
-<details>
-  <summary><strong>More workspace and navigation views</strong></summary>
-  <br>
-  <table>
-    <tr>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/workspace_detail.png" alt="A Lumora workspace detail page showing sessions within one workspace">
-        <br><sub><strong>Workspace detail</strong> — sessions grouped inside one project.</sub>
-      </td>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/home_sidebar_collapsed.png" alt="Lumora Home with the navigation sidebar collapsed">
-        <br><sub><strong>Focused navigation</strong> — collapse the sidebar when you want more room.</sub>
-      </td>
-    </tr>
-  </table>
-</details>
 
 Lumora reads supported provider metadata but does not rewrite provider session
 files or copy transcript bodies into its catalog. Cross-agent handoff creates a
@@ -184,6 +170,10 @@ collect them into an encrypted-by-default `.lumora-sessions` archive. On the
 destination device, the same Transfer page lets you select installed providers,
 map source workspaces to existing local directories, and review duplicates and
 other exclusions before import.
+
+<p align="center">
+  <img src="docs/screenshots/0.3/lumora_transfer_settings.png" alt="Lumora Transfer settings showing provider route status and guarded export and import actions" width="1100">
+</p>
 
 Transfer support is version- and route-specific. Verified combinations are
 marked **Supported**; implemented combinations awaiting packaged verification
@@ -200,6 +190,17 @@ private-key passphrase, or SSH agent. Credentials are ephemeral by default.
 You can opt in per profile to remember a password or private-key passphrase in
 operating-system secure storage, and separately opt in to automatic connection.
 
+<p align="center">
+  <img src="docs/screenshots/0.3/lumora_remote_computers.png" alt="Lumora Remote computers page showing isolated SSH profiles and connection status" width="1100">
+</p>
+
+Each target opens in its own Remote Lumora window. When automatic connection is
+enabled, Lumora goes straight to a connecting state; if authentication fails,
+the same window returns to the connection form with the error. Closing a remote
+window can either preserve its SSH connection for fast reopening or disconnect
+it, according to that target's setting. The Remote computers page keeps each
+profile's current connection state visible from the main Lumora window.
+
 When the helper is missing or incompatible, the remote window shows the exact
 per-user install location and version before asking for confirmation. Lumora
 uploads a packaged helper for the detected remote operating system and
@@ -209,16 +210,34 @@ root access.
 
 The isolated window also checks remote Node.js, npm, and the providers enabled
 for that target. Home, Workspaces, and All sessions discover provider-owned
-metadata for Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI, and
-Qwen Code, and Kimi Code. From the same remote window, you can start a new session or resume
-an exact session in an SSH-backed terminal. Provider start commands can be
-customized per remote computer from the shared **Settings > Providers** cards
-or layered under **Settings > Launch** without changing local launch settings.
+metadata for Codex, Claude Code, Gemini CLI, OpenCode, GitHub Copilot CLI,
+Qwen Code, and Kimi Code. From the same remote window, you can start a new
+session or resume an exact session in an SSH-backed terminal. Provider start
+commands can be customized per remote computer from its **Settings > Providers**
+cards or layered under **Settings > Launch** without changing local launch
+settings.
 The Providers page can also check versions and, after explicit confirmation,
 install or update allowlisted npm-based CLIs on the connected computer without
 administrator elevation. The remote shell follows global Lumora appearance while
 keeping target data, terminals, trust, and provider choices isolated. See
 [Remote computers](docs/REMOTE.md) for setup and test guidance.
+
+<details>
+  <summary><strong>Remote connection and helper setup</strong></summary>
+  <br>
+  <table>
+    <tr>
+      <td width="50%" align="center">
+        <img src="docs/screenshots/0.3/lumora_remote_connection.png" alt="Remote Lumora authentication form for a verified SSH target">
+        <br><sub><strong>Connect</strong> — choose password, private key, or SSH agent authentication per profile.</sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="docs/screenshots/0.3/lumora_remote_install_helper.png" alt="Remote Lumora helper installation confirmation with target version and per-user location">
+        <br><sub><strong>Install helper</strong> — review the bounded per-user helper installation before Lumora changes the remote account.</sub>
+      </td>
+    </tr>
+  </table>
+</details>
 
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and
@@ -253,21 +272,17 @@ newline in current Codex releases when hosted by Lumora, so Codex multiline
 `Shift+Enter` remains an unresolved known issue. Other modified Enter
 combinations keep their best-effort CSI-u compatibility encoding.
 
+<p align="center">
+  <img src="docs/screenshots/0.3/lumora_terminal.png" alt="Lumora managed-terminal page with multiple active tabs, running status, and provider TUI output" width="1100">
+</p>
+
 <details>
-  <summary><strong>Terminal details and profiles</strong></summary>
+  <summary><strong>Terminal profiles</strong></summary>
   <br>
-  <table>
-    <tr>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/terminal_details.png" alt="Lumora managed terminal with session details visible">
-        <br><sub><strong>Terminal details</strong> — keep launch and session context close to the running agent.</sub>
-      </td>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/terminal_profiles.png" alt="Lumora Terminal profiles page">
-        <br><sub><strong>Terminal profiles</strong> — choose the shell used to launch providers.</sub>
-      </td>
-    </tr>
-  </table>
+  <p align="center">
+    <img src="docs/screenshots/0.3/lumora_terminal_profiles.png" alt="Lumora 0.3 Terminal profiles page showing detected shells and the default profile" width="1000">
+    <br><sub><strong>Terminal profiles</strong> — inspect detected shells and choose the profile used to launch providers.</sub>
+  </p>
 </details>
 
 ## Settings and launch control
@@ -282,15 +297,14 @@ The launch preview shows the effective command, working directory, terminal,
 and the layer that supplied each value. Custom commands, aliases, and wrappers
 work when the selected terminal profile can resolve them.
 
-<p align="center">
-  <img src="docs/screenshots/settings_launch.png" alt="Lumora Launch settings showing layered provider commands and environment values" width="1100">
-</p>
-
 ### General
 
 Choose startup and navigation behavior, informational notices, and enabled
 providers. Cross-agent session handoff is off by default. When enabled, its
 retention setting controls when Lumora removes temporary managed copies.
+General behavior and appearance are global: changes apply consistently to the
+local window and every Remote Lumora window. Provider selection, launch values,
+workspace visibility, trust, and terminal state remain isolated per target.
 
 Lumora also has a native tray or menu-bar icon. You can choose whether closing
 the window exits Lumora and its managed agents, or hides the window while they
@@ -301,7 +315,11 @@ agents, open a recent session's normal resume confirmation, or exit Lumora.
 
 Review installation status and versions, install or update supported npm-based
 agents after confirmation, open official setup guides, and check Node.js and
-npm independently from provider discovery.
+npm independently from provider discovery. The enabled-provider list controls
+which agents Lumora scans and presents across Home, Workspaces, All sessions,
+launch flows, and remote targets. Installed provider cards expose detected
+versions, update status, and optional custom start commands; missing providers
+show their supported installation route or official guide.
 
 ### Appearance
 
@@ -361,37 +379,33 @@ All application shortcuts below can be changed in **Settings > Keyboard**.
 | `Ctrl+,` | Open Settings |
 
 <details>
-  <summary><strong>Explore Settings</strong></summary>
+  <summary><strong>Explore current Settings</strong></summary>
   <br>
   <table>
     <tr>
       <td width="50%" align="center">
-        <img src="docs/screenshots/settings_general.png" alt="Lumora General settings">
-        <br><sub><strong>General</strong> — startup, navigation, notices, and handoff retention.</sub>
+        <img src="docs/screenshots/0.3/lumora_general_settings.png" alt="Lumora 0.3 General settings for startup, window close, sidebar, and notice behavior">
+        <br><sub><strong>General</strong> — configure startup, close behavior, navigation, notices, and shared application behavior.</sub>
       </td>
       <td width="50%" align="center">
-        <img src="docs/screenshots/settings_provider_enable.png" alt="Lumora provider enablement settings">
-        <br><sub><strong>Provider selection</strong> — choose which agents appear throughout Lumora.</sub>
-      </td>
-    </tr>
-    <tr>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/settings_install_provider.png" alt="Lumora provider installation confirmation">
-        <br><sub><strong>Provider installation</strong> — confirm allowlisted npm actions before they run.</sub>
-      </td>
-      <td width="50%" align="center">
-        <img src="docs/screenshots/settings_environment.png" alt="Lumora Environment settings showing Node.js and npm status">
-        <br><sub><strong>Environment</strong> — check Node.js and npm prerequisites independently.</sub>
+        <img src="docs/screenshots/0.3/lumora_provider_settings_switch.png" alt="Lumora provider-selection settings with enabled and disabled agent CLIs">
+        <br><sub><strong>Provider selection</strong> — choose which agents Lumora discovers and displays.</sub>
       </td>
     </tr>
     <tr>
       <td width="50%" align="center">
-        <img src="docs/screenshots/settings_security.png" alt="Lumora Security settings showing trusted workspaces">
-        <br><sub><strong>Security</strong> — review and revoke trusted workspace paths.</sub>
+        <img src="docs/screenshots/0.3/lumora_provider_settings_installed.png" alt="Installed provider cards showing detected versions, updates, and custom start commands">
+        <br><sub><strong>Installed providers</strong> — inspect versions, update eligible CLIs, and customize start commands.</sub>
       </td>
       <td width="50%" align="center">
-        <img src="docs/screenshots/settings_keyboard.png" alt="Lumora Keyboard settings showing configurable shortcuts">
-        <br><sub><strong>Keyboard</strong> — customize application shortcuts.</sub>
+        <img src="docs/screenshots/0.3/lumora_provider_settings_not_installed.png" alt="Missing provider cards showing installation actions and official setup guides">
+        <br><sub><strong>Missing providers</strong> — use a confirmed installer where supported or open the official guide.</sub>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" align="center">
+        <img src="docs/screenshots/0.3/lumora_diagnostic_settings.png" alt="Lumora Diagnostics settings showing local storage controls and bounded health metrics">
+        <br><sub><strong>Diagnostics</strong> — choose local storage locations, review bounded health signals, and export a report when needed.</sub>
       </td>
     </tr>
   </table>
@@ -453,6 +467,9 @@ and are removed according to the retention period in General settings.
 
 Lumora does not add privacy guarantees beyond those of the provider CLI. The
 provider may contact its own services according to its terms and configuration.
+Remote Lumora sends bounded control and discovery requests through the user's
+SSH connection to a per-user helper. Lumora does not introduce a cloud relay;
+remote provider files and credentials stay on the selected remote computer.
 
 ## Current limitations
 
