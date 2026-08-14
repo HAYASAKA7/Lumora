@@ -33,7 +33,7 @@ describe('unsigned MVP release documentation', () => {
       'provider-owned sessions',
       '<h1 align="center">Lumora</h1>',
       'resources/icons/lumora/source/lumora-symbol-gradient.svg',
-      'docs/screenshots/home_sidebar_expanded.png',
+      'docs/screenshots/0.3/lumora_home.png',
       '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
       'docs/ARCHITECTURE.md',
       'docs/DEVELOPMENT.md',
