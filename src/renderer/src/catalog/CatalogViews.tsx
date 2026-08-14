@@ -26,6 +26,7 @@ import { ActionMenu } from '../ui/ActionMenu';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
+const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
 
 export type CatalogViewStatus =
   | { state: 'loading' }
@@ -276,6 +277,7 @@ interface SessionsViewProps {
   profiles: readonly TerminalProfile[];
   workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   showInformationalNotices: boolean;
+  runningSessionIds?: ReadonlySet<string> | undefined;
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
   onDismissDiagnostic(identity: string): void;
@@ -291,18 +293,20 @@ function diagnosticIdentity(
 
 const SessionRow = memo(function SessionRow({
   session,
+  running,
   workspace,
   providerScan,
   profiles,
   onResume
 }: {
   session: SessionSummary;
+  running: boolean;
   workspace: WorkspaceSummary | undefined;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
-  const disabledReason = onResume === undefined
+  const disabledReason = onResume === undefined || running
     ? null
     : resolveSessionResumeDisabledReason({
         session,
@@ -310,6 +314,9 @@ const SessionRow = memo(function SessionRow({
         providerScan,
         profiles
       });
+  const actionDescription = running
+    ? 'Open running terminal'
+    : 'Resume this session';
   return (
     <Tooltip content={disabledReason} multiline>
       <tr
@@ -323,11 +330,13 @@ const SessionRow = memo(function SessionRow({
       <td>
         {onResume === undefined ? null : (
           <Tooltip
-            content={disabledReason === null ? 'Resume this session' : null}
+            content={disabledReason === null ? actionDescription : null}
           >
             <button
-              aria-description={disabledReason ?? 'Resume this session'}
-              aria-label={`Resume ${session.title}`}
+              aria-description={disabledReason ?? actionDescription}
+              aria-label={running
+                ? `Open running terminal ${session.title}`
+                : `Resume ${session.title}`}
               className="session-row-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
@@ -338,6 +347,9 @@ const SessionRow = memo(function SessionRow({
           </Tooltip>
         )}
         <strong>{session.title}</strong>
+        {running ? (
+          <span className="session-running-badge">Running</span>
+        ) : null}
       </td>
       <td>
         <span className={`provider-badge provider-${session.provider}`}>
@@ -383,6 +395,7 @@ export function SessionsView({
   profiles,
   workspaceById,
   showInformationalNotices,
+  runningSessionIds = EMPTY_SESSION_IDS,
   onSearchChange,
   onProviderChange,
   onDismissDiagnostic,
@@ -548,9 +561,9 @@ export function SessionsView({
                     <SessionRow
                       key={session.id}
                       onResume={onResume}
-
                       profiles={profiles}
                       providerScan={providerScan}
+                      running={runningSessionIds.has(session.id)}
                       session={session}
                       workspace={workspaces.get(session.workspaceId)}
                     />
@@ -575,6 +588,7 @@ export function CatalogHomeSummary({
   providerScan,
   profiles,
   runtimes = [],
+  runningSessionIds = EMPTY_SESSION_IDS,
   workspaceById,
   onRecover,
   onResume
@@ -584,6 +598,7 @@ export function CatalogHomeSummary({
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   runtimes?: readonly RuntimeSummary[];
+  runningSessionIds?: ReadonlySet<string> | undefined;
   workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   onRecover?(runtime: RuntimeSummary): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
@@ -703,7 +718,8 @@ export function CatalogHomeSummary({
           <ul className="recent-session-list">
             {recentSessions.map((session) => {
               const workspace = workspaces.get(session.workspaceId);
-              const disabledReason = onResume === undefined
+              const running = runningSessionIds.has(session.id);
+              const disabledReason = onResume === undefined || running
                 ? null
                 : resolveSessionResumeDisabledReason({
                     session,
@@ -733,12 +749,24 @@ export function CatalogHomeSummary({
                           {formatLifetimeTokens(session.lifetimeTokens)}
                         </span>
                       )}
+                      {running ? (
+                        <span className="session-running-badge">Running</span>
+                      ) : null}
                     </span>
                   </span>
                   {onResume === undefined ? null : (
-                    <Tooltip content={disabledReason ?? 'Resume this session'}>
+                    <Tooltip
+                      content={disabledReason ?? (
+                        running ? 'Open running terminal' : 'Resume this session'
+                      )}
+                    >
                       <button
-                        aria-description={disabledReason ?? 'Resume this session'}
+                        aria-description={disabledReason ?? (
+                          running ? 'Open running terminal' : 'Resume this session'
+                        )}
+                        aria-label={running
+                          ? `Open running terminal ${session.title}`
+                          : undefined}
                         className="text-button recent-session-resume"
                         disabled={disabledReason !== null}
                         onClick={() => onResume(session)}
@@ -746,7 +774,7 @@ export function CatalogHomeSummary({
                         tabIndex={-1}
                         type="button"
                       >
-                        Resume
+                        {running ? 'Open' : 'Resume'}
                       </button>
                     </Tooltip>
                   )}

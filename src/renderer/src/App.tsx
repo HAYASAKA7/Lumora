@@ -85,6 +85,7 @@ import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
+import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { TooltipProvider } from './ui/Tooltip';
 
 type RouteId =
@@ -694,6 +695,31 @@ function AppContent(): ReactNode {
     setActiveRuntimeId(runtimeId);
   }, []);
 
+  const liveRuntimeBySessionId = useMemo(
+    () => indexLiveSessionRuntimes(runtimes),
+    [runtimes]
+  );
+  const runningSessionIds = useMemo(
+    () => new Set(liveRuntimeBySessionId.keys()),
+    [liveRuntimeBySessionId]
+  );
+
+  const openCatalogSession = useCallback((
+    session: SessionSummary,
+    workspace: WorkspaceSummary
+  ) => {
+    setNewSessionIntent(null);
+    setRecoveryRuntime(null);
+    const runningRuntime = liveRuntimeBySessionId.get(session.id);
+    if (runningRuntime !== undefined) {
+      setResumeIntent(null);
+      activateRuntime(runningRuntime.id);
+      setTerminalFocusRequestKey((current) => current + 1);
+      return;
+    }
+    setResumeIntent({ session, workspace });
+  }, [activateRuntime, liveRuntimeBySessionId]);
+
   const reorderRuntimeTab = useCallback(
     (runtimeId: string, destinationIndex: number) => {
       setOpenRuntimeIds((current) => {
@@ -1046,11 +1072,9 @@ function AppContent(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      setNewSessionIntent(null);
-      setRecoveryRuntime(null);
-      setResumeIntent({ session, workspace });
+      openCatalogSession(session, workspace);
     },
-    [catalogStatus]
+    [catalogStatus, openCatalogSession]
   );
 
   const resumeWorkspaceSession = useCallback(
@@ -1064,11 +1088,9 @@ function AppContent(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      setNewSessionIntent(null);
-      setRecoveryRuntime(null);
-      setResumeIntent({ session, workspace });
+      openCatalogSession(session, workspace);
     },
-    [workspaceDetailStatus]
+    [openCatalogSession, workspaceDetailStatus]
   );
 
   useEffect(() => {
@@ -1093,9 +1115,7 @@ function AppContent(): ReactNode {
               return;
             }
             setCatalogOperationError(null);
-            setNewSessionIntent(null);
-            setRecoveryRuntime(null);
-            setResumeIntent({ session, workspace });
+            openCatalogSession(session, workspace);
           },
           () => {
             if (current) {
@@ -1111,18 +1131,13 @@ function AppContent(): ReactNode {
       current = false;
       unsubscribe();
     };
-  }, []);
+  }, [openCatalogSession]);
 
   const openRuntimes = openRuntimeIds
     .map((id) => runtimes.find((runtime) => runtime.id === id))
     .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
   const liveRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'launching' || runtime.state === 'running'
-  );
-  const runningSessionIds = new Set(
-    liveRuntimes.flatMap((runtime) =>
-      runtime.sessionId === null ? [] : [runtime.sessionId]
-    )
   );
   const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
   const liveRuntimesRef = useRef(liveRuntimes);
@@ -1648,6 +1663,7 @@ function AppContent(): ReactNode {
                   providerStatus.state === 'ready' ? providerStatus.scan : null
                 }
                 providerSummary={providerSummary(providerStatus)}
+                runningSessionIds={runningSessionIds}
                 runtimes={runtimes}
                 status={visibleCatalogStatus}
                 workspaceById={catalogPresentation?.workspaceById}
@@ -1683,6 +1699,7 @@ function AppContent(): ReactNode {
                   providerScan={
                     providerStatus.state === 'ready' ? providerStatus.scan : null
                   }
+                  runningSessionIds={runningSessionIds}
                   status={visibleWorkspaceDetailStatus}
                   workspaceId={selectedWorkspaceId}
                 />
@@ -1703,6 +1720,7 @@ function AppContent(): ReactNode {
                 }
                 profiles={terminalProfiles}
                 queryText={sessionSearch}
+                runningSessionIds={runningSessionIds}
                 showInformationalNotices={
                   generalSettings?.showInformationalNotices ?? false
                 }

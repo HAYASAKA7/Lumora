@@ -9,6 +9,12 @@ import {
 } from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
 
+vi.mock('../terminal/ManagedTerminal', () => ({
+  ManagedTerminal: ({ runtime }: { runtime: { displayName: string } }) => (
+    <div aria-label={`${runtime.displayName} terminal content`} />
+  )
+}));
+
 const TARGET_ID = '5377f5df-cc8c-42a3-bde1-b8764387b802';
 const summary = {
   target: {
@@ -1284,6 +1290,128 @@ describe('RemoteTargetWindow', () => {
       cols: 100,
       rows: 30
     }));
+  });
+
+  it('opens an existing remote terminal instead of resuming its linked session', async () => {
+    let runtimeListener!: (event: {
+      type: 'state';
+      runtimeId: string;
+      runtime: typeof runtime;
+    }) => void;
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const workspace = {
+      id: 'a'.repeat(64),
+      displayName: 'lumora',
+      canonicalPath: '/srv/lumora',
+      available: true,
+      origin: 'discovered' as const,
+      sessionCount: 1,
+      providerCounts: { codex: 1 },
+      lastActivityAt: '2026-08-05T04:00:00.000Z'
+    };
+    const session = {
+      id: 'b'.repeat(64),
+      nativeId: 'codex-remote-session',
+      provider: 'codex' as const,
+      workspaceId: workspace.id,
+      title: 'Running remote session',
+      createdAt: '2026-08-05T01:00:00.000Z',
+      updatedAt: '2026-08-05T04:00:00.000Z',
+      lifetimeTokens: 12_500,
+      lifecycle: 'saved' as const,
+      sourceFreshness: 'current' as const
+    };
+    const runtime = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ad9',
+      displayName: session.title,
+      strategy: 'resume' as const,
+      sessionId: session.id,
+      nativeSessionId: session.nativeId,
+      reconciliationState: 'not_required' as const,
+      provider: 'codex' as const,
+      workspaceId: workspace.id,
+      terminalProfileId: 'c'.repeat(64),
+      launchHash: 'd'.repeat(64),
+      state: 'running' as const,
+      pid: 4321,
+      createdAt: '2026-08-05T04:01:00.000Z',
+      startedAt: '2026-08-05T04:01:01.000Z',
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [{
+          provider: session.provider,
+          nativeId: session.nativeId,
+          workspacePath: workspace.canonicalPath,
+          title: session.title,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          lifetimeTokens: session.lifetimeTokens
+        }],
+        providers: [{
+          provider: 'codex', status: 'ready', sessionCount: 1, invalidCount: 0
+        }],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [workspace],
+          sessions: [session],
+          providerStatus: [{
+            provider: 'codex', state: 'ready', discoveredCount: 1,
+            unchangedCount: 0, invalidCount: 0
+          }],
+          providerFacets: [{ provider: 'codex', sessionCount: 1 }],
+          diagnostics: []
+        }
+      }),
+      listRuntimes: vi.fn().mockResolvedValue([]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onRuntimeEvent: vi.fn((listener) => {
+        runtimeListener = listener;
+        return () => undefined;
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'All sessions' }));
+    await screen.findByRole('button', { name: `Resume ${session.title}` });
+    act(() => runtimeListener({
+      type: 'state',
+      runtimeId: runtime.id,
+      runtime
+    }));
+    fireEvent.click(await screen.findByRole('button', {
+      name: `Open running terminal ${session.title}`
+    }));
+
+    expect(screen.queryByRole('dialog', { name: 'Resume session' }))
+      .not.toBeInTheDocument();
+    expect(await screen.findByLabelText(`${session.title} terminal content`))
+      .toBeInTheDocument();
   });
 
   it('stores custom provider commands in the remote target launch settings', async () => {

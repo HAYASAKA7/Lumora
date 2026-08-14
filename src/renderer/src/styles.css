@@ -2322,7 +2322,8 @@ button {
 .availability-badge,
 .provider-badge,
 .source-stale,
-.source-current {
+.source-current,
+.session-running-badge {
   display: inline-flex;
   width: fit-content;
   flex: 0 0 auto;
@@ -2662,9 +2663,15 @@ button {
   background: var(--provider-claude-soft);
 }
 
-.source-current {
+.source-current,
+.session-running-badge {
   color: var(--success);
   background: var(--success-soft);
+}
+
+.session-table .session-running-badge {
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 .catalog-metric-card,

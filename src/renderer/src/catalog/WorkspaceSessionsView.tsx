@@ -20,6 +20,7 @@ import { formatLifetimeTokens } from './session-usage';
 import { Tooltip } from '../ui/Tooltip';
 
 const SESSION_BATCH_SIZE = 40;
+const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
 
 interface WorkspaceSessionsViewProps {
   workspaceId: string;
@@ -27,6 +28,7 @@ interface WorkspaceSessionsViewProps {
   isRefreshing: boolean;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
+  runningSessionIds?: ReadonlySet<string> | undefined;
   onBack(): void;
   onRefresh(): void;
   onRetry(): void;
@@ -36,18 +38,20 @@ interface WorkspaceSessionsViewProps {
 
 const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   session,
+  running,
   workspace,
   providerScan,
   profiles,
   onResume
 }: {
   session: SessionSummary;
+  running: boolean;
   workspace: WorkspaceSummary;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
-  const disabledReason = onResume === undefined
+  const disabledReason = onResume === undefined || running
     ? null
     : resolveSessionResumeDisabledReason({
         session,
@@ -55,6 +59,9 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         providerScan,
         profiles
       });
+  const actionDescription = running
+    ? 'Open running terminal'
+    : 'Resume this session';
   return (
     <Tooltip content={disabledReason} multiline>
       <article
@@ -68,6 +75,9 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
       <div className="workspace-session-copy">
         <div className="workspace-session-heading">
           <h3>{session.title}</h3>
+          {running ? (
+            <span className="session-running-badge">Running</span>
+          ) : null}
           <span className={`provider-badge provider-${session.provider}`}>
             {providerDefinition(session.provider).displayName}
           </span>
@@ -93,11 +103,13 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
       </div>
         {onResume === undefined ? null : (
           <Tooltip
-            content={disabledReason === null ? 'Resume this session' : null}
+            content={disabledReason === null ? actionDescription : null}
           >
             <button
-              aria-description={disabledReason ?? 'Resume this session'}
-              aria-label={`Resume ${session.title}`}
+              aria-description={disabledReason ?? actionDescription}
+              aria-label={running
+                ? `Open running terminal ${session.title}`
+                : `Resume ${session.title}`}
               className="workspace-session-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
@@ -118,6 +130,7 @@ export function WorkspaceSessionsView({
   isRefreshing,
   providerScan,
   profiles,
+  runningSessionIds = EMPTY_SESSION_IDS,
   onBack,
   onRefresh,
   onRetry,
@@ -259,9 +272,9 @@ export function WorkspaceSessionsView({
               <WorkspaceSessionCard
                 key={session.id}
                 onResume={onResume}
-
                 profiles={profiles}
                 providerScan={providerScan}
+                running={runningSessionIds.has(session.id)}
                 session={session}
                 workspace={workspace}
               />

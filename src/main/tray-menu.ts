@@ -28,6 +28,7 @@ function truncateLabel(value: string): string {
 
 function recentSessionItems(
   sessions: readonly SessionSummary[],
+  runningSessionIds: ReadonlySet<string>,
   onResumeSession: (sessionId: string) => void
 ): TrayMenuItem[] {
   const recent = [...sessions]
@@ -40,7 +41,9 @@ function recentSessionItems(
 
   return recent.map((session) => ({
     label: truncateLabel(
-      `${session.title} · ${providerDefinition(session.provider).displayName}`
+      `${session.title} · ${providerDefinition(session.provider).displayName}${
+        runningSessionIds.has(session.id) ? ' · Running' : ''
+      }`
     ),
     click: () => onResumeSession(session.id)
   }));
@@ -56,7 +59,12 @@ export function buildTrayMenuTemplate({
 }: TrayMenuState): TrayMenuItem[] {
   const runningAgents = runtimes.filter(
     ({ state }) => state === 'launching' || state === 'running'
-  ).length;
+  );
+  const runningSessionIds = new Set(
+    runningAgents.flatMap((runtime) =>
+      runtime.sessionId === null ? [] : [runtime.sessionId]
+    )
+  );
 
   return [
     {
@@ -64,10 +72,10 @@ export function buildTrayMenuTemplate({
       click: onToggleWindow
     },
     { type: 'separator' },
-    { label: `Running agents: ${runningAgents}`, enabled: false },
+    { label: `Running agents: ${runningAgents.length}`, enabled: false },
     {
       label: 'Recent sessions',
-      submenu: recentSessionItems(sessions, onResumeSession)
+      submenu: recentSessionItems(sessions, runningSessionIds, onResumeSession)
     },
     { type: 'separator' },
     { label: 'Exit Lumora', click: onExit }

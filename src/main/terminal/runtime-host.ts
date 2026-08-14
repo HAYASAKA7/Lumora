@@ -129,6 +129,11 @@ function defaultWait(milliseconds: number): Promise<void> {
 export class RuntimeHost {
   private readonly live = new Map<string, LiveRuntime>();
   private readonly pendingStarts = new Set<Promise<RuntimeSummary>>();
+  private readonly pendingSessionStarts = new Map<
+    string,
+    Promise<RuntimeSummary>
+  >();
+  private readonly runtimeIdBySessionId = new Map<string, string>();
   private readonly listeners = new Set<(event: RuntimeEvent) => void>();
   private readonly clock: () => Date;
   private readonly createRuntimeId: () => string;
@@ -175,6 +180,27 @@ export class RuntimeHost {
 
   private async startOwned(token: string): Promise<RuntimeSummary> {
     const spec = await this.dependencies.consumeLaunch(token);
+    if (spec.strategy === 'resume' && spec.sessionId !== null) {
+      const pending = this.pendingSessionStarts.get(spec.sessionId);
+      if (pending !== undefined) return pending;
+
+      const existing = this.liveRuntimeForSession(spec.sessionId);
+      if (existing !== null) return existing;
+
+      const starting = this.startSpec(spec);
+      this.pendingSessionStarts.set(spec.sessionId, starting);
+      try {
+        return await starting;
+      } finally {
+        if (this.pendingSessionStarts.get(spec.sessionId) === starting) {
+          this.pendingSessionStarts.delete(spec.sessionId);
+        }
+      }
+    }
+    return this.startSpec(spec);
+  }
+
+  private async startSpec(spec: LaunchSpec): Promise<RuntimeSummary> {
     const runtimeId = this.createRuntimeId();
     const launching = RuntimeSummarySchema.parse({
       id: runtimeId,
@@ -293,6 +319,7 @@ export class RuntimeHost {
     if (updated === null) return null;
     const live = this.live.get(runtimeId);
     if (live !== undefined) live.runtime = updated;
+    this.updateLiveSessionIndex(updated);
     this.emit({ type: 'state', runtimeId, runtime: updated });
     return updated;
   }
@@ -304,6 +331,7 @@ export class RuntimeHost {
       if (live !== undefined) {
         live.runtime = runtime;
       }
+      this.updateLiveSessionIndex(runtime);
       this.emit({ type: 'state', runtimeId: runtime.id, runtime });
     }
     return updated;
@@ -548,7 +576,44 @@ export class RuntimeHost {
     } else {
       this.dependencies.repository.saveRuntime(runtime, baselineNativeSessionIds);
     }
+    this.updateLiveSessionIndex(runtime);
     this.emit({ type: 'state', runtimeId: runtime.id, runtime });
+  }
+
+  private liveRuntimeForSession(sessionId: string): RuntimeSummary | null {
+    const runtimeId = this.runtimeIdBySessionId.get(sessionId);
+    if (runtimeId === undefined) return null;
+    const runtime = this.live.get(runtimeId)?.runtime;
+    if (
+      runtime === undefined ||
+      runtime.sessionId !== sessionId ||
+      (runtime.state !== 'launching' && runtime.state !== 'running')
+    ) {
+      this.runtimeIdBySessionId.delete(sessionId);
+      return null;
+    }
+    return runtime;
+  }
+
+  private updateLiveSessionIndex(runtime: RuntimeSummary): void {
+    for (const [sessionId, runtimeId] of this.runtimeIdBySessionId) {
+      if (
+        runtimeId === runtime.id &&
+        (
+          runtime.sessionId !== sessionId ||
+          (runtime.state !== 'launching' && runtime.state !== 'running')
+        )
+      ) {
+        this.runtimeIdBySessionId.delete(sessionId);
+      }
+    }
+    if (
+      runtime.sessionId !== null &&
+      (runtime.state === 'launching' || runtime.state === 'running') &&
+      !this.runtimeIdBySessionId.has(runtime.sessionId)
+    ) {
+      this.runtimeIdBySessionId.set(runtime.sessionId, runtime.id);
+    }
   }
 
   private emit(value: RuntimeEvent): void {

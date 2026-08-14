@@ -86,6 +86,28 @@ describe('buildTrayMenuTemplate', () => {
     expect(onResumeSession).toHaveBeenCalledWith(session(5).id);
   });
 
+  it('marks recent sessions that already have a running terminal', () => {
+    const running = {
+      ...runtime('running'),
+      sessionId: session(2).id,
+      nativeSessionId: session(2).nativeId,
+      reconciliationState: 'linked' as const
+    };
+    const menu = buildTrayMenuTemplate({
+      windowVisible: true,
+      runtimes: [running],
+      sessions: [session(1), session(2)],
+      onToggleWindow: vi.fn(),
+      onResumeSession: vi.fn(),
+      onExit: vi.fn()
+    });
+
+    expect(menu[3]!.submenu!.map((item) => item.label)).toEqual([
+      'Session 2 · Codex · Running',
+      'Session 1 · Claude Code'
+    ]);
+  });
+
   it('provides an explicit exit action', () => {
     const onExit = vi.fn();
     const menu = buildTrayMenuTemplate({

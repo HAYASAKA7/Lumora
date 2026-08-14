@@ -498,6 +498,33 @@ describe('WorkspacesView', () => {
 });
 
 describe('SessionsView', () => {
+  it('marks a live session and offers its existing terminal', () => {
+    render(
+      <SessionsView
+        {...diagnosticProps}
+        isRefreshing={false}
+        onProviderChange={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onSearchChange={vi.fn()}
+        profiles={[terminalProfile]}
+        provider={null}
+        providerScan={providerScan}
+        queryText=""
+        runningSessionIds={new Set([catalogSnapshot.sessions[0]!.id])}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Open running terminal Catalog implementation'
+    })).toHaveAttribute('aria-description', 'Open running terminal');
+    expect(screen.getByRole('button', {
+      name: 'Resume Untitled session'
+    })).toBeInTheDocument();
+  });
+
   it('renders remote session metadata without resume actions', () => {
     render(
       <SessionsView
@@ -1003,6 +1030,24 @@ describe('SessionsView', () => {
 });
 
 describe('CatalogHomeSummary', () => {
+  it('marks a live recent session and offers its existing terminal', () => {
+    render(
+      <CatalogHomeSummary
+        onResume={vi.fn()}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        runningSessionIds={new Set([catalogSnapshot.sessions[0]!.id])}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Open running terminal Catalog implementation'
+    })).toHaveTextContent('Open');
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(2);
+  });
+
   it('shows persisted counts, diagnostics, and recent normalized sessions', () => {
     render(
       <CatalogHomeSummary

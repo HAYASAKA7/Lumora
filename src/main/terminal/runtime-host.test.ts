@@ -138,16 +138,18 @@ class FakePty implements PtyProcess {
 function harness(options: {
   spawnError?: Error;
   launch?: LaunchSpec & { command?: string | null };
+  launches?: readonly LaunchSpec[];
   platform?: 'win32' | 'darwin' | 'linux';
   exitDuringWait?: number;
   exitOnWaitCall?: number;
   exitOnWaitCode?: number;
   remote?: boolean;
   spawnGate?: Promise<PtyProcess>;
+  persistedRuntimes?: readonly RuntimeSummary[];
 } = {}) {
   const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
-  const stored: RuntimeSummary[] = [];
+  const stored: RuntimeSummary[] = [...(options.persistedRuntimes ?? [])];
   const repository = {
     saveRuntime: vi.fn((runtime: RuntimeSummary) => {
       const index = stored.findIndex((item) => item.id === runtime.id);
@@ -185,6 +187,7 @@ function harness(options: {
     return current;
   });
   let runtimeIdCount = 0;
+  let launchCount = 0;
   const resolveInvocation = vi.fn(() => ({
     executablePath: launchSpec.executablePath,
     args: [...launchSpec.args],
@@ -192,7 +195,9 @@ function harness(options: {
   }));
   const host = new RuntimeHost({
     repository,
-    consumeLaunch: vi.fn(async () => options.launch ?? launchSpec),
+    consumeLaunch: vi.fn(async () =>
+      options.launches?.[launchCount++] ?? options.launch ?? launchSpec
+    ),
     spawn,
     startReconciliation,
     platform: options.platform ?? 'linux',
@@ -225,6 +230,128 @@ function harness(options: {
 }
 
 describe('RuntimeHost', () => {
+  it('coalesces concurrent resume starts for the same linked session', async () => {
+    const sessionId = 'd'.repeat(64);
+    const spawnGate = deferred<PtyProcess>();
+    const { host, pty, spawn } = harness({
+      spawnGate: spawnGate.promise,
+      launch: {
+        ...launchSpec,
+        strategy: 'resume',
+        sessionId,
+        nativeSessionId: 'native-thread-1',
+        args: ['resume', 'native-thread-1']
+      }
+    });
+
+    const first = host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledOnce());
+    const second = host.start('0198f8b6-18f3-7ca0-9f0f-123456789abd');
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledOnce());
+
+    spawnGate.resolve(pty);
+    const [firstRuntime, secondRuntime] = await Promise.all([first, second]);
+
+    expect(secondRuntime).toEqual(firstRuntime);
+    expect(host.list()).toHaveLength(1);
+  });
+
+  it('returns an already-running runtime instead of resuming its session twice', async () => {
+    const sessionId = 'd'.repeat(64);
+    const { host, spawn } = harness({
+      launch: {
+        ...launchSpec,
+        strategy: 'resume',
+        sessionId,
+        nativeSessionId: 'native-thread-1',
+        args: ['resume', 'native-thread-1']
+      }
+    });
+
+    const first = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+    const second = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+    );
+
+    expect(second).toEqual(first);
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(host.list()).toHaveLength(1);
+  });
+
+  it('does not treat a persisted orphan runtime as active in this host', async () => {
+    const sessionId = 'd'.repeat(64);
+    const persisted: RuntimeSummary = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789999',
+      displayName: 'Interrupted runtime',
+      strategy: 'resume',
+      sessionId,
+      nativeSessionId: 'native-thread-1',
+      reconciliationState: 'not_required',
+      provider: 'codex',
+      workspaceId: launchSpec.workspaceId,
+      terminalProfileId: launchSpec.terminalProfile.id,
+      launchHash: launchSpec.launchHash,
+      state: 'running',
+      pid: 41,
+      createdAt: '2026-07-11T03:00:00.000Z',
+      startedAt: '2026-07-11T03:00:01.000Z',
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+    const { host, spawn } = harness({
+      persistedRuntimes: [persisted],
+      launch: {
+        ...launchSpec,
+        strategy: 'resume',
+        sessionId,
+        nativeSessionId: 'native-thread-1',
+        args: ['resume', 'native-thread-1']
+      }
+    });
+
+    const started = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+
+    expect(started.id).not.toBe(persisted.id);
+    expect(spawn).toHaveBeenCalledOnce();
+  });
+
+  it('guards a new runtime after reconciliation links its catalog session', async () => {
+    const sessionId = 'd'.repeat(64);
+    const resumeSpec: LaunchSpec = {
+      ...launchSpec,
+      displayName: 'Reconciled session',
+      strategy: 'resume',
+      sessionId,
+      nativeSessionId: 'native-thread-1',
+      reconciliationBaselineNativeIds: null,
+      args: ['resume', 'native-thread-1']
+    };
+    const { host, spawn } = harness({
+      launches: [launchSpec, resumeSpec]
+    });
+
+    const started = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+    const linked = host.applyReconciliation(started.id, {
+      state: 'linked',
+      sessionId,
+      nativeSessionId: 'native-thread-1'
+    });
+    const resumed = await host.start(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abd'
+    );
+
+    expect(linked).toMatchObject({ sessionId, state: 'running' });
+    expect(resumed).toEqual(linked);
+    expect(spawn).toHaveBeenCalledOnce();
+  });
+
   it('awaits an asynchronous remote PTY and preserves its nullable pid', async () => {
     const { host, spawn, resolveInvocation } = harness({ remote: true });
 

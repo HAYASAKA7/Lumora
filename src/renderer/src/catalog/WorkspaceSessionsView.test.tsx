@@ -92,6 +92,29 @@ const profile: TerminalProfile = {
 };
 
 describe('WorkspaceSessionsView', () => {
+  it('marks a live session and offers its existing terminal', () => {
+    render(
+      <WorkspaceSessionsView
+        isRefreshing={false}
+        onBack={vi.fn()}
+        onRefresh={vi.fn()}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        operationError={null}
+        profiles={[profile]}
+        providerScan={providerScan}
+        runningSessionIds={new Set([snapshot.sessions[0]!.id])}
+        status={{ state: 'ready', snapshot }}
+        workspaceId={workspaceId}
+      />
+    );
+
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Open running terminal Workspace drill-down'
+    })).toHaveAttribute('aria-description', 'Open running terminal');
+  });
+
   it('renders a read-only remote workspace without resume overlays', () => {
     render(
       <WorkspaceSessionsView

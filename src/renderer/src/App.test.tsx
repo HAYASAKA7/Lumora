@@ -2178,6 +2178,36 @@ describe('App', () => {
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
   });
 
+  it('opens the existing terminal when Home selects a running session', async () => {
+    const runtime = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa1'),
+      displayName: readyCatalog.sessions[0]!.title,
+      strategy: 'resume' as const,
+      sessionId: readyCatalog.sessions[0]!.id,
+      nativeSessionId: readyCatalog.sessions[0]!.nativeId,
+      reconciliationState: 'not_required' as const
+    };
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      })
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: `Open running terminal ${readyCatalog.sessions[0]!.title}`
+    }));
+
+    expect(screen.queryByRole('dialog', { name: 'Resume session' }))
+      .not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {
+      name: `${runtime.displayName} terminal input`
+    })).toHaveFocus();
+  });
+
   it('opens the normal resume confirmation when the tray requests a recent session', async () => {
     let requestResume!: (sessionId: string) => void;
     const profile: TerminalProfile = {
@@ -2206,6 +2236,42 @@ describe('App', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+  });
+
+  it('opens the existing terminal when the tray selects a running session', async () => {
+    let requestResume!: (sessionId: string) => void;
+    const runtime = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa2'),
+      displayName: readyCatalog.sessions[0]!.title,
+      strategy: 'resume' as const,
+      sessionId: readyCatalog.sessions[0]!.id,
+      nativeSessionId: readyCatalog.sessions[0]!.nativeId,
+      reconciliationState: 'not_required' as const
+    };
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onTrayResumeSessionRequested: vi.fn((listener) => {
+        requestResume = listener;
+        return () => undefined;
+      })
+    });
+    render(<App />);
+    await screen.findByRole('button', {
+      name: `Open running terminal ${readyCatalog.sessions[0]!.title}`
+    });
+
+    act(() => requestResume(readyCatalog.sessions[0]!.id));
+
+    expect(screen.queryByRole('dialog', { name: 'Resume session' }))
+      .not.toBeInTheDocument();
+    expect(await screen.findByRole('button', {
+      name: `${runtime.displayName} terminal input`
+    })).toHaveFocus();
   });
 
   it('opens and completes a native resume from the session catalog', async () => {

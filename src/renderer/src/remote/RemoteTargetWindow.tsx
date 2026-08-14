@@ -64,6 +64,7 @@ import {
 import { NewSessionDialog } from '../terminal/NewSessionDialog';
 import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
+import { indexLiveSessionRuntimes } from '../terminal/live-session-runtime';
 import {
   formatShortcutChord,
   keyboardEventMatchesChord
@@ -566,6 +567,15 @@ export function RemoteTargetWindow({
     );
     setActiveRuntimeId(runtimeId);
   }, []);
+
+  const liveRuntimeBySessionId = useMemo(
+    () => indexLiveSessionRuntimes(runtimes),
+    [runtimes]
+  );
+  const runningSessionIds = useMemo(
+    () => new Set(liveRuntimeBySessionId.keys()),
+    [liveRuntimeBySessionId]
+  );
 
   const closeRuntimeTab = useCallback((runtimeId: string) => {
     setOpenRuntimeIds((current) => {
@@ -1497,6 +1507,13 @@ export function RemoteTargetWindow({
       );
       if (workspace === undefined) return;
       setNewSessionIntent(null);
+      const runningRuntime = liveRuntimeBySessionId.get(session.id);
+      if (runningRuntime !== undefined) {
+        setResumeIntent(null);
+        activateRuntime(runningRuntime.id);
+        setTerminalFocusRequestKey((current) => current + 1);
+        return;
+      }
       setResumeIntent({ session, workspace });
     };
     const openRuntimes = openRuntimeIds
@@ -1517,6 +1534,7 @@ export function RemoteTargetWindow({
             : `${providerScan.providers.filter((provider) => provider.state === 'ready').length} of ${providerScan.providers.length} providers ready`
         }
         runtimes={runtimes}
+        runningSessionIds={runningSessionIds}
         status={visibleWorkspaceCatalogStatus}
         workspaceById={workspaceCatalogPresentation?.workspaceById}
       />
@@ -1548,6 +1566,7 @@ export function RemoteTargetWindow({
           operationError={null}
           profiles={terminalProfiles}
           providerScan={providerScan}
+          runningSessionIds={runningSessionIds}
           status={visibleWorkspaceCatalogStatus}
           workspaceId={selectedWorkspaceId}
         />
@@ -1569,6 +1588,7 @@ export function RemoteTargetWindow({
         provider={sessionProvider}
         providerScan={providerScan}
         queryText={sessionSearch}
+        runningSessionIds={runningSessionIds}
         showInformationalNotices={generalSettings.showInformationalNotices}
         status={visibleCatalogStatus}
         workspaceById={catalogPresentation?.workspaceById}
