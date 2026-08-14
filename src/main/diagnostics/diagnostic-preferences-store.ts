@@ -181,14 +181,23 @@ export class DiagnosticPreferencesStore {
       throw new Error('The selected diagnostic folder is not writable.');
     }
     const probePath = join(directory, `.lumora-write-${randomUUID()}.tmp`);
+    let validationError: Error | null = null;
     try {
       await mkdir(directory, { recursive: true });
       if (!(await stat(directory)).isDirectory()) throw new Error('not-directory');
       await writeFile(probePath, '', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
     } catch {
-      throw new Error('The selected diagnostic folder is not writable.');
-    } finally {
-      await rm(probePath, { force: true });
+      validationError = new Error(
+        'The selected diagnostic folder is not writable.'
+      );
     }
+    try {
+      await rm(probePath, { force: true });
+    } catch {
+      validationError ??= new Error(
+        'The selected diagnostic folder is not writable.'
+      );
+    }
+    if (validationError !== null) throw validationError;
   }
 }

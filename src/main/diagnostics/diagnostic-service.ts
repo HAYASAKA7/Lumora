@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { dirname } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 import {
   DiagnosticBundleSchema,
@@ -135,7 +135,9 @@ export function createDiagnosticService({
         summary: await getSummary()
       });
       await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
-      await rememberExportDirectory(dirname(path));
+      await rememberExportDirectory(
+        (platform === 'win32' ? win32 : posix).dirname(path)
+      );
       return DiagnosticExportResultSchema.parse({ status: 'saved' });
     },
     async record(input: DiagnosticRecordInput) {
