@@ -7,6 +7,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep missing or incompatible remote-helper installation available after an
+  automatic SSH connection, without requiring a manual disconnect and
+  reconnect.
+
 ## [0.3.3] - 2026-08-13
 
 ### Added

@@ -632,6 +632,77 @@ describe('RemoteTargetWindow', () => {
       .not.toBeInTheDocument();
   });
 
+  it('enables helper replacement after automatic connection without reconnecting', async () => {
+    const pendingDetails = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'helper-incompatible' as const
+      },
+      homeDirectory: '/home/builder',
+      defaultShell: '/bin/bash'
+    };
+    const readyDetails = {
+      ...pendingDetails,
+      target: {
+        ...pendingDetails.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.3',
+        protocolVersion: 1
+      }
+    };
+    const disconnectRemoteTarget = vi.fn();
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'remembered',
+        autoConnect: true
+      }),
+      connectRemoteTarget: vi.fn().mockResolvedValue(pendingDetails),
+      getRemoteHelperInstallDetails: vi.fn().mockResolvedValue({
+        status: 'invalid',
+        helperVersion: '0.3.3',
+        installLocation: '/home/builder/.local/share/lumora/helper/lumora-helper',
+        requiresConfirmation: true
+      }),
+      installRemoteHelper: vi.fn().mockResolvedValue(readyDetails),
+      disconnectRemoteTarget,
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+      executionTargetId: TARGET_ID,
+      mode: 'automatic'
+    }));
+    await waitFor(() => expect(api.getRemoteHelperInstallDetails)
+      .toHaveBeenCalledOnce());
+    const open = await screen.findByRole('button', {
+      name: 'Install Lumora helper'
+    });
+    expect(open).toBeEnabled();
+    expect(api.connectRemoteTarget).toHaveBeenCalledTimes(1);
+    expect(disconnectRemoteTarget).not.toHaveBeenCalled();
+
+    fireEvent.click(open);
+    const dialog = screen.getByRole('dialog', {
+      name: 'Install Lumora helper'
+    });
+    fireEvent.click(within(dialog).getByRole('button', {
+      name: 'Install helper'
+    }));
+
+    await waitFor(() => expect(api.installRemoteHelper).toHaveBeenCalledOnce());
+    expect(await screen.findByTestId('lumora-shell')).toBeInTheDocument();
+    expect(disconnectRemoteTarget).not.toHaveBeenCalled();
+  });
+
   it('clears the automatic connection action when ready lifecycle state rerenders the effect', async () => {
     let lifecycleListener: ((event: RemoteLifecycleEvent) => void) | undefined;
     const readySummary = {

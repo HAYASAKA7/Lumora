@@ -439,6 +439,34 @@ export function RemoteTargetWindow({
     return () => { active = false; };
   }, [api, executionTargetId]);
 
+  const applyConnectedDetails = useCallback(async (
+    connectedDetails: RemoteTargetConnectionDetails
+  ) => {
+    if (!componentMounted.current) return;
+    setSummary({
+      target: connectedDetails.target,
+      profile: connectedDetails.profile
+    });
+    setDetails(connectedDetails);
+    setSecret('');
+    if (
+      connectedDetails.target.connectionState !== 'helper-missing' &&
+      connectedDetails.target.connectionState !== 'helper-incompatible'
+    ) {
+      setHelperInstall(null);
+      return;
+    }
+
+    try {
+      const install = await api.getRemoteHelperInstallDetails();
+      if (componentMounted.current) setHelperInstall(install);
+    } catch {
+      if (!componentMounted.current) return;
+      setHelperInstall(null);
+      setError('Lumora could not inspect the remote helper installation.');
+    }
+  }, [api]);
+
   useEffect(() => {
     const eligible =
       summary !== null &&
@@ -459,12 +487,7 @@ export function RemoteTargetWindow({
     void api.connectRemoteTarget({ executionTargetId, mode: 'automatic' }).then(
       (connectedDetails) => {
         if (!componentMounted.current) return;
-        setSummary({
-          target: connectedDetails.target,
-          profile: connectedDetails.profile
-        });
-        setDetails(connectedDetails);
-        setSecret('');
+        return applyConnectedDetails(connectedDetails);
       },
       (connectionError) => {
         if (componentMounted.current) {
@@ -477,7 +500,7 @@ export function RemoteTargetWindow({
         setBusy(false);
       }
     });
-  }, [api, autoConnectOnOpen, executionTargetId, summary]);
+  }, [api, applyConnectedDetails, autoConnectOnOpen, executionTargetId, summary]);
 
   const refreshDiscovery = useCallback(async () => {
     setDiscovery({ state: 'loading' });
@@ -940,13 +963,6 @@ export function RemoteTargetWindow({
     summary.target.capabilities.includes('provider-scan');
   const helperPending = summary.target.connectionState === 'helper-missing' ||
     summary.target.connectionState === 'helper-incompatible';
-  const loadHelperInstall = async () => {
-    try {
-      setHelperInstall(await api.getRemoteHelperInstallDetails());
-    } catch {
-      setError('Lumora could not inspect the remote helper installation.');
-    }
-  };
 
   const changeRememberCredential = async (enabled: boolean) => {
     if (credentialPreferenceBusy) return;
@@ -1043,22 +1059,9 @@ export function RemoteTargetWindow({
               credentials: credentials(),
               rememberCredential
             }
-      );
-      setSummary({
-        target: connectedDetails.target,
-        profile: connectedDetails.profile
-      });
-      setDetails(connectedDetails);
-      setSecret('');
+        );
+      await applyConnectedDetails(connectedDetails);
       syncCredentialPreferencesAfterConnection();
-      if (
-        connectedDetails.target.connectionState === 'helper-missing' ||
-        connectedDetails.target.connectionState === 'helper-incompatible'
-      ) {
-        await loadHelperInstall();
-      } else {
-        setHelperInstall(null);
-      }
     } catch (connectionError) {
       setError(remoteConnectionErrorMessage(connectionError));
     } finally {
