@@ -11,6 +11,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Mark provider-owned sessions that are already active in Lumora as Running
+  across Home, workspace details, All Sessions, and the tray/menu-bar menu.
+  Selecting one now restores and focuses its existing local or remote terminal
+  instead of opening another resume workflow.
 - Add privacy-safe local diagnostics with bounded process metrics, structured
   lifecycle events, abnormal-shutdown detection, manual refresh, and explicit
   local JSON export from **Settings > Diagnostics**. Diagnostic storage and
@@ -32,6 +36,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Prevent duplicate provider processes from resuming the same native session,
+  including rapid-click and stale-renderer races, while allowing normal resume
+  again after the original managed runtime exits.
 - Drain terminal launches that are still spawning when shutdown begins,
   coalesce repeated shutdown requests, and reject new launches once teardown
   owns the runtime.
