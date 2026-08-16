@@ -37,6 +37,7 @@ interface CreateDiagnosticServiceOptions {
   appVersion: string;
   platform: SystemInfo['platform'];
   architecture: string;
+  getActiveAgentCount(): number;
   getProcessMetrics(): readonly ProcessMetricLike[];
   getExportDirectory(): Promise<string>;
   getFallbackExportDirectory(): string;
@@ -68,6 +69,7 @@ export function createDiagnosticService({
   appVersion,
   platform,
   architecture,
+  getActiveAgentCount,
   getProcessMetrics,
   getExportDirectory,
   getFallbackExportDirectory,
@@ -100,6 +102,11 @@ export function createDiagnosticService({
       journal: {
         storedEvents: recent.storedEvents,
         invalidRecords: recent.invalidRecords
+      },
+      agents: {
+        activeCount: Math.floor(
+          boundedNumber(getActiveAgentCount(), 1_000_000_000)
+        )
       },
       processes: {
         processCount: metrics.length,

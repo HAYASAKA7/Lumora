@@ -59,6 +59,7 @@ describe('diagnostic contracts', () => {
       generatedAt: '2026-08-13T07:01:00.000Z',
       previousRunAbnormal: true,
       journal: { storedEvents: 1, invalidRecords: 0 },
+      agents: { activeCount: 1 },
       processes: {
         processCount: 3,
         workingSetBytes: 150_000_000,
@@ -79,6 +80,10 @@ describe('diagnostic contracts', () => {
     expect(() => DiagnosticSummarySchema.parse({
       ...summary,
       recentEvents: Array.from({ length: 101 }, () => event)
+    })).toThrow();
+    expect(() => DiagnosticSummarySchema.parse({
+      ...summary,
+      agents: { activeCount: 1_000_000_001 }
     })).toThrow();
   });
 

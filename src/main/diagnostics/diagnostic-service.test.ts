@@ -39,6 +39,7 @@ function harness(options: {
     architecture: 'x64',
     clock: () => new Date('2026-08-13T07:01:00.000Z'),
     createId: () => '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+    getActiveAgentCount: () => 1,
     getProcessMetrics: () => [
       {
         cpu: { percentCPUUsage: 1.25 },
@@ -68,6 +69,7 @@ describe('diagnostic service', () => {
       generatedAt: '2026-08-13T07:01:00.000Z',
       previousRunAbnormal: true,
       journal: { storedEvents: 1, invalidRecords: 0 },
+      agents: { activeCount: 1 },
       processes: {
         processCount: 2,
         workingSetBytes: 153_600_000,
@@ -116,6 +118,7 @@ describe('diagnostic service', () => {
       appVersion: '0.3.2',
       platform: 'win32',
       architecture: 'x64',
+      getActiveAgentCount: () => 0,
       getProcessMetrics: () => [],
       getExportDirectory: vi.fn(async () => {
         throw new Error('directory unavailable');

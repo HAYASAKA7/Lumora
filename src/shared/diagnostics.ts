@@ -66,6 +66,9 @@ export const DiagnosticSummarySchema = z.strictObject({
     storedEvents: z.number().int().min(0).max(MAX_COUNT),
     invalidRecords: z.number().int().min(0).max(MAX_COUNT)
   }),
+  agents: z.strictObject({
+    activeCount: z.number().int().min(0).max(MAX_COUNT)
+  }),
   processes: z.strictObject({
     processCount: z.number().int().min(0).max(1_024),
     workingSetBytes: z.number().int().min(0).max(1_099_511_627_776),
