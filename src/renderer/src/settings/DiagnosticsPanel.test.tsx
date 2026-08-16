@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DiagnosticSummary, LumoraApi } from '../../../shared/contracts';
@@ -16,6 +16,7 @@ const summary: DiagnosticSummary = {
   generatedAt: '2026-08-13T08:00:00.000Z',
   previousRunAbnormal: true,
   journal: { storedEvents: 4, invalidRecords: 1 },
+  agents: { activeCount: 1 },
   processes: {
     processCount: 3,
     workingSetBytes: 2 * 1024 * 1024,
@@ -96,11 +97,87 @@ describe('DiagnosticsPanel', () => {
     view.rerender(<DiagnosticsPanel active api={api} />);
 
     expect(await screen.findByText('Previous run ended unexpectedly')).toBeVisible();
-    expect(screen.getByText('2.0 MB')).toBeVisible();
-    expect(screen.getByText('3')).toBeVisible();
-    expect(screen.getByText('4.3%')).toBeVisible();
+    expect(screen.getByText('Active agents').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText('Lumora memory').nextElementSibling).toHaveTextContent(
+      '2.0 MB'
+    );
+    expect(screen.getByText('Lumora CPU').nextElementSibling).toHaveTextContent('4.3%');
+    expect(screen.getByText('Lumora processes').nextElementSibling).toHaveTextContent('3');
+    expect(screen.getByText('4 stored · 1 invalid ignored')).toBeVisible();
     expect(screen.getByText('renderer · process-gone')).toBeVisible();
     expect(screen.getByText('RENDERER_CRASHED')).toBeVisible();
+  });
+
+  it('refreshes on each activation and takes one delayed CPU sample', async () => {
+    vi.useFakeTimers();
+    const api = createApi();
+    api.getDiagnosticSummary
+      .mockResolvedValueOnce({
+        ...summary,
+        processes: { ...summary.processes, cpuPercent: 0 }
+      })
+      .mockResolvedValueOnce(summary)
+      .mockResolvedValueOnce({
+        ...summary,
+        processes: { ...summary.processes, cpuPercent: 2.5 }
+      });
+    const view = render(<DiagnosticsPanel active api={api} />);
+
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText('Lumora CPU').nextElementSibling).toHaveTextContent(
+        '0.0%'
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+        await Promise.resolve();
+      });
+      expect(api.getDiagnosticSummary).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Lumora CPU').nextElementSibling).toHaveTextContent(
+        '4.3%'
+      );
+
+      view.rerender(<DiagnosticsPanel active={false} api={api} />);
+      view.rerender(<DiagnosticsPanel active api={api} />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(api.getDiagnosticSummary).toHaveBeenCalledTimes(3);
+      expect(screen.getByText('Lumora CPU').nextElementSibling).toHaveTextContent(
+        '2.5%'
+      );
+    } finally {
+      view.unmount();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels the delayed sample when Diagnostics becomes inactive', async () => {
+    vi.useFakeTimers();
+    const api = createApi();
+    const view = render(<DiagnosticsPanel active api={api} />);
+
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      view.rerender(<DiagnosticsPanel active={false} api={api} />);
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(api.getDiagnosticSummary).toHaveBeenCalledOnce();
+    } finally {
+      view.unmount();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   it('refreshes and exports without exposing a filesystem path', async () => {

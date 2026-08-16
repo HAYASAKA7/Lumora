@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
   DiagnosticStorageSettings,
@@ -45,24 +45,50 @@ export function DiagnosticsPanel({
   const [storage, setStorage] = useState<DiagnosticStorageSettings | null>(null);
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const refreshGeneration = useRef(0);
 
-  const refresh = useCallback(async () => {
-    setStatus({ state: 'loading' });
+  const refresh = useCallback(async (showLoading = true) => {
+    const generation = ++refreshGeneration.current;
+    if (showLoading) setStatus({ state: 'loading' });
     try {
-      setStatus({ state: 'ready', summary: await api.getDiagnosticSummary() });
+      const summary = await api.getDiagnosticSummary();
+      if (generation === refreshGeneration.current) {
+        setStatus({ state: 'ready', summary });
+      }
     } catch {
-      setStatus({ state: 'error' });
+      if (generation === refreshGeneration.current) {
+        setStatus({ state: 'error' });
+      }
     }
   }, [api]);
 
   useEffect(() => {
-    if (!active || status.state !== 'idle') return;
-    void refresh();
+    if (!active) {
+      refreshGeneration.current += 1;
+      return;
+    }
+
+    let cancelled = false;
+    let sampleTimer: number | undefined;
+    void refresh().finally(() => {
+      if (cancelled) return;
+      sampleTimer = window.setTimeout(() => void refresh(false), 1_000);
+    });
     void api.getDiagnosticStorageSettings().then(
-      (settings) => setStorage(settings),
-      () => setStorageError(true)
+      (settings) => {
+        if (!cancelled) setStorage(settings);
+      },
+      () => {
+        if (!cancelled) setStorageError(true);
+      }
     );
-  }, [active, api, refresh, status.state]);
+
+    return () => {
+      cancelled = true;
+      refreshGeneration.current += 1;
+      if (sampleTimer !== undefined) window.clearTimeout(sampleTimer);
+    };
+  }, [active, api, refresh]);
 
   const updateStorage = async (
     operation: () => Promise<DiagnosticStorageSettings>
@@ -244,22 +270,22 @@ export function DiagnosticsPanel({
 
       {summary !== null ? (
         <>
-          <div className="diagnostics-metrics" aria-label="Current process metrics">
+          <div className="diagnostics-metrics" aria-label="Current local diagnostics">
             <article>
-              <span>Memory</span>
+              <span>Active agents</span>
+              <strong>{summary.agents.activeCount}</strong>
+            </article>
+            <article>
+              <span>Lumora memory</span>
               <strong>{formatBytes(summary.processes.workingSetBytes)}</strong>
             </article>
             <article>
-              <span>Processes</span>
-              <strong>{summary.processes.processCount}</strong>
-            </article>
-            <article>
-              <span>CPU</span>
+              <span>Lumora CPU</span>
               <strong>{summary.processes.cpuPercent.toFixed(1)}%</strong>
             </article>
             <article>
-              <span>Stored events</span>
-              <strong>{summary.journal.storedEvents}</strong>
+              <span>Lumora processes</span>
+              <strong>{summary.processes.processCount}</strong>
             </article>
           </div>
 
@@ -269,9 +295,12 @@ export function DiagnosticsPanel({
                 <p className="card-label">Bounded journal</p>
                 <h3 id="diagnostic-events-title">Recent events</h3>
               </div>
-              {summary.journal.invalidRecords > 0 ? (
-                <span>{summary.journal.invalidRecords} invalid ignored</span>
-              ) : null}
+              <span>
+                {summary.journal.storedEvents} stored
+                {summary.journal.invalidRecords > 0
+                  ? ` · ${summary.journal.invalidRecords} invalid ignored`
+                  : ''}
+              </span>
             </div>
             {summary.recentEvents.length === 0 ? (
               <p className="diagnostics-events-empty">No diagnostic events recorded.</p>
