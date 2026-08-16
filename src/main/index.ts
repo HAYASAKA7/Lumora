@@ -35,6 +35,7 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
+import { countActiveTerminalRuntimes } from './diagnostics/active-terminal-count';
 import { DiagnosticJournal } from './diagnostics/diagnostic-journal';
 import { resolveDiagnosticJournalStorage } from './diagnostics/diagnostic-journal-migration';
 import { DiagnosticPreferencesStore } from './diagnostics/diagnostic-preferences-store';
@@ -593,6 +594,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     appVersion: app.getVersion(),
     platform,
     architecture: process.arch,
+    getActiveAgentCount: () => countActiveTerminalRuntimes(
+      terminalRuntime?.listRuntimes() ?? []
+    ),
     getProcessMetrics: () => app.getAppMetrics(),
     getExportDirectory: async () => (
       await diagnosticPreferencesStore!.getSettings()

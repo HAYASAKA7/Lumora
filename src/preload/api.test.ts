@@ -38,6 +38,7 @@ describe('createLumoraApi', () => {
       generatedAt: '2026-08-13T08:00:00.000Z',
       previousRunAbnormal: false,
       journal: { storedEvents: 2, invalidRecords: 0 },
+      agents: { activeCount: 1 },
       processes: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
       recentEvents: []
     } as const;
