@@ -98,9 +98,9 @@ describe('DiagnosticsPanel', () => {
 
     expect(await screen.findByText('Previous run ended unexpectedly')).toBeVisible();
     expect(screen.getByText('Active agents').nextElementSibling).toHaveTextContent('1');
-    expect(screen.getByText('Lumora memory').nextElementSibling).toHaveTextContent(
-      '2.0 MB'
-    );
+    expect(
+      screen.getByText('Cumulative working set').nextElementSibling
+    ).toHaveTextContent('2.0 MB');
     expect(screen.getByText('Lumora CPU').nextElementSibling).toHaveTextContent('4.3%');
     expect(screen.getByText('Lumora processes').nextElementSibling).toHaveTextContent('3');
     expect(screen.getByText('4 stored · 1 invalid ignored')).toBeVisible();

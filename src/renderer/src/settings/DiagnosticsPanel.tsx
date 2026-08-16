@@ -276,7 +276,7 @@ export function DiagnosticsPanel({
               <strong>{summary.agents.activeCount}</strong>
             </article>
             <article>
-              <span>Lumora memory</span>
+              <span>Cumulative working set</span>
               <strong>{formatBytes(summary.processes.workingSetBytes)}</strong>
             </article>
             <article>
