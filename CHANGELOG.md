@@ -9,6 +9,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Correct Diagnostics resource reporting by separating active local agents from
+  Lumora's Electron processes, clarifying memory and CPU labels, and refreshing
+  the first CPU sample when the page opens.
 - Keep missing or incompatible remote-helper installation available after an
   automatic SSH connection, without requiring a manual disconnect and
   reconnect.

@@ -388,10 +388,11 @@ terminal output, session content, credentials, environment values,
 exception text, stack traces, session identities, or filesystem paths.
 
 Diagnostic IPC is local-window-only. The renderer receives a validated summary
-of recent structured events and bounded Electron process metrics. Export is an
-explicit native save-dialog action that creates a local JSON file. Its last
-successful parent directory is remembered privately and used as the next dialog
-location. Native directory dialogs prevent the renderer from submitting
+of recent structured events, the current count of locally managed launching or
+running agents, and bounded Electron process metrics for Lumora itself. Export
+is an explicit native save-dialog action that creates a local JSON file. Its
+last successful parent directory is remembered privately and used as the next
+dialog location. Native directory dialogs prevent the renderer from submitting
 arbitrary paths. There is no diagnostic upload or native crash-dump collection.
 
 ## Privacy and trust
