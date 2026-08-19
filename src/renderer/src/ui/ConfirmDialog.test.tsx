@@ -55,9 +55,13 @@ describe('ConfirmDialog', () => {
         }}
       />
     );
-    fireEvent.click(screen.getByRole('checkbox', {
+    const checkbox = screen.getByRole('checkbox', {
       name: "Don't show this warning again"
-    }));
+    });
+    fireEvent.click(screen.getByText("Don't show this warning again"));
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(checkbox);
     expect(onChange).toHaveBeenCalledWith(true);
   });
 });

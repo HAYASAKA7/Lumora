@@ -25,6 +25,7 @@ export function ConfirmDialog({
   suppression
 }: ConfirmDialogProps): ReactNode {
   const titleId = useId();
+  const suppressionLabelId = useId();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -55,14 +56,15 @@ export function ConfirmDialog({
         <div className="dialog-body">
           <p className="card-description confirm-dialog-description">{description}</p>
           {suppression === undefined ? null : (
-            <label className="confirm-dialog-suppression">
+            <div className="confirm-dialog-suppression">
               <input
+                aria-labelledby={suppressionLabelId}
                 checked={suppression.checked}
                 onChange={(event) => suppression.onChange(event.currentTarget.checked)}
                 type="checkbox"
               />
-              <span>{suppression.label}</span>
-            </label>
+              <span id={suppressionLabelId}>{suppression.label}</span>
+            </div>
           )}
         </div>
         <footer className="modal-actions">

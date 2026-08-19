@@ -4694,13 +4694,13 @@ button {
   color: var(--text-muted);
   font-size: 0.78rem;
   line-height: 1.45;
-  cursor: pointer;
 }
 
 .confirm-dialog-suppression input {
   width: 16px;
   height: 16px;
   margin: 0;
+  cursor: pointer;
   accent-color: var(--blue);
 }
 
