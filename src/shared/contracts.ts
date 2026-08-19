@@ -1003,7 +1003,7 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
 } as const satisfies AppearanceSettings;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(8),
+  version: z.literal(9),
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
   showUnusableSessions: z.boolean(),
@@ -1012,6 +1012,8 @@ export const GeneralSettingsSchema = z.strictObject({
   autoExpandSidebar: z.boolean(),
   windowCloseBehavior: z.enum(['quit', 'hide_to_tray']),
   remoteWindowCloseBehavior: z.enum(['keep_connected', 'disconnect']),
+  warnBeforeApplicationQuit: z.boolean(),
+  warnBeforeRemoteDisconnect: z.boolean(),
   crossAgentWorkflowEnabled: z.boolean(),
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema,
@@ -1140,7 +1142,7 @@ export type RemoteWindowCloseResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 8,
+  version: 9,
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
   showUnusableSessions: true,
@@ -1149,11 +1151,19 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   autoExpandSidebar: true,
   windowCloseBehavior: 'quit',
   remoteWindowCloseBehavior: 'keep_connected',
+  warnBeforeApplicationQuit: true,
+  warnBeforeRemoteDisconnect: true,
   crossAgentWorkflowEnabled: false,
   crossAgentHandoffRetentionDays: 30,
   enabledProviders: [...PROVIDER_IDS],
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
+
+const VersionEightGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  warnBeforeApplicationQuit: true,
+  warnBeforeRemoteDisconnect: true
+}).extend({ version: z.literal(8) });
 
 const VersionSevenGeneralSettingsSchema = z.strictObject({
   version: z.literal(7),
@@ -1240,11 +1250,22 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionEight = VersionEightGeneralSettingsSchema.safeParse(value);
+  if (versionEight.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionEight.data,
+      version: 9,
+      warnBeforeApplicationQuit: true,
+      warnBeforeRemoteDisconnect: true
+    });
+  }
+
   const versionSeven = VersionSevenGeneralSettingsSchema.safeParse(value);
   if (versionSeven.success) {
     return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
       ...versionSeven.data,
-      version: 8,
+      version: 9,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true
     });
@@ -1253,8 +1274,9 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const versionSix = VersionSixGeneralSettingsSchema.safeParse(value);
   if (versionSix.success) {
     return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
       ...versionSix.data,
-      version: 8,
+      version: 9,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true
@@ -1264,8 +1286,9 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const versionFive = VersionFiveGeneralSettingsSchema.safeParse(value);
   if (versionFive.success) {
     return GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
       ...versionFive.data,
-      version: 8,
+      version: 9,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1284,7 +1307,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 8
+      version: 9
     });
   }
 
@@ -1293,7 +1316,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 8
+      version: 9
     });
   }
 
@@ -1302,7 +1325,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 8
+      version: 9
     });
   }
 

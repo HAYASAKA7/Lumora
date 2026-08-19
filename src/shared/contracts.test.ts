@@ -1477,7 +1477,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 8,
+      version: 9,
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1486,6 +1486,8 @@ describe('managed terminal contracts', () => {
       autoExpandSidebar: true,
       windowCloseBehavior: 'quit',
       remoteWindowCloseBehavior: 'keep_connected',
+      warnBeforeApplicationQuit: true,
+      warnBeforeRemoteDisconnect: true,
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
       enabledProviders: [...PROVIDER_IDS],
@@ -1614,7 +1616,12 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
-    const versionSeven = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    const versionEight = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    versionEight.version = 8;
+    delete versionEight.warnBeforeApplicationQuit;
+    delete versionEight.warnBeforeRemoteDisconnect;
+    expect(parseStoredGeneralSettings(versionEight)).toEqual(DEFAULT_GENERAL_SETTINGS);
+    const versionSeven = { ...versionEight } as Record<string, unknown>;
     versionSeven.version = 7;
     delete versionSeven.showUnavailableWorkspaces;
     delete versionSeven.showUnusableSessions;

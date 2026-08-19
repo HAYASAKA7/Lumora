@@ -360,7 +360,9 @@ describe('TerminalRepository', () => {
   it('persists general settings and falls back when stored data is invalid', () => {
     const hidden: GeneralSettings = {
       ...DEFAULT_GENERAL_SETTINGS,
-      showInformationalNotices: false
+      showInformationalNotices: false,
+      warnBeforeApplicationQuit: false,
+      warnBeforeRemoteDisconnect: true
     };
 
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
@@ -379,6 +381,10 @@ describe('TerminalRepository', () => {
 
     expect(repository.saveGeneralSettings(hidden, timestamp)).toEqual(hidden);
     expect(repository.getGeneralSettings()).toEqual(hidden);
+    expect(repository.getGeneralSettings()).toMatchObject({
+      warnBeforeApplicationQuit: false,
+      warnBeforeRemoteDisconnect: true
+    });
 
     database.prepare(
       `UPDATE app_preference SET value_json = ?

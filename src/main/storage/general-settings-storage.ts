@@ -24,6 +24,8 @@ type GlobalGeneralSettings = Pick<
   | 'autoExpandSidebar'
   | 'windowCloseBehavior'
   | 'remoteWindowCloseBehavior'
+  | 'warnBeforeApplicationQuit'
+  | 'warnBeforeRemoteDisconnect'
   | 'crossAgentWorkflowEnabled'
   | 'crossAgentHandoffRetentionDays'
   | 'appearance'
@@ -57,6 +59,8 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
     autoExpandSidebar: settings.autoExpandSidebar,
     windowCloseBehavior: settings.windowCloseBehavior,
     remoteWindowCloseBehavior: settings.remoteWindowCloseBehavior,
+    warnBeforeApplicationQuit: settings.warnBeforeApplicationQuit,
+    warnBeforeRemoteDisconnect: settings.warnBeforeRemoteDisconnect,
     crossAgentWorkflowEnabled: settings.crossAgentWorkflowEnabled,
     crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays,
     appearance: settings.appearance
@@ -109,7 +113,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 8,
+      version: 9,
       ...globalProjection(global),
       ...targetProjection(target)
     });
@@ -147,7 +151,7 @@ export class GeneralSettingsStorage {
       const current = GeneralSettingsSchema.safeParse({
         ...fallback,
         ...objectValue(parseJson(currentRow.value_json)),
-        version: 8
+        version: 9
       });
       return current.success ? current.data : fallback;
     }
@@ -169,7 +173,7 @@ export class GeneralSettingsStorage {
       ...(localTargetRow === undefined
         ? {}
         : objectValue(parseJson(localTargetRow.value_json))),
-      version: 8
+      version: 9
     });
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
@@ -179,7 +183,7 @@ export class GeneralSettingsStorage {
       ...(legacyGlobalRow === undefined
         ? {}
         : objectValue(parseJson(legacyGlobalRow.value_json))),
-      version: 8
+      version: 9
     });
     if (!parsed.success) return fallback;
     this.writeGlobal(globalProjection(parsed.data), new Date().toISOString());
@@ -200,7 +204,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...objectValue(parseJson(row.value_json)),
-      version: 8
+      version: 9
     });
     return parsed.success ? parsed.data : fallback;
   }
