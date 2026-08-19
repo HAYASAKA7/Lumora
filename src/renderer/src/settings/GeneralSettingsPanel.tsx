@@ -15,6 +15,8 @@ type BooleanGeneralSettingKey =
   | 'showInformationalNotices'
   | 'showUnavailableWorkspaces'
   | 'showUnusableSessions'
+  | 'warnBeforeApplicationQuit'
+  | 'warnBeforeRemoteDisconnect'
   | 'crossAgentWorkflowEnabled';
 
 interface BooleanGeneralSettingDefinition {
@@ -59,6 +61,18 @@ const GENERAL_SETTING_DEFINITIONS = {
     label: 'Show unusable sessions',
     description:
       'Keep sessions visible when Lumora cannot currently resume them.'
+  },
+  warnBeforeApplicationQuit: {
+    key: 'warnBeforeApplicationQuit',
+    label: 'Warn before exiting Lumora with active agents',
+    description:
+      'Ask for confirmation before a full Lumora exit stops local or remote agents.'
+  },
+  warnBeforeRemoteDisconnect: {
+    key: 'warnBeforeRemoteDisconnect',
+    label: 'Warn before disconnecting a remote computer with active agents',
+    description:
+      'Ask for confirmation before disconnecting stops agents on that remote computer.'
   },
   crossAgentWorkflowEnabled: {
     key: 'crossAgentWorkflowEnabled',
@@ -153,6 +167,7 @@ export function GeneralSettingsPanel({
               </span>
             </span>
           </label>
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.warnBeforeApplicationQuit)}
         </div>
       </section>
 
@@ -239,6 +254,7 @@ export function GeneralSettingsPanel({
               </span>
             </span>
           </label>
+          {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.warnBeforeRemoteDisconnect)}
         </div>
       </section>
 

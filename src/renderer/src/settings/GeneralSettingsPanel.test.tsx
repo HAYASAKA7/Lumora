@@ -25,7 +25,9 @@ describe('GeneralSettingsPanel', () => {
       'Show unusable sessions',
       'Enable cross-agent session handoff',
       'Keep Lumora running after closing the window',
-      'Disconnect when a remote window closes'
+      'Disconnect when a remote window closes',
+      'Warn before exiting Lumora with active agents',
+      'Warn before disconnecting a remote computer with active agents'
     ];
     const panel = screen.getByRole('heading', { name: 'General' }).closest('section');
     const header = screen.getByRole('heading', { name: 'General' }).closest('header');
@@ -39,6 +41,9 @@ describe('GeneralSettingsPanel', () => {
     expect(within(windowGroup).getByRole('switch', {
       name: 'Keep Lumora running after closing the window'
     })).toBeVisible();
+    expect(within(windowGroup).getByRole('switch', {
+      name: 'Warn before exiting Lumora with active agents'
+    })).toBeChecked();
 
     const navigationGroup = screen.getByRole('group', { name: 'Sidebar and notices' });
     expect(within(navigationGroup).getByRole('switch', {
@@ -64,6 +69,10 @@ describe('GeneralSettingsPanel', () => {
       'switch',
       { name: 'Disconnect when a remote window closes' }
     )).toBeVisible();
+    expect(within(screen.getByRole('group', { name: 'Remote behavior' })).getByRole(
+      'switch',
+      { name: 'Warn before disconnecting a remote computer with active agents' }
+    )).toBeChecked();
 
     const handoffGroup = screen.getByRole('group', { name: 'Cross-agent handoff' });
     expect(within(handoffGroup).getByRole('switch', {
@@ -134,6 +143,22 @@ describe('GeneralSettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       remoteWindowCloseBehavior: 'disconnect'
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Warn before exiting Lumora with active agents'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      warnBeforeApplicationQuit: false
+    });
+
+    fireEvent.click(screen.getByRole('switch', {
+      name: 'Warn before disconnecting a remote computer with active agents'
+    }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      warnBeforeRemoteDisconnect: false
     });
   });
 

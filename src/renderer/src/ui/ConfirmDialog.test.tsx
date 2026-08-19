@@ -24,4 +24,40 @@ describe('ConfirmDialog', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledOnce();
   });
+
+  it('optionally exposes an accessible suppression checkbox', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ConfirmDialog
+        confirmLabel="Exit Lumora"
+        description="Active agents will stop."
+        heading="Exit Lumora?"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('checkbox', {
+      name: "Don't show this warning again"
+    })).not.toBeInTheDocument();
+
+    rerender(
+      <ConfirmDialog
+        confirmLabel="Exit Lumora"
+        description="Active agents will stop."
+        heading="Exit Lumora?"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+        suppression={{
+          checked: false,
+          label: "Don't show this warning again",
+          onChange
+        }}
+      />
+    );
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: "Don't show this warning again"
+    }));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
 });

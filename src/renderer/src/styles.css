@@ -4687,6 +4687,23 @@ button {
   overflow-wrap: anywhere;
 }
 
+.confirm-dialog-suppression {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.confirm-dialog-suppression input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
 .transfer-export-selection-summary {
   align-items: center;
   color: var(--text-muted);

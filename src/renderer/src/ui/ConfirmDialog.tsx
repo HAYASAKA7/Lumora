@@ -8,6 +8,11 @@ interface ConfirmDialogProps {
   heading: string;
   onCancel(): void;
   onConfirm(): void;
+  suppression?: {
+    checked: boolean;
+    label: string;
+    onChange(checked: boolean): void;
+  };
 }
 
 export function ConfirmDialog({
@@ -16,7 +21,8 @@ export function ConfirmDialog({
   description,
   heading,
   onCancel,
-  onConfirm
+  onConfirm,
+  suppression
 }: ConfirmDialogProps): ReactNode {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
@@ -48,6 +54,16 @@ export function ConfirmDialog({
         </header>
         <div className="dialog-body">
           <p className="card-description confirm-dialog-description">{description}</p>
+          {suppression === undefined ? null : (
+            <label className="confirm-dialog-suppression">
+              <input
+                checked={suppression.checked}
+                onChange={(event) => suppression.onChange(event.currentTarget.checked)}
+                type="checkbox"
+              />
+              <span>{suppression.label}</span>
+            </label>
+          )}
         </div>
         <footer className="modal-actions">
           <button
