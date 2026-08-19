@@ -1110,6 +1110,30 @@ export const RemoteWindowCloseResultSchema = z.strictObject({
   closed: z.boolean()
 });
 
+export const ApplicationQuitRequestSchema = z.strictObject({
+  localActiveAgentCount: z.number().int().nonnegative(),
+  remoteActiveAgentCount: z.number().int().nonnegative(),
+  totalActiveAgentCount: z.number().int().nonnegative()
+}).superRefine((request, context) => {
+  if (
+    request.totalActiveAgentCount !==
+      request.localActiveAgentCount + request.remoteActiveAgentCount
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['totalActiveAgentCount'],
+      message: 'The total active-agent count must match its local and remote counts.'
+    });
+  }
+});
+export const ApplicationQuitResolutionSchema = z.strictObject({
+  action: z.enum(['cancel', 'exit']),
+  suppressFutureWarning: z.boolean()
+});
+export const ApplicationQuitResultSchema = z.strictObject({
+  accepted: z.boolean()
+});
+
 export type RemoteProviderPreferences = z.infer<
   typeof RemoteProviderPreferencesSchema
 >;
@@ -1137,6 +1161,12 @@ export type RemoteWindowCloseRequest = z.infer<
 >;
 export type RemoteWindowCloseResolution = z.infer<
   typeof RemoteWindowCloseResolutionSchema
+>;
+export type ApplicationQuitRequest = z.infer<
+  typeof ApplicationQuitRequestSchema
+>;
+export type ApplicationQuitResolution = z.infer<
+  typeof ApplicationQuitResolutionSchema
 >;
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
@@ -1790,6 +1820,8 @@ export const IPC_CHANNELS = {
   remoteLifecycleEvent: 'lumora:targets:lifecycle:event',
   remoteWindowCloseRequest: 'lumora:targets:window:close-request',
   remoteWindowCloseResolve: 'lumora:targets:window:close-resolve',
+  applicationQuitRequest: 'lumora:application:quit-request',
+  applicationQuitResolve: 'lumora:application:quit-resolve',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -1862,6 +1894,12 @@ export const IPC_CHANNELS = {
 
 export interface LumoraApi {
   getWindowContext(): Promise<LumoraWindowContext>;
+  onApplicationQuitRequest(
+    listener: (request: ApplicationQuitRequest) => void
+  ): () => void;
+  resolveApplicationQuit(
+    resolution: ApplicationQuitResolution
+  ): Promise<boolean>;
   listRemoteTargets(): Promise<RemoteTargetSummary[]>;
   listRemoteLifecycleSnapshots(): Promise<RemoteLifecycleSnapshot[]>;
   onRemoteLifecycleEvent(

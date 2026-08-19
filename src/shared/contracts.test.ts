@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AppearanceBackgroundStateSchema,
+  ApplicationQuitRequestSchema,
+  ApplicationQuitResolutionSchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -369,6 +371,36 @@ describe('developer environment contracts', () => {
 });
 
 describe('IPC_CHANNELS', () => {
+  it('validates application quit warnings and resolutions', () => {
+    expect(ApplicationQuitRequestSchema.parse({
+      localActiveAgentCount: 2,
+      remoteActiveAgentCount: 3,
+      totalActiveAgentCount: 5
+    })).toEqual({
+      localActiveAgentCount: 2,
+      remoteActiveAgentCount: 3,
+      totalActiveAgentCount: 5
+    });
+    expect(ApplicationQuitRequestSchema.safeParse({
+      localActiveAgentCount: 2,
+      remoteActiveAgentCount: 3,
+      totalActiveAgentCount: 4
+    }).success).toBe(false);
+    expect(ApplicationQuitResolutionSchema.parse({
+      action: 'exit',
+      suppressFutureWarning: true
+    })).toEqual({ action: 'exit', suppressFutureWarning: true });
+    expect(ApplicationQuitResolutionSchema.safeParse({
+      action: 'exit'
+    }).success).toBe(false);
+    expect(IPC_CHANNELS.applicationQuitRequest).toBe(
+      'lumora:application:quit-request'
+    );
+    expect(IPC_CHANNELS.applicationQuitResolve).toBe(
+      'lumora:application:quit-resolve'
+    );
+  });
+
   it('defines the one-time startup presentation claim channel', () => {
     expect(IPC_CHANNELS.startupPresentationClaim).toBe(
       'lumora:system:startup-presentation:claim'

@@ -1,4 +1,7 @@
 import {
+  ApplicationQuitRequestSchema,
+  ApplicationQuitResolutionSchema,
+  ApplicationQuitResultSchema,
   AppearanceBackgroundStateSchema,
   AppearancePresentationSchema,
   CatalogQuerySchema,
@@ -107,6 +110,16 @@ export function createLumoraApi(
 ): LumoraApi {
   let startupPresentationClaim: Promise<boolean> | null = null;
   const api: LumoraApi = {
+    onApplicationQuitRequest(listener) {
+      return subscribe(IPC_CHANNELS.applicationQuitRequest, (value) => {
+        listener(ApplicationQuitRequestSchema.parse(value));
+      });
+    },
+    async resolveApplicationQuit(resolution) {
+      const request = ApplicationQuitResolutionSchema.parse(resolution);
+      const value = await invoke(IPC_CHANNELS.applicationQuitResolve, request);
+      return ApplicationQuitResultSchema.parse(value).accepted;
+    },
     async getWindowContext() {
       const value = await invoke(IPC_CHANNELS.targetWindowContextGet);
       return LumoraWindowContextSchema.parse(value);

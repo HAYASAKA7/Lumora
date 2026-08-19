@@ -32,6 +32,42 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
+  it('validates application quit requests and resolutions', async () => {
+    let requestReceiver: ((value: unknown) => void) | null = null;
+    const listener = vi.fn();
+    const invoke = vi.fn().mockResolvedValue({ accepted: true });
+    const api = createLumoraApi(invoke, (channel, receiver) => {
+      expect(channel).toBe(IPC_CHANNELS.applicationQuitRequest);
+      requestReceiver = receiver;
+      return vi.fn();
+    });
+
+    api.onApplicationQuitRequest(listener);
+    requestReceiver?.({
+      localActiveAgentCount: 1,
+      remoteActiveAgentCount: 2,
+      totalActiveAgentCount: 3
+    });
+    expect(listener).toHaveBeenCalledWith({
+      localActiveAgentCount: 1,
+      remoteActiveAgentCount: 2,
+      totalActiveAgentCount: 3
+    });
+    await expect(api.resolveApplicationQuit({
+      action: 'exit',
+      suppressFutureWarning: true
+    })).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.applicationQuitResolve, {
+      action: 'exit',
+      suppressFutureWarning: true
+    });
+    expect(() => requestReceiver?.({
+      localActiveAgentCount: 1,
+      remoteActiveAgentCount: 2,
+      totalActiveAgentCount: 2
+    })).toThrow();
+  });
+
   it('exposes validated diagnostic summary, export, and storage operations', async () => {
     const invocations: string[] = [];
     const summary = {
