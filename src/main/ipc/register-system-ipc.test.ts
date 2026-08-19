@@ -8,12 +8,16 @@ interface InvokeEventStub {
   sender: { id: number };
 }
 
-type InvokeHandler = (event: InvokeEventStub) => Promise<unknown> | unknown;
+type InvokeHandler = (
+  event: InvokeEventStub,
+  input?: unknown
+) => Promise<unknown> | unknown;
 
 function createHarness(
   developmentOrigin?: string,
   claimStartupPresentation = vi.fn().mockResolvedValue(true),
-  completeStartupPresentation = vi.fn()
+  completeStartupPresentation = vi.fn(),
+  resolveApplicationQuit = vi.fn().mockResolvedValue(true)
 ) {
   const handlers = new Map<string, InvokeHandler>();
   const ipc = {
@@ -30,6 +34,7 @@ function createHarness(
     appVersion: '0.1.0',
     claimStartupPresentation,
     completeStartupPresentation,
+    resolveApplicationQuit,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
 
@@ -40,10 +45,14 @@ function createHarness(
   const startupPresentationCompleteHandler = handlers.get(
     IPC_CHANNELS.startupPresentationComplete
   );
+  const applicationQuitResolveHandler = handlers.get(
+    IPC_CHANNELS.applicationQuitResolve
+  );
   if (
     systemInfoHandler === undefined ||
     startupPresentationClaimHandler === undefined ||
-    startupPresentationCompleteHandler === undefined
+    startupPresentationCompleteHandler === undefined ||
+    applicationQuitResolveHandler === undefined
   ) {
     throw new Error('System handlers were not registered');
   }
@@ -51,6 +60,8 @@ function createHarness(
   return {
     claimStartupPresentation,
     completeStartupPresentation,
+    resolveApplicationQuit,
+    applicationQuitResolveHandler,
     registeredChannels: [...handlers.keys()],
     startupPresentationClaimHandler,
     startupPresentationCompleteHandler,
@@ -65,7 +76,8 @@ describe('registerSystemIpc', () => {
     expect(registeredChannels).toEqual([
       IPC_CHANNELS.systemInfo,
       IPC_CHANNELS.startupPresentationClaim,
-      IPC_CHANNELS.startupPresentationComplete
+      IPC_CHANNELS.startupPresentationComplete,
+      IPC_CHANNELS.applicationQuitResolve
     ]);
 
     const result = await systemInfoHandler({
@@ -77,6 +89,24 @@ describe('registerSystemIpc', () => {
       platform: 'win32',
       arch: 'x64',
       appVersion: '0.1.0'
+    });
+  });
+
+  it('validates and resolves application quit decisions', async () => {
+    const { applicationQuitResolveHandler, resolveApplicationQuit } =
+      createHarness();
+    const event = {
+      sender: { id: 7 },
+      senderFrame: { url: 'app://lumora/index.html' }
+    };
+
+    await expect(applicationQuitResolveHandler(event, {
+      action: 'exit',
+      suppressFutureWarning: true
+    })).resolves.toEqual({ accepted: true });
+    expect(resolveApplicationQuit).toHaveBeenCalledWith({
+      action: 'exit',
+      suppressFutureWarning: true
     });
   });
 

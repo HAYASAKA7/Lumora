@@ -319,6 +319,8 @@ export function RemoteTargetWindow({
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const [windowCloseRequest, setWindowCloseRequest] =
     useState<RemoteWindowCloseRequest | null>(null);
+  const [suppressRemoteDisconnectWarning, setSuppressRemoteDisconnectWarning] =
+    useState(false);
   const autoScannedKey = useRef<string | null>(null);
   const automaticConnectionAttempted = useRef(false);
   const componentMounted = useRef(false);
@@ -359,6 +361,7 @@ export function RemoteTargetWindow({
     if (typeof api.onRemoteWindowCloseRequest !== 'function') return;
     return api.onRemoteWindowCloseRequest((request) => {
       if (request.executionTargetId === executionTargetId) {
+        setSuppressRemoteDisconnectWarning(false);
         setWindowCloseRequest(request);
       }
     });
@@ -369,12 +372,16 @@ export function RemoteTargetWindow({
   ) => {
     if (typeof api.resolveRemoteWindowClose !== 'function') return;
     try {
-      const closed = await api.resolveRemoteWindowClose({ action });
+      const closed = await api.resolveRemoteWindowClose({
+        action,
+        suppressFutureWarning: action === 'disconnect' &&
+          suppressRemoteDisconnectWarning
+      });
       if (!closed) setWindowCloseRequest(null);
     } catch {
       setError('Lumora could not close this remote connection safely.');
     }
-  }, [api]);
+  }, [api, suppressRemoteDisconnectWarning]);
 
   useEffect(() => {
     let active = true;
@@ -1766,6 +1773,11 @@ export function RemoteTargetWindow({
                 heading="Disconnect remote computer?"
                 onCancel={() => void resolveWindowClose('keep_running')}
                 onConfirm={() => void resolveWindowClose('disconnect')}
+                suppression={{
+                  checked: suppressRemoteDisconnectWarning,
+                  label: "Don't show this warning again",
+                  onChange: setSuppressRemoteDisconnectWarning
+                }}
               />
             ) : null}
             {hideWorkspaceIntent === null ? null : (

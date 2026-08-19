@@ -43,6 +43,22 @@ describe('remote target application integration', () => {
     expect(mainSource).toContain("'disconnect'");
     expect(mainSource).toContain('IPC_CHANNELS.remoteWindowCloseRequest');
     expect(mainSource).toContain('resolveRemoteWindowClose');
+    expect(mainSource).toContain('warnBeforeRemoteDisconnect');
+    expect(mainSource).toContain(
+      "saveWarningPreference('warnBeforeRemoteDisconnect', false)"
+    );
+  });
+
+  it('guards full application exit when local or remote agents are active', () => {
+    const shutdown = mainSource.slice(mainSource.indexOf("app.on('before-quit'"));
+
+    expect(shutdown).toContain('applicationQuitGuard.request({');
+    expect(shutdown).toContain('localActiveAgentCount');
+    expect(shutdown).toContain('remoteActiveAgentCount');
+    expect(shutdown).toContain('warnBeforeApplicationQuit');
+    expect(mainSource).toContain(
+      "saveWarningPreference('warnBeforeApplicationQuit', false)"
+    );
   });
 
   it('stops startup composition during shutdown and handles initialization failures', () => {

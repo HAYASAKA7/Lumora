@@ -1104,7 +1104,8 @@ export const RemoteWindowCloseRequestSchema = z.strictObject({
   activeTerminalCount: z.number().int().nonnegative()
 });
 export const RemoteWindowCloseResolutionSchema = z.strictObject({
-  action: z.enum(['keep_running', 'disconnect'])
+  action: z.enum(['keep_running', 'disconnect']),
+  suppressFutureWarning: z.boolean()
 });
 export const RemoteWindowCloseResultSchema = z.strictObject({
   closed: z.boolean()

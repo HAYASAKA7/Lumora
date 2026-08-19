@@ -43,7 +43,8 @@ describe('createLumoraApi', () => {
     });
 
     api.onApplicationQuitRequest(listener);
-    requestReceiver?.({
+    const deliverRequest = requestReceiver as unknown as (value: unknown) => void;
+    deliverRequest({
       localActiveAgentCount: 1,
       remoteActiveAgentCount: 2,
       totalActiveAgentCount: 3
@@ -61,7 +62,7 @@ describe('createLumoraApi', () => {
       action: 'exit',
       suppressFutureWarning: true
     });
-    expect(() => requestReceiver?.({
+    expect(() => deliverRequest({
       localActiveAgentCount: 1,
       remoteActiveAgentCount: 2,
       totalActiveAgentCount: 2

@@ -291,7 +291,8 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .resolves.toMatchObject({ executionTargetId: TARGET_ID });
     await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
-      action: 'disconnect'
+      action: 'disconnect',
+      suppressFutureWarning: true
     })).resolves.toEqual({ closed: true });
     expect(service.connect).toHaveBeenCalledTimes(3);
     expect(service.getLifecycleSnapshot).toHaveBeenCalledWith(TARGET_ID);
@@ -315,7 +316,10 @@ describe('registerTargetIpc', () => {
     );
     expect(service.scanDiscovery).toHaveBeenCalledWith(TARGET_ID);
     expect(service.scanSessions).toHaveBeenCalledWith(TARGET_ID);
-    expect(resolveWindowClose).toHaveBeenCalledWith(TARGET_ID, 'disconnect');
+    expect(resolveWindowClose).toHaveBeenCalledWith(TARGET_ID, {
+      action: 'disconnect',
+      suppressFutureWarning: true
+    });
     expect(service.remove).not.toHaveBeenCalled();
   });
 
@@ -365,7 +369,8 @@ describe('registerTargetIpc', () => {
     await expect(handlers.get(IPC_CHANNELS.remoteSessionScan)!(event))
       .rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     await expect(handlers.get(IPC_CHANNELS.remoteWindowCloseResolve)!(event, {
-      action: 'keep_running'
+      action: 'keep_running',
+      suppressFutureWarning: false
     })).rejects.toMatchObject({ code: 'REMOTE_TARGET_OPERATION_FAILED' });
     expect(service.getHelperInstallDetails).not.toHaveBeenCalled();
     expect(service.installHelper).not.toHaveBeenCalled();

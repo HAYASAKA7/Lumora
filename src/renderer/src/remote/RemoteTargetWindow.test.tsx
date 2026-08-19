@@ -190,12 +190,16 @@ describe('RemoteTargetWindow', () => {
       name: 'Disconnect remote computer?'
     });
     expect(within(dialog).getByText(/2 active terminal sessions/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('checkbox', {
+      name: "Don't show this warning again"
+    }));
     fireEvent.click(within(dialog).getByRole('button', {
-      name: 'Keep running'
+      name: 'Disconnect and close'
     }));
 
     await waitFor(() => expect(resolveRemoteWindowClose).toHaveBeenCalledWith({
-      action: 'keep_running'
+      action: 'disconnect',
+      suppressFutureWarning: true
     }));
   });
 

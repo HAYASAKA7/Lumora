@@ -242,6 +242,14 @@ function runningRuntime(
 }
 
 interface CatalogApiOverrides {
+  onApplicationQuitRequest?: (
+    listener: (request: {
+      localActiveAgentCount: number;
+      remoteActiveAgentCount: number;
+      totalActiveAgentCount: number;
+    }) => void
+  ) => () => void;
+  resolveApplicationQuit?: ReturnType<typeof vi.fn>;
   claimStartupPresentation?: ReturnType<typeof vi.fn>;
   completeStartupPresentation?: ReturnType<typeof vi.fn>;
   scanDeveloperEnvironment?: ReturnType<typeof vi.fn>;
@@ -300,6 +308,10 @@ function setSystemInfoResult(
   Object.defineProperty(window, 'lumora', {
     configurable: true,
     value: {
+      onApplicationQuitRequest:
+        catalogApi.onApplicationQuitRequest ?? vi.fn(() => () => undefined),
+      resolveApplicationQuit:
+        catalogApi.resolveApplicationQuit ?? vi.fn().mockResolvedValue(true),
       claimStartupPresentation:
         catalogApi.claimStartupPresentation ?? vi.fn().mockResolvedValue(false),
       completeStartupPresentation:
@@ -421,6 +433,40 @@ describe('App', () => {
       value: createLocalStorage()
     });
     setSystemInfoResult();
+  });
+
+  it('warns before exiting with active local or remote agents', async () => {
+    let quitListener: ((request: {
+      localActiveAgentCount: number;
+      remoteActiveAgentCount: number;
+      totalActiveAgentCount: number;
+    }) => void) | undefined;
+    const resolveApplicationQuit = vi.fn().mockResolvedValue(true);
+    setSystemInfoResult(undefined, undefined, {
+      onApplicationQuitRequest: (listener) => {
+        quitListener = listener;
+        return () => undefined;
+      },
+      resolveApplicationQuit
+    });
+    render(<App />);
+
+    act(() => quitListener?.({
+      localActiveAgentCount: 1,
+      remoteActiveAgentCount: 2,
+      totalActiveAgentCount: 3
+    }));
+    const dialog = screen.getByRole('dialog', { name: 'Exit Lumora?' });
+    expect(within(dialog).getByText(/1 local and 2 remote/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole('checkbox', {
+      name: "Don't show this warning again"
+    }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Exit Lumora' }));
+
+    await waitFor(() => expect(resolveApplicationQuit).toHaveBeenCalledWith({
+      action: 'exit',
+      suppressFutureWarning: true
+    }));
   });
 
   it('uses the canonical Lumora brand artwork in the sidebar', () => {

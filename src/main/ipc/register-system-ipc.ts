@@ -1,5 +1,7 @@
 import type { IpcAuthorizer } from './ipc-access';
 import {
+  ApplicationQuitResolutionSchema,
+  ApplicationQuitResultSchema,
   IPC_CHANNELS,
   StartupPresentationCompletionSchema,
   SystemInfoSchema,
@@ -15,7 +17,7 @@ interface IpcInvokeEventLike {
 interface IpcRegistrar {
   handle(
     channel: string,
-    handler: (event: IpcInvokeEventLike) => Promise<unknown> | unknown
+    handler: (event: IpcInvokeEventLike, input?: unknown) => Promise<unknown> | unknown
   ): void;
 }
 
@@ -27,6 +29,9 @@ interface RegisterSystemIpcDependencies {
   appVersion: string;
   claimStartupPresentation(senderId: number): Promise<boolean>;
   completeStartupPresentation(senderId: number): void;
+  resolveApplicationQuit(
+    resolution: ReturnType<typeof ApplicationQuitResolutionSchema.parse>
+  ): Promise<boolean> | boolean;
   developmentOrigin?: string;
 }
 
@@ -47,6 +52,7 @@ export function registerSystemIpc({
   appVersion,
   claimStartupPresentation,
   completeStartupPresentation,
+  resolveApplicationQuit,
   developmentOrigin
 }: RegisterSystemIpcDependencies): void {
   const assertTrustedRenderer = (event: IpcInvokeEventLike): void => {
@@ -73,6 +79,13 @@ export function registerSystemIpc({
     completeStartupPresentation(event.sender.id);
     return StartupPresentationCompletionSchema.parse({
       acknowledged: true
+    });
+  });
+  ipc.handle(IPC_CHANNELS.applicationQuitResolve, async (event, input) => {
+    assertTrustedRenderer(event);
+    const resolution = ApplicationQuitResolutionSchema.parse(input);
+    return ApplicationQuitResultSchema.parse({
+      accepted: await resolveApplicationQuit(resolution)
     });
   });
 }

@@ -25,9 +25,11 @@ import {
   PlatformSchema,
   RemoteExecutionTargetIdSchema,
   TrayResumeSessionRequestSchema,
+  type ApplicationQuitResolution,
   type ProviderId
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
+import { createApplicationQuitGuard } from './application-quit-guard';
 import { AppearanceBackgroundStore } from './appearance/appearance-background-store';
 import {
   createCatalogRuntime,
@@ -260,7 +262,28 @@ let diagnosticService: DiagnosticService | null = null;
 let diagnosticPreferencesStore: DiagnosticPreferencesStore | null = null;
 let disposeDiagnosticProcessObservers: (() => void) | null = null;
 let shutdownStarted = false;
+let applicationQuitApproved = false;
 const pendingRemoteWindowCloses = new Set<string>();
+
+const applicationQuitGuard = createApplicationQuitGuard({
+  sendRequest: (request) => {
+    const window = mainWindow;
+    if (
+      window === null ||
+      window.isDestroyed() ||
+      window.webContents.isDestroyed()
+    ) return false;
+    try {
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.focus();
+      window.webContents.send(IPC_CHANNELS.applicationQuitRequest, request);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+});
 
 configureDevelopmentDataPaths(app);
 configurePackagedWindowsApplicationIdentity(app, {
@@ -483,39 +506,94 @@ const targetWindowManager = createTargetWindowManager({
     const activeTerminalCount = remoteTargetRuntime.service
       .getLifecycleSnapshot(executionTargetId).activeTerminalCount;
     pendingRemoteWindowCloses.add(executionTargetId);
-    if (activeTerminalCount > 0) {
+    if (
+      activeTerminalCount > 0 &&
+      terminalRuntime?.getGeneralSettings().warnBeforeRemoteDisconnect !== false
+    ) {
       const delivered = targetWindowManager.send(
         executionTargetId,
         IPC_CHANNELS.remoteWindowCloseRequest,
         { executionTargetId, activeTerminalCount }
       );
       if (!delivered) {
-        pendingRemoteWindowCloses.delete(executionTargetId);
-        targetWindowManager.close(executionTargetId);
+        void disconnectAndCloseRemoteWindow(executionTargetId)
+          .catch(() => undefined);
       }
       return;
     }
 
-    void remoteTargetRuntime.service.disconnect(executionTargetId).then(() => {
-      pendingRemoteWindowCloses.delete(executionTargetId);
-      targetWindowManager.close(executionTargetId);
-    }).catch(() => {
-      pendingRemoteWindowCloses.delete(executionTargetId);
-    });
+    void disconnectAndCloseRemoteWindow(executionTargetId)
+      .catch(() => undefined);
   }
 });
 
-async function resolveRemoteWindowClose(
-  executionTargetId: Parameters<typeof targetWindowManager.close>[0],
-  action: 'keep_running' | 'disconnect'
+async function disconnectAndCloseRemoteWindow(
+  executionTargetId: Parameters<typeof targetWindowManager.close>[0]
 ): Promise<boolean> {
-  if (!pendingRemoteWindowCloses.has(executionTargetId)) return false;
-  if (action === 'disconnect') {
+  try {
     if (remoteTargetRuntime === null) return false;
     await remoteTargetRuntime.service.disconnect(executionTargetId);
+    targetWindowManager.close(executionTargetId);
+    return true;
+  } finally {
+    pendingRemoteWindowCloses.delete(executionTargetId);
+  }
+}
+
+async function resolveRemoteWindowClose(
+  executionTargetId: Parameters<typeof targetWindowManager.close>[0],
+  resolution: {
+    action: 'keep_running' | 'disconnect';
+    suppressFutureWarning: boolean;
+  }
+): Promise<boolean> {
+  if (!pendingRemoteWindowCloses.has(executionTargetId)) return false;
+  if (resolution.action === 'disconnect') {
+    const closed = await disconnectAndCloseRemoteWindow(executionTargetId);
+    if (closed && resolution.suppressFutureWarning) {
+      saveWarningPreference('warnBeforeRemoteDisconnect', false);
+    }
+    return closed;
   }
   pendingRemoteWindowCloses.delete(executionTargetId);
   targetWindowManager.close(executionTargetId);
+  return true;
+}
+
+function broadcastGeneralSettingsChanged(): void {
+  if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send(IPC_CHANNELS.generalSettingsChanged, null);
+  }
+  targetWindowManager.broadcast(IPC_CHANNELS.generalSettingsChanged, null);
+}
+
+function saveWarningPreference(
+  key: 'warnBeforeApplicationQuit' | 'warnBeforeRemoteDisconnect',
+  value: boolean
+): void {
+  const runtime = terminalRuntime;
+  if (runtime === null) return;
+  try {
+    runtime.saveGeneralSettings({
+      ...runtime.getGeneralSettings(),
+      [key]: value
+    });
+    broadcastGeneralSettingsChanged();
+  } catch (error) {
+    console.error('Lumora could not save an exit-warning preference.', error);
+  }
+}
+
+async function resolveApplicationQuit(
+  resolution: ApplicationQuitResolution
+): Promise<boolean> {
+  if (!applicationQuitGuard.resolve(resolution)) return false;
+  if (resolution.action === 'cancel') return true;
+  if (resolution.suppressFutureWarning) {
+    saveWarningPreference('warnBeforeApplicationQuit', false);
+  }
+  applicationQuitApproved = true;
+  app.quit();
   return true;
 }
 
@@ -828,6 +906,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         activeStartupBackgroundActivity?.complete();
       }
     },
+    resolveApplicationQuit,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
   registerDiagnosticIpc({
@@ -1029,10 +1108,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
     sendGeneralSettingsChanged: () => {
-      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.generalSettingsChanged, null);
-      }
-      targetWindowManager.broadcast(IPC_CHANNELS.generalSettingsChanged, null);
+      broadcastGeneralSettingsChanged();
     },
     sendRuntimeEvent: (event) => {
       if (event.type === 'state') {
@@ -1126,6 +1202,32 @@ async function showOrCreateMainWindow(): Promise<void> {
 app.on('before-quit', (event) => {
   if (shutdownStarted) {
     return;
+  }
+  if (!applicationQuitApproved) {
+    let localActiveAgentCount = 0;
+    let remoteActiveAgentCount = 0;
+    try {
+      localActiveAgentCount = countActiveTerminalRuntimes(
+        terminalRuntime?.listRuntimes() ?? []
+      );
+      remoteActiveAgentCount = remoteTargetRuntime?.service
+        .listLifecycleSnapshots()
+        .reduce((count, snapshot) => count + snapshot.activeTerminalCount, 0) ?? 0;
+    } catch (error) {
+      console.error('Lumora could not inspect active agents before exit.', error);
+    }
+    const result = applicationQuitGuard.request({
+      warn: terminalRuntime?.getGeneralSettings().warnBeforeApplicationQuit ?? true,
+      counts: {
+        localActiveAgentCount,
+        remoteActiveAgentCount,
+        totalActiveAgentCount: localActiveAgentCount + remoteActiveAgentCount
+      }
+    });
+    if (result === 'pending') {
+      event.preventDefault();
+      return;
+    }
   }
   event.preventDefault();
   shutdownStarted = true;

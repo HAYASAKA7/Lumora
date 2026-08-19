@@ -205,11 +205,14 @@ describe('remote target preload API', () => {
       executionTargetId: TARGET_ID,
       activeTerminalCount: 2
     });
-    await expect(api.resolveRemoteWindowClose({ action: 'keep_running' }))
+    await expect(api.resolveRemoteWindowClose({
+      action: 'keep_running',
+      suppressFutureWarning: false
+    }))
       .resolves.toBe(true);
     expect(invoke).toHaveBeenCalledWith(
       IPC_CHANNELS.remoteWindowCloseResolve,
-      { action: 'keep_running' }
+      { action: 'keep_running', suppressFutureWarning: false }
     );
   });
 

@@ -16,6 +16,7 @@ import {
 } from '../../shared/contracts';
 import type {
   AppearanceBackgroundState,
+  ApplicationQuitRequest,
   CatalogQuery,
   GeneralSettings,
   ProviderId,
@@ -71,6 +72,7 @@ import {
   type NavigationIconName
 } from './shell/LumoraShell';
 import { StartupOverlay } from './startup/StartupOverlay';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
 import { ResumeSessionDialog } from './terminal/ResumeSessionDialog';
 import { RuntimeRecoveryDialog } from './terminal/RuntimeRecoveryDialog';
@@ -390,6 +392,10 @@ function AppContent(): ReactNode {
   const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
   const [recoveryRuntime, setRecoveryRuntime] =
     useState<RuntimeSummary | null>(null);
+  const [applicationQuitRequest, setApplicationQuitRequest] =
+    useState<ApplicationQuitRequest | null>(null);
+  const [suppressApplicationQuitWarning, setSuppressApplicationQuitWarning] =
+    useState(false);
   const providerRequestId = useRef(0);
   const environmentRequestId = useRef(0);
   const catalogRequestId = useRef(0);
@@ -403,6 +409,27 @@ function AppContent(): ReactNode {
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
   }, [sidebarExpanded]);
+
+  useEffect(() => window.lumora.onApplicationQuitRequest((request) => {
+    setSuppressApplicationQuitWarning(false);
+    setApplicationQuitRequest(request);
+  }), []);
+
+  const resolveApplicationQuit = useCallback(async (
+    action: 'cancel' | 'exit'
+  ) => {
+    const suppressFutureWarning = action === 'exit' &&
+      suppressApplicationQuitWarning;
+    try {
+      const accepted = await window.lumora.resolveApplicationQuit({
+        action,
+        suppressFutureWarning
+      });
+      if (accepted) setApplicationQuitRequest(null);
+    } catch {
+      setSuppressApplicationQuitWarning(false);
+    }
+  }, [suppressApplicationQuitWarning]);
 
   useEffect(() => {
     if (
@@ -1826,6 +1853,30 @@ function AppContent(): ReactNode {
         )}
         floatingContent={
           <>
+          {applicationQuitRequest === null ? null : (
+            <ConfirmDialog
+              cancelLabel="Keep Lumora open"
+              confirmLabel="Exit Lumora"
+              description={(
+                <>
+                  Lumora is managing {applicationQuitRequest.totalActiveAgentCount}{' '}
+                  active {applicationQuitRequest.totalActiveAgentCount === 1
+                    ? 'agent'
+                    : 'agents'} ({applicationQuitRequest.localActiveAgentCount} local and{' '}
+                  {applicationQuitRequest.remoteActiveAgentCount} remote). Exiting will stop
+                  these terminal sessions.
+                </>
+              )}
+              heading="Exit Lumora?"
+              onCancel={() => void resolveApplicationQuit('cancel')}
+              onConfirm={() => void resolveApplicationQuit('exit')}
+              suppression={{
+                checked: suppressApplicationQuitWarning,
+                label: "Don't show this warning again",
+                onChange: setSuppressApplicationQuitWarning
+              }}
+            />
+          )}
           {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
         <RuntimeSwitcher
           runtimes={runtimeSwitcherRuntimes}

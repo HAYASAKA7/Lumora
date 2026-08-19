@@ -58,7 +58,7 @@ interface RegisterTargetIpcDependencies {
   openTargetWindow(id: RemoteExecutionTargetId): Promise<void>;
   resolveWindowClose(
     id: RemoteExecutionTargetId,
-    action: 'keep_running' | 'disconnect'
+    resolution: ReturnType<typeof RemoteWindowCloseResolutionSchema.parse>
   ): Promise<boolean>;
 }
 
@@ -319,7 +319,7 @@ export function registerTargetIpc({
     return protectedOperation(async () => {
       const request = RemoteWindowCloseResolutionSchema.parse(input);
       return RemoteWindowCloseResultSchema.parse({
-        closed: await resolveWindowClose(executionTargetId, request.action)
+        closed: await resolveWindowClose(executionTargetId, request)
       });
     });
   });
