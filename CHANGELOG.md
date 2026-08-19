@@ -7,6 +7,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-08-19
+
+### Added
+
+- Warn before a full Lumora exit stops active local or remote agents, with an
+  independent General setting and an in-dialog **Don't show this warning
+  again** choice.
+- Warn before disconnecting and closing a Remote Lumora window that has active
+  terminal sessions, with its own General setting and suppression choice.
+
+### Fixed
+
+- Limit warning-suppression interaction to the checkbox itself instead of
+  making the entire text row clickable, while preserving its accessible label.
+
 ## [0.3.4] - 2026-08-16
 
 ### Fixed

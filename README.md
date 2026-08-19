@@ -198,8 +198,10 @@ Each target opens in its own Remote Lumora window. When automatic connection is
 enabled, Lumora goes straight to a connecting state; if authentication fails,
 the same window returns to the connection form with the error. Closing a remote
 window can either preserve its SSH connection for fast reopening or disconnect
-it, according to that target's setting. The Remote computers page keeps each
-profile's current connection state visible from the main Lumora window.
+it, according to that target's setting. Before disconnect-and-close stops
+active remote terminals, Lumora asks for confirmation. The Remote computers
+page keeps each profile's current connection state visible from the main
+Lumora window.
 
 When the helper is missing or incompatible, the remote window shows the exact
 per-user install location and version before asking for confirmation. Lumora
@@ -310,6 +312,10 @@ Lumora also has a native tray or menu-bar icon. You can choose whether closing
 the window exits Lumora and its managed agents, or hides the window while they
 continue running. The tray menu can restore Lumora, show the number of running
 agents, open a recent session's normal resume confirmation, or exit Lumora.
+Before a full exit stops active local or remote agents, Lumora asks for
+confirmation. Full-exit and remote disconnect-and-close warnings have separate
+switches in **Settings > General**, and each confirmation can disable its own
+future warning.
 
 ### Providers and environment
 
