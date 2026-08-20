@@ -1,4 +1,6 @@
 import {
+  ApplicationAboutInfoSchema,
+  ApplicationReleaseStatusSchema,
   ApplicationQuitRequestSchema,
   ApplicationQuitResolutionSchema,
   ApplicationQuitResultSchema,
@@ -295,6 +297,22 @@ export function createLumoraApi(
     async getSystemInfo() {
       const value = await invoke(IPC_CHANNELS.systemInfo);
       return SystemInfoSchema.parse(value);
+    },
+    async getApplicationAboutInfo() {
+      const value = await invoke(IPC_CHANNELS.applicationAboutGet);
+      return ApplicationAboutInfoSchema.parse(value);
+    },
+    async getApplicationReleaseStatus() {
+      const value = await invoke(IPC_CHANNELS.applicationReleaseStatusGet);
+      return ApplicationReleaseStatusSchema.parse(value);
+    },
+    async openLumoraProjectPage() {
+      const value = await invoke(IPC_CHANNELS.applicationProjectOpen);
+      return ExternalOpenResultSchema.parse(value);
+    },
+    async openApplicationReleasePage() {
+      const value = await invoke(IPC_CHANNELS.applicationReleaseOpen);
+      return ExternalOpenResultSchema.parse(value);
     },
     async scanDeveloperEnvironment() {
       const value = await invoke(IPC_CHANNELS.environmentScan);

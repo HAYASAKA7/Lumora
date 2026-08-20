@@ -29,6 +29,19 @@ Transfer support requires separate native verification records for each
 provider/version/platform route. An implementation or development test is not
 release evidence.
 
+## Application release checks
+
+Release metadata checks must run in the main process, never the renderer. Only
+stable releases from the exact `HAYASAKA7/Lumora` GitHub repository are valid.
+Responses and displayed summaries must be bounded, validated, and free of HTML.
+Checks use one global cache for at least 12 hours, coalesce concurrent windows,
+and must never delay application startup. Renderer APIs may request the fixed
+project page or the last validated release page; they must not supply URLs.
+
+Do not add automatic downloading or installation until Windows signing and
+macOS signing/notarization are operational and every release publishes verified
+updater metadata for its supported platform and architecture.
+
 ## Canonical references
 
 - `docs/RELEASING.md`

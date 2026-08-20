@@ -52,6 +52,7 @@ import {
 } from './ipc/ipc-access';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
+import { registerAboutIpc } from './ipc/register-about-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
@@ -74,6 +75,11 @@ import { ProviderRegistry } from './providers/provider-registry';
 import { createProviderPolicy } from './providers/provider-policy';
 import { ProviderScanCoordinator } from './providers/provider-scan-coordinator';
 import { createProviderUpdateService } from './providers/provider-update-service';
+import { createApplicationReleaseSource } from './release/application-release-source';
+import {
+  createApplicationReleaseRuntime,
+  type ApplicationReleaseRuntime
+} from './release/application-release-runtime';
 import {
   createRemoteTargetRuntime,
   type RemoteTargetRuntime
@@ -245,6 +251,7 @@ let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
+let applicationReleaseRuntime: ApplicationReleaseRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteLifecycleEvents: (() => void) | null = null;
@@ -652,6 +659,18 @@ if (!hasSingleInstanceLock) {
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   const userDataDirectory = app.getPath('userData');
+  applicationReleaseRuntime = createApplicationReleaseRuntime({
+    databasePath: join(userDataDirectory, 'lumora.db'),
+    installedVersion: app.getVersion(),
+    source: createApplicationReleaseSource({
+      fetch: (input, init) => net.fetch(
+        input instanceof URL ? input.href : input,
+        init
+      )
+    }),
+    openExternal: (url) => shell.openExternal(url)
+  });
+  void applicationReleaseRuntime.service.warm().catch(() => undefined);
   const defaultDiagnosticDirectory = join(userDataDirectory, 'diagnostics');
   diagnosticPreferencesStore = new DiagnosticPreferencesStore({
     preferencesPath: join(userDataDirectory, 'diagnostic-preferences.json'),
@@ -908,6 +927,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     },
     resolveApplicationQuit,
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
+  registerAboutIpc({
+    ipc: ipcMain,
+    authorize: authorizeTargetIpc,
+    platform: process.platform,
+    arch: process.arch,
+    appVersion: app.getVersion(),
+    release: applicationReleaseRuntime.service,
+    openProject: (url) => shell.openExternal(url)
   });
   registerDiagnosticIpc({
     ipc: ipcMain,
@@ -1234,6 +1262,7 @@ app.on('before-quit', (event) => {
   const runtime = terminalRuntime;
   const remoteRuntime = remoteTargetRuntime;
   const transfer = transferRuntime;
+  const releaseRuntime = applicationReleaseRuntime;
   void (async () => {
     try {
       const shutdownErrors: unknown[] = [];
@@ -1249,11 +1278,15 @@ app.on('before-quit', (event) => {
         await Promise.all([
           runtime?.shutdown() ?? Promise.resolve(),
           remoteRuntime?.close() ?? Promise.resolve(),
+          releaseRuntime?.close() ?? Promise.resolve(),
           flushWindowState(),
           flushRemoteWindowState()
         ]);
         if (remoteTargetRuntime === remoteRuntime) {
           remoteTargetRuntime = null;
+        }
+        if (applicationReleaseRuntime === releaseRuntime) {
+          applicationReleaseRuntime = null;
         }
       } catch (error) {
         shutdownErrors.push(error);
@@ -1275,6 +1308,8 @@ app.on('before-quit', (event) => {
       targetWindowManager.closeAll();
       void remoteTargetRuntime?.close();
       remoteTargetRuntime = null;
+      await releaseRuntime?.close();
+      applicationReleaseRuntime = null;
       unsubscribeRemoteTerminalEvents?.();
       unsubscribeRemoteTerminalEvents = null;
       unsubscribeRemoteLifecycleEvents?.();
@@ -1298,6 +1333,8 @@ app.on('will-quit', () => {
   targetWindowManager.closeAll();
   void remoteTargetRuntime?.close();
   remoteTargetRuntime = null;
+  void applicationReleaseRuntime?.close();
+  applicationReleaseRuntime = null;
   unsubscribeRemoteTerminalEvents?.();
   unsubscribeRemoteTerminalEvents = null;
   unsubscribeRemoteLifecycleEvents?.();

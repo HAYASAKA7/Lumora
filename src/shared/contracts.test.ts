@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ApplicationAboutInfoSchema,
+  ApplicationReleaseStatusSchema,
   AppearanceBackgroundStateSchema,
   ApplicationQuitRequestSchema,
   ApplicationQuitResolutionSchema,
@@ -72,6 +74,39 @@ const missingClaude = {
     retryable: true
   }
 } as const;
+
+describe('application About contracts', () => {
+  it('accepts static application information and a stable available release', () => {
+    expect(ApplicationAboutInfoSchema.parse({
+      productName: 'Lumora',
+      developer: 'HAYASAKA7',
+      system: { platform: 'win32', arch: 'x64', appVersion: '0.3.5' }
+    }).productName).toBe('Lumora');
+
+    expect(ApplicationReleaseStatusSchema.parse({
+      state: 'update_available',
+      installedVersion: '0.3.5',
+      release: {
+        version: '0.3.6',
+        publishedAt: '2026-08-20T00:00:00.000Z',
+        summary: 'A safer Lumora release.',
+        url: 'https://github.com/HAYASAKA7/Lumora/releases/tag/v0.3.6'
+      }
+    }).state).toBe('update_available');
+  });
+
+  it('rejects prerelease versions and unknown release states', () => {
+    expect(ApplicationReleaseStatusSchema.safeParse({
+      state: 'current',
+      installedVersion: '0.3.5',
+      latestVersion: '0.3.6-beta.1'
+    }).success).toBe(false);
+    expect(ApplicationReleaseStatusSchema.safeParse({
+      state: 'checking',
+      installedVersion: '0.3.5'
+    }).success).toBe(false);
+  });
+});
 
 describe('execution target contracts', () => {
   const remoteId = '4f632901-1f8d-44c0-8418-aa823f791ca0';

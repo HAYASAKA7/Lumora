@@ -90,6 +90,12 @@ vi.mock('./DiagnosticsPanel', () => ({
   )
 }));
 
+vi.mock('./AboutPanel', () => ({
+  AboutPanel: ({ active }: { active: boolean }) => (
+    <div data-active={String(active)}>About content</div>
+  )
+}));
+
 const KEYBOARD_SETTINGS: KeyboardSettings = {
   ...DEFAULT_KEYBOARD_SETTINGS,
   terminalSwitcher: {
@@ -170,7 +176,8 @@ describe('SettingsView', () => {
       'Security',
       'Keyboard',
       'Transfer',
-      'Diagnostics'
+      'Diagnostics',
+      'About'
     ]);
     expect(screen.getByRole('tablist')).toHaveAccessibleName(
       'Settings categories'
@@ -197,6 +204,7 @@ describe('SettingsView', () => {
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
     expect(screen.getByText('Diagnostics content')).toBeInTheDocument();
+    expect(screen.getByText('About content')).toBeInTheDocument();
   });
 
   it('changes the visible category when a tab is clicked', () => {
@@ -231,16 +239,16 @@ describe('SettingsView', () => {
     expect(general).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(general, { key: 'ArrowLeft' });
-    const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' });
-    expect(diagnostics).toHaveFocus();
-    expect(diagnostics).toHaveAttribute('aria-selected', 'true');
+    const about = screen.getByRole('tab', { name: 'About' });
+    expect(about).toHaveFocus();
+    expect(about).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(diagnostics, { key: 'Home' });
+    fireEvent.keyDown(about, { key: 'Home' });
     expect(general).toHaveFocus();
 
     fireEvent.keyDown(general, { key: 'End' });
-    expect(diagnostics).toHaveFocus();
-    expect(diagnostics).toHaveAttribute('aria-selected', 'true');
+    expect(about).toHaveFocus();
+    expect(about).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps category wrappers while catalog-dependent content is unavailable', () => {
@@ -255,12 +263,14 @@ describe('SettingsView', () => {
     expect(document.getElementById('settings-panel-keyboard')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-transfer')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-diagnostics')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-about')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('General content')).toBeInTheDocument();
     expect(screen.getByText('Appearance content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
     expect(screen.getByText('Diagnostics content')).toBeInTheDocument();
+    expect(screen.getByText('About content')).toBeInTheDocument();
     expect(screen.queryByText('Launch content')).not.toBeInTheDocument();
     expect(screen.queryByText('Security content')).not.toBeInTheDocument();
   });

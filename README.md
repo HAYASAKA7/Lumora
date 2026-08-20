@@ -367,6 +367,14 @@ is applied safely on the next launch. Lumora also remembers the last successful
 export folder, while every **Export diagnostics** action still lets you choose
 another filename or location. Lumora never uploads diagnostic data.
 
+### About and versions
+
+Open **Settings > About** to review the installed Lumora version, developer,
+and local platform. Remote Lumora also shows the connected helper version and
+remote platform. Lumora checks public GitHub release metadata in the background
+and shows **View update** only when a newer stable release is available. The
+current unsigned editions do not download or install updates automatically.
+
 ### Keyboard
 
 All application shortcuts below can be changed in **Settings > Keyboard**.

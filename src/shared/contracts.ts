@@ -312,6 +312,58 @@ export const SystemInfoSchema = z.strictObject({
 
 export type SystemInfo = z.infer<typeof SystemInfoSchema>;
 
+export const StableApplicationVersionSchema = z
+  .string()
+  .regex(/^v?\d+\.\d+\.\d+$/)
+  .transform((value) => value.replace(/^v/, ''));
+
+export const ApplicationReleaseMetadataSchema = z.strictObject({
+  version: StableApplicationVersionSchema,
+  publishedAt: z.iso.datetime(),
+  summary: z.string().max(600),
+  url: z.string().url().refine((value) => {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' &&
+      parsed.hostname === 'github.com' &&
+      parsed.username === '' &&
+      parsed.password === '' &&
+      parsed.search === '' &&
+      parsed.hash === '' &&
+      /^\/HAYASAKA7\/Lumora\/releases\/tag\/[^/]+$/.test(parsed.pathname);
+  }, 'The release URL must point to the Lumora GitHub repository.')
+});
+
+export const ApplicationReleaseStatusSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('current'),
+    installedVersion: z.string().min(1),
+    latestVersion: StableApplicationVersionSchema
+  }),
+  z.strictObject({
+    state: z.literal('update_available'),
+    installedVersion: z.string().min(1),
+    release: ApplicationReleaseMetadataSchema
+  }),
+  z.strictObject({
+    state: z.literal('unavailable'),
+    installedVersion: z.string().min(1)
+  })
+]);
+
+export const ApplicationAboutInfoSchema = z.strictObject({
+  productName: z.literal('Lumora'),
+  developer: z.literal('HAYASAKA7'),
+  system: SystemInfoSchema
+});
+
+export type ApplicationReleaseMetadata = z.infer<
+  typeof ApplicationReleaseMetadataSchema
+>;
+export type ApplicationReleaseStatus = z.infer<
+  typeof ApplicationReleaseStatusSchema
+>;
+export type ApplicationAboutInfo = z.infer<typeof ApplicationAboutInfoSchema>;
+
 export const DeveloperToolStatusSchema = z.discriminatedUnion('state', [
   z.strictObject({
     state: z.literal('ready'),
@@ -339,6 +391,7 @@ export const DeveloperEnvironmentScanResultSchema = z.strictObject({
 export const ExternalOpenResultSchema = z.strictObject({
   opened: z.literal(true)
 });
+export type ExternalOpenResult = z.infer<typeof ExternalOpenResultSchema>;
 
 const ExternalHttpUrlSchema = z
   .string()
@@ -1825,6 +1878,10 @@ export const IPC_CHANNELS = {
   applicationQuitResolve: 'lumora:application:quit-resolve',
   remoteTargetWindowOpen: 'lumora:targets:window:open',
   systemInfo: 'lumora:system:info',
+  applicationAboutGet: 'lumora:application:about:get',
+  applicationReleaseStatusGet: 'lumora:application:release:status:get',
+  applicationProjectOpen: 'lumora:application:project:open',
+  applicationReleaseOpen: 'lumora:application:release:open',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
   startupPresentationComplete: 'lumora:system:startup-presentation:complete',
   diagnosticSummaryGet: 'lumora:diagnostics:summary:get',
@@ -1960,6 +2017,10 @@ export interface LumoraApi {
   chooseDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   resetDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   getSystemInfo(): Promise<SystemInfo>;
+  getApplicationAboutInfo(): Promise<ApplicationAboutInfo>;
+  getApplicationReleaseStatus(): Promise<ApplicationReleaseStatus>;
+  openLumoraProjectPage(): Promise<ExternalOpenResult>;
+  openApplicationReleasePage(): Promise<ExternalOpenResult>;
   claimStartupPresentation(): Promise<boolean>;
   completeStartupPresentation(): Promise<void>;
   scanDeveloperEnvironment(): Promise<DeveloperEnvironmentScanResult>;

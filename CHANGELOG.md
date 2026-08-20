@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add an About category to local and Remote Lumora settings with the installed
+  Lumora version, developer, local platform, and connected remote-helper
+  details.
+- Passively check the latest stable Lumora GitHub release and show a safe
+  **View update** link only when a newer version exists. Automatic update
+  installation remains deferred until Lumora releases are signed.
+
 ## [0.3.5] - 2026-08-19
 
 ### Added

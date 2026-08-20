@@ -72,6 +72,7 @@ import {
 import { ProviderSettings } from '../providers/ProviderSettings';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
+import { AboutPanel } from '../settings/AboutPanel';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -85,7 +86,8 @@ type RemoteSettingsCategory =
   | 'providers'
   | 'environment'
   | 'launch'
-  | 'security';
+  | 'security'
+  | 'about';
 interface NewSessionIntent {
   initialWorkspaceId: string | null;
 }
@@ -1436,7 +1438,8 @@ export function RemoteTargetWindow({
       { id: 'providers' as const, label: 'Providers' },
       { id: 'environment' as const, label: 'Environment' },
       { id: 'launch' as const, label: 'Launch' },
-      { id: 'security' as const, label: 'Security' }
+      { id: 'security' as const, label: 'Security' },
+      { id: 'about' as const, label: 'About' }
     ];
     return (
       <div className="settings-layout">
@@ -1500,7 +1503,20 @@ export function RemoteTargetWindow({
                     }
                   />
                 )
-              : renderOverview()}
+              : settingsCategory === 'about'
+                ? (
+                  <AboutPanel
+                    active
+                    api={api}
+                    remoteTarget={{
+                      connectionState: summary!.target.connectionState,
+                      platform: summary!.target.platform,
+                      architecture: summary!.target.architecture,
+                      helperVersion: summary!.target.helperVersion
+                    }}
+                  />
+                )
+                : renderOverview()}
         </section>
       </div>
     );

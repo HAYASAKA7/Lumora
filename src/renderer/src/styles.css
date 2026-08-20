@@ -1347,6 +1347,87 @@ button {
   display: none;
 }
 
+.about-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.about-identity-card,
+.about-facts-card,
+.about-update-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  padding: 18px;
+}
+
+.about-identity-card {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.about-logo {
+  width: 48px;
+  height: 48px;
+}
+
+.about-identity-card h2,
+.about-facts-card h3,
+.about-update-card h3,
+.about-identity-card p,
+.about-update-card p {
+  margin: 0;
+}
+
+.about-facts-card header,
+.about-update-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.about-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
+}
+
+.about-facts div {
+  min-width: 0;
+}
+
+.about-facts dt,
+.about-release-date {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.about-facts dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.about-update-card {
+  display: grid;
+  gap: 12px;
+  border-color: var(--blue);
+}
+
+@media (max-width: 720px) {
+  .about-identity-card {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .about-identity-card .secondary-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
 .diagnostics-panel {
   display: grid;
   gap: 18px;

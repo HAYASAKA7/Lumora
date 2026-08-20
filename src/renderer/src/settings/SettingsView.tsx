@@ -24,6 +24,7 @@ import { LaunchSettingsPanel } from './LaunchSettingsPanel';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 import { SessionTransferPanel } from '../transfer/SessionTransferPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { AboutPanel } from './AboutPanel';
 
 export type SettingsCategory =
   | 'general'
@@ -34,7 +35,8 @@ export type SettingsCategory =
   | 'security'
   | 'keyboard'
   | 'transfer'
-  | 'diagnostics';
+  | 'diagnostics'
+  | 'about';
 
 interface SettingsViewProps {
   appearanceBackground: AppearanceBackgroundState;
@@ -77,7 +79,8 @@ const SETTINGS_CATEGORIES = [
   { id: 'security', label: 'Security' },
   { id: 'keyboard', label: 'Keyboard' },
   { id: 'transfer', label: 'Transfer' },
-  { id: 'diagnostics', label: 'Diagnostics' }
+  { id: 'diagnostics', label: 'Diagnostics' },
+  { id: 'about', label: 'About' }
 ] as const;
 
 export function SettingsView({
@@ -315,6 +318,16 @@ export function SettingsView({
         role="tabpanel"
       >
         <DiagnosticsPanel active={activeCategory === 'diagnostics'} />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-about"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'about'}
+        id="settings-panel-about"
+        role="tabpanel"
+      >
+        <AboutPanel active={activeCategory === 'about'} />
       </section>
     </div>
   );

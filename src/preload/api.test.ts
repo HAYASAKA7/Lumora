@@ -32,6 +32,30 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
+  it('uses narrow About channels and validates their results', async () => {
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === IPC_CHANNELS.applicationAboutGet) return {
+        productName: 'Lumora', developer: 'HAYASAKA7',
+        system: { platform: 'win32', arch: 'x64', appVersion: '0.3.5' }
+      };
+      if (channel === IPC_CHANNELS.applicationReleaseStatusGet) return {
+        state: 'current', installedVersion: '0.3.5', latestVersion: '0.3.5'
+      };
+      return { opened: true };
+    });
+    const api = createLumoraApi(invoke);
+
+    await expect(api.getApplicationAboutInfo()).resolves.toMatchObject({ productName: 'Lumora' });
+    await expect(api.getApplicationReleaseStatus()).resolves.toMatchObject({ state: 'current' });
+    await api.openLumoraProjectPage();
+    await api.openApplicationReleasePage();
+    expect(invoke.mock.calls.slice(-4)).toEqual([
+      [IPC_CHANNELS.applicationAboutGet],
+      [IPC_CHANNELS.applicationReleaseStatusGet],
+      [IPC_CHANNELS.applicationProjectOpen],
+      [IPC_CHANNELS.applicationReleaseOpen]
+    ]);
+  });
   it('validates application quit requests and resolutions', async () => {
     let requestReceiver: ((value: unknown) => void) | null = null;
     const listener = vi.fn();
