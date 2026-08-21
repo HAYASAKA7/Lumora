@@ -4041,6 +4041,7 @@ button {
   position: relative;
   display: grid;
   min-width: 130px;
+  max-width: 240px;
   padding: 7px 12px;
   color: var(--terminal-tab-text);
   text-align: left;
@@ -4048,6 +4049,13 @@ button {
   border-radius: 8px 8px 0 0;
   cursor: pointer;
   touch-action: pan-y;
+}
+
+.terminal-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .terminal-tab-dragging {

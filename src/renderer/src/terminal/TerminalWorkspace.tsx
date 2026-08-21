@@ -18,6 +18,7 @@ import { ManagedTerminal } from './ManagedTerminal';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
+import { OverflowTooltip } from '../ui/Tooltip';
 
 interface TerminalWorkspaceProps {
   api?: LumoraApi;
@@ -281,7 +282,11 @@ export function TerminalWorkspace({
               role="tab"
               type="button"
             >
-              <span>{item.displayName}</span>
+              <OverflowTooltip content={item.displayName}>
+                <span className="terminal-tab-title">
+                  {item.displayName}
+                </span>
+              </OverflowTooltip>
               <small>
                 {providerDefinition(item.provider).displayName} ·{' '}
                 {item.state}

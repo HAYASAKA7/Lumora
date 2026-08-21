@@ -422,6 +422,32 @@ describe('TerminalWorkspace', () => {
     ).toBeInTheDocument();
   });
 
+  it('places a long session name in the terminal tab overflow element', () => {
+    const longName =
+      'Repository cleanup and cross-platform release verification for Lumora';
+    const longNameRuntime: RuntimeSummary = {
+      ...runtime,
+      displayName: longName
+    };
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={longNameRuntime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[longNameRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(within(screen.getByRole('tab')).getByText(longName)).toHaveClass(
+      'terminal-tab-title'
+    );
+  });
+
   it('hides launch details until the user opens and closes the details dialog', () => {
     render(
       <TerminalWorkspace
