@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -167,12 +167,12 @@ describe('WindowRoot', () => {
     expect(await screen.findByTestId('remote-appearance-root'))
       .toHaveAttribute('data-theme', 'dark');
 
-    fireEvent.focus(window);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('remote-appearance-root'))
-        .toHaveAttribute('data-theme', 'light');
+    await act(async () => {
+      fireEvent.focus(window);
     });
+
+    expect(screen.getByTestId('remote-appearance-root'))
+      .toHaveAttribute('data-theme', 'light');
     expect(getAppearancePresentation).toHaveBeenCalledTimes(2);
   });
 });
