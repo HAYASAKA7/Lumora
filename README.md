@@ -253,6 +253,8 @@ exits, Lumora closes its tab and refreshes the catalog.
 Drag terminal tabs to arrange their visible left-to-right order. `Ctrl+Tab`
 continues to use most-recently-used order. When a tab itself has focus,
 `Alt+Shift+Left` and `Alt+Shift+Right` move it one position.
+Long session names stay within a stable tab width and use an ellipsis when
+clipped; hover the title to see its complete name in a Lumora tooltip.
 
 Terminal clipboard behavior:
 
@@ -378,6 +380,9 @@ current unsigned editions do not download or install updates automatically.
 ### Keyboard
 
 All application shortcuts below can be changed in **Settings > Keyboard**.
+Lumora does not use browser-style `Tab` or `Shift+Tab` navigation. Editable
+controls keep their focus, managed terminals receive their native Tab input,
+and application navigation remains available through the shortcuts below.
 
 | Default shortcut | Action |
 | --- | --- |

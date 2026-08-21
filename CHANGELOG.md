@@ -7,6 +7,17 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-08-21
+
+### Fixed
+
+- Prevent browser-style `Tab` and `Shift+Tab` focus traversal across local and
+  Remote Lumora windows, while preserving editable-control focus, terminal-native
+  Tab input, modified Tab shortcuts, and shortcut recording.
+- Keep long session names from stretching or wrapping terminal tabs. Tab titles
+  now use a stable maximum width, display an ellipsis when clipped, and reveal
+  the complete name through Lumora's overflow tooltip.
+
 ## [0.3.6] - 2026-08-21
 
 ### Added
