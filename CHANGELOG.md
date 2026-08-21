@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-21
+
 ### Added
 
 - Add an About category to local and Remote Lumora settings with the installed
