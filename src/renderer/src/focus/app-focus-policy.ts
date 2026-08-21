@@ -32,6 +32,34 @@ export function releaseLumoraCommandFocus(root: Document = document): void {
   }
 }
 
+function releaseNonEditableFocus(root: Document): void {
+  const active = root.activeElement;
+  if (
+    active instanceof HTMLElement &&
+    active !== root.body &&
+    !isLumoraEditableTarget(active)
+  ) {
+    active.blur();
+  }
+}
+
+function isManagedTerminalTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('.managed-terminal') !== null
+  );
+}
+
+function isPlainTab(event: KeyboardEvent): boolean {
+  return (
+    !event.isComposing &&
+    event.key === 'Tab' &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey
+  );
+}
+
 function isOrdinaryTyping(event: KeyboardEvent): boolean {
   return (
     !event.isComposing &&
@@ -52,6 +80,12 @@ function isAppShortcut(event: KeyboardEvent): boolean {
 
 export function installAppFocusPolicy(root: Document = document): () => void {
   const keydown = (event: KeyboardEvent) => {
+    if (isPlainTab(event)) {
+      if (isManagedTerminalTarget(event.target)) return;
+      event.preventDefault();
+      releaseNonEditableFocus(root);
+      return;
+    }
     if (isLumoraEditableTarget(event.target)) return;
     if (isOrdinaryTyping(event) || isAppShortcut(event)) {
       releaseLumoraCommandFocus(root);
