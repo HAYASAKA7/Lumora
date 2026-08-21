@@ -7,12 +7,15 @@ import type {
 } from '../../shared/contracts';
 import App from './App';
 import { buildAppearancePresentation } from './appearance/presentation';
+import { installAppFocusPolicy } from './focus/app-focus-policy';
 import { RemoteTargetWindow } from './remote/RemoteTargetWindow';
 
 export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
   const [context, setContext] = useState<LumoraWindowContext | null>(null);
   const [appearance, setAppearance] = useState<AppearancePresentation | null>(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => installAppFocusPolicy(document), []);
 
   useEffect(() => {
     let active = true;

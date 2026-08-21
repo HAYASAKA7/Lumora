@@ -45,7 +45,6 @@ import {
 } from './appearance/presentation';
 import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
-import { installAppFocusPolicy } from './focus/app-focus-policy';
 import { RegionErrorBoundary } from './errors/RegionErrorBoundary';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
 import { RemoteTargetsView } from './remote/RemoteTargetsView';
@@ -403,8 +402,6 @@ function AppContent(): ReactNode {
   const mainContentRef = useRef<HTMLElement | null>(null);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
-
-  useEffect(() => installAppFocusPolicy(document), []);
 
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);

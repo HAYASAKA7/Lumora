@@ -3,13 +3,41 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_GENERAL_SETTINGS,
-  type LumoraApi
+  type LumoraApi,
+  type LumoraWindowContext
 } from '../../shared/contracts';
 import { WindowRoot } from './WindowRoot';
 
 const TARGET_ID = '0e3f3da6-b340-49f6-b03b-8ae032c3af74';
 
 describe('WindowRoot', () => {
+  it('owns the app focus policy before resolving the window mode', () => {
+    const api = {
+      getWindowContext: vi.fn().mockReturnValue(
+        new Promise<LumoraWindowContext>(() => undefined)
+      )
+    } as unknown as LumoraApi;
+    render(
+      <>
+        <WindowRoot api={api} />
+        <button type="button">Unbound action</button>
+      </>
+    );
+    const button = screen.getByRole('button', { name: 'Unbound action' });
+    button.focus();
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Tab',
+      code: 'Tab'
+    });
+
+    button.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(button).not.toHaveFocus();
+  });
+
   it('mounts the isolated remote shell without starting local application scans', async () => {
     const api = {
       getWindowContext: vi.fn().mockResolvedValue({
