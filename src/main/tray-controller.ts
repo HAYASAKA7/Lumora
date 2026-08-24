@@ -18,6 +18,9 @@ interface CreateTrayControllerOptions {
   tray: TrayPort;
   buildMenu(template: TrayMenuItem[]): unknown;
   getState(): TrayState;
+  getTranslator(): {
+    t(key: string, values?: Record<string, string | number>): string;
+  };
   onShowWindow(): void;
   onToggleWindow(): void;
   onResumeSession(sessionId: string): void;
@@ -33,6 +36,7 @@ export function createTrayController({
   tray,
   buildMenu,
   getState,
+  getTranslator,
   onShowWindow,
   onToggleWindow,
   onResumeSession,
@@ -43,6 +47,7 @@ export function createTrayController({
     if (disposed) return;
     tray.setContextMenu(buildMenu(buildTrayMenuTemplate({
       ...getState(),
+      translate: (key, values) => getTranslator().t(key, values),
       onToggleWindow,
       onResumeSession,
       onExit

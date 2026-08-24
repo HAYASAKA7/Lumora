@@ -38,13 +38,49 @@ const runtime = (state: RuntimeSummary['state']): RuntimeSummary => ({
   errorCode: state === 'failed' ? 'PTY_RUNTIME_FAILED' : null
 });
 
+const englishTrayText: Record<string, string> = {
+  'shell.tray.show': 'Show Lumora',
+  'shell.tray.hide': 'Hide Lumora',
+  'shell.tray.running-agents': 'Running agents: {count}',
+  'shell.tray.recent-sessions': 'Recent sessions',
+  'shell.tray.no-recent-sessions': 'No recent sessions',
+  'shell.tray.running-suffix': 'Running',
+  'shell.tray.exit': 'Exit Lumora'
+};
+const translate = (key: string, values?: Record<string, string | number>) =>
+  (englishTrayText[key] ?? key).replace('{count}', String(values?.count ?? ''));
+
 describe('buildTrayMenuTemplate', () => {
+  it('uses the active translator for Lumora-owned tray text', () => {
+    const translations: Record<string, string> = {
+      'shell.tray.show': 'Lumora を表示',
+      'shell.tray.running-agents': '実行中のエージェント: 0',
+      'shell.tray.recent-sessions': '最近のセッション',
+      'shell.tray.no-recent-sessions': '最近のセッションはありません',
+      'shell.tray.exit': 'Lumora を終了'
+    };
+    const menu = buildTrayMenuTemplate({
+      windowVisible: false,
+      runtimes: [],
+      sessions: [],
+      translate: (key) => translations[key] ?? key,
+      onToggleWindow: vi.fn(),
+      onResumeSession: vi.fn(),
+      onExit: vi.fn()
+    });
+
+    expect(menu[0]).toMatchObject({ label: 'Lumora を表示' });
+    expect(menu[2]).toMatchObject({ label: '実行中のエージェント: 0' });
+    expect(menu[3]).toMatchObject({ label: '最近のセッション' });
+    expect(menu.at(-1)).toMatchObject({ label: 'Lumora を終了' });
+  });
   it('shows window visibility and counts only live agent runtimes', () => {
     const onToggleWindow = vi.fn();
     const menu = buildTrayMenuTemplate({
       windowVisible: false,
       runtimes: [runtime('launching'), runtime('running'), runtime('completed')],
       sessions: [],
+      translate,
       onToggleWindow,
       onResumeSession: vi.fn(),
       onExit: vi.fn()
@@ -66,6 +102,7 @@ describe('buildTrayMenuTemplate', () => {
       windowVisible: true,
       runtimes: [],
       sessions: [1, 2, 3, 4, 5, 6].map(session),
+      translate,
       onToggleWindow: vi.fn(),
       onResumeSession,
       onExit: vi.fn()
@@ -97,6 +134,7 @@ describe('buildTrayMenuTemplate', () => {
       windowVisible: true,
       runtimes: [running],
       sessions: [session(1), session(2)],
+      translate,
       onToggleWindow: vi.fn(),
       onResumeSession: vi.fn(),
       onExit: vi.fn()
@@ -114,6 +152,7 @@ describe('buildTrayMenuTemplate', () => {
       windowVisible: true,
       runtimes: [],
       sessions: [],
+      translate,
       onToggleWindow: vi.fn(),
       onResumeSession: vi.fn(),
       onExit

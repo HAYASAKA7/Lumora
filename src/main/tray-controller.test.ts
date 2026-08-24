@@ -25,6 +25,16 @@ describe('createTrayController', () => {
         runtimes: [] as RuntimeSummary[],
         sessions: [] as SessionSummary[]
       }),
+      getTranslator: () => ({
+        t: (key: string, values?: Record<string, string | number>) => ({
+          'shell.tray.show': 'Show Lumora',
+          'shell.tray.hide': 'Hide Lumora',
+          'shell.tray.running-agents': `Running agents: ${values?.count ?? 0}`,
+          'shell.tray.recent-sessions': 'Recent sessions',
+          'shell.tray.no-recent-sessions': 'No recent sessions',
+          'shell.tray.exit': 'Exit Lumora'
+        })[key] ?? key
+      }),
       onShowWindow,
       onToggleWindow: vi.fn(),
       onResumeSession: vi.fn(),

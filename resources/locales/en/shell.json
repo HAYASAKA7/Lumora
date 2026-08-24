@@ -48,6 +48,15 @@
     "skip-main": "Skip to main content",
     "route-status": "{route} · {status}"
   },
+  "tray": {
+    "show": "Show Lumora",
+    "hide": "Hide Lumora",
+    "running-agents": "Running agents: {count}",
+    "recent-sessions": "Recent sessions",
+    "no-recent-sessions": "No recent sessions",
+    "running-suffix": "Running",
+    "exit": "Exit Lumora"
+  },
   "topbar": {
     "local-control-plane": "Local control plane",
     "remote-control-plane": "Remote control plane",

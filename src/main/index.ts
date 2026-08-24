@@ -630,6 +630,12 @@ function createApplicationTray(): void {
       runtimes: terminalRuntime?.listRuntimes() ?? [],
       sessions: catalogRuntime?.service.getCatalog().sessions ?? []
     }),
+    getTranslator: () => {
+      if (localizationService === null) {
+        throw new Error('Localization is unavailable.');
+      }
+      return localizationService.getTranslator();
+    },
     onShowWindow: () => {
       void showOrCreateMainWindow();
     },
@@ -1153,6 +1159,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         mainWindow.webContents.send(IPC_CHANNELS.localizationChanged, snapshot);
       }
       targetWindowManager.broadcast(IPC_CHANNELS.localizationChanged, snapshot);
+      trayController?.refresh();
+      configureApplicationMenu(Menu, { platform });
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });

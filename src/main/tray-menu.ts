@@ -16,6 +16,7 @@ interface TrayMenuState {
   windowVisible: boolean;
   runtimes: readonly RuntimeSummary[];
   sessions: readonly SessionSummary[];
+  translate(key: string, values?: Record<string, string | number>): string;
   onToggleWindow(): void;
   onResumeSession(sessionId: string): void;
   onExit(): void;
@@ -29,20 +30,23 @@ function truncateLabel(value: string): string {
 function recentSessionItems(
   sessions: readonly SessionSummary[],
   runningSessionIds: ReadonlySet<string>,
-  onResumeSession: (sessionId: string) => void
+  onResumeSession: (sessionId: string) => void,
+  translate: TrayMenuState['translate']
 ): TrayMenuItem[] {
   const recent = [...sessions]
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     .slice(0, RECENT_SESSION_LIMIT);
 
   if (recent.length === 0) {
-    return [{ label: 'No recent sessions', enabled: false }];
+    return [{ label: translate('shell.tray.no-recent-sessions'), enabled: false }];
   }
 
   return recent.map((session) => ({
     label: truncateLabel(
       `${session.title} · ${providerDefinition(session.provider).displayName}${
-        runningSessionIds.has(session.id) ? ' · Running' : ''
+        runningSessionIds.has(session.id)
+          ? ` · ${translate('shell.tray.running-suffix')}`
+          : ''
       }`
     ),
     click: () => onResumeSession(session.id)
@@ -53,6 +57,7 @@ export function buildTrayMenuTemplate({
   windowVisible,
   runtimes,
   sessions,
+  translate,
   onToggleWindow,
   onResumeSession,
   onExit
@@ -68,16 +73,24 @@ export function buildTrayMenuTemplate({
 
   return [
     {
-      label: windowVisible ? 'Hide Lumora' : 'Show Lumora',
+      label: translate(windowVisible ? 'shell.tray.hide' : 'shell.tray.show'),
       click: onToggleWindow
     },
     { type: 'separator' },
-    { label: `Running agents: ${runningAgents.length}`, enabled: false },
     {
-      label: 'Recent sessions',
-      submenu: recentSessionItems(sessions, runningSessionIds, onResumeSession)
+      label: translate('shell.tray.running-agents', { count: runningAgents.length }),
+      enabled: false
+    },
+    {
+      label: translate('shell.tray.recent-sessions'),
+      submenu: recentSessionItems(
+        sessions,
+        runningSessionIds,
+        onResumeSession,
+        translate
+      )
     },
     { type: 'separator' },
-    { label: 'Exit Lumora', click: onExit }
+    { label: translate('shell.tray.exit'), click: onExit }
   ];
 }
