@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +11,10 @@ import type {
   ProviderId
 } from '../../../shared/contracts';
 import type { DeveloperEnvironmentStatus } from '../environment/DeveloperEnvironment';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
 import { SettingsView, type SettingsCategory } from './SettingsView';
 
 vi.mock('../providers/ProviderSettings', () => ({
@@ -167,7 +171,7 @@ function Harness({
 
 describe('SettingsView', () => {
   it('selects Providers and keeps every ready category mounted', () => {
-    render(<Harness />);
+    renderWithLocalization(<Harness />);
 
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
@@ -211,7 +215,7 @@ describe('SettingsView', () => {
   });
 
   it('changes the visible category when a tab is clicked', () => {
-    render(<Harness />);
+    renderWithLocalization(<Harness />);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Launch' }));
 
@@ -228,7 +232,7 @@ describe('SettingsView', () => {
   });
 
   it('cycles with arrow keys and supports Home and End', () => {
-    render(<Harness />);
+    renderWithLocalization(<Harness />);
     const general = screen.getByRole('tab', { name: 'General' });
 
     general.focus();
@@ -255,7 +259,7 @@ describe('SettingsView', () => {
   });
 
   it('keeps category wrappers while catalog-dependent content is unavailable', () => {
-    render(<Harness catalogReady={false} />);
+    renderWithLocalization(<Harness catalogReady={false} />);
 
     expect(document.getElementById('settings-panel-providers')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-general')).toBeInTheDocument();
@@ -280,7 +284,7 @@ describe('SettingsView', () => {
 
   it('activates Session Transfer lazily and passes completed imports upward', () => {
     const onSessionImportCompleted = vi.fn().mockResolvedValue(undefined);
-    render(<Harness onSessionImportCompleted={onSessionImportCompleted} />);
+    renderWithLocalization(<Harness onSessionImportCompleted={onSessionImportCompleted} />);
 
     const transferContent = screen.getByText('Transfer content');
     expect(transferContent).toHaveAttribute('data-active', 'false');
@@ -296,7 +300,7 @@ describe('SettingsView', () => {
     const onRefreshEnvironment = vi.fn();
     const onKeyboardSettingsChange = vi.fn();
     const onGeneralSettingsChange = vi.fn();
-    render(
+    renderWithLocalization(
       <Harness
         onKeyboardSettingsChange={onKeyboardSettingsChange}
         onGeneralSettingsChange={onGeneralSettingsChange}
@@ -320,5 +324,23 @@ describe('SettingsView', () => {
     expect(onRefreshProviders).toHaveBeenCalledOnce();
     expect(onRefreshEnvironment).toHaveBeenCalledOnce();
     expect(onKeyboardSettingsChange).toHaveBeenCalledWith(KEYBOARD_SETTINGS);
+  });
+
+  it('uses localized settings category labels and accessibility text', () => {
+    renderWithLocalization(<Harness />, {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      locale: 'ja',
+      formattingLocale: 'ja',
+      messages: {
+        ...TEST_LOCALIZATION_SNAPSHOT.messages,
+        'settings.tabs.general': '一般',
+        'settings.tabs.appearance': '外観',
+        'settings.categories-label': '設定カテゴリ'
+      }
+    });
+
+    expect(screen.getByRole('tab', { name: '一般' })).toBeVisible();
+    expect(screen.getByRole('tab', { name: '外観' })).toBeVisible();
+    expect(screen.getByRole('tablist')).toHaveAccessibleName('設定カテゴリ');
   });
 });

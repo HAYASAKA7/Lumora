@@ -1,4 +1,11 @@
-import type { GeneralSettings } from '../../../shared/contracts';
+import { useState } from 'react';
+
+import type {
+  GeneralSettings,
+  LocaleWarning,
+  LumoraApi
+} from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
 
 interface GeneralSettingsPanelProps {
@@ -6,6 +13,7 @@ interface GeneralSettingsPanelProps {
   saving: boolean;
   saveError: string | null;
   onChange(settings: GeneralSettings): void;
+  api?: Pick<LumoraApi, 'openUserLocaleFolder' | 'reloadLocalization'>;
 }
 
 type BooleanGeneralSettingKey =
@@ -21,85 +29,134 @@ type BooleanGeneralSettingKey =
 
 interface BooleanGeneralSettingDefinition {
   key: BooleanGeneralSettingKey;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }
 
 const GENERAL_SETTING_DEFINITIONS = {
   startMaximized: {
     key: 'startMaximized',
-    label: 'Start with a maximized window',
-    description:
-      'Open Lumora maximized on the next launch while preserving your normal window size.'
+    labelKey: 'settings.general.start-maximized',
+    descriptionKey: 'settings.general.start-maximized-description'
   },
   checkProviderUpdatesAutomatically: {
     key: 'checkProviderUpdatesAutomatically',
-    label: 'Check provider updates automatically',
-    description:
-      'Check enabled agent providers for newer releases when provider settings open.'
+    labelKey: 'settings.general.provider-updates',
+    descriptionKey: 'settings.general.provider-updates-description'
   },
   autoExpandSidebar: {
     key: 'autoExpandSidebar',
-    label: 'Auto-expand sidebar when navigating',
-    description:
-      'Expand a collapsed sidebar when you choose a destination or use a navigation shortcut.'
+    labelKey: 'settings.general.auto-expand-sidebar',
+    descriptionKey: 'settings.general.auto-expand-sidebar-description'
   },
   showInformationalNotices: {
     key: 'showInformationalNotices',
-    label: 'Show informational notices',
-    description:
-      'Display non-critical diagnostics and helpful guidance throughout Lumora.'
+    labelKey: 'settings.general.show-notices',
+    descriptionKey: 'settings.general.show-notices-description'
   },
   showUnavailableWorkspaces: {
     key: 'showUnavailableWorkspaces',
-    label: 'Show unavailable workspaces',
-    description:
-      'Keep workspaces visible when their folders are not currently available.'
+    labelKey: 'settings.general.show-unavailable-workspaces',
+    descriptionKey: 'settings.general.show-unavailable-workspaces-description'
   },
   showUnusableSessions: {
     key: 'showUnusableSessions',
-    label: 'Show unusable sessions',
-    description:
-      'Keep sessions visible when Lumora cannot currently resume them.'
+    labelKey: 'settings.general.show-unusable-sessions',
+    descriptionKey: 'settings.general.show-unusable-sessions-description'
   },
   warnBeforeApplicationQuit: {
     key: 'warnBeforeApplicationQuit',
-    label: 'Warn before exiting Lumora with active agents',
-    description:
-      'Ask for confirmation before a full Lumora exit stops local or remote agents.'
+    labelKey: 'settings.general.warn-quit',
+    descriptionKey: 'settings.general.warn-quit-description'
   },
   warnBeforeRemoteDisconnect: {
     key: 'warnBeforeRemoteDisconnect',
-    label: 'Warn before disconnecting a remote computer with active agents',
-    description:
-      'Ask for confirmation before disconnecting stops agents on that remote computer.'
+    labelKey: 'settings.general.warn-remote',
+    descriptionKey: 'settings.general.warn-remote-description'
   },
   crossAgentWorkflowEnabled: {
     key: 'crossAgentWorkflowEnabled',
-    label: 'Enable cross-agent session handoff',
-    description:
-      'Start a new provider session from a temporary local copy of another provider session.'
+    labelKey: 'settings.general.cross-agent-enabled',
+    descriptionKey: 'settings.general.cross-agent-description'
   }
 } as const satisfies Record<BooleanGeneralSettingKey, BooleanGeneralSettingDefinition>;
 
 export function GeneralSettingsPanel({
+  api = window.lumora,
   settings,
   saving,
   saveError,
   onChange
 }: GeneralSettingsPanelProps) {
+  const { snapshot, t } = useLocalization();
+  const [localeActionStatus, setLocaleActionStatus] = useState<string | null>(null);
+  const [localeActionError, setLocaleActionError] = useState<string | null>(null);
+  const localeOptions: Array<{
+    value: GeneralSettings['languagePreference'];
+    label: string;
+  }> = [
+    {
+      value: 'system',
+      label: t('settings.general.language-system-active', {
+        language: snapshot.availableLocales.find(
+          (locale) => locale.locale === snapshot.locale
+        )?.displayName ?? snapshot.locale
+      })
+    },
+    ...snapshot.availableLocales.map((locale) => {
+      let translatedName = locale.displayName;
+      try {
+        translatedName = new Intl.DisplayNames(snapshot.formattingLocale, {
+          type: 'language'
+        }).of(locale.locale) ?? locale.displayName;
+      } catch {
+        // The manifest self-name remains a stable fallback.
+      }
+      return {
+        value: locale.locale,
+        label: translatedName === locale.displayName
+          ? locale.displayName
+          : `${locale.displayName} — ${translatedName}`
+      };
+    })
+  ];
+  if (
+    settings.languagePreference !== 'system' &&
+    !snapshot.availableLocales.some(
+      (locale) => locale.locale === settings.languagePreference
+    )
+  ) {
+    localeOptions.push({
+      value: settings.languagePreference,
+      label: t('settings.general.language-unavailable', {
+        locale: settings.languagePreference
+      })
+    });
+  }
+
+  const warningText = (warning: LocaleWarning): string => {
+    const keys: Record<LocaleWarning['code'], string> = {
+      'invalid-user-pack': 'settings.general.language-warning-invalid',
+      'unsupported-schema': 'settings.general.language-warning-schema',
+      'catalog-version-mismatch': 'settings.general.language-warning-catalog',
+      'unknown-message-key': 'settings.general.language-warning-key'
+    };
+    return t(keys[warning.code]);
+  };
+
   const renderBooleanSetting = (setting: BooleanGeneralSettingDefinition) => {
     const descriptionId = `general-${setting.key}-description`;
+    const label = t(setting.labelKey);
     return (
       <label className="general-setting-row" key={setting.key}>
         <span className="general-setting-copy">
-          <strong>{setting.label}</strong>
-          <span id={descriptionId}>{setting.description}</span>
+          <strong>{label}</strong>
+          <span id={descriptionId}>{t(setting.descriptionKey)}</span>
         </span>
         <span className="settings-switch">
           <input
             aria-describedby={descriptionId}
-            aria-label={setting.label}
+            aria-label={label}
             checked={settings[setting.key]}
             disabled={saving}
             onChange={(event) => onChange({
@@ -124,11 +181,104 @@ export function GeneralSettingsPanel({
     >
       <header className="provider-panel-header">
         <div>
-          <p className="card-label">Interface</p>
-          <h2 id="general-settings-title">General</h2>
-          <p>Choose how Lumora starts, navigates, checks, and transfers context.</p>
+          <p className="card-label">{t('settings.general.eyebrow')}</p>
+          <h2 id="general-settings-title">{t('settings.general.title')}</h2>
+          <p>{t('settings.general.description')}</p>
         </div>
       </header>
+
+      <section
+        aria-labelledby="general-language-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-language-title">
+          {t('settings.general.language-title')}
+        </h3>
+        <div className="general-setting-group-rows">
+          <div className="general-setting-row general-setting-row-control">
+            <span className="general-setting-copy">
+              <strong>{t('settings.general.language-title')}</strong>
+              <span id="general-language-description">
+                {t('settings.general.language-description')}
+              </span>
+            </span>
+            <SelectMenu
+              ariaDescribedBy="general-language-description"
+              disabled={saving}
+              label={t('settings.general.language-title')}
+              onChange={(value) => onChange({
+                ...settings,
+                languagePreference: value
+              })}
+              options={localeOptions}
+              value={settings.languagePreference}
+            />
+          </div>
+          <div className="general-setting-row general-setting-row-control">
+            <span className="general-setting-copy">
+              <strong>{t('settings.general.open-language-folder')}</strong>
+              <span>{t('settings.general.language-description')}</span>
+            </span>
+            <div className="provider-panel-actions">
+              <button
+                className="secondary-button"
+                data-lumora-command
+                disabled={saving}
+                onClick={() => {
+                  setLocaleActionError(null);
+                  void api.openUserLocaleFolder().catch(() => {
+                    setLocaleActionError(t('settings.general.language-open-failed'));
+                  });
+                }}
+                tabIndex={-1}
+                type="button"
+              >
+                {t('settings.general.open-language-folder')}
+              </button>
+              <button
+                className="secondary-button"
+                data-lumora-command
+                disabled={saving}
+                onClick={() => {
+                  setLocaleActionError(null);
+                  setLocaleActionStatus(null);
+                  void api.reloadLocalization().then(
+                    (result) => {
+                      const rejected = result.rejectedUserPacks === 0
+                        ? ''
+                        : ` ${t('settings.general.language-rejected', {
+                            count: result.rejectedUserPacks
+                          })}`;
+                      setLocaleActionStatus(
+                        `${t('settings.general.language-reload-complete')}${rejected}`
+                      );
+                    },
+                    () => setLocaleActionError(
+                      t('settings.general.language-reload-failed')
+                    )
+                  );
+                }}
+                tabIndex={-1}
+                type="button"
+              >
+                {t('settings.general.reload-languages')}
+              </button>
+            </div>
+          </div>
+        </div>
+        {localeActionStatus === null ? null : <p role="status">{localeActionStatus}</p>}
+        {localeActionError === null ? null : (
+          <p className="general-setting-error" role="alert">{localeActionError}</p>
+        )}
+        {snapshot.warnings.length === 0 ? null : (
+          <div className="general-setting-error" role="alert">
+            {[...new Set(snapshot.warnings.map(warningText))].map((message) => (
+              <p key={message}>{message}</p>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section
         aria-labelledby="general-window-behavior-title"
@@ -136,21 +286,21 @@ export function GeneralSettingsPanel({
         role="group"
       >
         <h3 className="general-setting-group-title" id="general-window-behavior-title">
-          Window behavior
+          {t('settings.general.startup-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.startMaximized)}
           <label className="general-setting-row">
             <span className="general-setting-copy">
-              <strong>Keep Lumora running after closing the window</strong>
+              <strong>{t('settings.general.close-behavior')}</strong>
               <span id="general-window-close-description">
-                Hide Lumora in the tray instead of exiting and stopping managed agents.
+                {t('settings.general.close-behavior-description')}
               </span>
             </span>
             <span className="settings-switch">
               <input
                 aria-describedby="general-window-close-description"
-                aria-label="Keep Lumora running after closing the window"
+                aria-label={t('settings.general.close-behavior')}
                 checked={settings.windowCloseBehavior === 'hide_to_tray'}
                 disabled={saving}
                 onChange={(event) => onChange({
@@ -177,7 +327,7 @@ export function GeneralSettingsPanel({
         role="group"
       >
         <h3 className="general-setting-group-title" id="general-sidebar-notices-title">
-          Sidebar and notices
+          {t('settings.general.notices-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.autoExpandSidebar)}
@@ -191,7 +341,7 @@ export function GeneralSettingsPanel({
         role="group"
       >
         <h3 className="general-setting-group-title" id="general-catalog-visibility-title">
-          Catalog visibility
+          {t('settings.general.workspace-visibility-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showUnavailableWorkspaces)}
@@ -208,7 +358,7 @@ export function GeneralSettingsPanel({
           className="general-setting-group-title"
           id="general-provider-maintenance-title"
         >
-          Provider maintenance
+          {t('settings.general.provider-maintenance-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(
@@ -223,21 +373,20 @@ export function GeneralSettingsPanel({
         role="group"
       >
         <h3 className="general-setting-group-title" id="general-remote-behavior-title">
-          Remote behavior
+          {t('settings.general.remote-title')}
         </h3>
         <div className="general-setting-group-rows">
           <label className="general-setting-row">
             <span className="general-setting-copy">
-              <strong>Disconnect when a remote window closes</strong>
+              <strong>{t('settings.general.remote-disconnect')}</strong>
               <span id="general-remote-window-close-description">
-                Close its SSH connection when the remote Lumora window closes.
-                Running remote agents require confirmation first.
+                {t('settings.general.remote-disconnect-description')}
               </span>
             </span>
             <span className="settings-switch">
               <input
                 aria-describedby="general-remote-window-close-description"
-                aria-label="Disconnect when a remote window closes"
+                aria-label={t('settings.general.remote-disconnect')}
                 checked={settings.remoteWindowCloseBehavior === 'disconnect'}
                 disabled={saving}
                 onChange={(event) => onChange({
@@ -267,28 +416,28 @@ export function GeneralSettingsPanel({
           className="general-setting-group-title"
           id="general-cross-agent-handoff-title"
         >
-          Cross-agent handoff
+          {t('settings.general.cross-agent-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.crossAgentWorkflowEnabled)}
           <div className="general-setting-row general-setting-row-control">
             <span className="general-setting-copy">
-              <strong>Temporary handoff retention</strong>
+              <strong>{t('settings.general.retention-days')}</strong>
               <span id="general-handoff-retention-description">
-                Automatically delete Lumora's managed session copies after this time.
+                {t('settings.general.retention-description')}
               </span>
             </span>
             <SelectMenu
               ariaDescribedBy="general-handoff-retention-description"
               disabled={saving || !settings.crossAgentWorkflowEnabled}
-              label="Temporary handoff retention"
+              label={t('settings.general.retention-days')}
               onChange={(value) => onChange({
                 ...settings,
                 crossAgentHandoffRetentionDays: Number(value)
               })}
               options={[1, 7, 30, 60, 90, 180, 365].map((days) => ({
                 value: String(days),
-                label: days === 1 ? '1 day' : `${days} days`
+                label: t('settings.general.days', { count: days })
               }))}
               value={String(settings.crossAgentHandoffRetentionDays)}
             />

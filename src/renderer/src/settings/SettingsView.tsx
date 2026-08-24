@@ -14,6 +14,7 @@ import {
   type ProviderScanStatus
 } from '../providers/ProviderSettings';
 import type { ProviderUpdatesStatus } from '../providers/useProviderUpdates';
+import { useLocalization } from '../localization/useLocalization';
 import {
   DeveloperEnvironmentPanel,
   type DeveloperEnvironmentStatus
@@ -75,16 +76,16 @@ interface SettingsViewProps {
 }
 
 const SETTINGS_CATEGORIES = [
-  { id: 'general', label: 'General' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'providers', label: 'Providers' },
-  { id: 'environment', label: 'Environment' },
-  { id: 'launch', label: 'Launch' },
-  { id: 'security', label: 'Security' },
-  { id: 'keyboard', label: 'Keyboard' },
-  { id: 'transfer', label: 'Transfer' },
-  { id: 'diagnostics', label: 'Diagnostics' },
-  { id: 'about', label: 'About' }
+  { id: 'general', labelKey: 'settings.tabs.general' },
+  { id: 'appearance', labelKey: 'settings.tabs.appearance' },
+  { id: 'providers', labelKey: 'settings.tabs.providers' },
+  { id: 'environment', labelKey: 'settings.tabs.environment' },
+  { id: 'launch', labelKey: 'settings.tabs.launch' },
+  { id: 'security', labelKey: 'settings.tabs.security' },
+  { id: 'keyboard', labelKey: 'settings.tabs.shortcuts' },
+  { id: 'transfer', labelKey: 'settings.tabs.transfer' },
+  { id: 'diagnostics', labelKey: 'settings.tabs.diagnostics' },
+  { id: 'about', labelKey: 'settings.tabs.about' }
 ] as const;
 
 export function SettingsView({
@@ -119,6 +120,7 @@ export function SettingsView({
   sessions,
   workspaces
 }: SettingsViewProps) {
+  const { t } = useLocalization();
   const tabRefs = useRef(new Map<SettingsCategory, HTMLButtonElement>());
 
   const selectAndFocus = (category: SettingsCategory) => {
@@ -158,7 +160,7 @@ export function SettingsView({
   return (
     <div className="settings-layout">
       <div
-        aria-label="Settings categories"
+        aria-label={t('settings.categories-label')}
         className="settings-category-tabs"
         role="tablist"
       >
@@ -184,7 +186,7 @@ export function SettingsView({
               tabIndex={selected ? 0 : -1}
               type="button"
             >
-              {category.label}
+              {t(category.labelKey)}
             </button>
           );
         })}

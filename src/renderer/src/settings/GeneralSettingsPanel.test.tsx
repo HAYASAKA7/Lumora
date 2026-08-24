@@ -1,13 +1,21 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  type LocalizationSnapshot,
+  type LumoraApi
+} from '../../../shared/contracts';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
 import { GeneralSettingsPanel } from './GeneralSettingsPanel';
 
 describe('GeneralSettingsPanel', () => {
   it('renders every general preference and reports complete settings changes', () => {
     const onChange = vi.fn();
-    render(
+    renderWithLocalization(
       <GeneralSettingsPanel
         onChange={onChange}
         saveError={null}
@@ -163,7 +171,7 @@ describe('GeneralSettingsPanel', () => {
   });
 
   it('disables the switch while saving and displays an unsuppressible error', () => {
-    render(
+    renderWithLocalization(
       <GeneralSettingsPanel
         onChange={vi.fn()}
         saveError="Lumora could not save this setting."
@@ -181,5 +189,71 @@ describe('GeneralSettingsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Lumora could not save this setting.'
     );
+  });
+
+  it('offers available languages, preserves every setting, and manages user packs', async () => {
+    const onChange = vi.fn();
+    const snapshot: LocalizationSnapshot = {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      preference: 'fr',
+      availableLocales: [
+        TEST_LOCALIZATION_SNAPSHOT.availableLocales[0]!,
+        {
+          locale: 'ja',
+          displayName: '日本語',
+          direction: 'ltr',
+          sources: ['bundled'],
+          catalogVersion: 1
+        }
+      ],
+      warnings: [{
+        code: 'invalid-user-pack',
+        locale: 'fr',
+        path: 'C:\\private\\locales\\fr',
+        message: 'Internal parser detail must not be displayed.'
+      }]
+    };
+    const api = {
+      openUserLocaleFolder: vi.fn().mockResolvedValue({ opened: true }),
+      reloadLocalization: vi.fn().mockResolvedValue({
+        snapshot,
+        loadedUserPacks: 1,
+        rejectedUserPacks: 1
+      })
+    } as unknown as LumoraApi;
+
+    renderWithLocalization(
+      <GeneralSettingsPanel
+        api={api}
+        onChange={onChange}
+        saveError={null}
+        saving={false}
+        settings={{ ...DEFAULT_GENERAL_SETTINGS, languagePreference: 'fr' }}
+      />,
+      snapshot
+    );
+
+    const language = screen.getByRole('button', { name: 'Language' });
+    expect(language).toHaveTextContent('fr (Unavailable)');
+    fireEvent.click(language);
+    expect(screen.getByRole('option', { name: /System default/ })).toBeVisible();
+    expect(screen.getByRole('option', { name: /日本語/ })).toBeVisible();
+    fireEvent.click(screen.getByRole('option', { name: /日本語/ }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      languagePreference: 'ja'
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open language folder' }));
+    expect(api.openUserLocaleFolder).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Reload languages' }));
+    expect(api.reloadLocalization).toHaveBeenCalledOnce();
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Languages reloaded. 1 language pack could not be loaded.'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'A custom language pack could not be loaded.'
+    );
+    expect(screen.queryByText(/private\\locales|Internal parser/)).not.toBeInTheDocument();
   });
 });
