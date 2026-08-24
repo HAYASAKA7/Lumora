@@ -28,6 +28,11 @@ import {
   parseKeyboardSettings,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  LanguagePreferenceSchema,
+  LocaleManifestSchema,
+  LocaleReloadResultSchema,
+  LocaleSummarySchema,
+  LocalizationSnapshotSchema,
   parseStoredGeneralSettings,
   PROVIDER_IDS,
   ProviderIdSchema,
@@ -196,6 +201,68 @@ describe('execution target contracts', () => {
 
     expect(lifecycle.RemoteLifecycleSnapshotSchema).toBeDefined();
     expect(lifecycle.RemoteLifecycleEventSchema).toBeDefined();
+  });
+});
+
+describe('localization contracts', () => {
+  const localeSummary = {
+    locale: 'zh-Hans',
+    displayName: '简体中文',
+    direction: 'ltr',
+    sources: ['bundled', 'user'],
+    catalogVersion: 1
+  } as const;
+
+  it('accepts system and canonicalizable BCP47 language preferences', () => {
+    expect(LanguagePreferenceSchema.parse('system')).toBe('system');
+    expect(LanguagePreferenceSchema.parse('zh-Hans')).toBe('zh-Hans');
+    expect(LanguagePreferenceSchema.parse('en-US')).toBe('en-US');
+    expect(LanguagePreferenceSchema.safeParse('not_a_locale').success).toBe(false);
+    expect(LanguagePreferenceSchema.safeParse('').success).toBe(false);
+  });
+
+  it('validates locale manifests and summaries', () => {
+    expect(LocaleManifestSchema.parse({
+      schemaVersion: 1,
+      catalogVersion: 1,
+      locale: 'zh-Hans',
+      displayName: '简体中文',
+      direction: 'ltr'
+    })).toMatchObject({ locale: 'zh-Hans', direction: 'ltr' });
+    expect(LocaleManifestSchema.safeParse({
+      schemaVersion: 2,
+      catalogVersion: 1,
+      locale: 'zh-Hans',
+      displayName: '简体中文',
+      direction: 'ltr'
+    }).success).toBe(false);
+    expect(LocaleSummarySchema.parse(localeSummary)).toEqual(localeSummary);
+  });
+
+  it('validates bounded localization snapshots and reload results', () => {
+    const snapshot = {
+      revision: 3,
+      preference: 'system',
+      locale: 'zh-Hans',
+      formattingLocale: 'zh-CN',
+      direction: 'ltr',
+      availableLocales: [localeSummary],
+      messages: {
+        'common.actions.cancel': '取消',
+        'catalog.sessions.count': '{count, plural, other {# 个会话}}'
+      },
+      warnings: []
+    } as const;
+    expect(LocalizationSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(LocalizationSnapshotSchema.safeParse({
+      ...snapshot,
+      messages: { '__proto__.polluted': 'yes' }
+    }).success).toBe(false);
+    expect(LocaleReloadResultSchema.parse({
+      snapshot,
+      loadedUserPacks: 1,
+      rejectedUserPacks: 0
+    }).loadedUserPacks).toBe(1);
   });
 });
 
@@ -1544,7 +1611,8 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 9,
+      version: 10,
+      languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1683,7 +1751,11 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
-    const versionEight = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    const versionNine = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    versionNine.version = 9;
+    delete versionNine.languagePreference;
+    expect(parseStoredGeneralSettings(versionNine)).toEqual(DEFAULT_GENERAL_SETTINGS);
+    const versionEight = { ...versionNine } as Record<string, unknown>;
     versionEight.version = 8;
     delete versionEight.warnBeforeApplicationQuit;
     delete versionEight.warnBeforeRemoteDisconnect;

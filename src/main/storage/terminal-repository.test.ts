@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
+  PROVIDER_IDS,
   type GeneralSettings,
   type KeyboardSettings,
   type RuntimeSummary,
@@ -403,6 +404,41 @@ describe('TerminalRepository', () => {
     ).run('{broken');
     expect(repository.getGeneralSettings()).toEqual(DEFAULT_GENERAL_SETTINGS);
     database.exec('PRAGMA ignore_check_constraints = OFF');
+  });
+
+  it('shares the language preference globally without sharing target providers', () => {
+    const remoteId = '0198f8b6-18f3-7ca0-9f0f-123456789a11';
+    database.prepare(
+      `INSERT INTO execution_target (
+        id, kind, display_name, platform, architecture, connection_state,
+        helper_version, protocol_version, capabilities_json,
+        last_connected_at, last_scanned_at
+      ) VALUES (?, 'remote', 'Build host', 'linux', 'x64', 'offline',
+        NULL, NULL, '[]', NULL, NULL)`
+    ).run(remoteId);
+    const remoteRepository = new TerminalRepository(database, remoteId);
+
+    repository.saveGeneralSettings({
+      ...DEFAULT_GENERAL_SETTINGS,
+      languagePreference: 'zh-Hans',
+      enabledProviders: ['codex', 'claude']
+    }, timestamp);
+
+    expect(remoteRepository.getGeneralSettings()).toMatchObject({
+      languagePreference: 'zh-Hans',
+      enabledProviders: [...PROVIDER_IDS]
+    });
+
+    remoteRepository.saveGeneralSettings({
+      ...remoteRepository.getGeneralSettings(),
+      languagePreference: 'ja',
+      enabledProviders: ['kimi']
+    }, '2026-07-11T05:00:00.000Z');
+
+    expect(repository.getGeneralSettings()).toMatchObject({
+      languagePreference: 'ja',
+      enabledProviders: ['codex', 'claude']
+    });
   });
 
   it('migrates former local target General values into the global record', () => {

@@ -16,6 +16,7 @@ const TARGET_SETTINGS_KEY = 'generalSettings.target.v1';
 
 type GlobalGeneralSettings = Pick<
   GeneralSettings,
+  | 'languagePreference'
   | 'showInformationalNotices'
   | 'showUnavailableWorkspaces'
   | 'showUnusableSessions'
@@ -51,6 +52,7 @@ function normalizeTimestamp(value: string): string {
 
 function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
   return {
+    languagePreference: settings.languagePreference,
     showInformationalNotices: settings.showInformationalNotices,
     showUnavailableWorkspaces: settings.showUnavailableWorkspaces,
     showUnusableSessions: settings.showUnusableSessions,
@@ -113,7 +115,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 9,
+      version: 10,
       ...globalProjection(global),
       ...targetProjection(target)
     });
@@ -151,7 +153,7 @@ export class GeneralSettingsStorage {
       const current = GeneralSettingsSchema.safeParse({
         ...fallback,
         ...objectValue(parseJson(currentRow.value_json)),
-        version: 9
+        version: 10
       });
       return current.success ? current.data : fallback;
     }
@@ -173,7 +175,7 @@ export class GeneralSettingsStorage {
       ...(localTargetRow === undefined
         ? {}
         : objectValue(parseJson(localTargetRow.value_json))),
-      version: 9
+      version: 10
     });
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
@@ -183,7 +185,7 @@ export class GeneralSettingsStorage {
       ...(legacyGlobalRow === undefined
         ? {}
         : objectValue(parseJson(legacyGlobalRow.value_json))),
-      version: 9
+      version: 10
     });
     if (!parsed.success) return fallback;
     this.writeGlobal(globalProjection(parsed.data), new Date().toISOString());
@@ -204,7 +206,7 @@ export class GeneralSettingsStorage {
     const parsed = GeneralSettingsSchema.safeParse({
       ...fallback,
       ...objectValue(parseJson(row.value_json)),
-      version: 9
+      version: 10
     });
     return parsed.success ? parsed.data : fallback;
   }

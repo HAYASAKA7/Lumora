@@ -1055,8 +1055,99 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
   backgroundPosition: 'center'
 } as const satisfies AppearanceSettings;
 
+const LocaleTagSchema = z.string().trim().min(2).max(64).refine(
+  (value) => {
+    try {
+      return Intl.getCanonicalLocales(value).length === 1;
+    } catch {
+      return false;
+    }
+  },
+  { message: 'Expected a valid BCP47 language tag.' }
+);
+
+export const LanguagePreferenceSchema = z.union([
+  z.literal('system'),
+  LocaleTagSchema
+]);
+export const LocaleDirectionSchema = z.enum(['ltr', 'rtl']);
+export const LocaleManifestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  catalogVersion: z.number().int().positive(),
+  locale: LocaleTagSchema,
+  displayName: z.string().trim().min(1).max(128),
+  direction: LocaleDirectionSchema
+});
+export const LocaleSummarySchema = z.strictObject({
+  locale: LocaleTagSchema,
+  displayName: z.string().trim().min(1).max(128),
+  direction: LocaleDirectionSchema,
+  sources: z.array(z.enum(['bundled', 'user'])).min(1).max(2),
+  catalogVersion: z.number().int().positive()
+});
+export const LocaleWarningSchema = z.strictObject({
+  code: z.enum([
+    'catalog-version-mismatch',
+    'invalid-user-pack',
+    'unsupported-schema',
+    'unknown-message-key'
+  ]),
+  locale: LocaleTagSchema.nullable(),
+  path: z.string().min(1).max(1024).nullable(),
+  message: z.string().trim().min(1).max(2048)
+});
+
+const LocalizationMessageKeySchema = z.string().trim().min(3).max(512).refine(
+  (value) => {
+    const segments = value.split('.');
+    return segments.length >= 2 && segments.every((segment) =>
+      /^[a-z][a-z0-9-]*$/.test(segment) &&
+      segment !== '__proto__' &&
+      segment !== 'prototype' &&
+      segment !== 'constructor'
+    );
+  },
+  { message: 'Expected a safe semantic localization key.' }
+);
+const LocalizationMessagesSchema = z.record(
+  LocalizationMessageKeySchema,
+  z.string().max(16_384)
+).superRefine((messages, context) => {
+  if (Object.keys(messages).length > 10_000) {
+    context.addIssue({
+      code: 'custom',
+      message: 'A localization snapshot cannot contain more than 10,000 messages.'
+    });
+  }
+});
+
+export const LocalizationSnapshotSchema = z.strictObject({
+  revision: z.number().int().nonnegative(),
+  preference: LanguagePreferenceSchema,
+  locale: LocaleTagSchema,
+  formattingLocale: LocaleTagSchema,
+  direction: LocaleDirectionSchema,
+  availableLocales: z.array(LocaleSummarySchema).min(1).max(64),
+  messages: LocalizationMessagesSchema,
+  warnings: z.array(LocaleWarningSchema).max(64)
+});
+export const LocaleReloadResultSchema = z.strictObject({
+  snapshot: LocalizationSnapshotSchema,
+  loadedUserPacks: z.number().int().nonnegative().max(64),
+  rejectedUserPacks: z.number().int().nonnegative().max(64)
+});
+
+export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
+export type LocaleDirection = z.infer<typeof LocaleDirectionSchema>;
+export type LocaleManifest = z.infer<typeof LocaleManifestSchema>;
+export type LocaleSummary = z.infer<typeof LocaleSummarySchema>;
+export type LocaleWarning = z.infer<typeof LocaleWarningSchema>;
+export type LocalizationSnapshot = z.infer<typeof LocalizationSnapshotSchema>;
+export type LocaleReloadResult = z.infer<typeof LocaleReloadResultSchema>;
+
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(9),
+  version: z.literal(10),
+  languagePreference: LanguagePreferenceSchema,
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
   showUnusableSessions: z.boolean(),
@@ -1226,7 +1317,8 @@ export type ApplicationQuitResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 9,
+  version: 10,
+  languagePreference: 'system',
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
   showUnusableSessions: true,
@@ -1243,7 +1335,12 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
 
-const VersionEightGeneralSettingsSchema = GeneralSettingsSchema.omit({
+const VersionNineGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  languagePreference: true
+}).extend({ version: z.literal(9) });
+
+const VersionEightGeneralSettingsSchema = VersionNineGeneralSettingsSchema.omit({
   version: true,
   warnBeforeApplicationQuit: true,
   warnBeforeRemoteDisconnect: true
@@ -1334,11 +1431,21 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionNine = VersionNineGeneralSettingsSchema.safeParse(value);
+  if (versionNine.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionNine.data,
+      version: 10,
+      languagePreference: 'system'
+    });
+  }
+
   const versionEight = VersionEightGeneralSettingsSchema.safeParse(value);
   if (versionEight.success) {
     return GeneralSettingsSchema.parse({
       ...versionEight.data,
-      version: 9,
+      version: 10,
+      languagePreference: 'system',
       warnBeforeApplicationQuit: true,
       warnBeforeRemoteDisconnect: true
     });
@@ -1349,7 +1456,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSeven.data,
-      version: 9,
+      version: 10,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true
     });
@@ -1360,7 +1467,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSix.data,
-      version: 9,
+      version: 10,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true
@@ -1372,7 +1479,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFive.data,
-      version: 9,
+      version: 10,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1391,7 +1498,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 9
+      version: 10
     });
   }
 
@@ -1400,7 +1507,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 9
+      version: 10
     });
   }
 
@@ -1409,7 +1516,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 9
+      version: 10
     });
   }
 
