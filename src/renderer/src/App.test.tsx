@@ -253,6 +253,7 @@ interface CatalogApiOverrides {
   claimStartupPresentation?: ReturnType<typeof vi.fn>;
   completeStartupPresentation?: ReturnType<typeof vi.fn>;
   scanDeveloperEnvironment?: ReturnType<typeof vi.fn>;
+  checkProviderUpdates?: ReturnType<typeof vi.fn>;
   openNodeDownloadPage?: ReturnType<typeof vi.fn>;
   getCatalog?: ReturnType<typeof vi.fn>;
   refreshCatalog?: ReturnType<typeof vi.fn>;
@@ -354,6 +355,11 @@ function setSystemInfoResult(
         { provider: 'codex', command: null },
         { provider: 'claude', command: null }
       ]),
+      checkProviderUpdates:
+        catalogApi.checkProviderUpdates ?? vi.fn().mockResolvedValue({
+          checkedAt: '2026-08-24T01:00:00.000Z',
+          providers: []
+        }),
       getLaunchSettingsLayers: vi.fn().mockResolvedValue([]),
       saveLaunchSettingsLayer: vi.fn().mockResolvedValue([]),
       getKeyboardSettings:
@@ -2780,6 +2786,55 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByText('2 of 2 providers ready')).toBeInTheDocument();
+  });
+
+  it('opens Provider Settings from verified Home update information', async () => {
+    const checkProviderUpdates = vi.fn().mockResolvedValue({
+      checkedAt: '2026-08-24T01:00:00.000Z',
+      providers: [{
+        provider: 'codex',
+        displayName: 'Codex',
+        state: 'update_available',
+        installedVersion: '1.2.3',
+        latestVersion: '1.3.0',
+        issue: null
+      }]
+    });
+    setSystemInfoResult(undefined, undefined, { checkProviderUpdates });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: '1 agent update available: Codex. Open Provider Settings'
+    }));
+
+    expect(await screen.findByRole('heading', {
+      name: 'Settings'
+    })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Providers' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(checkProviderUpdates).toHaveBeenCalledOnce();
+  });
+
+  it('does not check or show Home updates when automatic checks are disabled', async () => {
+    const checkProviderUpdates = vi.fn();
+    const getGeneralSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_GENERAL_SETTINGS,
+      checkProviderUpdatesAutomatically: false
+    });
+    setSystemInfoResult(undefined, undefined, {
+      checkProviderUpdates,
+      getGeneralSettings
+    });
+    render(<App />);
+
+    await screen.findByText('2 of 2 providers ready');
+    await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledOnce());
+    expect(checkProviderUpdates).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', {
+      name: /agent updates available/
+    })).not.toBeInTheDocument();
   });
 
   it('checks developer prerequisites at startup without warning when ready', async () => {

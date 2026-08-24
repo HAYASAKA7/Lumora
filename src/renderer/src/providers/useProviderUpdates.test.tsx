@@ -102,6 +102,25 @@ describe('useProviderUpdates', () => {
     expect(result.current.refreshing).toBe(false);
   });
 
+  it('allows an explicit settings check while automatic checking is disabled', async () => {
+    const checkProviderUpdates = vi.fn().mockResolvedValue(availableCheck);
+    const api = { checkProviderUpdates };
+    const { result } = renderHook(() => useProviderUpdates({
+      api,
+      enabled: false,
+      discoveryReady: true
+    }));
+
+    expect(checkProviderUpdates).not.toHaveBeenCalled();
+    await act(() => result.current.refresh());
+
+    expect(checkProviderUpdates).toHaveBeenCalledOnce();
+    expect(result.current.status).toEqual({
+      state: 'ready',
+      check: availableCheck
+    });
+  });
+
   it('preserves a trusted result while a refresh is pending or fails', async () => {
     const pending = deferred<ProviderUpdateCheckResult>();
     const checkProviderUpdates = vi.fn()

@@ -59,7 +59,7 @@ export function useProviderUpdates({
   }, []);
 
   const refresh = useCallback((): Promise<void> => {
-    if (!enabled || !discoveryReady) return Promise.resolve();
+    if (!discoveryReady) return Promise.resolve();
     if (inFlightRef.current !== null) return inFlightRef.current;
 
     const generation = generationRef.current + 1;
@@ -92,7 +92,7 @@ export function useProviderUpdates({
     });
     inFlightRef.current = operation;
     return operation;
-  }, [api, commitStatus, discoveryReady, enabled]);
+  }, [api, commitStatus, discoveryReady]);
 
   useEffect(() => {
     if (!enabled || !discoveryReady) {

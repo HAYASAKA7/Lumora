@@ -70,6 +70,7 @@ import {
   keyboardEventMatchesChord
 } from '../keyboard/shortcut';
 import { ProviderSettings } from '../providers/ProviderSettings';
+import { useProviderUpdates } from '../providers/useProviderUpdates';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
 import { AboutPanel } from '../settings/AboutPanel';
@@ -303,6 +304,7 @@ export function RemoteTargetWindow({
     ...DEFAULT_GENERAL_SETTINGS,
     crossAgentWorkflowEnabled: false
   });
+  const [generalSettingsLoaded, setGeneralSettingsLoaded] = useState(false);
   const [generalSettingsSaving, setGeneralSettingsSaving] = useState(false);
   const [generalSettingsSaveError, setGeneralSettingsSaveError] =
     useState<string | null>(null);
@@ -679,6 +681,7 @@ export function RemoteTargetWindow({
         setTerminalProfiles(profiles);
         if (settingsRequest === generalSettingsRequestId.current) {
           setGeneralSettings(normalizeRemoteGeneralSettings(settings));
+          setGeneralSettingsLoaded(true);
         }
         setKeyboardSettings(shortcuts);
         setRuntimes(runtimeValues);
@@ -736,6 +739,7 @@ export function RemoteTargetWindow({
         (settings) => {
           if (active && request === generalSettingsRequestId.current) {
             setGeneralSettings(normalizeRemoteGeneralSettings(settings));
+            setGeneralSettingsLoaded(true);
           }
         },
         () => undefined
@@ -855,6 +859,24 @@ export function RemoteTargetWindow({
   const providerScan = discovery.state === 'ready'
     ? discovery.snapshot.providers
     : null;
+  const providerUpdates = useProviderUpdates({
+    api,
+    enabled:
+      generalSettingsLoaded &&
+      generalSettings.checkProviderUpdatesAutomatically,
+    discoveryReady: discovery.state === 'ready'
+  });
+  const enabledProviders = preferences?.enabledProviders ?? draftProviders;
+  const availableProviderUpdates =
+    generalSettings.checkProviderUpdatesAutomatically &&
+    providerUpdates.status.state === 'ready'
+    ? providerUpdates.status.check.providers
+        .filter((provider) =>
+          provider.state === 'update_available' &&
+          enabledProviders.includes(provider.provider)
+        )
+        .map((provider) => provider.provider)
+      : [];
   const baseCatalogStatus: CatalogViewStatus = sessionCatalog.state === 'ready'
     ? { state: 'ready', snapshot: sessionCatalog.catalog.snapshot }
     : sessionCatalog.state === 'error' || sessionCatalog.state === 'unsupported'
@@ -1336,9 +1358,12 @@ export function RemoteTargetWindow({
       }}
       generalSettingsSaveError={providerSaveError}
       generalSettingsSaving={savingProviders}
-      onRefresh={() => void refreshDiscovery()}
+      onRefresh={refreshDiscovery}
+      onRefreshUpdates={providerUpdates.refresh}
       onSaveEnabledProviders={saveProviders}
       scope="remote"
+      updatesRefreshing={providerUpdates.refreshing}
+      updatesStatus={providerUpdates.status}
       status={
         discovery.state === 'ready'
           ? { state: 'ready', scan: discovery.snapshot.providers }
@@ -1551,6 +1576,11 @@ export function RemoteTargetWindow({
     const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
     const main = page === 'home' ? (
       <CatalogHomeSummary
+        availableProviderUpdates={availableProviderUpdates}
+        onOpenProviderUpdates={() => {
+          setPage('settings');
+          setSettingsCategory('providers');
+        }}
         onResume={resumeSession}
         profiles={terminalProfiles}
         providerScan={providerScan}

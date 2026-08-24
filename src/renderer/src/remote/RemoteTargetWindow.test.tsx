@@ -152,6 +152,73 @@ describe('RemoteTargetWindow', () => {
     expect(scanRemoteSessions).not.toHaveBeenCalled();
   });
 
+  it('opens remote Provider Settings from verified Home update information', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const catalog = {
+      executionTargetId: TARGET_ID,
+      scannedAt: '2026-08-11T05:00:00.000Z',
+      sessions: [],
+      providers: [],
+      snapshot: {
+        refreshedAt: '2026-08-11T05:00:00.000Z',
+        workspaces: [], sessions: [], providerStatus: [],
+        providerFacets: [], diagnostics: []
+      }
+    } as const;
+    const checkProviderUpdates = vi.fn().mockResolvedValue({
+      checkedAt: '2026-08-24T01:00:00.000Z',
+      providers: [{
+        provider: 'codex',
+        displayName: 'Codex',
+        state: 'update_available',
+        installedVersion: '1.2.3',
+        latestVersion: '1.3.0',
+        issue: null
+      }]
+    });
+    const api = {
+      ...runtimeApiDefaults(),
+      checkProviderUpdates,
+      listRemoteLifecycleSnapshots: vi.fn().mockResolvedValue([{
+        summary: readySummary,
+        generation: 1,
+        discovery,
+        catalog,
+        discoveryState: 'ready',
+        catalogState: 'ready',
+        activeTerminalCount: 0
+      }]),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      onRemoteLifecycleEvent: vi.fn(() => () => undefined),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      })
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+    fireEvent.click(await screen.findByRole('button', {
+      name: '1 agent update available: Codex. Open Provider Settings'
+    }));
+
+    expect(await screen.findByRole('heading', {
+      name: 'Settings', level: 1
+    })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Providers' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    expect(checkProviderUpdates).toHaveBeenCalledOnce();
+  });
+
   it('warns before closing a disconnecting window with active terminals', async () => {
     let closeListener: ((request: {
       executionTargetId: typeof TARGET_ID;

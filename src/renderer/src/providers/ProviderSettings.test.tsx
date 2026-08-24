@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -8,7 +9,7 @@ import type {
   ProviderUpdateCheckResult
 } from '../../../shared/contracts';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
-import { ProviderSettings } from './ProviderSettings';
+import { ProviderSettings as ProviderSettingsComponent } from './ProviderSettings';
 
 const scan: ProviderScanResult = {
   scannedAt: '2026-07-11T04:00:00.000Z',
@@ -83,6 +84,20 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function ProviderSettings(
+  props: Partial<ComponentProps<typeof ProviderSettingsComponent>>
+) {
+  return (
+    <ProviderSettingsComponent
+      onRefresh={vi.fn()}
+      onRefreshUpdates={vi.fn().mockResolvedValue(undefined)}
+      status={{ state: 'ready', scan }}
+      updatesStatus={{ state: 'ready', check: availableUpdates }}
+      {...props}
+    />
+  );
+}
+
 describe('ProviderSettings', () => {
   it('stages enabled providers, prevents an empty selection, and saves explicitly', async () => {
     setLumora();
@@ -112,8 +127,9 @@ describe('ProviderSettings', () => {
     );
   });
 
-  it('does not check releases automatically when that preference is disabled', async () => {
+  it('keeps releases idle and delegates manual checks when automatic checks are disabled', async () => {
     const lumora = setLumora();
+    const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
     render(
       <ProviderSettings
         generalSettings={{
@@ -121,7 +137,9 @@ describe('ProviderSettings', () => {
           checkProviderUpdatesAutomatically: false
         }}
         onRefresh={vi.fn()}
+        onRefreshUpdates={onRefreshUpdates}
         status={{ state: 'ready', scan }}
+        updatesStatus={{ state: 'idle' }}
       />
     );
 
@@ -131,8 +149,8 @@ describe('ProviderSettings', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Check for provider updates' })
     );
-    expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
-    expect(lumora.checkProviderUpdates).toHaveBeenCalledOnce();
+    expect(onRefreshUpdates).toHaveBeenCalledOnce();
+    expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
 
   it('shows saved-session capability for complete and launch-only providers', async () => {
@@ -237,7 +255,7 @@ describe('ProviderSettings', () => {
     );
   });
 
-  it('checks releases on mount and shows current and available states', async () => {
+  it('shows current and available states supplied by the shared controller', async () => {
     const lumora = setLumora();
 
     render(
@@ -253,31 +271,53 @@ describe('ProviderSettings', () => {
       screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     ).toHaveTextContent('Update with npm to 1.1.0');
     expect(screen.queryByRole('button', { name: /Update Claude/ })).toBeNull();
-    expect(lumora.checkProviderUpdates).toHaveBeenCalledOnce();
+    expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
+  });
+
+  it('uses shared update state and delegates refresh without checking twice', async () => {
+    const lumora = setLumora();
+    const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ProviderSettings
+        onRefresh={vi.fn()}
+        onRefreshUpdates={onRefreshUpdates}
+        status={{ state: 'ready', scan }}
+        updatesStatus={{ state: 'ready', check: availableUpdates }}
+      />
+    );
+
+    expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
+    expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Check for provider updates' })
+    );
+    expect(onRefreshUpdates).toHaveBeenCalledOnce();
+    expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
 
   it('keeps failed release checks non-blocking and retryable', async () => {
-    setLumora({
-      checkProviderUpdates: vi.fn().mockResolvedValue({
-        ...availableUpdates,
-        providers: [
-          {
-            provider: 'codex', displayName: 'Codex', state: 'unavailable',
-            installedVersion: '1.0.0', latestVersion: null,
-            issue: {
-              code: 'PROVIDER_RELEASE_UNAVAILABLE',
-              message: 'Codex latest version could not be checked.',
-              recovery: 'Check the network connection, then refresh.',
-              retryable: true
-            }
-          },
-          availableUpdates.providers[1]
-        ]
-      })
-    });
+    setLumora();
+    const unavailableUpdates: ProviderUpdateCheckResult = {
+      ...availableUpdates,
+      providers: [
+        {
+          provider: 'codex', displayName: 'Codex', state: 'unavailable',
+          installedVersion: '1.0.0', latestVersion: null,
+          issue: {
+            code: 'PROVIDER_RELEASE_UNAVAILABLE',
+            message: 'Codex latest version could not be checked.',
+            recovery: 'Check the network connection, then refresh.',
+            retryable: true
+          }
+        },
+        availableUpdates.providers[1]!
+      ]
+    };
 
     render(
-      <ProviderSettings onRefresh={vi.fn()} status={{ state: 'ready', scan }} />
+      <ProviderSettings updatesStatus={{ state: 'ready', check: unavailableUpdates }} />
     );
 
     expect(await screen.findByText('Latest version unavailable')).toBeVisible();
@@ -297,21 +337,14 @@ describe('ProviderSettings', () => {
         });
       })
     );
-    const checkProviderUpdates = vi.fn()
-      .mockResolvedValueOnce(availableUpdates)
-      .mockResolvedValueOnce({
-        ...availableUpdates,
-        checkedAt: '2026-07-17T04:03:00.000Z',
-        providers: availableUpdates.providers.map((provider) =>
-          provider.provider === 'codex'
-            ? { ...provider, state: 'up_to_date' as const, installedVersion: '1.1.0' }
-            : provider
-        )
-      });
-    setLumora({ updateProvider, checkProviderUpdates });
+    setLumora({ updateProvider });
     const onRefresh = vi.fn();
+    const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
     render(
-      <ProviderSettings onRefresh={onRefresh} status={{ state: 'ready', scan }} />
+      <ProviderSettings
+        onRefresh={onRefresh}
+        onRefreshUpdates={onRefreshUpdates}
+      />
     );
 
     fireEvent.click(
@@ -333,7 +366,7 @@ describe('ProviderSettings', () => {
     completeUpdate();
 
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
-    await waitFor(() => expect(checkProviderUpdates).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onRefreshUpdates).toHaveBeenCalledOnce());
     expect(updateProvider).toHaveBeenCalledWith('codex');
   });
 
@@ -344,8 +377,12 @@ describe('ProviderSettings', () => {
       updateProvider: vi.fn().mockRejectedValue(new Error('failed'))
     });
     const onRefresh = vi.fn();
+    const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
     render(
-      <ProviderSettings onRefresh={onRefresh} status={{ state: 'ready', scan }} />
+      <ProviderSettings
+        onRefresh={onRefresh}
+        onRefreshUpdates={onRefreshUpdates}
+      />
     );
 
     fireEvent.click(
@@ -358,11 +395,11 @@ describe('ProviderSettings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(onRefresh).toHaveBeenCalledOnce();
-    expect(checkProviderUpdates).toHaveBeenCalledOnce();
+    expect(checkProviderUpdates).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole('button', { name: 'Check for provider updates' })
     );
-    await waitFor(() => expect(checkProviderUpdates).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onRefreshUpdates).toHaveBeenCalledOnce());
   });
 
   it('confirms allowlisted installs and opens guides for other providers', async () => {

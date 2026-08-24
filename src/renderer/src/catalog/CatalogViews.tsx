@@ -584,6 +584,7 @@ export function SessionsView({
 
 export function CatalogHomeSummary({
   status,
+  availableProviderUpdates = [],
   providerSummary,
   providerScan,
   profiles,
@@ -591,9 +592,11 @@ export function CatalogHomeSummary({
   runningSessionIds = EMPTY_SESSION_IDS,
   workspaceById,
   onRecover,
+  onOpenProviderUpdates,
   onResume
 }: {
   status: CatalogViewStatus;
+  availableProviderUpdates?: readonly ProviderId[];
   providerSummary?: string;
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
@@ -601,6 +604,7 @@ export function CatalogHomeSummary({
   runningSessionIds?: ReadonlySet<string> | undefined;
   workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   onRecover?(runtime: RuntimeSummary): void;
+  onOpenProviderUpdates?(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   if (status.state === 'loading') {
@@ -632,6 +636,9 @@ export function CatalogHomeSummary({
     (runtime) => runtime.state === 'runtime_lost'
   );
   const attentionCount = snapshot.diagnostics.length + lostRuntimes.length;
+  const updateProviderNames = availableProviderUpdates.map(
+    (provider) => providerDefinition(provider).displayName
+  );
   return (
     <div className="dashboard-grid" aria-label="Workspace overview">
       <article className="dashboard-card catalog-metric-card">
@@ -796,6 +803,31 @@ export function CatalogHomeSummary({
           <span className="empty-state-mark" aria-hidden="true" />
           {providerSummary ?? 'Provider status available in Settings'}
         </div>
+        {updateProviderNames.length === 0 || onOpenProviderUpdates === undefined
+          ? null
+          : (
+            <button
+              aria-label={`${updateProviderNames.length} agent ${
+                updateProviderNames.length === 1 ? 'update' : 'updates'
+              } available: ${updateProviderNames.join(', ')}. Open Provider Settings`}
+              className="provider-update-notice"
+              data-lumora-command
+              onClick={onOpenProviderUpdates}
+              tabIndex={-1}
+              type="button"
+            >
+              <span className="provider-update-notice-count">
+                {updateProviderNames.length} agent{' '}
+                {updateProviderNames.length === 1 ? 'update' : 'updates'} available
+              </span>
+              <span aria-hidden="true"> · </span>
+              <OverflowTooltip content={updateProviderNames.join(', ')}>
+                <span className="provider-update-notice-names">
+                  {updateProviderNames.join(', ')}
+                </span>
+              </OverflowTooltip>
+            </button>
+          )}
       </article>
     </div>
   );

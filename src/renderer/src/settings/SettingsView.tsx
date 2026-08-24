@@ -13,6 +13,7 @@ import {
   ProviderSettings,
   type ProviderScanStatus
 } from '../providers/ProviderSettings';
+import type { ProviderUpdatesStatus } from '../providers/useProviderUpdates';
 import {
   DeveloperEnvironmentPanel,
   type DeveloperEnvironmentStatus
@@ -57,6 +58,7 @@ interface SettingsViewProps {
   onRemoveAppearanceBackground: () => void;
   onRefreshEnvironment: () => void;
   onRefreshProviders: () => void;
+  onRefreshProviderUpdates: () => Promise<void>;
   onSaveEnabledProviders: (
     providers: readonly GeneralSettings['enabledProviders'][number][]
   ) => Promise<boolean>;
@@ -65,6 +67,8 @@ interface SettingsViewProps {
   profiles: readonly TerminalProfile[];
   providerStatus: ProviderScanStatus;
   providerRefreshing?: boolean;
+  providerUpdatesRefreshing: boolean;
+  providerUpdatesStatus: ProviderUpdatesStatus;
   runningSessionIds: ReadonlySet<string>;
   sessions: readonly SessionSummary[];
   workspaces: readonly WorkspaceSummary[];
@@ -102,12 +106,15 @@ export function SettingsView({
   onRemoveAppearanceBackground,
   onRefreshEnvironment,
   onRefreshProviders,
+  onRefreshProviderUpdates,
   onSaveEnabledProviders,
   onSessionImportCompleted,
   platform,
   profiles,
   providerStatus,
   providerRefreshing = false,
+  providerUpdatesRefreshing,
+  providerUpdatesStatus,
   runningSessionIds,
   sessions,
   workspaces
@@ -230,9 +237,12 @@ export function SettingsView({
           generalSettingsSaveError={generalSettingsSaveError}
           generalSettingsSaving={generalSettingsSaving}
           onRefresh={onRefreshProviders}
+          onRefreshUpdates={onRefreshProviderUpdates}
           refreshing={providerRefreshing}
           onSaveEnabledProviders={onSaveEnabledProviders}
           status={providerStatus}
+          updatesRefreshing={providerUpdatesRefreshing}
+          updatesStatus={providerUpdatesStatus}
         />
       </section>
 

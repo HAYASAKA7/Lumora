@@ -47,6 +47,7 @@ import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import { RegionErrorBoundary } from './errors/RegionErrorBoundary';
 import type { ProviderScanStatus } from './providers/ProviderSettings';
+import { useProviderUpdates } from './providers/useProviderUpdates';
 import { RemoteTargetsView } from './remote/RemoteTargetsView';
 import {
   DeveloperEnvironmentNotice,
@@ -395,6 +396,23 @@ function AppContent(): ReactNode {
     useState<ApplicationQuitRequest | null>(null);
   const [suppressApplicationQuitWarning, setSuppressApplicationQuitWarning] =
     useState(false);
+  const providerUpdates = useProviderUpdates({
+    api: window.lumora,
+    enabled:
+      generalSettings !== null &&
+      generalSettings.checkProviderUpdatesAutomatically,
+    discoveryReady: providerStatus.state === 'ready'
+  });
+  const availableProviderUpdates =
+    generalSettings?.checkProviderUpdatesAutomatically === true &&
+    providerUpdates.status.state === 'ready'
+    ? providerUpdates.status.check.providers
+        .filter((provider) =>
+          provider.state === 'update_available' &&
+          generalSettings?.enabledProviders.includes(provider.provider)
+        )
+        .map((provider) => provider.provider)
+      : [];
   const providerRequestId = useRef(0);
   const environmentRequestId = useRef(0);
   const catalogRequestId = useRef(0);
@@ -1676,10 +1694,15 @@ function AppContent(): ReactNode {
             >
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
+                availableProviderUpdates={availableProviderUpdates}
                 onRecover={(runtime) => {
                   setNewSessionIntent(null);
                   setResumeIntent(null);
                   setRecoveryRuntime(runtime);
+                }}
+                onOpenProviderUpdates={() => {
+                  navigateToRoute('settings');
+                  setSettingsCategory('providers');
                 }}
                 onResume={resumeCatalogSession}
                 profiles={terminalProfiles}
@@ -1772,6 +1795,7 @@ function AppContent(): ReactNode {
                 onOpenNodeDownload={openNodeDownload}
                 onRemoveAppearanceBackground={removeAppearanceBackground}
                 onRefreshEnvironment={refreshEnvironment}
+                onRefreshProviderUpdates={providerUpdates.refresh}
                 onRefreshProviders={refreshProviders}
                 onSaveEnabledProviders={saveEnabledProviders}
                 onSessionImportCompleted={refreshCatalog}
@@ -1783,6 +1807,8 @@ function AppContent(): ReactNode {
                 profiles={terminalProfiles}
                 providerStatus={providerStatus}
                 providerRefreshing={isProviderRefreshing}
+                providerUpdatesRefreshing={providerUpdates.refreshing}
+                providerUpdatesStatus={providerUpdates.status}
                 runningSessionIds={runningSessionIds}
                 sessions={
                   visibleCatalogStatus.state === 'ready'

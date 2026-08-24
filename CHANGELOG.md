@@ -7,6 +7,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Show verified agent updates in the Provider discovery card on local and
+  Remote Lumora Home pages. Selecting the notice opens **Settings > Providers**
+  for the existing update workflow, while disabled automatic checks remain
+  silent and perform no background release request.
+
 ## [0.3.7] - 2026-08-21
 
 ### Fixed

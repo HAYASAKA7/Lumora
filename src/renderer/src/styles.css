@@ -772,6 +772,39 @@ button {
   background: var(--warning);
 }
 
+.provider-update-notice {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 9px 11px;
+  color: var(--warning-strong);
+  font: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.provider-update-notice:hover {
+  border-color: var(--warning);
+}
+
+.provider-update-notice-count {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.provider-update-notice-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .provider-panel {
   width: 100%;
   padding: 24px;

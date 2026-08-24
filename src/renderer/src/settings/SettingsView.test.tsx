@@ -149,12 +149,15 @@ function Harness({
       onOpenNodeDownload={vi.fn().mockResolvedValue(undefined)}
       onRemoveAppearanceBackground={vi.fn()}
       onRefreshEnvironment={onRefreshEnvironment}
+      onRefreshProviderUpdates={vi.fn().mockResolvedValue(undefined)}
       onRefreshProviders={onRefreshProviders}
       onSaveEnabledProviders={onSaveEnabledProviders}
       onSessionImportCompleted={onSessionImportCompleted}
       platform="win32"
       profiles={[]}
       providerStatus={{ state: 'loading' }}
+      providerUpdatesRefreshing={false}
+      providerUpdatesStatus={{ state: 'idle' }}
       runningSessionIds={new Set<string>()}
       sessions={[]}
       workspaces={[]}

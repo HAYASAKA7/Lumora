@@ -1030,6 +1030,44 @@ describe('SessionsView', () => {
 });
 
 describe('CatalogHomeSummary', () => {
+  it('links verified provider updates to Provider Settings', () => {
+    const onOpenProviderUpdates = vi.fn();
+    render(
+      <CatalogHomeSummary
+        availableProviderUpdates={['codex', 'claude']}
+        onOpenProviderUpdates={onOpenProviderUpdates}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    const notice = screen.getByRole('button', {
+      name: '2 agent updates available: Codex, Claude Code. Open Provider Settings'
+    });
+    expect(notice).toHaveTextContent(
+      '2 agent updates available · Codex, Claude Code'
+    );
+    fireEvent.click(notice);
+    expect(onOpenProviderUpdates).toHaveBeenCalledOnce();
+  });
+
+  it('does not add a provider-update notice without verified updates', () => {
+    render(
+      <CatalogHomeSummary
+        availableProviderUpdates={[]}
+        onOpenProviderUpdates={vi.fn()}
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />
+    );
+
+    expect(screen.queryByRole('button', {
+      name: /agent updates available/
+    })).not.toBeInTheDocument();
+  });
+
   it('marks a live recent session and offers its existing terminal', () => {
     render(
       <CatalogHomeSummary

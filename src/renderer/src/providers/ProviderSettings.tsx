@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode
-} from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
   GeneralSettings,
@@ -13,7 +7,6 @@ import type {
   ProviderInstallation,
   ProviderLaunchConfig,
   ProviderScanResult,
-  ProviderUpdateCheckResult,
   ProviderUpdateStatus
 } from '../../../shared/contracts';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
@@ -22,23 +15,17 @@ import {
   providerDefinition,
   supportsManagedProviderUpdate
 } from '../../../shared/provider-definitions';
+import type { ProviderUpdatesStatus } from './useProviderUpdates';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
   | { state: 'ready'; scan: ProviderScanResult }
   | { state: 'error' };
 
-export type ProviderUpdatesStatus =
-  | { state: 'idle' }
-  | { state: 'loading' }
-  | { state: 'ready'; check: ProviderUpdateCheckResult }
-  | { state: 'error' };
-
 export type ProviderSettingsApi = Pick<
   LumoraApi,
   'getProviderLaunchConfigs' |
   'saveProviderLaunchConfig' |
-  'checkProviderUpdates' |
   'installProvider' |
   'openProviderInstallGuide' |
   'updateProvider'
@@ -343,10 +330,13 @@ export function ProviderSettings({
   generalSettingsSaving = false,
   generalSettingsSaveError = null,
   refreshing = false,
-  onSaveEnabledProviders = async () => true
+  onSaveEnabledProviders = async () => true,
+  updatesStatus,
+  updatesRefreshing = false,
+  onRefreshUpdates
 }: {
   status: ProviderScanStatus;
-  onRefresh: () => void;
+  onRefresh: () => Promise<unknown> | void;
   api?: ProviderSettingsApi;
   scope?: 'local' | 'remote';
   generalSettings?: GeneralSettings;
@@ -356,6 +346,9 @@ export function ProviderSettings({
   onSaveEnabledProviders?: (
     providers: readonly ProviderId[]
   ) => Promise<boolean>;
+  updatesStatus: ProviderUpdatesStatus;
+  updatesRefreshing?: boolean;
+  onRefreshUpdates: () => Promise<void>;
 }): ReactNode {
   const [enabledProviderDraft, setEnabledProviderDraft] = useState<
     readonly ProviderId[]
@@ -365,11 +358,6 @@ export function ProviderSettings({
   >({});
   const [savingProvider, setSavingProvider] = useState<ProviderId | null>(null);
   const [commandError, setCommandError] = useState<string | null>(null);
-  const [updatesStatus, setUpdatesStatus] = useState<ProviderUpdatesStatus>({
-    state: generalSettings.checkProviderUpdatesAutomatically
-      ? 'loading'
-      : 'idle'
-  });
   const [updatingProvider, setUpdatingProvider] = useState<ProviderId | null>(
     null
   );
@@ -382,8 +370,6 @@ export function ProviderSettings({
   const [installErrors, setInstallErrors] = useState<
     Partial<Record<ProviderId, string>>
   >({});
-  const updatesRequestId = useRef(0);
-
   useEffect(() => {
     setEnabledProviderDraft(generalSettings.enabledProviders);
   }, [generalSettings.enabledProviders]);
@@ -410,34 +396,6 @@ export function ProviderSettings({
     return () => { active = false; };
   }, [api]);
 
-  const refreshUpdates = useCallback(async (): Promise<void> => {
-    const requestId = updatesRequestId.current + 1;
-    updatesRequestId.current = requestId;
-    setUpdatesStatus({ state: 'loading' });
-    try {
-      const check = await api.checkProviderUpdates();
-      if (updatesRequestId.current === requestId) {
-        setUpdatesStatus({ state: 'ready', check });
-      }
-    } catch {
-      if (updatesRequestId.current === requestId) {
-        setUpdatesStatus({ state: 'error' });
-      }
-    }
-  }, [api]);
-
-  useEffect(() => {
-    if (!generalSettings.checkProviderUpdatesAutomatically) {
-      updatesRequestId.current += 1;
-      setUpdatesStatus({ state: 'idle' });
-      return;
-    }
-    void refreshUpdates();
-    return () => {
-      updatesRequestId.current += 1;
-    };
-  }, [generalSettings.checkProviderUpdatesAutomatically, refreshUpdates]);
-
   const saveCommand = (provider: ProviderId, command: string | null) => {
     setSavingProvider(provider);
     setCommandError(null);
@@ -458,12 +416,8 @@ export function ProviderSettings({
     setUpdateErrors((current) => ({ ...current, [provider]: undefined }));
     void api.updateProvider(provider).then(
       async () => {
-        onRefresh();
-        if (generalSettings.checkProviderUpdatesAutomatically) {
-          await refreshUpdates();
-        } else {
-          setUpdatesStatus({ state: 'idle' });
-        }
+        await onRefresh();
+        await onRefreshUpdates();
         setUpdatingProvider(null);
       },
       () => {
@@ -486,12 +440,8 @@ export function ProviderSettings({
     });
     void api.installProvider(provider).then(
       async () => {
-        onRefresh();
-        if (generalSettings.checkProviderUpdatesAutomatically) {
-          await refreshUpdates();
-        } else {
-          setUpdatesStatus({ state: 'idle' });
-        }
+        await onRefresh();
+        await onRefreshUpdates();
         finish();
       },
       () => {
@@ -546,7 +496,9 @@ export function ProviderSettings({
             ) ?? null
           : null
       }
-      releaseChecking={updatesStatus.state === 'loading'}
+      releaseChecking={
+        updatesStatus.state === 'loading' || updatesRefreshing
+      }
       updatesChecked={updatesStatus.state !== 'idle'}
       onCommandChange={(command) => setCommands((current) => ({
         ...current,
@@ -659,7 +611,9 @@ export function ProviderSettings({
               updatingProvider !== null ||
               installingProviders.size > 0
             }
-            onClick={onRefresh}
+            onClick={() => {
+              void onRefresh();
+            }}
             type="button"
           >
             <ScanIcon />
@@ -670,11 +624,12 @@ export function ProviderSettings({
             className="secondary-button"
             disabled={
               updatesStatus.state === 'loading' ||
+              updatesRefreshing ||
               updatingProvider !== null ||
               installingProviders.size > 0
             }
             onClick={() => {
-              void refreshUpdates();
+              void onRefreshUpdates();
             }}
             type="button"
           >
