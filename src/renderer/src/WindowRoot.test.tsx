@@ -9,10 +9,28 @@ import {
 import { WindowRoot } from './WindowRoot';
 
 const TARGET_ID = '0e3f3da6-b340-49f6-b03b-8ae032c3af74';
+const localizationSnapshot = {
+  revision: 1,
+  preference: 'en',
+  locale: 'en',
+  formattingLocale: 'en-US',
+  direction: 'ltr',
+  availableLocales: [{
+    locale: 'en', displayName: 'English', direction: 'ltr',
+    sources: ['bundled'], catalogVersion: 1
+  }],
+  messages: {},
+  warnings: []
+} as const;
+const localizationApi = {
+  getLocalizationSnapshot: vi.fn().mockResolvedValue(localizationSnapshot),
+  onLocalizationChanged: vi.fn(() => vi.fn())
+};
 
 describe('WindowRoot', () => {
   it('owns the app focus policy before resolving the window mode', () => {
     const api = {
+      ...localizationApi,
       getWindowContext: vi.fn().mockReturnValue(
         new Promise<LumoraWindowContext>(() => undefined)
       )
@@ -40,6 +58,7 @@ describe('WindowRoot', () => {
 
   it('mounts the isolated remote shell without starting local application scans', async () => {
     const api = {
+      ...localizationApi,
       getWindowContext: vi.fn().mockResolvedValue({
         mode: 'remote', executionTargetId: TARGET_ID
       }),
@@ -64,6 +83,7 @@ describe('WindowRoot', () => {
 
   it('applies the global appearance and managed background to the remote shell', async () => {
     const api = {
+      ...localizationApi,
       getWindowContext: vi.fn().mockResolvedValue({
         mode: 'remote', executionTargetId: TARGET_ID
       }),
@@ -93,6 +113,7 @@ describe('WindowRoot', () => {
 
   it('passes the global presentation into the connected shared shell', async () => {
     const api = {
+      ...localizationApi,
       getWindowContext: vi.fn().mockResolvedValue({
         mode: 'remote', executionTargetId: TARGET_ID
       }),
@@ -184,6 +205,7 @@ describe('WindowRoot', () => {
         background: { available: false, revision: null }
       });
     const api = {
+      ...localizationApi,
       getWindowContext: vi.fn().mockResolvedValue({
         mode: 'remote', executionTargetId: TARGET_ID
       }),

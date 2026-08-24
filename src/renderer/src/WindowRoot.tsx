@@ -8,14 +8,22 @@ import type {
 import App from './App';
 import { buildAppearancePresentation } from './appearance/presentation';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
+import { LocalizationProvider } from './localization/LocalizationProvider';
 import { RemoteTargetWindow } from './remote/RemoteTargetWindow';
 
 export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
+  useEffect(() => installAppFocusPolicy(document), []);
+  return (
+    <LocalizationProvider api={api}>
+      <WindowContent api={api} />
+    </LocalizationProvider>
+  );
+}
+
+function WindowContent({ api }: { api: LumoraApi }) {
   const [context, setContext] = useState<LumoraWindowContext | null>(null);
   const [appearance, setAppearance] = useState<AppearancePresentation | null>(null);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => installAppFocusPolicy(document), []);
 
   useEffect(() => {
     let active = true;
