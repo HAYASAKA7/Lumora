@@ -89,6 +89,7 @@ import { TerminalWorkspace } from './terminal/TerminalWorkspace';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { TooltipProvider } from './ui/Tooltip';
+import { useLocalization, type TranslationValues } from './localization/useLocalization';
 
 type RouteId =
   | 'home'
@@ -157,65 +158,56 @@ const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   appearanceBackground: false
 };
 
-const ROUTES = [
+const ROUTE_SPECS = [
   {
     id: 'home',
-    label: 'Home',
-    eyebrow: 'Command center',
-    description:
-      'A quiet overview of active work, recent sessions, and anything that needs your attention.',
+    labelKey: 'shell.navigation.home',
+    eyebrowKey: 'shell.routes.home-eyebrow',
+    descriptionKey: 'shell.routes.home-description',
     icon: 'home',
     shortcut: 'openHome'
   },
   {
     id: 'workspaces',
-    label: 'Workspaces',
-    eyebrow: 'Workspace index',
-    description:
-      'Organize repositories and see supported agent sessions in one dependable hierarchy.',
+    labelKey: 'shell.navigation.workspaces',
+    eyebrowKey: 'shell.routes.workspaces-eyebrow',
+    descriptionKey: 'shell.routes.workspaces-description',
     icon: 'workspace',
     shortcut: 'openWorkspaces'
   },
   {
     id: 'sessions',
-    label: 'All sessions',
-    eyebrow: 'Session catalog',
-    description:
-      'Search and filter normalized provider sessions without changing provider-owned data.',
+    labelKey: 'shell.navigation.sessions',
+    eyebrowKey: 'shell.routes.sessions-eyebrow',
+    descriptionKey: 'shell.routes.sessions-description',
     icon: 'sessions',
     shortcut: 'openSessions'
   },
   {
     id: 'profiles',
-    label: 'Terminal profiles',
-    eyebrow: 'Shell profiles',
-    description:
-      'Review detected shells and define the terminal environment used for managed sessions.',
+    labelKey: 'shell.navigation.terminal-profiles',
+    eyebrowKey: 'shell.routes.profiles-eyebrow',
+    descriptionKey: 'shell.routes.profiles-description',
     icon: 'terminal',
     shortcut: 'openProfiles'
   },
   {
     id: 'remote',
-    label: 'Remote computers',
-    eyebrow: 'Remote Lumora',
-    description:
-      'Configure SSH access and open one isolated Lumora window for each remote computer.',
+    labelKey: 'shell.navigation.remote-computers',
+    eyebrowKey: 'shell.routes.remote-eyebrow',
+    descriptionKey: 'shell.routes.remote-description',
     icon: 'remote',
     shortcut: 'openRemote'
   },
   {
     id: 'settings',
-    label: 'Settings',
-    eyebrow: 'Application settings',
-    description:
-      'Configure providers, storage, security, appearance, and diagnostic behavior.',
+    labelKey: 'shell.navigation.settings',
+    eyebrowKey: 'shell.routes.settings-eyebrow',
+    descriptionKey: 'shell.routes.settings-description',
     icon: 'settings',
     shortcut: 'openSettings'
   }
-] as const satisfies readonly RouteDefinition[];
-
-const PRIMARY_ROUTES = ROUTES.filter((route) => route.id !== 'settings');
-const SETTINGS_ROUTE = ROUTES.find((route) => route.id === 'settings')!;
+] as const;
 
 const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   win32: 'Windows',
@@ -223,34 +215,40 @@ const PLATFORM_LABELS: Record<SystemInfo['platform'], string> = {
   linux: 'Linux'
 };
 
-function providerSummary(status: ProviderScanStatus): string {
+function providerSummary(
+  status: ProviderScanStatus,
+  t: (key: string, values?: TranslationValues) => string
+): string {
   if (status.state === 'loading') {
-    return 'Scanning provider installations';
+    return t('shell.provider-summary.scanning');
   }
 
   if (status.state === 'error') {
-    return 'Provider details are unavailable';
+    return t('shell.provider-summary.unavailable');
   }
 
   const readyCount = status.scan.providers.filter(
     (provider) => provider.state === 'ready'
   ).length;
-  return `${readyCount} of ${status.scan.providers.length} providers ready`;
+  return t('shell.provider-summary.ready', {
+    ready: readyCount,
+    total: status.scan.providers.length
+  });
 }
 
 function DestinationPlaceholder({ route }: { route: RouteDefinition }): ReactNode {
+  const { t } = useLocalization();
   return (
-    <section className="destination-panel" aria-label={`${route.label} status`}>
+    <section className="destination-panel" aria-label={t('shell.destination.status', {
+      route: route.label
+    })}>
       <div className="destination-icon">
         <Icon name={route.icon} />
       </div>
       <div>
-        <p className="card-label">Foundation ready</p>
-        <h2>{route.label} is the next connected view</h2>
-        <p>
-          The secure navigation surface is in place. Provider and catalog data will
-          be connected here in the next implementation slice.
-        </p>
+        <p className="card-label">{t('shell.destination.ready')}</p>
+        <h2>{t('shell.destination.heading', { route: route.label })}</h2>
+        <p>{t('shell.destination.description')}</p>
       </div>
     </section>
   );
@@ -263,20 +261,21 @@ function SystemStatusBar({
   activeAgentCount: number;
   status: SystemStatus;
 }): ReactNode {
+  const { t } = useLocalization();
   let systemContent: ReactNode;
 
   if (status.state === 'loading') {
     systemContent = (
       <span className="status-item status-loading">
         <span className="status-dot" aria-hidden="true" />
-        Reading local system
+        {t('shell.footer.reading-system')}
       </span>
     );
   } else if (status.state === 'error') {
     systemContent = (
       <span className="status-item status-warning">
         <span className="status-warning-icon" aria-hidden="true">!</span>
-        System details unavailable
+        {t('shell.footer.system-unavailable')}
       </span>
     );
   } else {
@@ -296,16 +295,27 @@ function SystemStatusBar({
       <div className="status-cluster">{systemContent}</div>
       <div className="status-cluster status-cluster-secondary">
         <span className="status-item">
-          {activeAgentCount} active {activeAgentCount === 1 ? 'agent' : 'agents'}
+          {t('shell.footer.active-agents', { count: activeAgentCount })}
         </span>
         <span className="status-divider" aria-hidden="true" />
-        <span className="status-item">Sandboxed renderer</span>
+        <span className="status-item">{t('shell.footer.sandboxed-renderer')}</span>
       </div>
     </footer>
   );
 }
 
 function AppContent(): ReactNode {
+  const { t } = useLocalization();
+  const routes: readonly RouteDefinition[] = ROUTE_SPECS.map((route) => ({
+    id: route.id,
+    label: t(route.labelKey),
+    eyebrow: t(route.eyebrowKey),
+    description: t(route.descriptionKey),
+    icon: route.icon,
+    shortcut: route.shortcut
+  }));
+  const primaryRoutes = routes.filter((route) => route.id !== 'settings');
+  const settingsRoute = routes.find((route) => route.id === 'settings')!;
   const [startupShouldPlay, setStartupShouldPlay] = useState<boolean | null>(
     null
   );
@@ -498,8 +508,8 @@ function AppContent(): ReactNode {
   selectedWorkspaceIdRef.current = selectedWorkspaceId;
 
   const activeRoute = useMemo(
-    () => ROUTES.find((route) => route.id === activeRouteId) ?? ROUTES[0],
-    [activeRouteId]
+    () => routes.find((route) => route.id === activeRouteId) ?? routes[0]!,
+    [activeRouteId, routes]
   );
   const onlineRemoteTargetCount = [...remoteLifecycleSnapshots.values()]
     .filter(({ summary }) => summary.target.connectionState === 'ready').length;
@@ -885,7 +895,7 @@ function AppContent(): ReactNode {
           () => {
             if (catalogRequestId.current === refreshRequestId) {
               setCatalogOperationError(
-                'Catalog refresh failed. Last saved data is still shown.'
+                t('errors.catalog.refresh-saved')
               );
               setIsCatalogRefreshing(false);
             }
@@ -923,8 +933,8 @@ function AppContent(): ReactNode {
         if (catalogRequestId.current === requestId) {
           setCatalogOperationError(
             catalogStatus.state === 'ready'
-              ? 'Catalog refresh failed. Last saved data is still shown.'
-              : 'Catalog refresh failed. Try again.'
+              ? t('errors.catalog.refresh-saved')
+              : t('errors.catalog.refresh-retry')
           );
           if (catalogStatus.state !== 'ready') {
             setCatalogStatus({ state: 'error' });
@@ -1017,7 +1027,7 @@ function AppContent(): ReactNode {
       () => {
         if (workspaceDetailRequestId.current === requestId) {
           setWorkspaceDetailOperationError(
-            'Workspace sessions refresh failed. Last saved data is still shown.'
+            t('errors.catalog.workspace-refresh-saved')
           );
           setIsWorkspaceDetailRefreshing(false);
         }
@@ -1041,7 +1051,7 @@ function AppContent(): ReactNode {
       setHideWorkspaceIntent(null);
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not hide this workspace. Try again.'
+        t('errors.catalog.hide-workspace')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1061,7 +1071,7 @@ function AppContent(): ReactNode {
       setWorkspaceVisibilityPolicies(policies);
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not restore the selected workspaces. Try again.'
+        t('errors.catalog.restore-workspaces')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1077,7 +1087,7 @@ function AppContent(): ReactNode {
       setWorkspaceVisibilityPolicies(policies);
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not restore hidden workspaces. Try again.'
+        t('errors.catalog.restore-all-workspaces')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1385,8 +1395,8 @@ function AppContent(): ReactNode {
         setGeneralSettings(previous);
         setGeneralSettingsSaveError(
           previous.showInformationalNotices !== next.showInformationalNotices
-            ? 'Lumora could not save the informational notice setting.'
-            : 'Lumora could not save this setting.'
+            ? t('errors.settings.save-notices')
+            : t('errors.settings.save')
         );
       } finally {
         setGeneralSettingsSaving(false);
@@ -1411,7 +1421,7 @@ function AppContent(): ReactNode {
       }
     } catch {
       setAppearanceBackgroundError(
-        'Lumora could not use that image. Choose a valid PNG, JPEG, or WebP file under 25 MB.'
+        t('errors.settings.background-invalid')
       );
     } finally {
       setAppearanceBackgroundBusy(false);
@@ -1431,7 +1441,7 @@ function AppContent(): ReactNode {
         });
       }
     } catch {
-      setAppearanceBackgroundError('Lumora could not remove the managed image.');
+      setAppearanceBackgroundError(t('errors.settings.background-remove'));
     } finally {
       setAppearanceBackgroundBusy(false);
     }
@@ -1469,7 +1479,7 @@ function AppContent(): ReactNode {
       } catch {
         setGeneralSettings(previous);
         setGeneralSettingsSaveError(
-          'Lumora could not save the provider selection.'
+          t('errors.provider.save-selection')
         );
         return false;
       } finally {
@@ -1596,9 +1606,9 @@ function AppContent(): ReactNode {
           label: activeRoute.label
         }}
         primaryNavigation={{
-          ariaLabel: 'Primary navigation',
-          label: 'Workspace',
-          routes: PRIMARY_ROUTES.map((route) => ({
+          ariaLabel: t('shell.navigation.primary'),
+          label: t('shell.navigation.workspace-group'),
+          routes: primaryRoutes.map((route) => ({
             id: route.id,
             icon: route.icon,
             label: route.label,
@@ -1610,19 +1620,19 @@ function AppContent(): ReactNode {
                     shortcutPlatform
                   ),
             status: route.id === 'remote' && onlineRemoteTargetCount > 0
-              ? `${onlineRemoteTargetCount} ${onlineRemoteTargetCount === 1
-                  ? 'computer'
-                  : 'computers'} online`
+              ? t('shell.navigation.online-computers', {
+                  count: onlineRemoteTargetCount
+                })
               : undefined
           }))
         }}
         secondaryNavigation={{
-          label: 'Application',
+          label: t('shell.navigation.application-group'),
           routes: [
             {
-              id: SETTINGS_ROUTE.id,
-              icon: SETTINGS_ROUTE.icon,
-              label: SETTINGS_ROUTE.label,
+              id: settingsRoute.id,
+              icon: settingsRoute.icon,
+              label: settingsRoute.label,
               shortcut: shortcutPlatform === null
                 ? undefined
                 : formatShortcutChord(
@@ -1635,13 +1645,13 @@ function AppContent(): ReactNode {
         sidebarExpanded={sidebarExpanded}
         sidebarToggleShortcut={sidebarToggleShortcut}
         topbar={{
-          context: 'Private by default · Native provider sessions',
-          kicker: 'Local control plane',
+          context: t('shell.product.tagline'),
+          kicker: t('shell.topbar.local-control-plane'),
           actions: (
             <>
             {activeRuntimeId === null && liveRuntimes.length > 0 ? (
               <button className="secondary-button" data-lumora-command onClick={openLiveTerminals} tabIndex={-1} type="button">
-                Open terminals
+                {t('shell.runtime.open-terminals')}
               </button>
             ) : null}
             {activeRuntimeId === null &&
@@ -1664,7 +1674,7 @@ function AppContent(): ReactNode {
                 tabIndex={-1}
                 type="button"
               >
-                New session
+                {t('shell.topbar.new-session')}
               </button>
             ) : null}
             </>
@@ -1687,10 +1697,10 @@ function AppContent(): ReactNode {
 
           <div className="route-surface" hidden={terminalActive}>
             <RegionErrorBoundary
-              description="Lumora kept navigation, terminals, and saved data available. Retry only this page when you are ready."
-              heading="Page unavailable"
+              description={t('errors.general.page-description')}
+              heading={t('errors.general.page-heading')}
               resetKey={`${activeRouteId}:${selectedWorkspaceId ?? ''}:${settingsCategory}`}
-              retryLabel="Retry page"
+              retryLabel={t('errors.general.retry-page')}
             >
             {activeRoute.id === 'home' ? (
               <CatalogHomeSummary
@@ -1709,7 +1719,7 @@ function AppContent(): ReactNode {
                 providerScan={
                   providerStatus.state === 'ready' ? providerStatus.scan : null
                 }
-                providerSummary={providerSummary(providerStatus)}
+                providerSummary={providerSummary(providerStatus, t)}
                 runningSessionIds={runningSessionIds}
                 runtimes={runtimes}
                 status={visibleCatalogStatus}
@@ -1834,10 +1844,10 @@ function AppContent(): ReactNode {
           {openRuntimes.length > 0 ? (
             <div className="terminal-surface" hidden={!terminalActive}>
               <RegionErrorBoundary
-                description="Managed terminal processes are still owned by Lumora. Retry the terminal controls without restarting unrelated sessions."
-                heading="Terminal controls unavailable"
+                description={t('errors.terminal.controls-description')}
+                heading={t('errors.terminal.controls-heading')}
                 resetKey={activeRuntimeId}
-                retryLabel="Retry terminal controls"
+                retryLabel={t('errors.terminal.retry-controls')}
               >
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
@@ -1878,24 +1888,19 @@ function AppContent(): ReactNode {
           <>
           {applicationQuitRequest === null ? null : (
             <ConfirmDialog
-              cancelLabel="Keep Lumora open"
-              confirmLabel="Exit Lumora"
-              description={(
-                <>
-                  Lumora is managing {applicationQuitRequest.totalActiveAgentCount}{' '}
-                  active {applicationQuitRequest.totalActiveAgentCount === 1
-                    ? 'agent'
-                    : 'agents'} ({applicationQuitRequest.localActiveAgentCount} local and{' '}
-                  {applicationQuitRequest.remoteActiveAgentCount} remote). Exiting will stop
-                  these terminal sessions.
-                </>
-              )}
-              heading="Exit Lumora?"
+              cancelLabel={t('shell.runtime.quit-cancel')}
+              confirmLabel={t('shell.runtime.quit-confirm')}
+              description={t('shell.runtime.quit-description', {
+                total: applicationQuitRequest.totalActiveAgentCount,
+                local: applicationQuitRequest.localActiveAgentCount,
+                remote: applicationQuitRequest.remoteActiveAgentCount
+              })}
+              heading={t('shell.runtime.quit-heading')}
               onCancel={() => void resolveApplicationQuit('cancel')}
               onConfirm={() => void resolveApplicationQuit('exit')}
               suppression={{
                 checked: suppressApplicationQuitWarning,
-                label: "Don't show this warning again",
+                label: t('shell.runtime.suppress-warning'),
                 onChange: setSuppressApplicationQuitWarning
               }}
             />

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocalization } from '../localization/useLocalization';
 
 interface ConfirmDialogProps {
   cancelLabel?: string;
@@ -16,7 +17,7 @@ interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({
-  cancelLabel = 'Cancel',
+  cancelLabel,
   confirmLabel,
   description,
   heading,
@@ -24,6 +25,8 @@ export function ConfirmDialog({
   onConfirm,
   suppression
 }: ConfirmDialogProps): ReactNode {
+  const { t } = useLocalization();
+  const resolvedCancelLabel = cancelLabel ?? t('common.actions.cancel');
   const titleId = useId();
   const suppressionLabelId = useId();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
@@ -49,7 +52,7 @@ export function ConfirmDialog({
       >
         <header>
           <div>
-            <p className="card-label">Confirmation</p>
+            <p className="card-label">{t('common.labels.confirmation')}</p>
             <h2 id={titleId}>{heading}</h2>
           </div>
         </header>
@@ -74,7 +77,7 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </button>
           <button className="refresh-button" onClick={onConfirm} type="button">
             {confirmLabel}

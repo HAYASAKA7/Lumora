@@ -6,6 +6,7 @@ import type {
 
 import lumoraBrandMarkUrl from '../../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import type { AppearanceSettings } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 import { Tooltip } from '../ui/Tooltip';
 
 export type NavigationIconName =
@@ -120,6 +121,7 @@ function NavigationGroup<RouteId extends string>({
   onNavigate(routeId: RouteId): void;
   primary: boolean;
 }): ReactNode {
+  const { t } = useLocalization();
   return (
     <nav
       aria-label={group.ariaLabel ?? group.label}
@@ -144,7 +146,10 @@ function NavigationGroup<RouteId extends string>({
           <button
             aria-label={route.status === undefined
               ? undefined
-              : `${route.label} · ${route.status}`}
+              : t('shell.sidebar.route-status', {
+                  route: route.label,
+                  status: route.status
+                })}
             aria-current={activeRouteId === route.id ? 'page' : undefined}
             className="nav-item"
             data-lumora-command
@@ -188,7 +193,10 @@ export function LumoraShell<RouteId extends string>({
   statusBar,
   topbar
 }: LumoraShellProps<RouteId>): ReactNode {
-  const toggleLabel = sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar';
+  const { t } = useLocalization();
+  const toggleLabel = sidebarExpanded
+    ? t('shell.sidebar.collapse')
+    : t('shell.sidebar.expand');
   const shellClassName = [
     'appearance-root',
     'app-shell',
@@ -213,7 +221,7 @@ export function LumoraShell<RouteId extends string>({
           style={appearance.backgroundStyle}
         />
       )}
-      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <a className="skip-link" href="#main-content">{t('shell.sidebar.skip-main')}</a>
 
       <aside className="sidebar">
         <Tooltip
@@ -231,8 +239,8 @@ export function LumoraShell<RouteId extends string>({
           >
             <img alt="" className="brand-mark" src={lumoraBrandMarkUrl} />
             <span className="brand-copy">
-              <strong>Lumora</strong>
-              <small>Agent workspace manager</small>
+              <strong>{t('shell.product.name')}</strong>
+              <small>{t('shell.product.manager')}</small>
             </span>
           </button>
         </Tooltip>
@@ -261,7 +269,7 @@ export function LumoraShell<RouteId extends string>({
             <p className="topbar-kicker">{topbar.kicker}</p>
             <p className="topbar-context">{topbar.context}</p>
           </div>
-          <div aria-label="Session actions" className="topbar-actions" role="group">
+          <div aria-label={t('shell.topbar.session-actions')} className="topbar-actions" role="group">
             {topbar.actions}
           </div>
         </header>

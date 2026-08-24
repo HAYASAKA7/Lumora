@@ -1,13 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TooltipProvider } from '../ui/Tooltip';
 import { LumoraShell } from './LumoraShell';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
 
 describe('LumoraShell', () => {
   it('renders scoped navigation and one application content region', () => {
     const navigate = vi.fn();
-    render(
+    renderWithLocalization(
       <TooltipProvider>
         <LumoraShell
           activeRouteId="home"
@@ -61,5 +65,45 @@ describe('LumoraShell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(navigate).toHaveBeenCalledWith('sessions');
+  });
+
+  it('translates shell-owned accessibility and brand text', () => {
+    renderWithLocalization(
+      <TooltipProvider>
+        <LumoraShell
+          activeRouteId="home"
+          appearance={{
+            backgroundActive: false,
+            backgroundStyle: undefined,
+            hasSurfaceMosaic: false,
+            shellStyle: undefined,
+            theme: 'lumora'
+          }}
+          main={<div />}
+          onNavigate={vi.fn()}
+          onToggleSidebar={vi.fn()}
+          pageHeader={{ description: '', eyebrow: '', label: 'ホーム' }}
+          primaryNavigation={{ label: 'ワークスペース', routes: [] }}
+          sidebarExpanded={false}
+          statusBar={<footer />}
+          topbar={{ context: '', kicker: '' }}
+        />
+      </TooltipProvider>,
+      {
+        ...TEST_LOCALIZATION_SNAPSHOT,
+        locale: 'ja',
+        formattingLocale: 'ja',
+        messages: {
+          ...TEST_LOCALIZATION_SNAPSHOT.messages,
+          'shell.sidebar.expand': 'サイドバーを展開',
+          'shell.sidebar.skip-main': 'メインコンテンツへ移動',
+          'shell.product.manager': 'エージェントワークスペース管理'
+        }
+      }
+    );
+
+    expect(screen.getByRole('button', { name: 'サイドバーを展開' })).toBeVisible();
+    expect(screen.getByText('メインコンテンツへ移動')).toBeVisible();
+    expect(screen.getByText('エージェントワークスペース管理')).toBeVisible();
   });
 });

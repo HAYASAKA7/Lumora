@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StartupOverlay } from './StartupOverlay';
+import { renderWithLocalization } from '../test/render-with-localization';
 
 const videoSrc = '/assets/lumora-startup.mp4';
 const posterSrc = '/assets/lumora-startup-final.png';
@@ -12,7 +13,7 @@ afterEach(() => {
 
 describe('StartupOverlay', () => {
   it('covers the renderer without starting media while the window claim is pending', () => {
-    render(
+    renderWithLocalization(
       <StartupOverlay
         onDismissed={vi.fn()}
         posterSrc={posterSrc}
@@ -30,7 +31,7 @@ describe('StartupOverlay', () => {
   });
 
   it('plays silent inline media after the visible window grants the claim', () => {
-    render(
+    renderWithLocalization(
       <StartupOverlay
         onDismissed={vi.fn()}
         posterSrc={posterSrc}
@@ -52,7 +53,7 @@ describe('StartupOverlay', () => {
   it('holds the final frame until startup work settles, then fades away', () => {
     vi.useFakeTimers();
     const onDismissed = vi.fn();
-    const { rerender } = render(
+    const { rerender } = renderWithLocalization(
       <StartupOverlay
         fadeDurationMs={200}
         onDismissed={onDismissed}
@@ -93,7 +94,7 @@ describe('StartupOverlay', () => {
   it('uses a synchronized 500ms crossfade by default', () => {
     vi.useFakeTimers();
     const onDismissed = vi.fn();
-    render(
+    renderWithLocalization(
       <StartupOverlay
         onDismissed={onDismissed}
         posterSrc={posterSrc}
@@ -116,7 +117,7 @@ describe('StartupOverlay', () => {
   });
 
   it('uses the final frame if video playback fails', () => {
-    render(
+    renderWithLocalization(
       <StartupOverlay
         onDismissed={vi.fn()}
         posterSrc={posterSrc}
@@ -132,7 +133,7 @@ describe('StartupOverlay', () => {
   });
 
   it('renders nothing when this process has already presented startup', () => {
-    render(
+    renderWithLocalization(
       <StartupOverlay
         onDismissed={vi.fn()}
         posterSrc={posterSrc}
@@ -148,7 +149,7 @@ describe('StartupOverlay', () => {
   it('releases a stalled startup after the safety timeout and fade', () => {
     vi.useFakeTimers();
     const onDismissed = vi.fn();
-    render(
+    renderWithLocalization(
       <StartupOverlay
         fadeDurationMs={200}
         onDismissed={onDismissed}

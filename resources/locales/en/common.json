@@ -74,7 +74,9 @@
     "status": "Status",
     "system-default": "System default",
     "version": "Version",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "confirmation": "Confirmation",
+    "options": "{label} options"
   },
   "counts": {
     "agents": "{count, plural, one {# active agent} other {# active agents}}",

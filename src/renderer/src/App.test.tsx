@@ -27,6 +27,10 @@ import type {
 import App from './App';
 import { CATALOG_EXIT_REFRESH_DELAY_MS } from './catalog/useCatalogAutoRefresh';
 import { SIDEBAR_EXPANSION_STORAGE_KEY } from './sidebar/sidebar-preference';
+import {
+  renderWithLocalization,
+  TestLocalizationProvider
+} from './test/render-with-localization';
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
@@ -455,7 +459,7 @@ describe('App', () => {
       },
       resolveApplicationQuit
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     act(() => quitListener?.({
       localActiveAgentCount: 1,
@@ -476,7 +480,7 @@ describe('App', () => {
   });
 
   it('uses the canonical Lumora brand artwork in the sidebar', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const brand = screen.getByRole('button', { name: 'Collapse sidebar' });
     const mark = brand.querySelector<HTMLImageElement>('img.brand-mark');
@@ -490,7 +494,7 @@ describe('App', () => {
   });
 
   it('does not show static discovery badges in the app chrome', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(screen.queryByText('Discovery mode')).not.toBeInTheDocument();
     expect(document.querySelector('.sidebar-note')).not.toBeInTheDocument();
@@ -501,7 +505,7 @@ describe('App', () => {
   });
 
   it('shows the live local agent count instead of the obsolete local-only label', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('0 active agents')).toBeInTheDocument();
     expect(screen.queryByText('Local only')).not.toBeInTheDocument();
@@ -517,7 +521,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    const { unmount } = render(<App />);
+    const { unmount } = renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 active agent')).toBeInTheDocument();
     unmount();
@@ -534,7 +538,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('2 active agents')).toBeInTheDocument();
   });
@@ -545,7 +549,7 @@ describe('App', () => {
       'collapsed'
     );
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const shell = document.querySelector('.app-shell');
     const expand = screen.getByRole('button', { name: 'Expand sidebar' });
@@ -563,7 +567,7 @@ describe('App', () => {
   });
 
   it('collapses and expands the sidebar without remounting navigation icons', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const shell = document.querySelector('.app-shell');
     const home = screen.getByRole('button', { name: 'Home' });
@@ -605,7 +609,7 @@ describe('App', () => {
   });
 
   it('keeps the latest sidebar state, preference, and icon identity after repeated toggles', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const shell = document.querySelector('.app-shell');
     const toggle = screen.getByRole('button', { name: 'Collapse sidebar' });
@@ -664,7 +668,7 @@ describe('App', () => {
       undefined,
       { getKeyboardSettings }
     );
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
@@ -679,7 +683,7 @@ describe('App', () => {
   });
 
   it('expands while navigating from a collapsed sidebar', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const shell = document.querySelector('.app-shell');
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
@@ -697,7 +701,7 @@ describe('App', () => {
   });
 
   it('opens on Home and exposes the complete primary navigation', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
@@ -717,7 +721,7 @@ describe('App', () => {
   });
 
   it('places Remote computers fifth and Settings below the separator', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const primaryNavigation = screen.getByRole('navigation', {
       name: 'Primary navigation'
@@ -745,7 +749,7 @@ describe('App', () => {
   });
 
   it('resets the shared page scroll position when navigation changes', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
     const main = document.getElementById('main-content');
     expect(main).not.toBeNull();
     if (main === null) throw new Error('main content missing');
@@ -798,7 +802,7 @@ describe('App', () => {
       prepareSessionExport,
       executeSessionExport
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     await screen.findByText('Catalog implementation');
@@ -853,7 +857,7 @@ describe('App', () => {
       getCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning)
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     fireEvent.click(
@@ -893,7 +897,7 @@ describe('App', () => {
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithWarning),
       saveGeneralSettings
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(
@@ -939,7 +943,7 @@ describe('App', () => {
         showInformationalNotices: false
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     await screen.findByText('Catalog implementation');
@@ -961,7 +965,7 @@ describe('App', () => {
         return () => { notifySettingsChanged = null; };
       }
     });
-    render(<App />);
+    renderWithLocalization(<App />);
     await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledOnce());
     if (notifySettingsChanged === null) throw new Error('Missing settings listener.');
 
@@ -979,7 +983,7 @@ describe('App', () => {
       .fn()
       .mockRejectedValue(new Error('storage unavailable'));
     setSystemInfoResult(undefined, undefined, { saveGeneralSettings });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(await screen.findByRole('tab', { name: 'General' }));
@@ -997,7 +1001,7 @@ describe('App', () => {
   });
 
   it('opens the General category every time Settings is entered', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const securityTab = await screen.findByRole('tab', { name: 'Security' });
@@ -1034,7 +1038,7 @@ describe('App', () => {
       })
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => {
       const layer = document.querySelector('.appearance-background-layer');
@@ -1089,7 +1093,7 @@ describe('App', () => {
       })
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => {
       const shell = document.querySelector('.app-shell');
@@ -1126,7 +1130,7 @@ describe('App', () => {
       })
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
     );
@@ -1146,7 +1150,7 @@ describe('App', () => {
       autoExpandSidebar: false
     });
     setSystemInfoResult(undefined, undefined, { getGeneralSettings });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(getGeneralSettings).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
@@ -1160,7 +1164,7 @@ describe('App', () => {
   });
 
   it('resets Settings scroll when its category changes', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const main = document.getElementById('main-content');
     expect(main).not.toBeNull();
@@ -1192,7 +1196,7 @@ describe('App', () => {
       }),
       onRuntimeEvent
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1246,7 +1250,7 @@ describe('App', () => {
         listRuntimes: vi.fn().mockResolvedValue([runtime]),
         onRuntimeEvent
       });
-      render(<App />);
+      renderWithLocalization(<App />);
 
       await act(async () => {
         await Promise.resolve();
@@ -1333,7 +1337,7 @@ describe('App', () => {
       }),
       onRuntimeEvent
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1384,7 +1388,7 @@ describe('App', () => {
       }),
       onRuntimeEvent
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1426,7 +1430,7 @@ describe('App', () => {
         return () => undefined;
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.keyDown(window, {
@@ -1487,7 +1491,7 @@ describe('App', () => {
       listRuntimes: vi.fn().mockResolvedValue([runtime]),
       attachRuntime
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1520,7 +1524,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
@@ -1549,7 +1553,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1615,7 +1619,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1674,7 +1678,7 @@ describe('App', () => {
         return () => undefined;
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1730,7 +1734,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
     fireEvent.click(
@@ -1752,7 +1756,7 @@ describe('App', () => {
   });
 
   it('navigates primary pages with the default application shortcuts', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.keyDown(window, { code: 'Digit2', key: '2', ctrlKey: true });
     expect(screen.getByRole('heading', { name: 'Workspaces' })).toBeInTheDocument();
@@ -1782,7 +1786,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.keyDown(window, {
@@ -1821,7 +1825,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Open terminals' })
@@ -1869,7 +1873,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const openTerminals = await screen.findByRole('button', {
       name: 'Open terminals'
@@ -1912,7 +1916,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.keyDown(window, {
@@ -1957,7 +1961,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.keyDown(window, {
@@ -2002,7 +2006,7 @@ describe('App', () => {
     const addEventListener = vi.spyOn(window, 'addEventListener');
 
     try {
-      render(<App />);
+      renderWithLocalization(<App />);
       const initialKeydownListener = addEventListener.mock.calls.find(
         ([type]) => type === 'keydown'
       )?.[1];
@@ -2036,7 +2040,7 @@ describe('App', () => {
   });
 
   it('toggles the sidebar with Ctrl+Shift+L outside a terminal', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.keyDown(window, { code: 'KeyL', key: 'l', ctrlKey: true });
     expect(screen.getByRole('button', { name: 'Collapse sidebar' }))
@@ -2071,7 +2075,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.keyDown(window, {
@@ -2116,7 +2120,7 @@ describe('App', () => {
       }
     });
     setSystemInfoResult(undefined, undefined, { getKeyboardSettings });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
@@ -2160,7 +2164,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
     fireEvent.click(
@@ -2198,7 +2202,7 @@ describe('App', () => {
         outputSequence: 0
       }))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByRole('button', { name: 'Open terminals' });
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -2219,7 +2223,7 @@ describe('App', () => {
   });
 
   it('changes destination and exposes layered launch settings', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
@@ -2249,7 +2253,7 @@ describe('App', () => {
       getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
       prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
 
@@ -2276,7 +2280,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(await screen.findByRole('button', {
       name: `Open running terminal ${readyCatalog.sessions[0]!.title}`
@@ -2309,7 +2313,7 @@ describe('App', () => {
         return () => undefined;
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
     await screen.findByRole('button', { name: 'Resume' });
 
     act(() => requestResume(readyCatalog.sessions[0]!.id));
@@ -2341,7 +2345,7 @@ describe('App', () => {
         return () => undefined;
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
     await screen.findByRole('button', {
       name: `Open running terminal ${readyCatalog.sessions[0]!.title}`
     });
@@ -2435,7 +2439,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     fireEvent.click(
@@ -2574,7 +2578,7 @@ describe('App', () => {
         outputSequence: 0
       })
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Recover' }));
     const dialog = await screen.findByRole('dialog', {
@@ -2605,7 +2609,7 @@ describe('App', () => {
   });
 
   it('shows New session in the top command bar only on Home and Workspaces', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const sessionActions = screen.getByRole('group', { name: 'Session actions' });
     expect(
@@ -2658,7 +2662,7 @@ describe('App', () => {
       getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
       prepareLaunch
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
@@ -2696,7 +2700,7 @@ describe('App', () => {
   });
 
   it('shows platform and architecture after system information resolves', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(screen.getByText('Reading local system')).toBeInTheDocument();
     expect(await screen.findByText('Windows · x64')).toBeInTheDocument();
@@ -2705,7 +2709,7 @@ describe('App', () => {
 
   it('shows a non-blocking diagnostic when system information fails', async () => {
     setSystemInfoResult(vi.fn().mockRejectedValue(new Error('IPC unavailable')));
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(
       await screen.findByText('System details unavailable')
@@ -2714,7 +2718,7 @@ describe('App', () => {
   });
 
   it('explains each Home dashboard area without fabricated data', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     for (const cardTitle of [
       'Running agents',
@@ -2742,7 +2746,7 @@ describe('App', () => {
       getCatalog: vi.fn().mockResolvedValue(catalogWithUsage),
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithUsage)
     });
-    const { unmount } = render(<App />);
+    const { unmount } = renderWithLocalization(<App />);
 
     const heading = await screen.findByRole('heading', {
       name: 'Recent sessions'
@@ -2767,7 +2771,7 @@ describe('App', () => {
       getCatalog: vi.fn().mockResolvedValue(catalogWithoutWorkspace),
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithoutWorkspace)
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     const missingHeading = await screen.findByRole('heading', {
       name: 'Recent sessions'
@@ -2783,7 +2787,7 @@ describe('App', () => {
   });
 
   it('shows the real ready-provider count on Home', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('2 of 2 providers ready')).toBeInTheDocument();
   });
@@ -2801,7 +2805,7 @@ describe('App', () => {
       }]
     });
     setSystemInfoResult(undefined, undefined, { checkProviderUpdates });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(await screen.findByRole('button', {
       name: '1 agent update available: Codex. Open Provider Settings'
@@ -2827,7 +2831,7 @@ describe('App', () => {
       checkProviderUpdates,
       getGeneralSettings
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await screen.findByText('2 of 2 providers ready');
     await waitFor(() => expect(getGeneralSettings).toHaveBeenCalledOnce());
@@ -2843,7 +2847,7 @@ describe('App', () => {
       .mockResolvedValue(readyEnvironmentScan);
     setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1));
     expect(
@@ -2856,7 +2860,7 @@ describe('App', () => {
       scanDeveloperEnvironment: vi.fn().mockResolvedValue(missingNodeEnvironmentScan)
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(
       await screen.findByText('Node.js and npm were not found.')
@@ -2871,7 +2875,7 @@ describe('App', () => {
       openNodeDownloadPage
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(
       await screen.findByRole('button', { name: 'Download Node.js' })
     );
@@ -2880,7 +2884,7 @@ describe('App', () => {
   });
 
   it('lists detected providers, versions, and paths in Settings', async () => {
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
 
@@ -2914,7 +2918,7 @@ describe('App', () => {
 
   it('shows an actionable provider diagnostic without hiding healthy providers', async () => {
     setSystemInfoResult(undefined, vi.fn().mockResolvedValue(degradedProviderScan));
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
@@ -2932,7 +2936,7 @@ describe('App', () => {
       undefined,
       vi.fn().mockRejectedValue(new Error('provider IPC unavailable'))
     );
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(
       await screen.findByText('Provider details are unavailable')
@@ -2952,7 +2956,7 @@ describe('App', () => {
       .fn()
       .mockResolvedValue(readyEnvironmentScan);
     setSystemInfoResult(undefined, scanProviders, { scanDeveloperEnvironment });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 of 2 providers ready')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -2996,7 +3000,7 @@ describe('App', () => {
       refreshCatalog,
       saveGeneralSettings
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
@@ -3029,7 +3033,7 @@ describe('App', () => {
       .mockResolvedValueOnce(readyEnvironmentScan);
     const scanProviders = vi.fn().mockResolvedValue(readyProviderScan);
     setSystemInfoResult(undefined, scanProviders, { scanDeveloperEnvironment });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(
       await screen.findByText('Node.js and npm were not found.')
@@ -3052,7 +3056,7 @@ describe('App', () => {
       .mockReturnValueOnce(firstScan.promise)
       .mockResolvedValueOnce(readyEnvironmentScan);
     setSystemInfoResult(undefined, undefined, { scanDeveloperEnvironment });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() => expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -3073,7 +3077,7 @@ describe('App', () => {
     const getCatalog = vi.fn().mockResolvedValue(readyCatalog);
     setSystemInfoResult(undefined, undefined, { getCatalog, refreshCatalog });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 workspace')).toBeInTheDocument();
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
@@ -3090,7 +3094,7 @@ describe('App', () => {
     setSystemInfoResult(undefined, undefined, {
       getWorkspaceVisibilityPolicies: vi.fn(() => policies.promise)
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     expect(await screen.findByText('Loading catalog')).toBeVisible();
@@ -3111,7 +3115,7 @@ describe('App', () => {
   it('uses the native workspace picker and preserves data when it is cancelled', async () => {
     const chooseWorkspace = vi.fn().mockResolvedValue(null);
     setSystemInfoResult(undefined, undefined, { chooseWorkspace });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     expect(
@@ -3135,7 +3139,7 @@ describe('App', () => {
       setWorkspaceVisibilityPolicy,
       restoreWorkspaceVisibility
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     expect(await screen.findByRole('heading', { name: 'Lumora' })).toBeInTheDocument();
@@ -3198,7 +3202,7 @@ describe('App', () => {
       prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined)),
       refreshCatalog
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
@@ -3247,7 +3251,7 @@ describe('App', () => {
       .mockResolvedValueOnce(readyCatalog)
       .mockRejectedValueOnce(new Error('detail scan failed'));
     setSystemInfoResult(undefined, undefined, { refreshCatalog });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
@@ -3278,7 +3282,7 @@ describe('App', () => {
       .mockResolvedValueOnce(readyCatalog)
       .mockImplementation(() => detail.promise);
     setSystemInfoResult(undefined, undefined, { getCatalog });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(
@@ -3320,7 +3324,7 @@ describe('App', () => {
       getCatalog,
       refreshCatalog: vi.fn().mockResolvedValue(catalogWithClaude)
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
@@ -3345,7 +3349,7 @@ describe('App', () => {
     setSystemInfoResult(undefined, undefined, {
       refreshCatalog: vi.fn().mockRejectedValue(new Error('scan failed'))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 workspace')).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -3359,7 +3363,7 @@ describe('App', () => {
       getCatalog: vi.fn().mockRejectedValue(new Error('database unavailable')),
       refreshCatalog: vi.fn().mockResolvedValue(readyCatalog)
     });
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -3374,7 +3378,7 @@ describe('App', () => {
   it('applies the latest client-side search without stale catalog responses', async () => {
     const getCatalog = vi.fn().mockResolvedValue(readyCatalog);
     setSystemInfoResult(undefined, undefined, { getCatalog });
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
 
@@ -3395,7 +3399,7 @@ describe('App', () => {
       getCatalog,
       refreshCatalog: vi.fn(() => new Promise<CatalogSnapshot>(() => {}))
     });
-    render(<App />);
+    renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
     expect(
@@ -3429,7 +3433,7 @@ describe('App', () => {
       refreshCatalog: vi.fn(() => refreshed.promise)
     });
 
-    render(<App />);
+    renderWithLocalization(<App />);
 
     await waitFor(() =>
       expect(claimStartupPresentation).toHaveBeenCalledTimes(1)
@@ -3465,7 +3469,9 @@ describe('App', () => {
 
     render(
       <StrictMode>
-        <App />
+        <TestLocalizationProvider>
+          <App />
+        </TestLocalizationProvider>
       </StrictMode>
     );
 
@@ -3489,7 +3495,7 @@ describe('App', () => {
     });
   });
   it('keeps main navigation out of the browser Tab cycle', () => {
-    render(<App />);
+    renderWithLocalization(<App />);
     const home = screen.getByRole('button', { name: 'Home' });
     const sidebarToggle = screen.getByRole('button', {
       name: 'Collapse sidebar'

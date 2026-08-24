@@ -66,11 +66,22 @@ export function renderWithLocalization(
   snapshot: LocalizationSnapshot = TEST_LOCALIZATION_SNAPSHOT,
   options?: Omit<RenderOptions, 'wrapper'>
 ) {
-  const value = createLocalizationValue(snapshot);
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <LocalizationContext.Provider value={value}>
+    <TestLocalizationProvider snapshot={snapshot}>{children}</TestLocalizationProvider>
+  );
+  return render(ui, { ...options, wrapper: Wrapper });
+}
+
+export function TestLocalizationProvider({
+  children,
+  snapshot = TEST_LOCALIZATION_SNAPSHOT
+}: {
+  children: ReactNode;
+  snapshot?: LocalizationSnapshot;
+}) {
+  return (
+    <LocalizationContext.Provider value={createLocalizationValue(snapshot)}>
       {children}
     </LocalizationContext.Provider>
   );
-  return render(ui, { ...options, wrapper: Wrapper });
 }

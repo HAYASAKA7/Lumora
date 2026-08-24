@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { SelectMenu } from './SelectMenu';
+import { renderWithLocalization } from '../test/render-with-localization';
 
 const options = [
   { value: 'direct', label: 'Direct SSH' },
@@ -45,7 +46,7 @@ function AccessibleHarness() {
 
 describe('SelectMenu', () => {
   it('supports keyboard selection without opening a native browser menu', () => {
-    render(<Harness />);
+    renderWithLocalization(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Connection route' });
 
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
@@ -69,7 +70,7 @@ describe('SelectMenu', () => {
   });
 
   it('forwards field accessibility and layout hooks to its trigger', () => {
-    render(<AccessibleHarness />);
+    renderWithLocalization(<AccessibleHarness />);
 
     const trigger = screen.getByRole('button', { name: 'Connection route' });
     expect(trigger).toBeDisabled();
@@ -78,7 +79,7 @@ describe('SelectMenu', () => {
   });
 
   it('supports Home, End, and Escape without moving focus from the trigger', () => {
-    render(<Harness />);
+    renderWithLocalization(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Connection route' });
     trigger.focus();
 

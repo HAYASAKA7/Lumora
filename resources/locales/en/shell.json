@@ -1,7 +1,8 @@
 {
   "product": {
     "name": "Lumora",
-    "tagline": "Private by default · Native provider sessions"
+    "tagline": "Private by default · Native provider sessions",
+    "manager": "Agent workspace manager"
   },
   "navigation": {
     "home": "Home",
@@ -10,7 +11,25 @@
     "terminal-profiles": "Terminal profiles",
     "remote-computers": "Remote computers",
     "settings": "Settings",
-    "transfer": "Session transfer"
+    "transfer": "Session transfer",
+    "primary": "Primary navigation",
+    "workspace-group": "Workspace",
+    "application-group": "Application",
+    "online-computers": "{count, plural, one {# computer online} other {# computers online}}"
+  },
+  "routes": {
+    "home-eyebrow": "Command center",
+    "home-description": "A quiet overview of active work, recent sessions, and anything that needs your attention.",
+    "workspaces-eyebrow": "Workspace index",
+    "workspaces-description": "Organize repositories and see supported agent sessions in one dependable hierarchy.",
+    "sessions-eyebrow": "Session catalog",
+    "sessions-description": "Search and filter normalized provider sessions without changing provider-owned data.",
+    "profiles-eyebrow": "Shell profiles",
+    "profiles-description": "Review detected shells and define the terminal environment used for managed sessions.",
+    "remote-eyebrow": "Remote Lumora",
+    "remote-description": "Configure SSH access and open one isolated Lumora window for each remote computer.",
+    "settings-eyebrow": "Application settings",
+    "settings-description": "Configure providers, storage, security, appearance, and diagnostic behavior."
   },
   "shortcuts": {
     "home": "Home ({shortcut})",
@@ -25,20 +44,47 @@
     "expand": "Expand sidebar",
     "collapse": "Collapse sidebar",
     "workspace-section": "Workspace",
-    "active-terminals": "Active terminals"
+    "active-terminals": "Active terminals",
+    "skip-main": "Skip to main content",
+    "route-status": "{route} · {status}"
   },
   "topbar": {
     "local-control-plane": "Local control plane",
     "remote-control-plane": "Remote control plane",
-    "new-session": "New session"
+    "new-session": "New session",
+    "session-actions": "Session actions"
   },
   "footer": {
-    "active-agents": "{count, plural, =0 {No active agents} one {# active agent} other {# active agents}}",
-    "platform-version": "{platform} · {architecture} · Lumora {version}"
+    "active-agents": "{count, plural, one {# active agent} other {# active agents}}",
+    "platform-version": "{platform} · {architecture} · Lumora {version}",
+    "reading-system": "Reading local system",
+    "system-unavailable": "System details unavailable",
+    "sandboxed-renderer": "Sandboxed renderer"
+  },
+  "provider-summary": {
+    "scanning": "Scanning provider installations",
+    "unavailable": "Provider details are unavailable",
+    "ready": "{ready} of {total} providers ready"
+  },
+  "runtime": {
+    "open-terminals": "Open terminals",
+    "quit-heading": "Exit Lumora?",
+    "quit-confirm": "Exit Lumora",
+    "quit-cancel": "Keep Lumora open",
+    "quit-description": "Lumora is managing {total} active {total, plural, one {agent} other {agents}} ({local} local and {remote} remote). Exiting will stop these terminal sessions.",
+    "suppress-warning": "Don't show this warning again"
+  },
+  "destination": {
+    "status": "{route} status",
+    "ready": "Foundation ready",
+    "heading": "{route} is the next connected view",
+    "description": "The secure navigation surface is in place. Provider and catalog data will be connected here in the next implementation slice."
   },
   "startup": {
     "preparing": "Preparing Lumora…",
     "scanning": "Scanning workspaces and sessions…",
-    "almost-ready": "Almost ready…"
+    "almost-ready": "Almost ready…",
+    "starting": "Lumora is starting",
+    "final-frame": "Lumora startup final frame"
   }
 }

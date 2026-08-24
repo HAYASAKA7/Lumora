@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocalization } from '../localization/useLocalization';
 
 export interface SelectMenuOption<Value extends string> {
   value: Value;
@@ -34,6 +35,7 @@ export function SelectMenu<Value extends string>({
   options,
   value
 }: SelectMenuProps<Value>): ReactNode {
+  const { t } = useLocalization();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const listboxId = useId();
@@ -173,13 +175,13 @@ export function SelectMenu<Value extends string>({
         ref={triggerRef}
         type="button"
       >
-        <span className="select-menu-value">{selected?.label ?? 'Unavailable'}</span>
+        <span className="select-menu-value">{selected?.label ?? t('common.states.unavailable')}</span>
         <span aria-hidden="true" className="select-menu-chevron">⌄</span>
       </button>
       {open
         ? createPortal(
             <div
-              aria-label={`${label} options`}
+              aria-label={t('common.labels.options', { label })}
               className="select-menu-options select-menu-options-overlay"
               id={listboxId}
               ref={menuRef}

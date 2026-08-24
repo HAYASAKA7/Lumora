@@ -11,6 +11,7 @@ import {
   STARTUP_PRESENTATION_FADE_MS,
   STARTUP_PRESENTATION_TIMEOUT_MS
 } from '../../../shared/startup-presentation';
+import { useLocalization } from '../localization/useLocalization';
 
 interface StartupOverlayProps {
   shouldPlay: boolean | null;
@@ -31,6 +32,7 @@ export function StartupOverlay({
   timeoutMs = STARTUP_PRESENTATION_TIMEOUT_MS,
   fadeDurationMs = STARTUP_PRESENTATION_FADE_MS
 }: StartupOverlayProps): ReactNode {
+  const { t } = useLocalization();
   const [mediaFinished, setMediaFinished] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const releaseStarted = useRef(false);
@@ -82,7 +84,7 @@ export function StartupOverlay({
 
   return (
     <div
-      aria-label="Lumora is starting"
+      aria-label={t('shell.startup.starting')}
       className={`startup-overlay${leaving ? ' startup-overlay-leaving' : ''}`}
       data-state={state}
       role="status"
@@ -96,7 +98,7 @@ export function StartupOverlay({
         <div className="startup-media-stage">
           {mediaFinished ? (
             <img
-              alt="Lumora startup final frame"
+              alt={t('shell.startup.final-frame')}
               className="startup-media"
               src={posterSrc}
             />

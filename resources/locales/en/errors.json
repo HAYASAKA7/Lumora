@@ -3,22 +3,41 @@
     "title": "Something went wrong",
     "description": "Lumora could not complete this operation.",
     "retry": "Try again",
-    "region": "This part of Lumora could not be displayed."
+    "region": "This part of Lumora could not be displayed.",
+    "page-heading": "Page unavailable",
+    "page-description": "Lumora kept navigation, terminals, and saved data available. Retry only this page when you are ready.",
+    "retry-page": "Retry page"
   },
   "catalog": {
     "load": "Lumora could not load the session catalog.",
-    "refresh": "Lumora could not refresh sessions."
+    "refresh": "Lumora could not refresh sessions.",
+    "refresh-saved": "Catalog refresh failed. Last saved data is still shown.",
+    "refresh-retry": "Catalog refresh failed. Try again.",
+    "workspace-refresh-saved": "Workspace sessions refresh failed. Last saved data is still shown.",
+    "hide-workspace": "Lumora could not hide this workspace. Try again.",
+    "restore-workspaces": "Lumora could not restore the selected workspaces. Try again.",
+    "restore-all-workspaces": "Lumora could not restore hidden workspaces. Try again."
   },
   "terminal": {
     "operation": "Lumora could not complete the terminal operation.",
     "start": "Lumora could not start this terminal.",
     "stop": "Lumora could not stop this terminal.",
-    "clipboard": "Lumora could not access the clipboard."
+    "clipboard": "Lumora could not access the clipboard.",
+    "controls-heading": "Terminal controls unavailable",
+    "controls-description": "Managed terminal processes are still owned by Lumora. Retry the terminal controls without restarting unrelated sessions.",
+    "retry-controls": "Retry terminal controls."
   },
   "provider": {
     "scan": "Lumora could not scan agent providers.",
     "install": "Lumora could not install this provider.",
-    "update": "Lumora could not update this provider."
+    "update": "Lumora could not update this provider.",
+    "save-selection": "Lumora could not save the provider selection."
+  },
+  "settings": {
+    "save": "Lumora could not save this setting.",
+    "save-notices": "Lumora could not save the informational notice setting.",
+    "background-invalid": "Lumora could not use that image. Choose a valid PNG, JPEG, or WebP file under 25 MB.",
+    "background-remove": "Lumora could not remove the managed image."
   },
   "remote": {
     "operation": "Lumora could not complete the remote operation.",
