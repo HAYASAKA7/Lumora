@@ -2,6 +2,12 @@ const { readFileSync, statSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { verifyHelperBundle } = require('../helper/verify-helper.cjs');
 
+const BUNDLED_LOCALES = ['en', 'zh-Hans', 'zh-Hant', 'ja', 'ko'];
+const LOCALE_NAMESPACES = [
+  'common', 'shell', 'catalog', 'terminal', 'settings',
+  'providers', 'remote', 'transfer', 'errors'
+];
+
 const TARGETS = {
   'win-x64': {
     artifactExtension: 'exe',
@@ -74,6 +80,25 @@ function pathIsDirectory(filePath) {
   }
 }
 
+function verifyBundledLocales(resourcesPath) {
+  const localeRoot = join(resourcesPath, 'locales');
+  requireDirectory('bundled locale catalog', localeRoot);
+  for (const locale of BUNDLED_LOCALES) {
+    const localePath = join(localeRoot, locale);
+    requireDirectory(`bundled locale ${locale}`, localePath);
+    requireNonEmptyFile(
+      `bundled locale ${locale} manifest`,
+      join(localePath, 'manifest.json')
+    );
+    for (const namespace of LOCALE_NAMESPACES) {
+      requireNonEmptyFile(
+        `bundled locale ${locale} namespace ${namespace}`,
+        join(localePath, `${namespace}.json`)
+      );
+    }
+  }
+}
+
 function readPackageVersion(rootDir) {
   const packagePath = join(rootDir, 'package.json');
   requireNonEmptyFile('package.json', packagePath);
@@ -138,6 +163,7 @@ function verifyPackage({
   const resourcesPath = join(unpackedRoot, ...target.resourcesPath);
   requireDirectory('application resources', resourcesPath);
   requireNonEmptyFile('app.asar', join(resourcesPath, 'app.asar'));
+  verifyBundledLocales(resourcesPath);
 
   const helperRoot = join(resourcesPath, 'helper');
   requireDirectory('Lumora helper bundle', helperRoot);

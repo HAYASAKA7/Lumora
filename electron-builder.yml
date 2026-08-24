@@ -26,6 +26,8 @@ extraResources:
     to: icons/lumora-tray.png
   - from: resources/helper/generated
     to: helper
+  - from: resources/locales
+    to: locales
 
 extraMetadata:
   desktopName: app.lumora.desktop

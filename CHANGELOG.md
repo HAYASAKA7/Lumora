@@ -7,6 +7,22 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add global multilingual UI support with system-language detection and
+  explicit English, Simplified Chinese, Traditional Chinese, Japanese, and
+  Korean selections across local Lumora, Remote Lumora, native menus,
+  notifications, dialogs, and locale-aware dates, times, numbers, and plurals.
+- Add secure per-user language packs with partial overrides, immutable English
+  fallback, atomic reload, compatibility warnings, bounded JSON validation, and
+  a managed folder entrance in General settings.
+
+### Changed
+
+- Package all built-in locale catalogs on Windows, macOS, and Linux, and add
+  verification gates for catalog completeness, ICU placeholders, renderer
+  strings, and packaged locale resources.
+
 ## [0.3.8] - 2026-08-24
 
 ### Added

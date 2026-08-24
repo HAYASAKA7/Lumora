@@ -322,6 +322,21 @@ confirmation. Full-exit and remote disconnect-and-close warnings have separate
 switches in **Settings > General**, and each confirmation can disable its own
 future warning.
 
+### Language
+
+Lumora includes English, Simplified Chinese, Traditional Chinese, Japanese,
+and Korean. Choose **System language** or an explicit language in
+**Settings > General > Language**; unsupported system languages fall back to
+English. The selection is global across local and Remote Lumora windows,
+native menus, notifications, dialogs, and formatted dates and counts. Agent
+TUI output, commands, prompts, paths, and user-owned names are never translated.
+
+Advanced users can open the managed language-pack folder from the same panel,
+add a locale or partially override an existing one, then reload packs without
+restarting Lumora. Invalid packs are isolated and the last valid catalog stays
+active. See [Localization and user language packs](docs/localization.md) for
+the manifest, namespaces, compatibility rules, limits, and recovery steps.
+
 ### Providers and environment
 
 Review installation status and versions, install or update supported npm-based

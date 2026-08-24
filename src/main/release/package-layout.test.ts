@@ -32,6 +32,11 @@ interface PackageFixture extends PackageVerification {
 }
 
 const temporaryDirectories: string[] = [];
+const bundledLocales = ['en', 'zh-Hans', 'zh-Hant', 'ja', 'ko'] as const;
+const localeNamespaces = [
+  'common', 'shell', 'catalog', 'terminal', 'settings',
+  'providers', 'remote', 'transfer', 'errors'
+] as const;
 
 async function writeFixtureFile(filePath: string, contents: string | Uint8Array = 'fixture'): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
@@ -63,6 +68,26 @@ async function writeHelperBundle(resourcesPath: string): Promise<string> {
     formatVersion: 1, helperVersion: '0.1.0', protocolVersion: 1, artifacts
   }));
   return helperPath;
+}
+
+async function writeLocaleBundle(resourcesPath: string): Promise<string> {
+  const localeRoot = join(resourcesPath, 'locales');
+  for (const locale of bundledLocales) {
+    await writeFixtureFile(join(localeRoot, locale, 'manifest.json'), JSON.stringify({
+      schemaVersion: 1,
+      catalogVersion: 1,
+      locale,
+      displayName: locale,
+      direction: 'ltr'
+    }));
+    for (const namespace of localeNamespaces) {
+      await writeFixtureFile(
+        join(localeRoot, locale, `${namespace}.json`),
+        JSON.stringify({ sample: `${namespace} ${locale}` })
+      );
+    }
+  }
+  return localeRoot;
 }
 
 async function createCompleteFixture(
@@ -131,6 +156,7 @@ async function createCompleteFixture(
   await writeFixtureFile(nativeBinaryPath);
   await writeFixtureFile(nodePtyHelperPath);
   const helperPath = await writeHelperBundle(resourcesPath);
+  await writeLocaleBundle(resourcesPath);
 
   return {
     rootDir,
@@ -216,6 +242,40 @@ describe('verifyPackage', () => {
     expect(() =>
       verifyPackage({ rootDir: fixture.rootDir, platform: 'mac', arch: 'arm64' })
     ).toThrow(/node-pty native binary is missing or empty/);
+  });
+
+  it('rejects a package with an incomplete bundled locale catalog', async () => {
+    const fixture = await createCompleteFixture('win', 'x64');
+    await unlink(join(
+      fixture.rootDir,
+      'dist',
+      'win-unpacked',
+      'resources',
+      'locales',
+      'ko',
+      'terminal.json'
+    ));
+
+    expect(() =>
+      verifyPackage({ rootDir: fixture.rootDir, platform: 'win', arch: 'x64' })
+    ).toThrow(/bundled locale/i);
+  });
+
+  it('rejects a package without its immutable English fallback', async () => {
+    const fixture = await createCompleteFixture('linux', 'x64');
+    await unlink(join(
+      fixture.rootDir,
+      'dist',
+      'linux-unpacked',
+      'resources',
+      'locales',
+      'en',
+      'manifest.json'
+    ));
+
+    expect(() =>
+      verifyPackage({ rootDir: fixture.rootDir, platform: 'linux', arch: 'x64' })
+    ).toThrow(/bundled locale en manifest/i);
   });
 
   it('accepts an unpacked package without a final artifact when it is optional', async () => {
