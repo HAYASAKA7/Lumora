@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -6,6 +6,9 @@ import type {
   WorkspaceTrustDecision
 } from '../../../shared/contracts';
 import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const workspace: WorkspaceSummary = {
   id: 'a'.repeat(64),

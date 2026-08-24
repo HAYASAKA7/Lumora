@@ -16,69 +16,70 @@ import {
   formatShortcutChord,
   shortcutConflictMessage
 } from '../keyboard/shortcut';
+import { useLocalization } from '../localization/useLocalization';
 
 type ShortcutSettingKey = Exclude<keyof KeyboardSettings, 'version'>;
 
 const SHORTCUT_ROWS = [
   {
     key: 'terminalSwitcher',
-    label: 'Switch active terminal',
-    description: 'Cycle through open terminals in most-recently-used order.',
-    ariaLabel: 'Record terminal switcher shortcut'
+    labelKey: 'settings.shortcuts.switch-terminal',
+    ariaActionKey: 'settings.shortcuts.terminal-switcher-action',
+    descriptionKey: 'settings.shortcuts.switch-terminal-description'
   },
   {
     key: 'openTerminals',
-    label: 'Open terminals',
-    description: 'Return to a running terminal and focus its input.',
-    ariaLabel: 'Record open terminals shortcut'
+    labelKey: 'settings.shortcuts.open-terminals',
+    ariaActionKey: 'settings.shortcuts.open-terminals-action',
+    descriptionKey: 'settings.shortcuts.open-terminals-description'
   },
   {
     key: 'toggleSidebar',
-    label: 'Toggle sidebar',
-    description: 'Expand or collapse the sidebar.',
-    ariaLabel: 'Record toggle sidebar shortcut'
+    labelKey: 'settings.shortcuts.toggle-sidebar',
+    ariaActionKey: 'settings.shortcuts.toggle-sidebar-action',
+    descriptionKey: 'settings.shortcuts.toggle-sidebar-description'
   },
   {
     key: 'openHome',
-    label: 'Go to Home',
-    description: 'Open the Home page.',
-    ariaLabel: 'Record go to Home shortcut'
+    labelKey: 'settings.shortcuts.open-home',
+    ariaActionKey: 'settings.shortcuts.open-home-action',
+    descriptionKey: 'settings.shortcuts.open-home-description'
   },
   {
     key: 'openWorkspaces',
-    label: 'Go to Workspaces',
-    description: 'Open the Workspaces page.',
-    ariaLabel: 'Record go to Workspaces shortcut'
+    labelKey: 'settings.shortcuts.open-workspaces',
+    ariaActionKey: 'settings.shortcuts.open-workspaces-action',
+    descriptionKey: 'settings.shortcuts.open-workspaces-description'
   },
   {
     key: 'openSessions',
-    label: 'Go to All Sessions',
-    description: 'Open the complete session catalog.',
-    ariaLabel: 'Record go to All Sessions shortcut'
+    labelKey: 'settings.shortcuts.open-sessions',
+    ariaActionKey: 'settings.shortcuts.open-sessions-action',
+    descriptionKey: 'settings.shortcuts.open-sessions-description'
   },
   {
     key: 'openProfiles',
-    label: 'Go to Terminal Profiles',
-    description: 'Open terminal profile settings.',
-    ariaLabel: 'Record go to Terminal Profiles shortcut'
+    labelKey: 'settings.shortcuts.open-profiles',
+    ariaActionKey: 'settings.shortcuts.open-profiles-action',
+    descriptionKey: 'settings.shortcuts.open-profiles-description'
   },
   {
     key: 'openRemote',
-    label: 'Go to Remote computers',
-    description: 'Open remote computer connections.',
-    ariaLabel: 'Record go to Remote computers shortcut'
+    labelKey: 'settings.shortcuts.open-remote',
+    ariaActionKey: 'settings.shortcuts.open-remote-action',
+    descriptionKey: 'settings.shortcuts.open-remote-description'
   },
   {
     key: 'openSettings',
-    label: 'Go to Settings',
-    description: 'Open Lumora settings.',
-    ariaLabel: 'Record go to Settings shortcut'
+    labelKey: 'settings.shortcuts.open-settings',
+    ariaActionKey: 'settings.shortcuts.open-settings-action',
+    descriptionKey: 'settings.shortcuts.open-settings-description'
   }
 ] as const satisfies ReadonlyArray<{
   key: ShortcutSettingKey;
-  label: string;
-  description: string;
-  ariaLabel: string;
+  labelKey: string;
+  ariaActionKey: string;
+  descriptionKey: string;
 }>;
 
 function chordsMatch(
@@ -113,6 +114,7 @@ export function KeyboardShortcutsPanel({
   onChange?(settings: KeyboardSettings): void;
   platform: SystemInfo['platform'];
 }): ReactNode {
+  const { t } = useLocalization();
   const [settings, setSettings] = useState<KeyboardSettings | null>(null);
   const [draft, setDraft] = useState<KeyboardSettings | null>(null);
   const [recording, setRecording] = useState<ShortcutSettingKey | null>(null);
@@ -131,7 +133,7 @@ export function KeyboardShortcutsPanel({
       },
       () => {
         if (!active) return;
-        setError('Keyboard settings could not be loaded.');
+        setError(t('settings.shortcuts.load-error'));
       }
     );
     return () => {
@@ -156,7 +158,7 @@ export function KeyboardShortcutsPanel({
     if (chord === null) return;
     const platformConflict = shortcutConflictMessage(chord, platform);
     if (platformConflict !== null) {
-      setError(platformConflict);
+      setError(t('settings.shortcuts.windows-reserved'));
       setNotice(null);
       return;
     }
@@ -164,7 +166,7 @@ export function KeyboardShortcutsPanel({
       (row) => row.key !== key && chordsMatch(draft[row.key], chord)
     );
     if (duplicate !== undefined) {
-      setError(`That shortcut is already used by ${duplicate.label}.`);
+      setError(t('settings.shortcuts.duplicate', { action: t(duplicate.labelKey) }));
       setNotice(null);
       return;
     }
@@ -190,7 +192,7 @@ export function KeyboardShortcutsPanel({
       },
       () => {
         setSaving(false);
-        setError('The shortcuts could not be saved.');
+        setError(t('settings.shortcuts.save-error'));
       }
     );
   };
@@ -200,42 +202,45 @@ export function KeyboardShortcutsPanel({
     const duplicate = duplicateShortcutRows(draft);
     if (duplicate !== null) {
       setError(
-        `${duplicate[0].label} and ${duplicate[1].label} use the same shortcut.`
+        t('settings.shortcuts.duplicate-pair', {
+          first: t(duplicate[0].labelKey),
+          second: t(duplicate[1].labelKey)
+        })
       );
       setNotice(null);
       return;
     }
-    persist(draft, 'Shortcuts saved.');
+    persist(draft, t('settings.shortcuts.saved'));
   };
 
   const reset = () => {
     if (settings === null) return;
-    persist(DEFAULT_KEYBOARD_SETTINGS, 'Shortcuts reset.');
+    persist(DEFAULT_KEYBOARD_SETTINGS, t('settings.shortcuts.reset-complete'));
   };
 
   return (
     <section className="catalog-panel keyboard-settings-panel">
       <header className="provider-panel-header">
         <div>
-          <p className="card-label">Keyboard</p>
-          <h2>Keyboard shortcuts</h2>
-          <p>Customize terminal access, navigation, and sidebar controls.</p>
+          <p className="card-label">{t('settings.shortcuts.eyebrow')}</p>
+          <h2>{t('settings.shortcuts.title')}</h2>
+          <p>{t('settings.shortcuts.description')}</p>
         </div>
       </header>
 
       {draft === null ? (
-        <p className="provider-panel-state">Loading keyboard settings…</p>
+        <p className="provider-panel-state">{t('settings.shortcuts.loading')}</p>
       ) : (
         <>
           <div className="keyboard-shortcut-list">
             {SHORTCUT_ROWS.map((row) => (
               <div className="keyboard-shortcut-row" key={row.key}>
                 <div>
-                  <strong>{row.label}</strong>
-                  <p>{row.description}</p>
+                  <strong>{t(row.labelKey)}</strong>
+                  <p>{t(row.descriptionKey)}</p>
                 </div>
                 <button
-                  aria-label={row.ariaLabel}
+                  aria-label={t('settings.shortcuts.record', { action: t(row.ariaActionKey) })}
                   aria-pressed={recording === row.key}
                   className={`shortcut-recorder${recording === row.key ? ' is-recording' : ''}`}
                   disabled={saving}
@@ -248,7 +253,7 @@ export function KeyboardShortcutsPanel({
                   type="button"
                 >
                   {recording === row.key
-                    ? 'Press shortcut…'
+                    ? t('settings.shortcuts.recording')
                     : formatShortcutChord(draft[row.key], platform)}
                 </button>
               </div>
@@ -261,7 +266,7 @@ export function KeyboardShortcutsPanel({
               onClick={save}
               type="button"
             >
-              {saving ? 'Saving…' : 'Save shortcut'}
+              {t(saving ? 'settings.shortcuts.saving' : 'settings.shortcuts.save')}
             </button>
             <button
               className="secondary-button"
@@ -269,7 +274,7 @@ export function KeyboardShortcutsPanel({
               onClick={reset}
               type="button"
             >
-              Reset to default
+              {t('settings.shortcuts.reset-all')}
             </button>
           </div>
         </>

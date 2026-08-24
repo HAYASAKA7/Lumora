@@ -13,6 +13,7 @@ import type {
 } from '../../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
 import { SelectMenu } from '../ui/SelectMenu';
+import { useLocalization } from '../localization/useLocalization';
 
 type CommandMode = 'inherit' | 'detected' | 'custom';
 type ProfileChoice = 'inherit' | 'automatic' | string;
@@ -62,7 +63,8 @@ function targetOptions(
   scope: LaunchSettingsScope,
   enabledProviders: readonly ProviderId[],
   workspaces: readonly WorkspaceSummary[],
-  sessions: readonly SessionSummary[]
+  sessions: readonly SessionSummary[],
+  allLaunchesLabel: string
 ): Array<{ id: string; label: string }> {
   if (scope === 'provider') {
     return enabledProviders.map((provider) => ({
@@ -82,7 +84,7 @@ function targetOptions(
       label: session.title
     }));
   }
-  return [{ id: 'global', label: 'All launches' }];
+  return [{ id: 'global', label: allLaunchesLabel }];
 }
 
 export function LaunchSettingsPanel({
@@ -98,6 +100,7 @@ export function LaunchSettingsPanel({
   sessions: readonly SessionSummary[];
   workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
+  const { t } = useLocalization();
   const [layers, setLayers] = useState<LaunchSettingsLayer[]>([]);
   const [scope, setScope] = useState<LaunchSettingsScope>('global');
   const [targetId, setTargetId] = useState('global');
@@ -119,7 +122,7 @@ export function LaunchSettingsPanel({
       },
       () => {
         if (!active) return;
-        setError('Launch settings could not be loaded.');
+        setError(t('settings.launch.load-error'));
         setLoading(false);
       }
     );
@@ -129,8 +132,14 @@ export function LaunchSettingsPanel({
   }, [api]);
 
   const options = useMemo(
-    () => targetOptions(scope, enabledProviders, workspaces, sessions),
-    [enabledProviders, scope, workspaces, sessions]
+    () => targetOptions(
+      scope,
+      enabledProviders,
+      workspaces,
+      sessions,
+      t('settings.launch.all-launches')
+    ),
+    [enabledProviders, scope, sessions, t, workspaces]
   );
 
   useEffect(() => {
@@ -245,7 +254,7 @@ export function LaunchSettingsPanel({
         setSaving(false);
       },
       () => {
-        setError('The launch settings layer could not be saved.');
+        setError(t('settings.launch.save-error'));
         setSaving(false);
       }
     );
@@ -260,36 +269,36 @@ export function LaunchSettingsPanel({
     <section className="catalog-panel launch-settings-panel" aria-labelledby="launch-settings-title">
       <header className="provider-panel-header">
         <div>
-          <p className="card-label">Effective configuration</p>
-          <h2 id="launch-settings-title">Launch defaults</h2>
-          <p>Resolve terminal and provider settings from Global through Session.</p>
+          <p className="card-label">{t('settings.launch.eyebrow')}</p>
+          <h2 id="launch-settings-title">{t('settings.launch.title')}</h2>
+          <p>{t('settings.launch.description')}</p>
         </div>
       </header>
 
       {loading ? (
-        <div className="catalog-state" role="status">Loading launch settings</div>
+        <div className="catalog-state" role="status">{t('settings.launch.loading')}</div>
       ) : (
         <div className="launch-settings-editor">
           <div className="launch-settings-scope">
             <div className="select-field">
-              <span>Settings scope</span>
+              <span>{t('settings.launch.scope')}</span>
               <SelectMenu
-                label="Settings scope"
+                label={t('settings.launch.scope')}
                 onChange={(value) => setScope(value as LaunchSettingsScope)}
                 options={[
-                  { value: 'global', label: 'Global' },
-                  { value: 'provider', label: 'Provider' },
-                  { value: 'workspace', label: 'Workspace' },
-                  { value: 'session', label: 'Session' }
+                  { value: 'global', label: t('settings.launch.global') },
+                  { value: 'provider', label: t('settings.launch.provider') },
+                  { value: 'workspace', label: t('settings.launch.workspace') },
+                  { value: 'session', label: t('settings.launch.session') }
                 ]}
                 value={scope}
               />
             </div>
             {scope === 'global' ? null : (
               <div className="select-field">
-                <span>Scope target</span>
+                <span>{t('settings.launch.scope-target')}</span>
                 <SelectMenu
-                  label="Scope target"
+                  label={t('settings.launch.scope-target')}
                   onChange={setTargetId}
                   options={options.map((option) => ({
                     value: option.id,
@@ -302,16 +311,16 @@ export function LaunchSettingsPanel({
           </div>
 
           <div className="select-field">
-            <span>Default terminal profile</span>
+            <span>{t('settings.launch.default-profile')}</span>
             <SelectMenu
-              label="Default terminal profile"
+              label={t('settings.launch.default-profile')}
               onChange={setProfileChoice}
               options={[
-                { value: 'inherit', label: 'Inherit' },
-                { value: 'automatic', label: 'Automatic recommended' },
+                { value: 'inherit', label: t('settings.launch.inherit') },
+                { value: 'automatic', label: t('settings.launch.automatic') },
                 ...profiles.map((profile) => ({
                   value: profile.id,
-                  label: `${profile.name}${profile.available ? '' : ' (unavailable)'}`
+                  label: `${profile.name}${profile.available ? '' : t('settings.launch.unavailable-suffix')}`
                 }))
               ]}
               value={profileChoice}
@@ -324,11 +333,11 @@ export function LaunchSettingsPanel({
               const draft = commands[provider];
               return (
                 <fieldset key={provider}>
-                  <legend>{label} start command</legend>
+                  <legend>{t('settings.launch.start-command', { provider: label })}</legend>
                   <div className="select-field">
-                    <span>Mode</span>
+                    <span>{t('settings.launch.mode')}</span>
                     <SelectMenu
-                      label={`${label} command mode`}
+                      label={t('settings.launch.command-mode', { provider: label })}
                       onChange={(value) => {
                         const mode = value as CommandMode;
                         setCommands((current) => ({
@@ -340,18 +349,18 @@ export function LaunchSettingsPanel({
                         }));
                       }}
                       options={[
-                        { value: 'inherit', label: 'Inherit' },
-                        { value: 'detected', label: 'Use detected CLI' },
-                        { value: 'custom', label: 'Custom command' }
+                        { value: 'inherit', label: t('settings.launch.inherit') },
+                        { value: 'detected', label: t('settings.launch.detected-cli') },
+                        { value: 'custom', label: t('settings.launch.custom-command') }
                       ]}
                       value={draft.mode}
                     />
                   </div>
                   {draft.mode !== 'custom' ? null : (
                     <label>
-                      <span>Command</span>
+                      <span>{t('settings.launch.command')}</span>
                       <input
-                        aria-label={`${label} command`}
+                        aria-label={t('settings.launch.command-label', { provider: label })}
                         maxLength={4096}
                         onChange={(event) => {
                           const command = event.currentTarget.value;
@@ -380,7 +389,7 @@ export function LaunchSettingsPanel({
               onClick={() => save(buildSettings())}
               type="button"
             >
-              {saving ? 'Saving launch settings' : 'Save launch settings'}
+              {t(saving ? 'settings.launch.saving' : 'settings.launch.save')}
             </button>
             <button
               className="text-button"
@@ -388,13 +397,15 @@ export function LaunchSettingsPanel({
               onClick={() => save({})}
               type="button"
             >
-              Reset layer
+              {t('settings.launch.reset-layer')}
             </button>
           </div>
           <p className="provider-scan-time">
             {selectedLayer === null
-              ? 'This scope currently inherits all values.'
-              : `Editing saved ${scope} layer.`}
+              ? t('settings.launch.inherits-all')
+              : t('settings.launch.editing-layer', {
+                  scope: t(`settings.launch.${scope}-inline`)
+                })}
           </p>
         </div>
       )}

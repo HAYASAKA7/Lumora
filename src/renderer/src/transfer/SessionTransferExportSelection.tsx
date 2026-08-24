@@ -11,10 +11,10 @@ import {
   ProgressiveListControl,
   useProgressiveList
 } from '../catalog/progressive-list';
-import { formatLifetimeTokens } from '../catalog/session-usage';
 import { Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useSessionExportSelection } from './useSessionExportSelection';
+import { useLocalization } from '../localization/useLocalization';
 
 const SESSION_BATCH_SIZE = 40;
 
@@ -35,6 +35,7 @@ export function SessionTransferExportSelection({
   runningSessionIds,
   sessions
 }: SessionTransferExportSelectionProps) {
+  const { formatNumber, t } = useLocalization();
   const [provider, setProvider] = useState<ProviderId | 'all'>('all');
   const selection = useSessionExportSelection({
     capabilities,
@@ -79,18 +80,17 @@ export function SessionTransferExportSelection({
     >
       <header className="transfer-export-selection-header">
         <div>
-          <p className="card-label">Session archive</p>
+          <p className="card-label">{t('transfer.export.archive-eyebrow')}</p>
           <h2 id="transfer-export-selection-title">
-            Choose sessions to export
+            {t('transfer.export.choose-title')}
           </h2>
           <p className="card-description">
-            Only stopped sessions with a verified provider route can be
-            selected.
+            {t('transfer.export.choose-description')}
           </p>
         </div>
         <div className="transfer-export-selection-actions">
           <button className="secondary-button" onClick={back} type="button">
-            Back
+            {t('common.actions.back')}
           </button>
           <button
             className="refresh-button"
@@ -98,20 +98,19 @@ export function SessionTransferExportSelection({
             onClick={proceed}
             type="button"
           >
-            Continue with {selection.selected.size}{' '}
-            {selection.selected.size === 1 ? 'session' : 'sessions'}
+            {t('transfer.export.continue', { count: selection.selected.size })}
           </button>
         </div>
       </header>
 
       <div className="transfer-export-selection-toolbar">
         <div className="select-field">
-          <span>Provider</span>
+          <span>{t('common.labels.provider')}</span>
           <SelectMenu
-            label="Filter export sessions by provider"
+            label={t('transfer.export.filter-provider')}
             onChange={(value) => setProvider(value as ProviderId | 'all')}
             options={[
-              { value: 'all', label: 'All providers' },
+              { value: 'all', label: t('transfer.export.all-providers') },
               ...providerIds.map((providerId) => ({
                 value: providerId,
                 label: providerDefinition(providerId).displayName
@@ -127,7 +126,7 @@ export function SessionTransferExportSelection({
             return (
               <label key={providerId}>
                 <input
-                  aria-label={`Select all ${providerDefinition(providerId).displayName} sessions`}
+                  aria-label={t('transfer.export.select-all-provider', { provider: providerDefinition(providerId).displayName })}
                   checked={
                     eligible.length > 0 &&
                     eligible.every((session) =>
@@ -146,12 +145,12 @@ export function SessionTransferExportSelection({
       </div>
 
       <div className="transfer-export-selection-summary">
-        <strong>{selection.selected.size} selected</strong>
-        <span>{visibleSessions.length} sessions in this view</span>
+        <strong>{t('transfer.export.selected', { count: selection.selected.size })}</strong>
+        <span>{t('transfer.export.view-count', { count: visibleSessions.length })}</span>
       </div>
 
       {visibleSessions.length === 0 ? (
-        <p className="transfer-empty">No sessions match this provider.</p>
+        <p className="transfer-empty">{t('transfer.export.no-provider-sessions')}</p>
       ) : (
         <>
           <div className="transfer-export-session-list">
@@ -161,7 +160,7 @@ export function SessionTransferExportSelection({
                 const disabledReason = selection.disabledReason(session);
                 return (
                   <Tooltip
-                    content={disabledReason ?? 'Select this session'}
+                    content={disabledReason ?? t('transfer.export.select-session')}
                     key={session.id}
                     multiline={disabledReason !== null}
                   >
@@ -185,11 +184,11 @@ export function SessionTransferExportSelection({
                         {providerDefinition(session.provider).displayName}
                         {session.lifetimeTokens === null
                           ? ''
-                          : ` · ${formatLifetimeTokens(session.lifetimeTokens)}`}
+                          : ` · ${t('catalog.sessions.lifetime-tokens', { count: formatNumber(session.lifetimeTokens, { notation: 'compact', maximumFractionDigits: 1 }) })}`}
                       </span>
                     </span>
                     <span className="transfer-export-session-state">
-                      {disabledReason ?? 'Ready'}
+                      {disabledReason ?? t('transfer.export.ready')}
                     </span>
                     </label>
                   </Tooltip>
@@ -198,7 +197,7 @@ export function SessionTransferExportSelection({
           </div>
           <ProgressiveListControl
             hasMore={progress.hasMore}
-            label="Load more sessions"
+            label={t('transfer.export.load-more')}
             onLoadMore={progress.showMore}
           />
         </>

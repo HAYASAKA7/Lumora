@@ -1,8 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LumoraApi } from '../../../shared/contracts';
 import { AboutPanel } from './AboutPanel';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 function api(status: 'current' | 'update_available' = 'current') {
   return {
@@ -28,6 +34,22 @@ function api(status: 'current' | 'update_available' = 'current') {
 }
 
 describe('AboutPanel', () => {
+  it('renders Lumora-owned About labels from the active locale', async () => {
+    renderWithLocalization(<AboutPanel active api={api()} />, {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      locale: 'ja',
+      formattingLocale: 'ja-JP',
+      messages: {
+        ...TEST_LOCALIZATION_SNAPSHOT.messages,
+        'settings.about.application': 'アプリケーション',
+        'settings.about.open-project': 'GitHub プロジェクトを開く'
+      }
+    });
+
+    expect(await screen.findByText('アプリケーション')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'GitHub プロジェクトを開く' })).toBeInTheDocument();
+  });
+
   it('shows stable local product information without an up-to-date banner', async () => {
     const client = api();
     render(<AboutPanel active api={client} />);

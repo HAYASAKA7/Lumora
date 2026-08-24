@@ -5,6 +5,7 @@ import type {
   DiagnosticSummary,
   LumoraApi
 } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 
 type DiagnosticApi = Pick<
   LumoraApi,
@@ -27,18 +28,19 @@ type DiagnosticStatus =
   | { state: 'ready'; summary: DiagnosticSummary }
   | { state: 'error' };
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+function formatBytes(bytes: number, formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string): string {
+  if (bytes < 1024 * 1024) return `${formatNumber(Math.round(bytes / 1024))} KB`;
   if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${formatNumber(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
   }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  return `${formatNumber(bytes / (1024 * 1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`;
 }
 
 export function DiagnosticsPanel({
   active,
   api = window.lumora
 }: DiagnosticsPanelProps) {
+  const { formatNumber, t } = useLocalization();
   const [status, setStatus] = useState<DiagnosticStatus>({ state: 'idle' });
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
@@ -111,11 +113,11 @@ export function DiagnosticsPanel({
     try {
       const result = await api.exportDiagnosticBundle();
       if (result.status === 'saved') {
-        setExportNotice('Diagnostics saved.');
+        setExportNotice(t('settings.diagnostics.saved'));
         setStorage(await api.getDiagnosticStorageSettings());
       }
     } catch {
-      setExportNotice('Diagnostics could not be exported.');
+      setExportNotice(t('settings.diagnostics.export-error'));
     } finally {
       setExporting(false);
     }
@@ -127,12 +129,9 @@ export function DiagnosticsPanel({
     <div className="diagnostics-panel">
       <header className="diagnostics-panel-header">
         <div>
-          <p className="card-label">Local health</p>
-          <h2>Diagnostics</h2>
-          <p>
-            Review bounded performance and lifecycle signals. Terminal content,
-            prompts, paths, and environment values are never included.
-          </p>
+          <p className="card-label">{t('settings.diagnostics.eyebrow')}</p>
+          <h2>{t('settings.diagnostics.title')}</h2>
+          <p>{t('settings.diagnostics.description')}</p>
         </div>
         <div className="diagnostics-panel-actions">
           <button
@@ -141,7 +140,7 @@ export function DiagnosticsPanel({
             onClick={() => void refresh()}
             type="button"
           >
-            Refresh diagnostics
+            {t('settings.diagnostics.refresh')}
           </button>
           <button
             className="refresh-button"
@@ -149,23 +148,23 @@ export function DiagnosticsPanel({
             onClick={() => void exportDiagnostics()}
             type="button"
           >
-            {exporting ? 'Exporting…' : 'Export diagnostics'}
+            {t(exporting ? 'settings.diagnostics.exporting' : 'settings.diagnostics.export')}
           </button>
         </div>
       </header>
 
       {status.state === 'loading' ? (
-        <div className="diagnostics-state" role="status">Loading diagnostics…</div>
+        <div className="diagnostics-state" role="status">{t('settings.diagnostics.loading')}</div>
       ) : null}
       {status.state === 'error' ? (
         <div className="diagnostics-state diagnostics-state-error" role="alert">
-          Diagnostics are temporarily unavailable. Refresh to try again.
+          {t('settings.diagnostics.unavailable')}
         </div>
       ) : null}
       {summary?.previousRunAbnormal ? (
         <div className="diagnostics-state diagnostics-state-warning" role="status">
-          <strong>Previous run ended unexpectedly</strong>
-          <span>Its final lifecycle event may help identify the cause.</span>
+          <strong>{t('settings.diagnostics.previous-run')}</strong>
+          <span>{t('settings.diagnostics.previous-run-description')}</span>
         </div>
       ) : null}
       {exportNotice !== null ? (
@@ -179,35 +178,35 @@ export function DiagnosticsPanel({
         >
           <div className="diagnostics-events-heading">
             <div>
-              <p className="card-label">Local files</p>
-              <h3 id="diagnostic-storage-title">Storage locations</h3>
+              <p className="card-label">{t('settings.diagnostics.local-files')}</p>
+              <h3 id="diagnostic-storage-title">{t('settings.diagnostics.storage-locations')}</h3>
             </div>
           </div>
 
           {storage.fallbackActive ? (
             <div className="diagnostics-state diagnostics-state-warning" role="status">
-              <strong>Using the default journal folder for this run</strong>
-              <span>Check the selected folder, then restart Lumora to try it again.</span>
+              <strong>{t('settings.diagnostics.fallback-title')}</strong>
+              <span>{t('settings.diagnostics.fallback-description')}</span>
             </div>
           ) : null}
           {storageError ? (
             <div className="diagnostics-state diagnostics-state-error" role="alert">
-              Lumora could not update the diagnostic storage location.
+              {t('settings.diagnostics.storage-error')}
             </div>
           ) : null}
 
           <div className="diagnostics-storage-row">
             <div className="diagnostics-storage-copy">
-              <strong>Journal storage</strong>
-              <code aria-label={`Journal folder: ${
+              <strong>{t('settings.diagnostics.journal-storage')}</strong>
+              <code aria-label={t('settings.diagnostics.journal-folder', { path:
                 storage.selectedJournalDirectory ?? storage.effectiveJournalDirectory
-              }`}>
+              })}>
                 {storage.selectedJournalDirectory ?? storage.effectiveJournalDirectory}
               </code>
               <span>
                 {storage.restartRequired
-                  ? 'Restart Lumora to use this journal folder.'
-                  : 'Bounded lifecycle and performance events are stored here.'}
+                  ? t('settings.diagnostics.journal-restart')
+                  : t('settings.diagnostics.journal-description')}
               </span>
             </div>
             <div className="diagnostics-storage-actions">
@@ -219,7 +218,7 @@ export function DiagnosticsPanel({
                 )}
                 type="button"
               >
-                Choose journal folder
+                {t('settings.diagnostics.choose-journal')}
               </button>
               <button
                 className="secondary-button"
@@ -229,18 +228,18 @@ export function DiagnosticsPanel({
                 )}
                 type="button"
               >
-                Restore default journal folder
+                {t('settings.diagnostics.restore-journal')}
               </button>
             </div>
           </div>
 
           <div className="diagnostics-storage-row">
             <div className="diagnostics-storage-copy">
-              <strong>Export destination</strong>
-              <code aria-label={`Export folder: ${storage.effectiveExportDirectory}`}>
+              <strong>{t('settings.diagnostics.export-destination')}</strong>
+              <code aria-label={t('settings.diagnostics.export-folder', { path: storage.effectiveExportDirectory })}>
                 {storage.effectiveExportDirectory}
               </code>
-              <span>New diagnostic export dialogs start in this folder.</span>
+              <span>{t('settings.diagnostics.export-description')}</span>
             </div>
             <div className="diagnostics-storage-actions">
               <button
@@ -251,7 +250,7 @@ export function DiagnosticsPanel({
                 )}
                 type="button"
               >
-                Choose export folder
+                {t('settings.diagnostics.choose-export')}
               </button>
               <button
                 className="secondary-button"
@@ -261,7 +260,7 @@ export function DiagnosticsPanel({
                 )}
                 type="button"
               >
-                Use Documents for exports
+                {t('settings.diagnostics.documents-export')}
               </button>
             </div>
           </div>
@@ -270,40 +269,40 @@ export function DiagnosticsPanel({
 
       {summary !== null ? (
         <>
-          <div className="diagnostics-metrics" aria-label="Current local diagnostics">
+          <div className="diagnostics-metrics" aria-label={t('settings.diagnostics.current-label')}>
             <article>
-              <span>Active agents</span>
-              <strong>{summary.agents.activeCount}</strong>
+              <span>{t('settings.diagnostics.active-agents')}</span>
+              <strong>{formatNumber(summary.agents.activeCount)}</strong>
             </article>
             <article>
-              <span>Cumulative working set</span>
-              <strong>{formatBytes(summary.processes.workingSetBytes)}</strong>
+              <span>{t('settings.diagnostics.working-set')}</span>
+              <strong>{formatBytes(summary.processes.workingSetBytes, formatNumber)}</strong>
             </article>
             <article>
-              <span>Lumora CPU</span>
-              <strong>{summary.processes.cpuPercent.toFixed(1)}%</strong>
+              <span>{t('settings.diagnostics.lumora-cpu')}</span>
+              <strong>{formatNumber(summary.processes.cpuPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong>
             </article>
             <article>
-              <span>Lumora processes</span>
-              <strong>{summary.processes.processCount}</strong>
+              <span>{t('settings.diagnostics.lumora-processes')}</span>
+              <strong>{formatNumber(summary.processes.processCount)}</strong>
             </article>
           </div>
 
           <section className="diagnostics-events" aria-labelledby="diagnostic-events-title">
             <div className="diagnostics-events-heading">
               <div>
-                <p className="card-label">Bounded journal</p>
-                <h3 id="diagnostic-events-title">Recent events</h3>
+                <p className="card-label">{t('settings.diagnostics.bounded-journal')}</p>
+                <h3 id="diagnostic-events-title">{t('settings.diagnostics.recent-events')}</h3>
               </div>
               <span>
-                {summary.journal.storedEvents} stored
+                {t('settings.diagnostics.stored-events', { count: summary.journal.storedEvents })}
                 {summary.journal.invalidRecords > 0
-                  ? ` · ${summary.journal.invalidRecords} invalid ignored`
+                  ? ` · ${t('settings.diagnostics.invalid-events', { count: summary.journal.invalidRecords })}`
                   : ''}
               </span>
             </div>
             {summary.recentEvents.length === 0 ? (
-              <p className="diagnostics-events-empty">No diagnostic events recorded.</p>
+              <p className="diagnostics-events-empty">{t('settings.diagnostics.no-events')}</p>
             ) : (
               <ul>
                 {[...summary.recentEvents].reverse().map((event) => (

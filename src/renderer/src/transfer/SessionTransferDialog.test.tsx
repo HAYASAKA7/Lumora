@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -10,6 +10,9 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { SessionTransferDialog } from './SessionTransferDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const WORKSPACE_ID = 'a'.repeat(64);
 const SESSION_ID = 'b'.repeat(64);

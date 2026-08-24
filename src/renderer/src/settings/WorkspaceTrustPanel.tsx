@@ -4,12 +4,14 @@ import type {
   WorkspaceSummary,
   WorkspaceTrustDecision
 } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 
 export function WorkspaceTrustPanel({
   workspaces
 }: {
   workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
+  const { t } = useLocalization();
   const [decisions, setDecisions] = useState<WorkspaceTrustDecision[]>([]);
   const [loading, setLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export function WorkspaceTrustPanel({
       },
       () => {
         if (!active) return;
-        setError('Workspace trust decisions could not be loaded.');
+        setError(t('settings.security.load-error'));
         setLoading(false);
       }
     );
@@ -43,7 +45,7 @@ export function WorkspaceTrustPanel({
         setRevokingId(null);
       },
       () => {
-        setError('Workspace trust could not be revoked.');
+        setError(t('settings.security.revoke-error'));
         setRevokingId(null);
       }
     );
@@ -56,28 +58,25 @@ export function WorkspaceTrustPanel({
     >
       <header className="provider-panel-header">
         <div>
-          <p className="card-label">Execution boundary</p>
-          <h2 id="workspace-trust-title">Workspace trust</h2>
-          <p>
-            Persistent approvals let providers run in exact workspace paths.
-            Trust is revocable and is not an OS sandbox.
-          </p>
+          <p className="card-label">{t('settings.security.eyebrow')}</p>
+          <h2 id="workspace-trust-title">{t('settings.security.title')}</h2>
+          <p>{t('settings.security.description')}</p>
         </div>
       </header>
 
       {loading ? (
         <div className="catalog-state" role="status">
-          Loading workspace trust
+          {t('settings.security.loading')}
         </div>
       ) : decisions.length === 0 ? (
-        <div className="workspace-trust-empty">No workspaces are trusted.</div>
+        <div className="workspace-trust-empty">{t('settings.security.empty')}</div>
       ) : (
         <ul className="workspace-trust-list">
           {decisions.map((decision) => {
             const workspace = workspaces.find(
               (candidate) => candidate.id === decision.workspaceId
             );
-            const label = workspace?.displayName ?? 'Workspace not in catalog';
+            const label = workspace?.displayName ?? t('settings.security.not-in-catalog');
             const revoking = revokingId === decision.workspaceId;
             return (
               <li key={decision.workspaceId}>
@@ -86,13 +85,13 @@ export function WorkspaceTrustPanel({
                   <code>{decision.canonicalPath}</code>
                 </div>
                 <button
-                  aria-label={`Revoke trust for ${label}`}
+                  aria-label={t('settings.security.revoke-label', { workspace: label })}
                   className="text-button danger-text"
                   disabled={revokingId !== null}
                   onClick={() => revoke(decision.workspaceId)}
                   type="button"
                 >
-                  {revoking ? 'Revoking' : 'Revoke'}
+                  {t(revoking ? 'settings.security.revoking' : 'settings.security.revoke')}
                 </button>
               </li>
             );

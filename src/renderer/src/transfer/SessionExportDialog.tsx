@@ -7,6 +7,7 @@ import type {
   SessionTransferResult
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { useLocalization } from '../localization/useLocalization';
 
 interface SessionExportDialogProps {
   sessionIds: readonly string[];
@@ -15,20 +16,17 @@ interface SessionExportDialogProps {
 
 type ExportStep = 'preparing' | 'review' | 'progress' | 'result';
 
-function sessionCountLabel(count: number): string {
-  return `${count} ${count === 1 ? 'session' : 'sessions'}`;
-}
-
-function byteLabel(bytes: number): string {
-  if (bytes < 1_024) return `${bytes} B`;
-  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KB`;
-  return `${(bytes / 1_048_576).toFixed(1)} MB`;
-}
-
 export function SessionExportDialog({
   onClose,
   sessionIds
 }: SessionExportDialogProps) {
+  const { formatNumber, t } = useLocalization();
+  const sessionCountLabel = (count: number) => t('transfer.export.session-count', { count });
+  const byteLabel = (bytes: number): string => {
+    if (bytes < 1_024) return `${formatNumber(bytes)} B`;
+    if (bytes < 1_048_576) return `${formatNumber(bytes / 1_024, { maximumFractionDigits: 1 })} KB`;
+    return `${formatNumber(bytes / 1_048_576, { maximumFractionDigits: 1 })} MB`;
+  };
   const [step, setStep] = useState<ExportStep>('preparing');
   const [plan, setPlan] = useState<SessionExportPlan | null>(null);
   const [encrypted, setEncrypted] = useState(true);
@@ -51,7 +49,7 @@ export function SessionExportDialog({
       },
       () => {
         if (!current) return;
-        setError('Lumora could not prepare the selected sessions.');
+        setError(t('transfer.export.prepare-error'));
         setStep('result');
       }
     );
@@ -101,7 +99,7 @@ export function SessionExportDialog({
       }
       setStep('result');
     } catch {
-      setError('The session archive could not be created.');
+      setError(t('transfer.export.create-error'));
       setStep('result');
     } finally {
       unsubscribe();
@@ -117,7 +115,7 @@ export function SessionExportDialog({
       setCancelled(true);
       setStep('result');
     } catch {
-      setError('Lumora could not cancel this export.');
+      setError(t('transfer.export.cancel-error'));
     } finally {
       setBusy(false);
     }
@@ -125,16 +123,16 @@ export function SessionExportDialog({
 
   const title =
     step === 'preparing'
-      ? 'Preparing export'
+      ? t('transfer.export.preparing-title')
       : step === 'review'
-        ? 'Review export'
+        ? t('transfer.export.review-title')
         : step === 'progress'
-          ? 'Creating session archive'
+          ? t('transfer.export.progress-title')
           : cancelled
-            ? 'Export cancelled'
+            ? t('transfer.export.cancelled-title')
             : result?.status === 'completed'
-              ? 'Export complete'
-              : 'Export incomplete';
+              ? t('transfer.export.complete')
+              : t('transfer.export.incomplete-title');
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -146,17 +144,17 @@ export function SessionExportDialog({
       >
         <header>
           <div>
-            <p className="card-label">Cross-device transfer</p>
+            <p className="card-label">{t('transfer.export.cross-device')}</p>
             <h2 id="session-export-title">{title}</h2>
           </div>
           <button
-            aria-label="Close session export"
+            aria-label={t('transfer.export.close-label')}
             className="text-button"
             disabled={step === 'progress'}
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
 
@@ -169,7 +167,7 @@ export function SessionExportDialog({
 
           {step === 'preparing' ? (
             <div className="transfer-panel-loading" role="status">
-              Checking selected sessions
+              {t('transfer.export.checking')}
             </div>
           ) : null}
 
@@ -179,22 +177,20 @@ export function SessionExportDialog({
                 <div>
                   <strong>{plan.sessions.length}</strong>
                   <span>
-                    {plan.sessions.length === 1
-                      ? 'Ready to export'
-                      : 'Ready to export'}
+                    {t('transfer.export.ready-label')}
                   </span>
                 </div>
                 <div>
                   <strong>{plan.skipped.length}</strong>
-                  <span>Excluded</span>
+                  <span>{t('transfer.export.excluded')}</span>
                 </div>
                 <div>
                   <strong>{byteLabel(plan.estimatedBytes)}</strong>
-                  <span>Estimated size</span>
+                  <span>{t('transfer.export.estimated-size')}</span>
                 </div>
               </div>
               <p className="transfer-ready-summary">
-                {plan.sessions.length} ready to export
+                {t('transfer.export.ready-count', { count: plan.sessions.length })}
               </p>
               <div className="transfer-provider-counts">
                 {providerCounts.map(([provider, count]) => (
@@ -209,7 +205,7 @@ export function SessionExportDialog({
               {plan.skipped.length > 0 ? (
                 <details className="transfer-skipped-details">
                   <summary>
-                    {sessionCountLabel(plan.skipped.length)} excluded
+                    {t('transfer.export.excluded-count', { count: plan.skipped.length })}
                   </summary>
                   <ul>
                     {plan.skipped.map((session) => (
@@ -220,20 +216,20 @@ export function SessionExportDialog({
               ) : null}
               <label className="transfer-encryption-toggle">
                 <input
-                  aria-label="Encrypt archive"
+                  aria-label={t('transfer.export.encrypt')}
                   checked={encrypted}
                   onChange={(event) => setEncrypted(event.currentTarget.checked)}
                   type="checkbox"
                 />
                 <span>
-                  <strong>Encrypt archive</strong>
-                  <small>Recommended for session files and transcripts.</small>
+                  <strong>{t('transfer.export.encrypt')}</strong>
+                  <small>{t('transfer.export.encrypt-description')}</small>
                 </span>
               </label>
               {encrypted ? (
                 <div className="transfer-password-grid">
                   <label className="transfer-field">
-                    <span>Archive password</span>
+                    <span>{t('transfer.export.password')}</span>
                     <input
                       autoComplete="new-password"
                       maxLength={1_024}
@@ -245,7 +241,7 @@ export function SessionExportDialog({
                     />
                   </label>
                   <label className="transfer-field">
-                    <span>Confirm password</span>
+                    <span>{t('transfer.export.confirm-password')}</span>
                     <input
                       autoComplete="new-password"
                       maxLength={1_024}
@@ -259,7 +255,7 @@ export function SessionExportDialog({
                 </div>
               ) : (
                 <p className="transfer-unencrypted-warning" role="alert">
-                  Anyone with this archive can read its session files.
+                  {t('transfer.export.unencrypted-warning')}
                 </p>
               )}
             </div>
@@ -268,7 +264,7 @@ export function SessionExportDialog({
           {step === 'progress' ? (
             <div className="transfer-workflow-stage transfer-progress">
               <div
-                aria-label="Session export progress"
+                aria-label={t('transfer.export.progress-label')}
                 aria-valuemax={progress?.total ?? 1}
                 aria-valuemin={0}
                 aria-valuenow={progress?.completed ?? 0}
@@ -287,7 +283,7 @@ export function SessionExportDialog({
               </div>
               <p>
                 {progress?.message ??
-                  'Choose where to save the archive in the native dialog.'}
+                  t('transfer.export.choose-native')}
               </p>
             </div>
           ) : null}
@@ -298,22 +294,22 @@ export function SessionExportDialog({
                 <div className="transfer-summary-grid">
                   <div>
                     <strong>{result.exportedCount}</strong>
-                    <span>Exported</span>
+                    <span>{t('transfer.export.exported')}</span>
                   </div>
                   <div>
                     <strong>{result.skippedCount}</strong>
-                    <span>Skipped</span>
+                    <span>{t('transfer.export.skipped')}</span>
                   </div>
                   <div>
                     <strong>{result.failedCount}</strong>
-                    <span>Failed</span>
+                    <span>{t('transfer.export.failed')}</span>
                   </div>
                 </div>
               ) : (
                 <p className="transfer-guidance">
                   {cancelled
-                    ? 'No archive was saved.'
-                    : 'No session archive was created.'}
+                    ? t('transfer.export.no-saved')
+                    : t('transfer.export.no-created')}
                 </p>
               )}
             </div>
@@ -328,7 +324,7 @@ export function SessionExportDialog({
               onClick={() => void execute()}
               type="button"
             >
-              Choose destination and export
+              {t('transfer.export.choose-and-export')}
             </button>
           ) : null}
           {step === 'progress' && progress !== null ? (
@@ -338,12 +334,12 @@ export function SessionExportDialog({
               onClick={() => void cancel()}
               type="button"
             >
-              Cancel export
+              {t('transfer.export.cancel')}
             </button>
           ) : null}
           {step === 'result' ? (
             <button className="refresh-button" onClick={onClose} type="button">
-              Close
+              {t('common.actions.close')}
             </button>
           ) : null}
         </footer>

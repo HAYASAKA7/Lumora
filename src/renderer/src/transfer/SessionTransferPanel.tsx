@@ -12,6 +12,7 @@ import { isUsableTransferSupport } from '../../../shared/session-transfer';
 import { SessionExportDialog } from './SessionExportDialog';
 import { SessionTransferDialog } from './SessionTransferDialog';
 import { SessionTransferExportSelection } from './SessionTransferExportSelection';
+import { useLocalization, type TranslationValues } from '../localization/useLocalization';
 
 interface SessionTransferPanelProps {
   active: boolean;
@@ -26,41 +27,36 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 type PanelMode = 'overview' | 'export';
 
 function supportLabel(
-  support: SessionTransferCapability['exportSupport']
+  support: SessionTransferCapability['exportSupport'],
+  t: (key: string, values?: TranslationValues) => string
 ): string {
   switch (support) {
     case 'supported':
-      return 'Supported';
+      return t('transfer.overview.supported');
     case 'experimental':
-      return 'Experimental';
+      return t('common.states.experimental');
     case 'provider_not_installed':
-      return 'Not installed';
+      return t('transfer.overview.not-installed');
     case 'provider_disabled':
-      return 'Disabled';
+      return t('transfer.overview.disabled');
     case 'provider_version_unsupported':
-      return 'Update required';
+      return t('transfer.overview.update-required');
     case 'route_unverified':
-      return 'Not verified';
+      return t('transfer.overview.not-verified');
   }
 }
 
 function routeSupportLabel(
-  routes: readonly SessionTransferCapability['routes'][number][]
+  routes: readonly SessionTransferCapability['routes'][number][],
+  t: (key: string, values?: TranslationValues) => string
 ): string {
   if (routes.some((route) => route.support === 'supported')) {
-    return 'Supported';
+    return t('transfer.overview.supported');
   }
   if (routes.some((route) => route.support === 'experimental')) {
-    return 'Experimental';
+    return t('common.states.experimental');
   }
-  return 'Not verified';
-}
-
-function historySummary(entry: TransferHistoryEntry): string {
-  if (entry.direction === 'import') {
-    return `${entry.importedCount} imported · ${entry.skippedCount} skipped`;
-  }
-  return `${entry.exportedCount} exported · ${entry.skippedCount} skipped`;
+  return t('transfer.overview.not-verified');
 }
 
 export function SessionTransferPanel({
@@ -71,6 +67,7 @@ export function SessionTransferPanel({
   sessions,
   workspaces
 }: SessionTransferPanelProps) {
+  const { formatDate, formatTime, t } = useLocalization();
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [capabilities, setCapabilities] = useState<
     SessionTransferCapability[]
@@ -96,7 +93,7 @@ export function SessionTransferPanel({
       setHistory(nextHistory);
       setLoadState('ready');
     } catch {
-      setError('Session transfer information could not be loaded.');
+      setError(t('transfer.overview.load-error'));
       setLoadState('error');
     }
   }, []);
@@ -120,7 +117,7 @@ export function SessionTransferPanel({
         await window.lumora.chooseSessionImportArchive();
       if (nextSelection !== null) setSelection(nextSelection);
     } catch {
-      setError('The session archive could not be opened.');
+      setError(t('transfer.overview.archive-open-error'));
     }
   };
 
@@ -128,7 +125,7 @@ export function SessionTransferPanel({
     try {
       setHistory(await window.lumora.getTransferHistory());
     } catch {
-      setError('The transfer history could not be refreshed.');
+      setError(t('transfer.overview.history-error'));
     }
   };
 
@@ -162,12 +159,9 @@ export function SessionTransferPanel({
           <>
             <header className="transfer-panel-header">
               <div>
-                <p className="card-label">Portable provider sessions</p>
-                <h2>Session transfer</h2>
-                <p className="card-description">
-                  Move native session files between devices without changing
-                  their provider format.
-                </p>
+                <p className="card-label">{t('transfer.overview.eyebrow')}</p>
+                <h2>{t('transfer.title')}</h2>
+                <p className="card-description">{t('transfer.overview.description')}</p>
               </div>
               <div className="transfer-panel-actions">
                 <button
@@ -176,14 +170,14 @@ export function SessionTransferPanel({
                   onClick={() => setMode('export')}
                   type="button"
                 >
-                  Export sessions
+                  {t('transfer.overview.export')}
                 </button>
                 <button
                   className="refresh-button"
                   onClick={() => void chooseArchive()}
                   type="button"
                 >
-                  Import sessions
+                  {t('transfer.overview.import')}
                 </button>
               </div>
             </header>
@@ -196,7 +190,7 @@ export function SessionTransferPanel({
 
             {loadState === 'loading' || loadState === 'idle' ? (
               <div className="transfer-panel-loading" role="status">
-                Checking transfer support
+                {t('transfer.overview.checking')}
               </div>
             ) : null}
 
@@ -205,20 +199,20 @@ export function SessionTransferPanel({
                 <section aria-labelledby="transfer-capabilities-title">
                   <div className="transfer-section-heading">
                     <div>
-                      <h3 id="transfer-capabilities-title">Provider support</h3>
+                      <h3 id="transfer-capabilities-title">{t('transfer.overview.provider-support')}</h3>
                       <p>
                         {hasExperimentalRoutes
-                          ? 'Experimental routes are enabled in this release. Keep backups and verify imported sessions before relying on them.'
-                          : 'Untested provider and operating-system combinations stay unavailable to protect your sessions.'}
+                          ? t('transfer.overview.experimental-warning')
+                          : t('transfer.overview.unverified-warning')}
                       </p>
                     </div>
                   </div>
                   <div className="transfer-capability-table">
                     <div className="transfer-capability-row transfer-capability-heading">
-                      <span>Provider</span>
-                      <span>Export</span>
-                      <span>Same OS</span>
-                      <span>Cross-platform</span>
+                      <span>{t('transfer.overview.provider')}</span>
+                      <span>{t('transfer.overview.export-column')}</span>
+                      <span>{t('transfer.overview.same-os')}</span>
+                      <span>{t('transfer.overview.cross-platform')}</span>
                     </div>
                     {capabilities.map((capability) => {
                       const sameOs = routeSupportLabel(
@@ -226,14 +220,14 @@ export function SessionTransferPanel({
                           (route) =>
                             route.sourcePlatform === route.destinationPlatform &&
                             isUsableTransferSupport(route.support)
-                        )
+                        ), t
                       );
                       const crossPlatform = routeSupportLabel(
                         capability.routes.filter(
                           (route) =>
                             route.sourcePlatform !== route.destinationPlatform &&
                             isUsableTransferSupport(route.support)
-                        )
+                        ), t
                       );
                       return (
                         <div
@@ -241,7 +235,7 @@ export function SessionTransferPanel({
                           key={capability.provider}
                         >
                           <strong>{capability.displayName}</strong>
-                          <span>{supportLabel(capability.exportSupport)}</span>
+                          <span>{supportLabel(capability.exportSupport, t)}</span>
                           <span>{sameOs}</span>
                           <span>{crossPlatform}</span>
                         </div>
@@ -253,8 +247,8 @@ export function SessionTransferPanel({
                 <section aria-labelledby="transfer-history-title">
                   <div className="transfer-section-heading">
                     <div>
-                      <h3 id="transfer-history-title">Recent transfers</h3>
-                      <p>Only non-sensitive summaries are retained.</p>
+                      <h3 id="transfer-history-title">{t('transfer.overview.recent')}</h3>
+                      <p>{t('transfer.overview.recent-description')}</p>
                     </div>
                   </div>
                   {history.length > 0 ? (
@@ -263,21 +257,28 @@ export function SessionTransferPanel({
                         <article key={entry.id}>
                           <div>
                             <strong>
-                              {entry.direction === 'import'
-                                ? 'Imported'
-                                : 'Exported'}{' '}
-                              {entry.providers.join(', ')}
+                              {t(entry.direction === 'import'
+                                ? 'transfer.overview.imported-provider'
+                                : 'transfer.overview.exported-provider', {
+                                  providers: entry.providers.join(', ')
+                                })}
                             </strong>
-                            <span>{historySummary(entry)}</span>
+                            <span>{t(entry.direction === 'import'
+                              ? 'transfer.overview.import-summary'
+                              : 'transfer.overview.export-summary', {
+                                imported: entry.importedCount,
+                                exported: entry.exportedCount,
+                                skipped: entry.skippedCount
+                              })}</span>
                           </div>
                           <time dateTime={entry.completedAt}>
-                            {new Date(entry.completedAt).toLocaleString()}
+                            {`${formatDate(new Date(entry.completedAt))} ${formatTime(new Date(entry.completedAt))}`}
                           </time>
                         </article>
                       ))}
                     </div>
                   ) : (
-                    <p className="transfer-empty">No transfers yet.</p>
+                    <p className="transfer-empty">{t('transfer.overview.empty')}</p>
                   )}
                 </section>
 
@@ -285,12 +286,8 @@ export function SessionTransferPanel({
                   aria-labelledby="transfer-guide-title"
                   className="transfer-guidance"
                 >
-                  <h3 id="transfer-guide-title">Before importing</h3>
-                  <p>
-                    Install and enable the destination providers first. Lumora
-                    skips missing providers and unresolved workspaces instead
-                    of overwriting native data.
-                  </p>
+                  <h3 id="transfer-guide-title">{t('transfer.overview.before-importing')}</h3>
+                  <p>{t('transfer.overview.before-description')}</p>
                 </section>
               </div>
             ) : null}
@@ -301,7 +298,7 @@ export function SessionTransferPanel({
                 onClick={() => void loadTransferState()}
                 type="button"
               >
-                Try again
+                {t('transfer.overview.try-again')}
               </button>
             ) : null}
           </>

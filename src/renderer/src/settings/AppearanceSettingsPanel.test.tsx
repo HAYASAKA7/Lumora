@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { AppearanceSettingsPanel } from './AppearanceSettingsPanel';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 describe('AppearanceSettingsPanel', () => {
   it('offers Lumora mixed as the default without a System theme option', () => {

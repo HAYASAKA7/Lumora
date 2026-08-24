@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_KEYBOARD_SETTINGS } from '../../../shared/contracts';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 describe('KeyboardShortcutsPanel', () => {
   beforeEach(() => {

@@ -16,6 +16,7 @@ import {
   supportsManagedProviderUpdate
 } from '../../../shared/provider-definitions';
 import type { ProviderUpdatesStatus } from './useProviderUpdates';
+import { useLocalization } from '../localization/useLocalization';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -32,9 +33,9 @@ export type ProviderSettingsApi = Pick<
 >;
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
-  ready: 'Detected',
-  not_found: 'Not found',
-  probe_failed: 'Probe failed'
+  ready: 'providers.states.detected',
+  not_found: 'providers.states.not-found',
+  probe_failed: 'providers.states.probe-failed'
 };
 
 function ScanIcon(): ReactNode {
@@ -89,6 +90,7 @@ function ProviderCard({
   updateError: string | null;
   updating: boolean;
 }): ReactNode {
+  const { t } = useLocalization();
   const [confirmingInstall, setConfirmingInstall] = useState(false);
   const [confirmingUpdate, setConfirmingUpdate] = useState(false);
   const definition = providerDefinition(installation.provider);
@@ -96,29 +98,29 @@ function ProviderCard({
     <article className={`provider-card provider-card-${installation.state}`}>
       <header className="provider-card-header">
         <div>
-          <p className="card-label">Native CLI</p>
+          <p className="card-label">{t('providers.settings.native-cli')}</p>
           <h4>{installation.displayName}</h4>
         </div>
         <span className={`provider-state provider-state-${installation.state}`}>
           <span aria-hidden="true" />
-          {PROVIDER_STATE_LABELS[installation.state]}
+          {t(PROVIDER_STATE_LABELS[installation.state])}
         </span>
       </header>
       <p className="provider-session-capability">
-        Saved sessions:{' '}
+        {t('providers.settings.saved-sessions')}{' '}
         {definition.sessionSupport === 'complete'
-          ? 'Full session support'
-          : 'Launch only'}
+          ? t('providers.settings.full-support')
+          : t('providers.settings.launch-only')}
       </p>
 
       {installation.state === 'ready' ? (
         <dl className="provider-details">
           <div>
-            <dt>Version</dt>
+            <dt>{t('providers.settings.version')}</dt>
             <dd>{installation.version}</dd>
           </div>
           <div>
-            <dt>Executable</dt>
+            <dt>{t('providers.settings.executable')}</dt>
             <dd className="provider-path">{installation.executablePath}</dd>
           </div>
         </dl>
@@ -136,22 +138,22 @@ function ProviderCard({
         <div className="provider-install-actions">
           {definition.npmPackage === null ? (
             <button
-              aria-label={`Open ${installation.displayName} installation guide`}
+              aria-label={t('providers.settings.open-guide-label', { provider: installation.displayName })}
               className="secondary-button"
               disabled={installing}
               onClick={onOpenGuide}
               type="button"
             >
-              Installation guide
+              {t('providers.settings.installation-guide')}
             </button>
           ) : confirmingInstall ? (
             <div className="provider-install-confirmation">
               <p>
-                Install {installation.displayName} globally with npm?
+                {t('providers.settings.install-confirm', { provider: installation.displayName })}
               </p>
               <div>
                 <button
-                  aria-label={`Confirm install ${installation.displayName}`}
+                  aria-label={t('providers.settings.confirm-install-label', { provider: installation.displayName })}
                   className="refresh-button"
                   disabled={installing}
                   onClick={() => {
@@ -160,7 +162,7 @@ function ProviderCard({
                   }}
                   type="button"
                 >
-                  {installing ? 'Installing…' : 'Confirm install'}
+                  {t(installing ? 'providers.states.installing' : 'providers.settings.confirm-install')}
                 </button>
                 <button
                   className="text-button"
@@ -168,19 +170,19 @@ function ProviderCard({
                   onClick={() => setConfirmingInstall(false)}
                   type="button"
                 >
-                  Cancel
+                  {t('common.actions.cancel')}
                 </button>
               </div>
             </div>
           ) : (
             <button
-              aria-label={`Install ${installation.displayName}`}
+              aria-label={t('providers.settings.install-label', { provider: installation.displayName })}
               className="secondary-button"
               disabled={installing}
               onClick={() => setConfirmingInstall(true)}
               type="button"
             >
-              {installing ? 'Installing…' : 'Install'}
+              {t(installing ? 'providers.states.installing' : 'common.actions.install')}
             </button>
           )}
           {installError === null ? null : (
@@ -194,20 +196,20 @@ function ProviderCard({
       <div className="provider-release" aria-live="polite">
         {!updatesChecked ? (
           <p className="provider-release-status provider-release-idle">
-            Updates not checked
+            {t('providers.settings.updates-not-checked')}
           </p>
         ) : releaseChecking ? (
           <p className="provider-release-status provider-release-checking">
             <span className="status-dot" aria-hidden="true" />
-            Checking latest version…
+            {t('providers.settings.checking-latest')}
           </p>
         ) : release === null || release.state === 'unavailable' ? (
           <div>
             <p className="provider-release-status provider-release-unavailable">
-              Latest version unavailable
+              {t('providers.settings.latest-unavailable')}
             </p>
             <p className="provider-release-recovery">
-              {release?.issue.recovery ?? 'Refresh to try the release check again.'}
+              {release?.issue.recovery ?? t('providers.settings.release-retry')}
             </p>
           </div>
         ) : (
@@ -216,28 +218,27 @@ function ProviderCard({
               className={`provider-release-status provider-release-${release.state}`}
             >
               {release.state === 'update_available'
-                ? `Update available · ${release.latestVersion}`
-                : `Up to date · ${release.latestVersion}`}
+                ? t('providers.settings.update-version', { version: release.latestVersion })
+                : t('providers.settings.current-version', { version: release.latestVersion })}
             </p>
             {release.state === 'update_available' &&
             !supportsManagedProviderUpdate(installation.provider) ? (
               <button
-                aria-label={`Open ${installation.displayName} update guide`}
+                aria-label={t('providers.settings.open-update-guide', { provider: installation.displayName })}
                 className="secondary-button provider-update-button"
                 onClick={onOpenGuide}
                 type="button"
               >
-                Official update guide
+                {t('providers.settings.official-update-guide')}
               </button>
             ) : release.state === 'update_available' && confirmingUpdate ? (
               <div className="provider-install-confirmation">
                 <p>
-                  Lumora will run a global npm update. If {installation.displayName} was
-                  installed another way, this may create a separate installation.
+                  {t('providers.settings.update-warning', { provider: installation.displayName })}
                 </p>
                 <div>
                   <button
-                    aria-label={'Confirm update ' + installation.displayName + ' with npm'}
+                    aria-label={t('providers.settings.confirm-update-label', { provider: installation.displayName })}
                     className="refresh-button"
                     disabled={updating}
                     onClick={() => {
@@ -246,7 +247,7 @@ function ProviderCard({
                     }}
                     type="button"
                   >
-                    Confirm update
+                    {t('providers.settings.confirm-update')}
                   </button>
                   <button
                     className="text-button"
@@ -254,7 +255,7 @@ function ProviderCard({
                     onClick={() => setConfirmingUpdate(false)}
                     type="button"
                   >
-                    Cancel
+                    {t('common.actions.cancel')}
                   </button>
                 </div>
               </div>
@@ -262,15 +263,15 @@ function ProviderCard({
               <button
                 aria-label={
                   updating
-                    ? `Updating ${installation.displayName}`
-                    : `Update ${installation.displayName} with npm to ${release.latestVersion}`
+                    ? t('providers.settings.updating-label', { provider: installation.displayName })
+                    : t('providers.settings.update-label', { provider: installation.displayName, version: release.latestVersion })
                 }
                 className="secondary-button provider-update-button"
                 disabled={updating}
                 onClick={() => setConfirmingUpdate(true)}
                 type="button"
               >
-                {updating ? 'Updating…' : `Update with npm to ${release.latestVersion}`}
+                {updating ? t('providers.states.updating') : t('providers.settings.update-to', { version: release.latestVersion })}
               </button>
             ) : null}
           </div>
@@ -282,9 +283,9 @@ function ProviderCard({
 
       <div className="provider-command">
         <label>
-          <span>{installation.displayName} start command</span>
+          <span>{t('providers.settings.start-command-label', { provider: installation.displayName })}</span>
           <input
-            aria-label={`${installation.displayName} start command`}
+            aria-label={t('providers.settings.start-command-label', { provider: installation.displayName })}
             disabled={saving}
             maxLength={4096}
             onChange={(event) => onCommandChange(event.currentTarget.value)}
@@ -294,26 +295,26 @@ function ProviderCard({
           />
         </label>
         <p>
-          Provider layer override. Leave blank to use the detected executable.
+          {t('providers.settings.start-command-help')}
         </p>
         <div className="provider-command-actions">
           <button
-            aria-label={`Save ${installation.displayName} start command`}
+            aria-label={t('providers.settings.save-command-label', { provider: installation.displayName })}
             className="secondary-button"
             disabled={saving}
             onClick={onSaveCommand}
             type="button"
           >
-            {saving ? 'Saving' : 'Save command'}
+            {t(saving ? 'providers.settings.saving-command' : 'providers.settings.save-command')}
           </button>
           <button
-            aria-label={`Reset ${installation.displayName} start command`}
+            aria-label={t('providers.settings.reset-command-label', { provider: installation.displayName })}
             className="text-button"
             disabled={saving || command === ''}
             onClick={onResetCommand}
             type="button"
           >
-            Use detected CLI
+            {t('providers.settings.use-detected')}
           </button>
         </div>
       </div>
@@ -350,6 +351,7 @@ export function ProviderSettings({
   updatesRefreshing?: boolean;
   onRefreshUpdates: () => Promise<void>;
 }): ReactNode {
+  const { formatDate, formatTime, t } = useLocalization();
   const [enabledProviderDraft, setEnabledProviderDraft] = useState<
     readonly ProviderId[]
   >(generalSettings.enabledProviders);
@@ -390,7 +392,7 @@ export function ProviderSettings({
         if (active) applyConfigs(configs);
       },
       () => {
-        if (active) setCommandError('Provider start commands could not be loaded.');
+        if (active) setCommandError(t('providers.settings.commands-load-error'));
       }
     );
     return () => { active = false; };
@@ -405,7 +407,7 @@ export function ProviderSettings({
         setSavingProvider(null);
       },
       () => {
-        setCommandError('The provider start command could not be saved.');
+        setCommandError(t('providers.settings.command-save-error'));
         setSavingProvider(null);
       }
     );
@@ -423,7 +425,7 @@ export function ProviderSettings({
       () => {
         setUpdateErrors((current) => ({
           ...current,
-          [provider]: `${displayName} could not be updated. Run ${provider} update manually or try again.`
+          [provider]: t('providers.settings.update-error', { provider: displayName, command: provider })
         }));
         setUpdatingProvider(null);
       }
@@ -447,7 +449,7 @@ export function ProviderSettings({
       () => {
         setInstallErrors((current) => ({
           ...current,
-          [provider]: `${displayName} could not be installed. Open its installation guide or try again.`
+          [provider]: t('providers.settings.install-error', { provider: displayName })
         }));
         finish();
       }
@@ -459,7 +461,7 @@ export function ProviderSettings({
     void api.openProviderInstallGuide(provider).catch(() => {
       setInstallErrors((current) => ({
         ...current,
-        [provider]: `${displayName}'s installation guide could not be opened.`
+        [provider]: t('providers.settings.guide-error', { provider: displayName })
       }));
     });
   };
@@ -534,12 +536,9 @@ export function ProviderSettings({
         className="provider-selection-panel"
       >
         <div>
-          <p className="card-label">Lumora scope</p>
-          <h2 id="enabled-providers-title">Enabled providers</h2>
-          <p>
-            Choose which providers Lumora scans and displays. Disabling one
-            never removes its CLI, settings, or saved session data.
-          </p>
+          <p className="card-label">{t('providers.settings.scope-eyebrow')}</p>
+          <h2 id="enabled-providers-title">{t('providers.settings.enabled-title')}</h2>
+          <p>{t('providers.settings.enabled-description')}</p>
         </div>
         <div className="provider-selection-grid">
           {PROVIDER_DEFINITIONS.map((definition) => {
@@ -547,7 +546,7 @@ export function ProviderSettings({
             return (
               <label className="provider-selection-option" key={definition.provider}>
                 <input
-                  aria-label={`Use ${definition.displayName}`}
+                  aria-label={t('providers.settings.use-provider', { provider: definition.displayName })}
                   checked={checked}
                   disabled={
                     generalSettingsSaving ||
@@ -568,7 +567,7 @@ export function ProviderSettings({
         </div>
         <div className="provider-selection-actions">
           <button
-            aria-label="Save provider selection"
+            aria-label={t('providers.settings.save-selection-label')}
             className="refresh-button"
             disabled={
               generalSettingsSaving ||
@@ -580,9 +579,9 @@ export function ProviderSettings({
             }}
             type="button"
           >
-            {generalSettingsSaving ? 'Saving…' : 'Save selection'}
+            {t(generalSettingsSaving ? 'providers.settings.saving-selection' : 'providers.settings.save-selection')}
           </button>
-          <span>{enabledProviderDraft.length} enabled</span>
+          <span>{t('providers.settings.enabled-count', { count: enabledProviderDraft.length })}</span>
         </div>
         {generalSettingsSaveError === null ? null : (
           <p className="general-setting-error" role="alert">
@@ -594,14 +593,10 @@ export function ProviderSettings({
       <div className="provider-panel-header">
         <div>
           <p className="card-label">
-            {scope === 'remote' ? 'Remote provider registry' : 'Local provider registry'}
+            {t(scope === 'remote' ? 'providers.settings.remote-registry' : 'providers.settings.local-registry')}
           </p>
-          <h2 id="provider-panel-title">Provider installations</h2>
-          <p>
-            Lumora reads the {scope === 'remote' ? 'remote ' : ''}effective PATH
-            {' '}and checks public release metadata.
-            It only modifies a provider after you explicitly confirm an action.
-          </p>
+          <h2 id="provider-panel-title">{t('providers.settings.installations')}</h2>
+          <p>{t(scope === 'remote' ? 'providers.settings.registry-description-remote' : 'providers.settings.registry-description-local')}</p>
         </div>
         <div className="provider-panel-actions">
           <button
@@ -617,10 +612,10 @@ export function ProviderSettings({
             type="button"
           >
             <ScanIcon />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {t(refreshing ? 'providers.settings.refreshing' : 'providers.settings.refresh')}
           </button>
           <button
-            aria-label="Check for provider updates"
+            aria-label={t('providers.settings.check-updates-label')}
             className="secondary-button"
             disabled={
               updatesStatus.state === 'loading' ||
@@ -633,7 +628,7 @@ export function ProviderSettings({
             }}
             type="button"
           >
-            Check for updates
+            {t('providers.settings.check-updates')}
           </button>
         </div>
       </div>
@@ -641,14 +636,14 @@ export function ProviderSettings({
       {status.state === 'loading' ? (
         <div className="provider-panel-state" role="status">
           <span className="status-dot" aria-hidden="true" />
-          Scanning provider installations
+          {t('providers.settings.scanning')}
         </div>
       ) : status.state === 'error' ? (
         <div className="provider-panel-state provider-panel-error" role="alert">
           <span className="status-warning-icon" aria-hidden="true">!</span>
           <div>
-            <strong>Provider details are unavailable</strong>
-            <p>The scan could not be completed. Refresh to try again.</p>
+            <strong>{t('providers.settings.details-unavailable')}</strong>
+            <p>{t('providers.settings.scan-failed')}</p>
           </div>
         </div>
       ) : (
@@ -658,7 +653,7 @@ export function ProviderSettings({
               aria-labelledby="installed-providers-title"
               className="provider-group"
             >
-              <h3 id="installed-providers-title">Installed providers</h3>
+              <h3 id="installed-providers-title">{t('providers.settings.installed')}</h3>
               <div className="provider-grid">
                 {status.scan.providers
                   .filter((provider) => provider.state === 'ready')
@@ -671,7 +666,7 @@ export function ProviderSettings({
               aria-labelledby="available-providers-title"
               className="provider-group"
             >
-              <h3 id="available-providers-title">Available providers</h3>
+              <h3 id="available-providers-title">{t('providers.settings.available')}</h3>
               <div className="provider-grid">
                 {status.scan.providers
                   .filter((provider) => provider.state !== 'ready')
@@ -680,9 +675,8 @@ export function ProviderSettings({
             </section>
           ) : null}
           <p className="provider-scan-time">
-            Last checked{' '}
             <time dateTime={status.scan.scannedAt}>
-              {new Date(status.scan.scannedAt).toLocaleString()}
+              {t('providers.settings.last-checked', { date: `${formatDate(new Date(status.scan.scannedAt))} ${formatTime(new Date(status.scan.scannedAt))}` })}
             </time>
           </p>
           {commandError === null ? null : (

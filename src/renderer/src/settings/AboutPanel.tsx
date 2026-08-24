@@ -7,6 +7,7 @@ import type {
   LumoraApi,
   RemoteTargetSummary
 } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 
 type AboutApi = Pick<
   LumoraApi,
@@ -23,13 +24,6 @@ export interface RemoteAboutTarget {
   helperVersion: string | null;
 }
 
-function platformName(platform: string): string {
-  if (platform === 'win32') return 'Windows';
-  if (platform === 'darwin') return 'macOS';
-  if (platform === 'linux') return 'Linux';
-  return 'Unknown platform';
-}
-
 export function AboutPanel({
   active,
   api = window.lumora,
@@ -39,6 +33,7 @@ export function AboutPanel({
   api?: AboutApi;
   remoteTarget?: RemoteAboutTarget | null;
 }) {
+  const { formatDate, t } = useLocalization();
   const [about, setAbout] = useState<ApplicationAboutInfo | null>(null);
   const [release, setRelease] = useState<ApplicationReleaseStatus | null>(null);
   const [openError, setOpenError] = useState(false);
@@ -66,65 +61,71 @@ export function AboutPanel({
       setOpenError(true);
     }
   };
+  const platformName = (platform: string): string => {
+    if (platform === 'win32') return t('settings.about.platform-windows');
+    if (platform === 'darwin') return t('settings.about.platform-macos');
+    if (platform === 'linux') return t('settings.about.platform-linux');
+    return t('settings.about.platform-unknown');
+  };
 
   return (
     <div className="about-panel">
       <section className="about-identity-card">
         <img alt="" className="about-logo" src={lumoraBrandMarkUrl} />
         <div>
-          <p className="card-label">Application</p>
+          <p className="card-label">{t('settings.about.application')}</p>
           <h2>Lumora</h2>
-          <p>Native AI-agent workspace and session manager</p>
+          <p>{t('settings.about.description')}</p>
         </div>
         <button
           className="secondary-button"
           data-lumora-command
           onClick={() => void open(() => api.openLumoraProjectPage())}
           type="button"
-        >Open GitHub project</button>
+        >{t('settings.about.open-project')}</button>
       </section>
 
       <section className="about-facts-card">
-        <header><div><p className="card-label">Installed application</p><h3>System information</h3></div></header>
+        <header><div><p className="card-label">{t('settings.about.installed-application')}</p><h3>{t('settings.about.system-information')}</h3></div></header>
         <dl className="about-facts">
-          <div><dt>Version</dt><dd>{about?.system.appVersion ?? 'Unavailable'}</dd></div>
-          <div><dt>Developer</dt><dd>{about?.developer ?? 'HAYASAKA7'}</dd></div>
-          <div><dt>Local system</dt><dd>{about === null ? 'Unavailable' : `${platformName(about.system.platform)} · ${about.system.arch}`}</dd></div>
+          <div><dt>{t('settings.about.version')}</dt><dd>{about?.system.appVersion ?? t('common.states.unavailable')}</dd></div>
+          <div><dt>{t('settings.about.developer')}</dt><dd>{about?.developer ?? 'HAYASAKA7'}</dd></div>
+          <div><dt>{t('settings.about.local-system')}</dt><dd>{about === null ? t('common.states.unavailable') : `${platformName(about.system.platform)} · ${about.system.arch}`}</dd></div>
         </dl>
       </section>
 
       {remoteTarget !== null && (
         <section className="about-facts-card">
-          <header><div><p className="card-label">Remote Lumora</p><h3>Connected helper</h3></div></header>
+          <header><div><p className="card-label">{t('settings.about.remote-lumora')}</p><h3>{t('settings.about.connected-helper')}</h3></div></header>
           <dl className="about-facts">
-            <div><dt>Status</dt><dd>{remoteTarget.connectionState}</dd></div>
-            <div><dt>Remote system</dt><dd>{`${platformName(remoteTarget.platform)} · ${remoteTarget.architecture}`}</dd></div>
-            <div><dt>Helper</dt><dd>{remoteTarget.helperVersion === null ? 'Unavailable' : `Helper ${remoteTarget.helperVersion}`}</dd></div>
+            <div><dt>{t('settings.about.status')}</dt><dd>{remoteTarget.connectionState}</dd></div>
+            <div><dt>{t('settings.about.remote-system')}</dt><dd>{`${platformName(remoteTarget.platform)} · ${remoteTarget.architecture}`}</dd></div>
+            <div><dt>{t('settings.about.helper')}</dt><dd>{remoteTarget.helperVersion === null ? t('common.states.unavailable') : t('settings.about.helper-version', { version: remoteTarget.helperVersion })}</dd></div>
           </dl>
         </section>
       )}
 
       {release?.state === 'update_available' && (
-        <section className="about-update-card" aria-label="Update available">
+        <section className="about-update-card" aria-label={t('settings.about.update-label')}>
           <header>
-            <div><p className="card-label">Update available</p><h3>{release.release.version}</h3></div>
+            <div><p className="card-label">{t('settings.about.update-label')}</p><h3>{release.release.version}</h3></div>
             <button
               className="refresh-button"
               data-lumora-command
               onClick={() => void open(() => api.openApplicationReleasePage())}
               type="button"
-            >View update</button>
+            >{t('settings.about.view-update')}</button>
           </header>
-          <p>{release.release.summary || 'A newer stable Lumora release is available.'}</p>
+          <p>{release.release.summary || t('settings.about.newer-release')}</p>
           <p className="about-release-date">
-            Released {new Date(release.release.publishedAt).toLocaleDateString()}
+            {t('settings.about.released', { date: formatDate(new Date(release.release.publishedAt)) })}
           </p>
         </section>
       )}
 
       {openError && (
         <p className="inline-notice warning" role="status">
-          Lumora could not open this page. Check your default browser and try again.
+          {t('settings.about.open-error')}
         </p>
       )}
     </div>

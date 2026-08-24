@@ -21,6 +21,7 @@ import {
 } from './session-transfer-state';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
+import { useLocalization, type TranslationValues } from '../localization/useLocalization';
 
 interface SessionTransferDialogProps {
   selection: SessionTransferArchiveSelection;
@@ -33,26 +34,23 @@ const DIALOG_STYLE = {
   '--transfer-dialog-size': 'medium'
 } as CSSProperties;
 
-function sessionCountLabel(count: number): string {
-  return `${count} ${count === 1 ? 'session' : 'sessions'}`;
-}
-
 function providerStatusLabel(
-  support: SessionImportInspection['providers'][number]['support']
+  support: SessionImportInspection['providers'][number]['support'],
+  t: (key: string, values?: TranslationValues) => string
 ): string {
   switch (support) {
     case 'provider_not_installed':
-      return 'Install provider first';
+      return t('transfer.import.install-provider');
     case 'provider_disabled':
-      return 'Provider is disabled';
+      return t('transfer.import.provider-disabled');
     case 'provider_version_unsupported':
-      return 'Update provider first';
+      return t('transfer.import.update-provider');
     case 'route_unverified':
-      return 'Import route is not verified';
+      return t('transfer.import.route-unverified');
     case 'experimental':
-      return 'Experimental';
+      return t('common.states.experimental');
     case 'supported':
-      return 'Ready';
+      return t('common.states.ready');
   }
 }
 
@@ -62,6 +60,8 @@ export function SessionTransferDialog({
   selection,
   workspaces
 }: SessionTransferDialogProps) {
+  const { t } = useLocalization();
+  const sessionCountLabel = (count: number) => t('transfer.import.session-count', { count });
   const [flow, dispatch] = useReducer(
     reduceImportFlow,
     INITIAL_IMPORT_FLOW_STATE
@@ -116,7 +116,7 @@ export function SessionTransferDialog({
       );
       dispatch({ type: 'advance', step: 'providers' });
     } catch {
-      setError('The archive could not be inspected. Check the file and password.');
+      setError(t('transfer.import.inspect-error'));
     } finally {
       setPassword('');
       setBusy(false);
@@ -135,7 +135,7 @@ export function SessionTransferDialog({
         setAvailableWorkspaces((current) => [...current, workspace]);
       }
     } catch {
-      setError('The workspace could not be added.');
+      setError(t('transfer.import.workspace-error'));
     } finally {
       setBusy(false);
     }
@@ -171,7 +171,7 @@ export function SessionTransferDialog({
       setPlan(nextPlan);
       dispatch({ type: 'advance', step: 'review' });
     } catch {
-      setError('Lumora could not prepare this import.');
+      setError(t('transfer.import.prepare-error'));
     } finally {
       setBusy(false);
     }
@@ -196,7 +196,7 @@ export function SessionTransferDialog({
       }
       dispatch({ type: 'completed', result: nextResult });
     } catch {
-      setError('The session import did not complete.');
+      setError(t('transfer.import.execute-error'));
       dispatch({ type: 'failed' });
     } finally {
       unsubscribe();
@@ -211,7 +211,7 @@ export function SessionTransferDialog({
       await window.lumora.cancelTransferOperation(flow.operationId);
       dispatch({ type: 'cancelled', operationId: flow.operationId });
     } catch {
-      setError('Lumora could not cancel this operation.');
+      setError(t('transfer.import.cancel-error'));
     } finally {
       setBusy(false);
     }
@@ -220,20 +220,20 @@ export function SessionTransferDialog({
   const canClose = flow.step !== 'progress';
   const title =
     flow.step === 'unlock'
-      ? 'Open session archive'
+      ? t('transfer.import.open-title')
       : flow.step === 'providers'
-        ? 'Choose providers'
+        ? t('transfer.import.providers-title')
         : flow.step === 'workspaces'
-          ? 'Map workspaces'
+          ? t('transfer.import.workspaces-title')
           : flow.step === 'review'
-            ? 'Review import'
+            ? t('transfer.import.review-title')
             : flow.step === 'progress'
-              ? 'Importing sessions'
+              ? t('transfer.import.progress-title')
               : flow.outcome === 'completed'
-                ? 'Import complete'
+                ? t('transfer.import.complete')
                 : flow.outcome === 'cancelled'
-                  ? 'Import cancelled'
-                  : 'Import incomplete';
+                  ? t('transfer.import.cancelled-title')
+                  : t('transfer.import.incomplete-title');
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -246,17 +246,17 @@ export function SessionTransferDialog({
       >
         <header>
           <div>
-            <p className="card-label">Cross-device transfer</p>
+            <p className="card-label">{t('transfer.import.cross-device')}</p>
             <h2 id="session-transfer-title">{title}</h2>
           </div>
           <button
-            aria-label="Close session import"
+            aria-label={t('transfer.import.close-label')}
             className="text-button"
             disabled={!canClose}
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
 
@@ -270,14 +270,13 @@ export function SessionTransferDialog({
           {flow.step === 'unlock' ? (
             <div className="transfer-workflow-stage">
               <p className="card-description">
-                {selection.fileName}
-                {selection.encrypted
-                  ? ' is password protected.'
-                  : ' is ready to inspect.'}
+                {t(selection.encrypted
+                  ? 'transfer.import.password-protected'
+                  : 'transfer.import.ready-inspect', { file: selection.fileName })}
               </p>
               {selection.encrypted ? (
                 <label className="transfer-field">
-                  <span>Archive password</span>
+                  <span>{t('transfer.import.password')}</span>
                   <input
                     autoComplete="off"
                     disabled={busy}
@@ -293,8 +292,7 @@ export function SessionTransferDialog({
           {flow.step === 'providers' && inspection !== null ? (
             <div className="transfer-workflow-stage">
               <p className="card-description">
-                Select the installed providers to import. Unsupported providers
-                stay safely inside the archive.
+                {t('transfer.import.provider-description')}
               </p>
               <div className="transfer-option-list">
                 {inspection.providers.map((provider) => {
@@ -322,16 +320,15 @@ export function SessionTransferDialog({
                       />
                       <span>
                         <strong>
-                          {provider.displayName} ·{' '}
                           {supported
-                            ? `${provider.sessionCount} ready`
-                            : providerStatusLabel(provider.support)}
+                            ? t('transfer.import.provider-ready', { provider: provider.displayName, count: provider.sessionCount })
+                            : `${provider.displayName} · ${providerStatusLabel(provider.support, t)}`}
                         </strong>
                         <small>
                           {supported
                             ? sessionCountLabel(provider.sessionCount)
                             : provider.installGuidance ??
-                              providerStatusLabel(provider.support)}
+                              providerStatusLabel(provider.support, t)}
                         </small>
                       </span>
                     </label>
@@ -345,8 +342,7 @@ export function SessionTransferDialog({
             <div className="transfer-workflow-stage">
               <div className="transfer-stage-heading">
                 <p className="card-description">
-                  Map each source workspace to an existing folder, or skip its
-                  sessions.
+                  {t('transfer.import.workspace-description')}
                 </p>
                 <button
                   className="secondary-button"
@@ -354,7 +350,7 @@ export function SessionTransferDialog({
                   onClick={() => void addWorkspace()}
                   type="button"
                 >
-                  Add workspace
+                  {t('transfer.import.add-workspace')}
                 </button>
               </div>
               <div className="transfer-workspace-list">
@@ -369,7 +365,7 @@ export function SessionTransferDialog({
                     <OverflowTooltip content={source.originalPath}><small>{source.originalPath}</small></OverflowTooltip>
                     <SelectMenu
                       disabled={busy}
-                      label={`${source.displayName} workspace destination`}
+                      label={t('transfer.import.workspace-destination', { workspace: source.displayName })}
                       onChange={(value) => {
                         const destination = value || null;
                         setWorkspaceMappings((current) => {
@@ -379,7 +375,7 @@ export function SessionTransferDialog({
                         });
                       }}
                       options={[
-                        { value: '', label: 'Skip this workspace' },
+                        { value: '', label: t('transfer.import.skip-workspace') },
                         ...availableWorkspaces.map((workspace) => ({
                           value: workspace.id,
                           label: `${workspace.displayName} — ${workspace.canonicalPath}`
@@ -398,21 +394,20 @@ export function SessionTransferDialog({
               <div className="transfer-summary-grid">
                 <div>
                   <strong>{plan.ready.length}</strong>
-                  <span>Ready to import</span>
+                  <span>{t('transfer.import.ready')}</span>
                 </div>
                 <div>
                   <strong>{plan.skipped.length}</strong>
-                  <span>Will be skipped</span>
+                  <span>{t('transfer.import.will-skip')}</span>
                 </div>
                 <div>
                   <strong>{plan.providers.length}</strong>
-                  <span>Providers</span>
+                  <span>{t('transfer.import.providers')}</span>
                 </div>
               </div>
               {plan.ready.length === 0 ? (
                 <p className="transfer-guidance">
-                  Nothing is ready to import. Go back and review provider and
-                  workspace choices.
+                  {t('transfer.import.nothing-ready')}
                 </p>
               ) : null}
             </div>
@@ -421,7 +416,7 @@ export function SessionTransferDialog({
           {flow.step === 'progress' ? (
             <div className="transfer-workflow-stage transfer-progress">
               <div
-                aria-label="Session import progress"
+                aria-label={t('transfer.import.progress-label')}
                 aria-valuemax={flow.progress?.total ?? 1}
                 aria-valuemin={0}
                 aria-valuenow={flow.progress?.completed ?? 0}
@@ -440,7 +435,7 @@ export function SessionTransferDialog({
               </div>
               <p>
                 {flow.progress?.message ??
-                  'Preparing the selected sessions for import.'}
+                  t('transfer.import.preparing-sessions')}
               </p>
             </div>
           ) : null}
@@ -450,23 +445,23 @@ export function SessionTransferDialog({
               <div className="transfer-summary-grid">
                 <div>
                   <strong>{flow.result?.importedCount ?? 0}</strong>
-                  <span>Imported</span>
+                  <span>{t('transfer.import.imported')}</span>
                 </div>
                 <div>
                   <strong>{flow.result?.skippedCount ?? 0}</strong>
-                  <span>Skipped</span>
+                  <span>{t('transfer.import.skipped')}</span>
                 </div>
                 <div>
                   <strong>{flow.result?.failedCount ?? 0}</strong>
-                  <span>Failed</span>
+                  <span>{t('transfer.import.failed')}</span>
                 </div>
               </div>
               <p className="transfer-guidance">
                 {flow.outcome === 'completed'
-                  ? 'Imported sessions are now available in Lumora.'
+                  ? t('transfer.import.complete-guidance')
                   : flow.outcome === 'cancelled'
-                    ? 'No additional sessions will be imported.'
-                    : 'Review the archive and try again when ready.'}
+                    ? t('transfer.import.cancelled-guidance')
+                    : t('transfer.import.failed-guidance')}
               </p>
             </div>
           ) : null}
@@ -481,10 +476,10 @@ export function SessionTransferDialog({
               type="button"
             >
               {busy
-                ? 'Inspecting archive'
+                ? t('transfer.import.inspecting')
                 : selection.encrypted
-                  ? 'Unlock archive'
-                  : 'Review archive'}
+                  ? t('transfer.import.unlock')
+                  : t('transfer.import.review-archive')}
             </button>
           ) : null}
           {flow.step === 'providers' ? (
@@ -494,7 +489,7 @@ export function SessionTransferDialog({
                 onClick={() => dispatch({ type: 'back' })}
                 type="button"
               >
-                Back
+                {t('common.actions.back')}
               </button>
               <button
                 className="refresh-button"
@@ -504,7 +499,7 @@ export function SessionTransferDialog({
                 }
                 type="button"
               >
-                Continue
+                {t('common.actions.continue')}
               </button>
             </>
           ) : null}
@@ -516,7 +511,7 @@ export function SessionTransferDialog({
                 onClick={() => dispatch({ type: 'back' })}
                 type="button"
               >
-                Back
+                {t('common.actions.back')}
               </button>
               <button
                 className="refresh-button"
@@ -524,7 +519,7 @@ export function SessionTransferDialog({
                 onClick={() => void reviewImport()}
                 type="button"
               >
-                {busy ? 'Preparing import' : 'Review import'}
+                {t(busy ? 'transfer.import.preparing' : 'transfer.import.review-title')}
               </button>
             </>
           ) : null}
@@ -535,7 +530,7 @@ export function SessionTransferDialog({
                 onClick={() => dispatch({ type: 'back' })}
                 type="button"
               >
-                Back
+                {t('common.actions.back')}
               </button>
               <button
                 className="refresh-button"
@@ -543,7 +538,7 @@ export function SessionTransferDialog({
                 onClick={() => void executeImport()}
                 type="button"
               >
-                Import {sessionCountLabel(plan.ready.length)}
+                {t('transfer.import.import-count', { count: plan.ready.length })}
               </button>
             </>
           ) : null}
@@ -554,12 +549,12 @@ export function SessionTransferDialog({
               onClick={() => void cancelImport()}
               type="button"
             >
-              Cancel import
+              {t('transfer.import.cancel')}
             </button>
           ) : null}
           {flow.step === 'result' ? (
             <button className="refresh-button" onClick={onClose} type="button">
-              Close
+              {t('common.actions.close')}
             </button>
           ) : null}
         </footer>

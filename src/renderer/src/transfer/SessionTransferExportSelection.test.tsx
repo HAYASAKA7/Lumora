@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,6 +7,9 @@ import type {
   SessionTransferCapability
 } from '../../../shared/contracts';
 import { SessionTransferExportSelection } from './SessionTransferExportSelection';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const sessions: SessionSummary[] = [
   {

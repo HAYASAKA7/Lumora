@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,6 +7,9 @@ import type {
   SessionTransferResult
 } from '../../../shared/contracts';
 import { SessionExportDialog } from './SessionExportDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const SESSION_ID = 'a'.repeat(64);
 const PLAN_TOKEN = '0198f8b6-18f3-7ca0-9f0f-123456789abc';

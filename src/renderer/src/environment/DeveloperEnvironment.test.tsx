@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DeveloperEnvironmentScanResult } from '../../../shared/contracts';
@@ -6,6 +6,9 @@ import {
   DeveloperEnvironmentNotice,
   DeveloperEnvironmentPanel
 } from './DeveloperEnvironment';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const healthy: DeveloperEnvironmentScanResult = {
   checkedAt: '2026-07-17T01:00:00.000Z',

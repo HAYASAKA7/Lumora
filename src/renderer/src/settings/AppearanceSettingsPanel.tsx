@@ -6,6 +6,7 @@ import type {
   GeneralSettings
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
+import { useLocalization } from '../localization/useLocalization';
 
 interface AppearanceSettingsPanelProps {
   background: AppearanceBackgroundState;
@@ -22,15 +23,15 @@ interface AppearanceSettingsPanelProps {
 const THEME_OPTIONS = [
   {
     id: 'lumora',
-    label: 'Lumora mixed',
-    description: 'Use Lumora’s original dark sidebar and light workspace.'
+    labelKey: 'settings.appearance.theme-lumora',
+    descriptionKey: 'settings.appearance.theme-lumora-description'
   },
-  { id: 'light', label: 'Light', description: 'Use Lumora’s bright workspace.' },
-  { id: 'dark', label: 'Dark', description: 'Use Lumora’s low-light workspace.' }
+  { id: 'light', labelKey: 'settings.appearance.theme-light', descriptionKey: 'settings.appearance.theme-light-description' },
+  { id: 'dark', labelKey: 'settings.appearance.theme-dark', descriptionKey: 'settings.appearance.theme-dark-description' }
 ] as const satisfies ReadonlyArray<{
   id: AppearanceSettings['theme'];
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }>;
 
 export function AppearanceSettingsPanel({
@@ -44,6 +45,7 @@ export function AppearanceSettingsPanel({
   onChooseBackground,
   onRemoveBackground
 }: AppearanceSettingsPanelProps) {
+  const { t } = useLocalization();
   const updateAppearance = (next: Partial<AppearanceSettings>) => {
     onChange({
       ...settings,
@@ -58,14 +60,14 @@ export function AppearanceSettingsPanel({
     >
       <header className="provider-panel-header">
         <div>
-          <p className="card-label">Personalization</p>
-          <h2 id="appearance-settings-title">Appearance</h2>
-          <p>Choose how Lumora and its managed terminals look.</p>
+          <p className="card-label">{t('settings.appearance.eyebrow')}</p>
+          <h2 id="appearance-settings-title">{t('settings.appearance.title')}</h2>
+          <p>{t('settings.appearance.description')}</p>
         </div>
       </header>
 
       <fieldset className="appearance-theme-options" disabled={saving}>
-        <legend>Color theme</legend>
+        <legend>{t('settings.appearance.color-theme')}</legend>
         {THEME_OPTIONS.map((option) => (
           <label className="appearance-theme-option" key={option.id}>
             <input
@@ -76,8 +78,8 @@ export function AppearanceSettingsPanel({
               value={option.id}
             />
             <span>
-              <strong>{option.label}</strong>
-              <small>{option.description}</small>
+              <strong>{t(option.labelKey)}</strong>
+              <small>{t(option.descriptionKey)}</small>
             </span>
           </label>
         ))}
@@ -85,15 +87,15 @@ export function AppearanceSettingsPanel({
 
       <label className="general-setting-card">
         <span className="general-setting-copy">
-          <strong>Use a light terminal in Light mode</strong>
+          <strong>{t('settings.appearance.light-terminal')}</strong>
           <span id="appearance-light-terminal-description">
-            Keep the familiar dark terminal unless this option is enabled.
+            {t('settings.appearance.light-terminal-description')}
           </span>
         </span>
         <span className="settings-switch">
           <input
             aria-describedby="appearance-light-terminal-description"
-            aria-label="Use a light terminal in Light mode"
+            aria-label={t('settings.appearance.light-terminal')}
             checked={settings.appearance.lightTerminalInLightMode}
             disabled={saving}
             onChange={(event) => updateAppearance({
@@ -111,9 +113,9 @@ export function AppearanceSettingsPanel({
       <section aria-labelledby="appearance-background-title" className="appearance-background-section">
         <div className="appearance-section-heading">
           <div>
-            <p className="card-label">Custom background</p>
-            <h3 id="appearance-background-title">Workspace image</h3>
-            <p>Use one managed image behind every Lumora surface.</p>
+            <p className="card-label">{t('settings.appearance.background')}</p>
+            <h3 id="appearance-background-title">{t('settings.appearance.background-title')}</h3>
+            <p>{t('settings.appearance.background-description')}</p>
           </div>
           <div className="appearance-background-actions">
             <button
@@ -122,7 +124,7 @@ export function AppearanceSettingsPanel({
               onClick={onChooseBackground}
               type="button"
             >
-              {background.available ? 'Replace image' : 'Choose image'}
+              {t(background.available ? 'settings.appearance.replace-image' : 'settings.appearance.choose-image')}
             </button>
             {background.available ? (
               <button
@@ -131,7 +133,7 @@ export function AppearanceSettingsPanel({
                 onClick={onRemoveBackground}
                 type="button"
               >
-                Remove
+                {t('common.actions.remove')}
               </button>
             ) : null}
           </div>
@@ -139,15 +141,15 @@ export function AppearanceSettingsPanel({
 
         <label className="general-setting-card">
           <span className="general-setting-copy">
-            <strong>Show custom background</strong>
+            <strong>{t('settings.appearance.show-background')}</strong>
             <span id="appearance-background-enabled-description">
-              The original image stays untouched; Lumora uses a private managed copy.
+              {t('settings.appearance.show-background-description')}
             </span>
           </span>
           <span className="settings-switch">
             <input
               aria-describedby="appearance-background-enabled-description"
-              aria-label="Show custom background"
+              aria-label={t('settings.appearance.show-background')}
               checked={settings.appearance.backgroundEnabled && background.available}
               disabled={saving || backgroundBusy || !background.available}
               onChange={(event) => updateAppearance({
@@ -165,7 +167,7 @@ export function AppearanceSettingsPanel({
         <div className="appearance-control-grid">
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Image opacity"
+            label={t('settings.appearance.image-opacity')}
             max={100}
             min={0}
             onChange={(value) => updateAppearance({ backgroundOpacity: value / 100 })}
@@ -174,7 +176,7 @@ export function AppearanceSettingsPanel({
           />
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Image brightness"
+            label={t('settings.appearance.image-brightness')}
             max={150}
             min={50}
             onChange={(value) => updateAppearance({ backgroundBrightness: value / 100 })}
@@ -183,7 +185,7 @@ export function AppearanceSettingsPanel({
           />
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Image blur"
+            label={t('settings.appearance.image-blur')}
             max={24}
             min={0}
             onChange={(value) => updateAppearance({ backgroundBlur: value })}
@@ -192,7 +194,7 @@ export function AppearanceSettingsPanel({
           />
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Surface mosaic"
+            label={t('settings.appearance.surface-mosaic')}
             max={24}
             min={0}
             onChange={(value) => updateAppearance({ surfaceMosaic: value })}
@@ -201,7 +203,7 @@ export function AppearanceSettingsPanel({
           />
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Surface opacity"
+            label={t('settings.appearance.surface-opacity')}
             max={100}
             min={0}
             onChange={(value) => updateAppearance({ surfaceOpacity: value / 100 })}
@@ -210,7 +212,7 @@ export function AppearanceSettingsPanel({
           />
           <AppearanceRange
             disabled={saving || !background.available}
-            label="Terminal opacity"
+            label={t('settings.appearance.terminal-opacity')}
             max={100}
             min={0}
             onChange={(value) => updateAppearance({ terminalOpacity: value / 100 })}
@@ -218,39 +220,39 @@ export function AppearanceSettingsPanel({
             value={Math.round(settings.appearance.terminalOpacity * 100)}
           />
           <div className="appearance-select-control">
-            <span>Image fit</span>
+            <span>{t('settings.appearance.image-fit')}</span>
             <SelectMenu
               disabled={saving || !background.available}
-              label="Image fit"
+              label={t('settings.appearance.image-fit')}
               onChange={(value) => updateAppearance({
                 backgroundFit: value as AppearanceSettings['backgroundFit']
               })}
               options={[
-                { value: 'cover', label: 'Fill window' },
-                { value: 'contain', label: 'Fit inside' },
-                { value: 'original', label: 'Original size' }
+                { value: 'cover', label: t('settings.appearance.fit-cover') },
+                { value: 'contain', label: t('settings.appearance.fit-contain') },
+                { value: 'original', label: t('settings.appearance.fit-original') }
               ]}
               value={settings.appearance.backgroundFit}
             />
           </div>
           <div className="appearance-select-control">
-            <span>Image position</span>
+            <span>{t('settings.appearance.image-position')}</span>
             <SelectMenu
               disabled={saving || !background.available}
-              label="Image position"
+              label={t('settings.appearance.image-position')}
               onChange={(value) => updateAppearance({
                 backgroundPosition: value as AppearanceSettings['backgroundPosition']
               })}
               options={[
-                { value: 'center', label: 'Center' },
-                { value: 'top', label: 'Top' },
-                { value: 'bottom', label: 'Bottom' },
-                { value: 'left', label: 'Left' },
-                { value: 'right', label: 'Right' },
-                { value: 'top-left', label: 'Top left' },
-                { value: 'top-right', label: 'Top right' },
-                { value: 'bottom-left', label: 'Bottom left' },
-                { value: 'bottom-right', label: 'Bottom right' }
+                { value: 'center', label: t('settings.appearance.position-center') },
+                { value: 'top', label: t('settings.appearance.position-top') },
+                { value: 'bottom', label: t('settings.appearance.position-bottom') },
+                { value: 'left', label: t('settings.appearance.position-left') },
+                { value: 'right', label: t('settings.appearance.position-right') },
+                { value: 'top-left', label: t('settings.appearance.position-top-left') },
+                { value: 'top-right', label: t('settings.appearance.position-top-right') },
+                { value: 'bottom-left', label: t('settings.appearance.position-bottom-left') },
+                { value: 'bottom-right', label: t('settings.appearance.position-bottom-right') }
               ]}
               value={settings.appearance.backgroundPosition}
             />

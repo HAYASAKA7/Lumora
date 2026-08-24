@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,6 +7,9 @@ import type {
   SessionTransferArchiveSelection
 } from '../../../shared/contracts';
 import { SessionTransferPanel } from './SessionTransferPanel';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 vi.mock('./SessionTransferDialog', () => ({
   SessionTransferDialog: ({
