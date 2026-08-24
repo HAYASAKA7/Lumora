@@ -5,11 +5,12 @@ import type {
   TerminalProfile
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
+import { useLocalization } from '../localization/useLocalization';
 
 type ProfileStatus =
   | { state: 'loading' }
   | { state: 'ready'; profiles: TerminalProfile[] }
-  | { state: 'error'; message: string };
+  | { state: 'error'; messageKey: string };
 
 const SHELL_FAMILIES: readonly ShellFamily[] = [
   'pwsh',
@@ -26,6 +27,7 @@ export function TerminalProfiles({
 }: {
   onProfilesChange?(profiles: TerminalProfile[]): void;
 }): ReactNode {
+  const { t } = useLocalization();
   const [status, setStatus] = useState<ProfileStatus>({ state: 'loading' });
   const [name, setName] = useState('');
   const [shellFamily, setShellFamily] = useState<ShellFamily>('other');
@@ -42,7 +44,7 @@ export function TerminalProfiles({
       },
       () => setStatus({
         state: 'error',
-        message: 'Terminal profiles could not be loaded.'
+        messageKey: 'terminal.profiles.load-failed'
       })
     );
   };
@@ -72,7 +74,7 @@ export function TerminalProfiles({
       () => {
         setStatus({
           state: 'error',
-          message: 'The custom terminal profile could not be saved.'
+          messageKey: 'terminal.profiles.save-failed'
         });
         setSaving(false);
       }
@@ -87,7 +89,7 @@ export function TerminalProfiles({
       },
       () => setStatus({
         state: 'error',
-        message: 'The custom terminal profile could not be deleted.'
+        messageKey: 'terminal.profiles.delete-failed'
       })
     );
   };
@@ -97,24 +99,24 @@ export function TerminalProfiles({
       <section className="catalog-panel" aria-labelledby="profile-list-title">
         <div className="catalog-toolbar">
           <div>
-            <p className="card-label">Local shell detection</p>
-            <h2 id="profile-list-title">Available profiles</h2>
+            <p className="card-label">{t('terminal.profiles.local-detection')}</p>
+            <h2 id="profile-list-title">{t('terminal.profiles.available')}</h2>
           </div>
           <button className="secondary-button" onClick={load} type="button">
-            Refresh profiles
+            {t('terminal.profiles.refresh')}
           </button>
         </div>
 
         {status.state === 'loading' ? (
-          <div className="catalog-state" role="status">Loading profiles</div>
+          <div className="catalog-state" role="status">{t('terminal.profiles.loading')}</div>
         ) : status.state === 'error' ? (
           <div className="catalog-state catalog-error" role="alert">
-            {status.message}
+            {t(status.messageKey)}
           </div>
         ) : status.profiles.length === 0 ? (
           <div className="catalog-empty">
-            <h3>No shells detected</h3>
-            <p>Add a custom absolute executable path below.</p>
+            <h3>{t('terminal.profiles.empty-title')}</h3>
+            <p>{t('terminal.profiles.empty-description')}</p>
           </div>
         ) : (
           <div className="profile-list">
@@ -127,17 +129,17 @@ export function TerminalProfiles({
                   </div>
                   <div className="profile-badges">
                     {profile.recommended ? (
-                      <span className="origin-badge origin-manual">Recommended</span>
+                      <span className="origin-badge origin-manual">{t('terminal.profiles.recommended')}</span>
                     ) : null}
                     {!profile.available ? (
-                      <span className="availability-badge">Unavailable</span>
+                      <span className="availability-badge">{t('terminal.profiles.unavailable')}</span>
                     ) : null}
                   </div>
                 </header>
                 <p className="workspace-path">{profile.executablePath}</p>
                 <p className="profile-arguments">
                   {profile.args.length === 0
-                    ? 'No base arguments'
+                    ? t('terminal.profiles.no-arguments')
                     : profile.args.join(' · ')}
                 </p>
                 {profile.kind === 'custom' ? (
@@ -146,7 +148,7 @@ export function TerminalProfiles({
                     onClick={() => remove(profile.id)}
                     type="button"
                   >
-                    Delete custom profile
+                    {t('terminal.profiles.delete-custom')}
                   </button>
                 ) : null}
               </article>
@@ -156,10 +158,10 @@ export function TerminalProfiles({
       </section>
 
       <form className="catalog-panel profile-form" onSubmit={submit}>
-        <p className="card-label">User-defined profile</p>
-        <h2>Add terminal profile</h2>
+        <p className="card-label">{t('terminal.profiles.user-defined')}</p>
+        <h2>{t('terminal.profiles.add')}</h2>
         <label>
-          <span>Name</span>
+          <span>{t('terminal.profiles.name')}</span>
           <input
             maxLength={80}
             onChange={(event) => setName(event.currentTarget.value)}
@@ -168,9 +170,9 @@ export function TerminalProfiles({
           />
         </label>
         <div className="select-field">
-          <span>Shell family</span>
+          <span>{t('terminal.profiles.shell-family')}</span>
           <SelectMenu
-            label="Shell family"
+            label={t('terminal.profiles.shell-family')}
             onChange={(value) => setShellFamily(value as ShellFamily)}
             options={SHELL_FAMILIES.map((family) => ({
               value: family,
@@ -180,7 +182,7 @@ export function TerminalProfiles({
           />
         </div>
         <label>
-          <span>Absolute executable path</span>
+          <span>{t('terminal.profiles.executable-path')}</span>
           <input
             onChange={(event) => setExecutablePath(event.currentTarget.value)}
             required
@@ -188,7 +190,7 @@ export function TerminalProfiles({
           />
         </label>
         <label>
-          <span>Base arguments (one per line)</span>
+          <span>{t('terminal.profiles.base-arguments')}</span>
           <textarea
             onChange={(event) => setArgs(event.currentTarget.value)}
             rows={4}
@@ -196,7 +198,7 @@ export function TerminalProfiles({
           />
         </label>
         <button className="refresh-button" disabled={saving} type="submit">
-          {saving ? 'Saving profile' : 'Save profile'}
+          {t(saving ? 'terminal.profiles.saving' : 'terminal.profiles.save')}
         </button>
       </form>
     </div>

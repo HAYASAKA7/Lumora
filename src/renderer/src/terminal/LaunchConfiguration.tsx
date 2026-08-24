@@ -5,35 +5,16 @@ import type {
   LaunchSettingSource,
   ResolvedLaunchSetting
 } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 
-const SOURCE_LABELS: Record<LaunchSettingSource['scope'], string> = {
-  default: 'Built-in default',
-  global: 'Global layer',
-  provider: 'Provider layer',
-  workspace: 'Workspace layer',
-  session: 'Session layer',
-  launch: 'Launch override'
+const SOURCE_KEYS: Record<LaunchSettingSource['scope'], string> = {
+  default: 'terminal.launch.source-default',
+  global: 'terminal.launch.source-global',
+  provider: 'terminal.launch.source-provider',
+  workspace: 'terminal.launch.source-workspace',
+  session: 'terminal.launch.source-session',
+  launch: 'terminal.launch.source-launch'
 };
-
-function valueLabel(
-  setting: ResolvedLaunchSetting,
-  preview: Pick<LaunchPreview, 'command' | 'terminalProfile'>
-): string {
-  if (setting.field === 'providerCommand') {
-    return preview.command ?? 'Detected provider CLI';
-  }
-  return preview.terminalProfile.name;
-}
-
-function candidateLabel(
-  setting: ResolvedLaunchSetting,
-  value: string | null
-): string {
-  if (setting.field === 'providerCommand') {
-    return value ?? 'Detected provider CLI';
-  }
-  return value ?? 'Automatic recommended profile';
-}
 
 export function LaunchConfiguration({
   preview
@@ -43,6 +24,20 @@ export function LaunchConfiguration({
     'command' | 'terminalProfile' | 'configuration'
   >;
 }): ReactNode {
+  const { t } = useLocalization();
+  const fieldLabel = (setting: ResolvedLaunchSetting) => t(
+    setting.field === 'providerCommand'
+      ? 'terminal.launch.provider-command'
+      : 'terminal.launch.terminal-profile'
+  );
+  const valueLabel = (setting: ResolvedLaunchSetting): string =>
+    setting.field === 'providerCommand'
+      ? preview.command ?? t('terminal.launch.detected-provider-cli')
+      : preview.terminalProfile.name;
+  const candidateLabel = (setting: ResolvedLaunchSetting, value: string | null): string =>
+    setting.field === 'providerCommand'
+      ? value ?? t('terminal.launch.detected-provider-cli')
+      : value ?? t('terminal.launch.automatic-profile');
   const hasDetails = preview.configuration.some(
     (setting) =>
       setting.shadowed.length > 0 || setting.warnings.length > 0
@@ -50,19 +45,17 @@ export function LaunchConfiguration({
 
   return (
     <section className="launch-configuration" aria-labelledby="effective-launch-settings">
-      <h3 id="effective-launch-settings">Effective launch settings</h3>
+      <h3 id="effective-launch-settings">{t('terminal.launch.effective-settings')}</h3>
       <dl>
         {preview.configuration.map((setting) => (
           <div key={setting.field}>
             <dt>
-              {setting.field === 'providerCommand'
-                ? 'Provider command'
-                : 'Terminal profile'}
+              {fieldLabel(setting)}
             </dt>
             <dd>
-              <strong>{valueLabel(setting, preview)}</strong>
+              <strong>{valueLabel(setting)}</strong>
               <span className="configuration-source">
-                {SOURCE_LABELS[setting.winningSource.scope]}
+                {t(SOURCE_KEYS[setting.winningSource.scope])}
               </span>
             </dd>
           </div>
@@ -70,22 +63,20 @@ export function LaunchConfiguration({
       </dl>
       {hasDetails ? (
         <details>
-          <summary>Why these values?</summary>
+          <summary>{t('terminal.launch.why-values')}</summary>
           {preview.configuration.map((setting) => (
             setting.shadowed.length === 0 && setting.warnings.length === 0
               ? null
               : (
                 <div className="configuration-details" key={setting.field}>
                   <strong>
-                    {setting.field === 'providerCommand'
-                      ? 'Provider command'
-                      : 'Terminal profile'}
+                    {fieldLabel(setting)}
                   </strong>
                   {setting.shadowed.length === 0 ? null : (
                     <ul>
                       {setting.shadowed.map((candidate, index) => (
                         <li key={`${candidate.source.scope}-${index}`}>
-                          {SOURCE_LABELS[candidate.source.scope]}:{' '}
+                          {t(SOURCE_KEYS[candidate.source.scope])}:{' '}
                           {candidateLabel(setting, candidate.value)}
                         </li>
                       ))}

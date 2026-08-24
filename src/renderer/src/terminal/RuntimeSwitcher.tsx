@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
 import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
+import { providerDefinition } from '../../../shared/provider-definitions';
+import { useLocalization } from '../localization/useLocalization';
 
 export interface RuntimeSwitcherState {
   order: string[];
@@ -84,6 +86,7 @@ export function RuntimeSwitcher({
   selectedRuntimeId: string;
   workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
+  const { t } = useLocalization();
   const listboxRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -99,16 +102,16 @@ export function RuntimeSwitcher({
   return (
     <div className="runtime-switcher-layer">
       <section
-        aria-label="Open terminals"
+        aria-label={t('terminal.runtime.switcher-title')}
         aria-live="polite"
         aria-modal="true"
         className="runtime-switcher"
         role="dialog"
       >
-        <p className="runtime-switcher-title">Open terminals</p>
+        <p className="runtime-switcher-title">{t('terminal.runtime.switcher-title')}</p>
         <div
           aria-activedescendant={`runtime-switcher-option-${selectedRuntimeId}`}
-          aria-label="Terminal switcher"
+          aria-label={t('terminal.runtime.switcher-label')}
           className="runtime-switcher-list"
           ref={listboxRef}
           role="listbox"
@@ -133,14 +136,14 @@ export function RuntimeSwitcher({
                 <span>
                   <strong>{runtime.displayName}</strong>
                   <small>
-                    {runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} · {workspace?.displayName ?? 'Workspace'}
+                    {providerDefinition(runtime.provider).displayName} · {workspace?.displayName ?? t('terminal.runtime.workspace-fallback')}
                   </small>
                 </span>
               </div>
             );
           })}
         </div>
-        <p className="runtime-switcher-hint">Keep holding the modifier and press the shortcut again to cycle.</p>
+        <p className="runtime-switcher-hint">{t('terminal.runtime.switcher-hint')}</p>
       </section>
     </div>
   );

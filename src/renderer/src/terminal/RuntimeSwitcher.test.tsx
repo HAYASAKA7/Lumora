@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
@@ -9,6 +9,9 @@ import {
   reconcileRuntimeSwitch,
   touchRuntimeMru
 } from './RuntimeSwitcher';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const first: RuntimeSummary = {
   id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',

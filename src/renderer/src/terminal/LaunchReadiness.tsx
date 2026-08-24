@@ -7,6 +7,7 @@ import type {
 import { LaunchDetails } from './LaunchDetails';
 import type { LaunchPreflightStatus } from './useLaunchPreflight';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
+import { useLocalization } from '../localization/useLocalization';
 
 interface LaunchReadinessProps {
   actionError?: string | null;
@@ -35,9 +36,10 @@ export function LaunchReadiness({
   onRetry,
   onTrustConfirmedChange
 }: LaunchReadinessProps): ReactNode {
+  const { t } = useLocalization();
   return (
     <section
-      aria-label="Launch readiness"
+      aria-label={t('terminal.launch.readiness-label')}
       className="launch-readiness"
     >
       {blockingReason === null ? null : (
@@ -59,7 +61,7 @@ export function LaunchReadiness({
         <div className="catalog-operation-error" role="alert">
           <span>{failureMessage}</span>{' '}
           <button className="text-button" onClick={onRetry} type="button">
-            Retry
+            {t('common.actions.retry')}
           </button>
         </div>
       ) : preview === null ? (
@@ -78,8 +80,8 @@ export function LaunchReadiness({
           <LaunchDetails preview={preview} />
           {preview.workspaceTrusted && workspace !== undefined ? (
             <div className="workspace-trust-ready" role="status">
-              <span>Workspace security</span>
-              <strong>Trusted</strong>
+              <span>{t('terminal.launch.workspace-security')}</span>
+              <strong>{t('terminal.launch.trusted')}</strong>
             </div>
           ) : null}
         </>

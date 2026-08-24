@@ -1,8 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkspaceSummary } from '../../../shared/contracts';
 import { WorkspaceTrustNotice } from './WorkspaceTrustNotice';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const workspace: WorkspaceSummary = {
   id: 'a'.repeat(64),
@@ -16,6 +22,31 @@ const workspace: WorkspaceSummary = {
 };
 
 describe('WorkspaceTrustNotice', () => {
+  it('renders Lumora trust guidance from the active locale without translating workspace data', () => {
+    renderWithLocalization(
+      <WorkspaceTrustNotice
+        confirmed={false}
+        onConfirmedChange={vi.fn()}
+        workspace={workspace}
+      />,
+      {
+        ...TEST_LOCALIZATION_SNAPSHOT,
+        locale: 'zh-Hans',
+        formattingLocale: 'zh-CN',
+        messages: {
+          ...TEST_LOCALIZATION_SNAPSHOT.messages,
+          'terminal.trust.required-label': '需要信任工作区',
+          'terminal.trust.confirmation': '我信任此工作区'
+        }
+      }
+    );
+
+    expect(screen.getByRole('region', { name: '需要信任工作区' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: '我信任此工作区' })).toBeInTheDocument();
+    expect(screen.getByText('Lumora')).toBeInTheDocument();
+    expect(screen.getByText('D:\\Projects\\Lumora')).toBeInTheDocument();
+  });
+
   it('explains the permission boundary and requires explicit confirmation', () => {
     const onConfirmedChange = vi.fn();
     render(

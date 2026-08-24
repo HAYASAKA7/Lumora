@@ -1,8 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSummary } from '../../../shared/contracts';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const runtime: RuntimeSummary = {
   id: 'a'.repeat(64),

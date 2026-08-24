@@ -13,6 +13,8 @@ import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { resolveRuntimeRecovery } from './runtime-recovery';
 import { useLaunchPreflight } from './useLaunchPreflight';
+import { useLocalization } from '../localization/useLocalization';
+import { providerDefinition } from '../../../shared/provider-definitions';
 
 interface RuntimeRecoveryDialogProps {
   runtime: RuntimeSummary;
@@ -33,6 +35,7 @@ export function RuntimeRecoveryDialog({
   onClose,
   onStarted
 }: RuntimeRecoveryDialogProps): ReactNode {
+  const { t } = useLocalization();
   const plan = useMemo(
     () => resolveRuntimeRecovery(runtime, sessions),
     [runtime, sessions]
@@ -72,17 +75,19 @@ export function RuntimeRecoveryDialog({
   );
   const actionLabel =
     plan?.strategy === 'resume'
-      ? 'Resume saved session'
-      : 'Restart as new session';
+      ? t('catalog.home.resume-saved-session')
+      : t('catalog.home.restart-new-session');
   const blockingReason =
     plan === null
-      ? 'This runtime is not eligible for recovery.'
+      ? t('terminal.runtime.recovery-ineligible')
       : workspace?.available !== true
-        ? 'The workspace is unavailable.'
+        ? t('terminal.runtime.workspace-unavailable')
         : provider?.state !== 'ready'
-          ? `${runtime.provider === 'codex' ? 'Codex' : 'Claude Code'} is unavailable.`
+          ? t('terminal.runtime.provider-unavailable', {
+              provider: providerDefinition(runtime.provider).displayName
+            })
           : availableProfiles.length === 0
-            ? 'No terminal profile is available.'
+            ? t('terminal.runtime.profile-unavailable')
             : null;
   const request = useMemo<LaunchPrepareRequest | null>(() => {
     if (
@@ -148,7 +153,7 @@ export function RuntimeRecoveryDialog({
             finishLaunchOperation(operation);
             return;
           }
-          setActionError('Workspace trust could not be saved.');
+          setActionError(t('terminal.runtime.trust-save-failed'));
           finishLaunchOperation(operation);
           return;
         }
@@ -168,7 +173,7 @@ export function RuntimeRecoveryDialog({
           finishLaunchOperation(operation);
           return;
         }
-        setActionError('The recovered terminal could not be started.');
+        setActionError(t('terminal.runtime.recovery-start-failed'));
         finishLaunchOperation(operation);
         preflight.retry();
       }
@@ -185,40 +190,39 @@ export function RuntimeRecoveryDialog({
       >
         <header>
           <div>
-            <p className="card-label">Runtime recovery</p>
-            <h2 id="runtime-recovery-title">Recover lost runtime</h2>
+            <p className="card-label">{t('terminal.runtime.recovery-label')}</p>
+            <h2 id="runtime-recovery-title">{t('terminal.runtime.recover-lost')}</h2>
           </div>
           <button
-            aria-label="Close runtime recovery"
+            aria-label={t('terminal.runtime.close-recovery-label')}
             className="text-button"
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
 
         <div className="dialog-body">
         <p className="card-description">
-          Lumora cannot reattach the previous terminal. Recovery creates a new
-          managed runtime and keeps the lost record as history.
+          {t('terminal.runtime.recovery-description')}
         </p>
 
         <dl className="resume-session-details">
-          <div><dt>Provider</dt><dd>{provider?.displayName ?? runtime.provider}</dd></div>
-          <div><dt>Workspace</dt><dd>{workspace?.displayName ?? 'Unavailable'}</dd></div>
-          <div><dt>Recovery action</dt><dd>{actionLabel}</dd></div>
+          <div><dt>{t('terminal.details.provider')}</dt><dd>{provider?.displayName ?? runtime.provider}</dd></div>
+          <div><dt>{t('terminal.resume.workspace')}</dt><dd>{workspace?.displayName ?? t('terminal.details.unavailable')}</dd></div>
+          <div><dt>{t('terminal.runtime.recovery-action')}</dt><dd>{actionLabel}</dd></div>
         </dl>
 
         <div className="launch-fields resume-launch-fields">
           <div className="select-field">
-            <span>Terminal profile</span>
+            <span>{t('terminal.new.profile')}</span>
             <SelectMenu
               disabled={starting}
-              label="Terminal profile"
+              label={t('terminal.new.profile')}
               onChange={setProfileId}
               options={[
-                { value: '', label: 'Configured default' },
+                { value: '', label: t('terminal.new.configured-default') },
                 ...availableProfiles.map((profile) => ({
                   value: profile.id,
                   label: profile.name
@@ -232,11 +236,11 @@ export function RuntimeRecoveryDialog({
         <LaunchReadiness
           actionError={actionError}
           blockingReason={blockingReason}
-          emptyMessage="Recovery is not currently available."
-          failureMessage="The recovery preview could not be prepared."
+          emptyMessage={t('terminal.runtime.recovery-empty')}
+          failureMessage={t('terminal.runtime.recovery-preview-failed')}
           onRetry={retry}
           onTrustConfirmedChange={setTrustConfirmed}
-          preparingMessage="Preparing recovery"
+          preparingMessage={t('terminal.runtime.preparing-recovery')}
           preview={preview}
           status={preflight.status}
           trustConfirmed={trustConfirmed}
@@ -256,7 +260,7 @@ export function RuntimeRecoveryDialog({
             onClick={start}
             type="button"
           >
-            {starting ? 'Starting recovery' : actionLabel}
+            {starting ? t('terminal.runtime.starting-recovery') : actionLabel}
           </button>
         </footer>
       </section>

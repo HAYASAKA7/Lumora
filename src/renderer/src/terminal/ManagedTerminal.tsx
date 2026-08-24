@@ -15,6 +15,7 @@ import {
 } from './terminal-interrupt-guard';
 import { encodeTerminalNativeKey } from './terminal-native-key';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useLocalization } from '../localization/useLocalization';
 
 interface ManagedTerminalProps {
   api?: LumoraApi;
@@ -69,6 +70,7 @@ export function ManagedTerminal({
   theme = 'dark',
   onRuntimeChange
 }: ManagedTerminalProps): ReactNode {
+  const { t } = useLocalization();
   const container = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
   const platformRef = useRef(platform);
@@ -135,7 +137,7 @@ export function ManagedTerminal({
               if (activeRef.current) terminal.focus();
             },
             () => {
-              if (alive) setError('Clipboard contents could not be pasted.');
+              if (alive) setError('terminal.errors.clipboard-paste');
             }
           );
         };
@@ -179,7 +181,7 @@ export function ManagedTerminal({
               if (!alive) return;
               terminationPending = false;
               acceptingInputRef.current = !observedRuntimeEnded;
-              setError('The terminal session could not be stopped.');
+              setError('terminal.errors.stop');
             }
           );
         };
@@ -225,7 +227,7 @@ export function ManagedTerminal({
               }
             },
             () => {
-              if (alive) setError('Terminal input could not be delivered.');
+              if (alive) setError('terminal.errors.input');
             }
           );
         };
@@ -329,7 +331,7 @@ export function ManagedTerminal({
             const selected = terminal.getSelection();
             if (selected.length > 0) {
               void api.writeClipboardText(selected).catch(() => {
-                if (alive) setError('Selected text could not be copied.');
+                if (alive) setError('terminal.errors.copy');
               });
             }
             return false;
@@ -423,10 +425,10 @@ export function ManagedTerminal({
             onRuntimeChange(attachment.runtime);
             if (activeRef.current) terminal.focus();
           },
-          () => { if (alive) setError('The terminal runtime could not be attached.'); }
+          () => { if (alive) setError('terminal.errors.attach'); }
         );
       },
-      () => { if (alive) setError('The terminal renderer could not be loaded.'); }
+      () => { if (alive) setError('terminal.errors.renderer'); }
     );
 
     return () => {
@@ -466,23 +468,25 @@ export function ManagedTerminal({
 
   return (
     <div className={`managed-terminal-shell managed-terminal-shell-${theme}`}>
-      {error === null ? null : <div className="terminal-error" role="alert">{error}</div>}
+      {error === null ? null : <div className="terminal-error" role="alert">{t(error)}</div>}
       {interruptArmed ? (
         <div className="terminal-interrupt-notice" role="status">
-          Press Ctrl+C again to interrupt
+          {t('terminal.runtime.interrupt-again')}
         </div>
       ) : null}
       <div
-        aria-label={`${runtime.provider} terminal`}
+        aria-label={t('terminal.runtime.terminal-label', {
+          provider: runtime.provider
+        })}
         className="managed-terminal"
         ref={container}
         style={{ blockSize: TERMINAL_BLOCK_SIZE }}
       />
       {pendingLink === null ? null : (
         <ConfirmDialog
-          confirmLabel="Open link"
+          confirmLabel={t('terminal.runtime.open-link')}
           description={pendingLink}
-          heading="Open external link?"
+          heading={t('terminal.runtime.open-link-title')}
           onCancel={() => {
             setPendingLink(null);
             terminalRef.current?.focus();
@@ -492,7 +496,7 @@ export function ManagedTerminal({
             setPendingLink(null);
             setError(null);
             void api.openTerminalLink(uri).catch(() => {
-              setError('The terminal link could not be opened.');
+              setError('terminal.errors.link');
             }).finally(() => terminalRef.current?.focus());
           }}
         />

@@ -22,6 +22,7 @@ import {
 import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
+import { useLocalization } from '../localization/useLocalization';
 
 interface ResumeSessionDialogProps {
   api?: LumoraApi;
@@ -46,6 +47,7 @@ export function ResumeSessionDialog({
   onClose,
   onStarted
 }: ResumeSessionDialogProps): ReactNode {
+  const { t } = useLocalization();
   const availableProfiles = useMemo(
     () => profiles.filter((profile) => profile.available),
     [profiles]
@@ -233,7 +235,7 @@ export function ResumeSessionDialog({
             finishLaunchOperation(operation);
             return;
           }
-          setActionError('Workspace trust could not be saved.');
+          setActionError(t('terminal.resume.trust-save-failed'));
           finishLaunchOperation(operation);
           return;
         }
@@ -253,10 +255,10 @@ export function ResumeSessionDialog({
         }
         setActionError(
           isCrossAgent
-            ? 'The cross-agent handoff could not be started.'
+            ? t('terminal.resume.handoff-start-failed')
             : isNativeFork
-              ? 'The native session fork could not be started.'
-              : 'The provider session could not be resumed.'
+              ? t('terminal.resume.fork-start-failed')
+              : t('terminal.resume.start-failed')
         );
         finishLaunchOperation(operation);
         preflight.retry();
@@ -276,35 +278,35 @@ export function ResumeSessionDialog({
           <div>
             <p className="card-label">
               {isCrossAgent
-                ? 'Cross-agent handoff'
+                ? t('terminal.resume.handoff-label')
                 : isNativeFork
-                  ? 'Native provider fork'
-                  : 'Native provider resume'}
+                  ? t('terminal.resume.fork-label')
+                  : t('terminal.resume.native-label')}
             </p>
-            <h2 id="resume-session-title">Resume session</h2>
+            <h2 id="resume-session-title">{t('terminal.actions.resume-session')}</h2>
           </div>
           <button
-            aria-label="Close resume session"
+            aria-label={t('terminal.resume.close-label')}
             className="text-button"
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
 
         <div className="dialog-body">
         <dl className="resume-session-details">
           <div>
-            <dt>Session</dt>
+            <dt>{t('terminal.resume.session')}</dt>
             <dd>{session.title}</dd>
           </div>
           <div>
-            <dt>Provider</dt>
+            <dt>{t('terminal.new.provider')}</dt>
             <dd>{provider?.displayName ?? session.provider}</dd>
           </div>
           <div>
-            <dt>Workspace</dt>
+            <dt>{t('terminal.resume.workspace')}</dt>
             <dd>
               <strong>{workspace.displayName}</strong>
               <span>{workspace.canonicalPath}</span>
@@ -315,14 +317,14 @@ export function ResumeSessionDialog({
         <section
           aria-label={
             continuation === 'new'
-              ? 'New session configuration'
-              : 'Session continuation'
+              ? t('terminal.resume.new-configuration-label')
+              : t('terminal.resume.continuation-label')
           }
           className="resume-workflow-stage"
         >
         {canStartNewSession && continuation === 'resume' ? (
           <fieldset className="continuation-options">
-            <legend>Continuation</legend>
+            <legend>{t('terminal.resume.continuation')}</legend>
             <label>
               <input
                 checked={continuation === 'resume'}
@@ -331,7 +333,7 @@ export function ResumeSessionDialog({
                 onChange={() => setContinuation('resume')}
                 type="radio"
               />
-              <span>Resume original session</span>
+              <span>{t('terminal.resume.original')}</span>
             </label>
             <label>
               <input
@@ -341,7 +343,7 @@ export function ResumeSessionDialog({
                 onChange={() => setContinuation('new')}
                 type="radio"
               />
-              <span>Start a new session from this context</span>
+              <span>{t('terminal.resume.new-from-context')}</span>
             </label>
           </fieldset>
         ) : null}
@@ -349,10 +351,10 @@ export function ResumeSessionDialog({
         <div className="launch-fields resume-launch-fields">
           {continuation === 'new' && newSessionDestinations.length > 1 ? (
             <div className="select-field">
-              <span>Start with provider</span>
+              <span>{t('terminal.resume.start-provider')}</span>
               <SelectMenu
                 disabled={starting}
-                label="Start with provider"
+                label={t('terminal.resume.start-provider')}
                 onChange={(value) => setDestinationProvider(value as ProviderId)}
                 options={newSessionDestinations.map((installation) => ({
                   value: installation.provider,
@@ -364,25 +366,25 @@ export function ResumeSessionDialog({
           ) : null}
           {supportsStartPrompt ? (
             <label>
-              <span>Start prompt (optional)</span>
+              <span>{t('terminal.new.task-prompt')}</span>
               <input
                 disabled={starting}
                 maxLength={4_096}
                 onChange={(event) => setStartPrompt(event.currentTarget.value)}
-                placeholder="Describe the first task, or leave empty"
+                placeholder={t('terminal.new.task-prompt-placeholder')}
                 type="text"
                 value={startPrompt}
               />
             </label>
           ) : null}
           <div className="select-field">
-            <span>Terminal profile</span>
+            <span>{t('terminal.new.profile')}</span>
             <SelectMenu
               disabled={starting}
-              label="Terminal profile"
+              label={t('terminal.new.profile')}
               onChange={setProfileId}
               options={[
-                { value: '', label: 'Configured default' },
+                { value: '', label: t('terminal.new.configured-default') },
                 ...availableProfiles.map((profile) => ({
                   value: profile.id,
                   label: profile.name
@@ -395,22 +397,24 @@ export function ResumeSessionDialog({
 
         {isNativeFork ? (
           <p className="handoff-explanation">
-            This creates a new native {provider?.displayName ?? session.provider}{' '}
-            session. The original session remains unchanged.
+            {t('terminal.resume.fork-description', {
+              provider: provider?.displayName ?? session.provider
+            })}
           </p>
         ) : null}
 
         {isNativeFork && sourceSessionActive ? (
           <p className="handoff-explanation active-source-warning">
-            The source session is active. Both sessions use the same workspace,
-            so concurrent file edits may conflict.
+            {t('terminal.resume.active-source-warning')}
           </p>
         ) : null}
 
         {isCrossAgent && destination !== undefined ? (
           <p className="handoff-explanation">
-            This creates a new {destination.displayName} session. The original{' '}
-            {provider?.displayName ?? session.provider} session remains unchanged.
+            {t('terminal.resume.handoff-provider-description', {
+              destination: destination.displayName,
+              source: provider?.displayName ?? session.provider
+            })}
           </p>
         ) : null}
 
@@ -418,28 +422,28 @@ export function ResumeSessionDialog({
           actionError={actionError}
           emptyMessage={
             supportsStartPrompt && !validStartPrompt
-              ? 'The start prompt must be a single line.'
+              ? t('terminal.resume.single-line-prompt')
               : isCrossAgent
-                ? 'The selected session is not currently available to hand off.'
+                ? t('terminal.resume.handoff-unavailable')
                 : isNativeFork
-                  ? 'The selected session is not currently available to fork.'
-                  : 'The selected session is not currently available to resume.'
+                  ? t('terminal.resume.fork-unavailable')
+                  : t('terminal.resume.unavailable')
           }
           failureMessage={
             isCrossAgent
-              ? 'The handoff preview could not be prepared.'
+              ? t('terminal.resume.handoff-preview-failed')
               : isNativeFork
-                ? 'The fork preview could not be prepared.'
-                : 'The resume preview could not be prepared.'
+                ? t('terminal.resume.fork-preview-failed')
+                : t('terminal.resume.preview-failed')
           }
           onRetry={retry}
           onTrustConfirmedChange={setTrustConfirmed}
           preparingMessage={
             isCrossAgent
-              ? 'Preparing handoff'
+              ? t('terminal.resume.preparing-handoff')
               : isNativeFork
-                ? 'Preparing fork'
-                : 'Preparing resume'
+                ? t('terminal.resume.preparing-fork')
+                : t('terminal.resume.preparing')
           }
           preview={preview}
           status={preflight.status}
@@ -457,7 +461,7 @@ export function ResumeSessionDialog({
               onClick={() => setContinuation('resume')}
               type="button"
             >
-              Back to resume
+              {t('terminal.actions.back-to-resume')}
             </button>
           ) : null}
           <button
@@ -477,15 +481,15 @@ export function ResumeSessionDialog({
           >
             {starting
               ? isCrossAgent
-                ? 'Starting handoff'
+                ? t('terminal.actions.starting-handoff')
                 : isNativeFork
-                  ? 'Starting fork'
-                  : 'Resuming session'
+                  ? t('terminal.actions.starting-fork')
+                  : t('terminal.actions.resuming-session')
               : isCrossAgent
-                ? 'Start handoff'
+                ? t('terminal.actions.start-handoff')
                 : isNativeFork
-                  ? 'Fork session'
-                  : 'Resume session'}
+                  ? t('terminal.actions.fork-session')
+                  : t('terminal.actions.resume-session')}
           </button>
         </footer>
       </section>

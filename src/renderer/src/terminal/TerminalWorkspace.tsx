@@ -10,6 +10,7 @@ import {
 import type {
   LaunchPreview,
   LumoraApi,
+  RuntimeState,
   RuntimeSummary,
   SystemInfo,
   WorkspaceSummary
@@ -19,6 +20,16 @@ import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { useLocalization } from '../localization/useLocalization';
+
+const runtimeStateMessageKeys: Record<RuntimeState, string> = {
+  launching: 'terminal.runtime.state-launching',
+  running: 'terminal.runtime.state-running',
+  completed: 'terminal.runtime.state-completed',
+  failed: 'terminal.runtime.state-failed',
+  runtime_lost: 'terminal.runtime.state-runtime-lost',
+  launch_failed: 'terminal.runtime.state-launch-failed'
+};
 
 interface TerminalWorkspaceProps {
   api?: LumoraApi;
@@ -62,6 +73,7 @@ export function TerminalWorkspace({
   onReorder,
   onRuntimeChange
 }: TerminalWorkspaceProps): ReactNode {
+  const { t } = useLocalization();
   const [stoppingRuntimeIds, setStoppingRuntimeIds] = useState<
     ReadonlySet<string>
   >(() => new Set());
@@ -170,9 +182,11 @@ export function TerminalWorkspace({
     onReorder(runtimeId, destinationIndex);
     const movedRuntime = runtimes.find((item) => item.id === runtimeId);
     setReorderAnnouncement(
-      `${movedRuntime?.displayName ?? 'Terminal'} moved to position ${
-        destinationIndex + 1
-      } of ${runtimes.length}.`
+      t('terminal.runtime.reorder-announcement', {
+        terminal: movedRuntime?.displayName ?? t('terminal.runtime.terminal-fallback'),
+        position: destinationIndex + 1,
+        count: runtimes.length
+      })
     );
   };
 
@@ -199,9 +213,11 @@ export function TerminalWorkspace({
     onReorder(runtimeId, destinationIndex);
     const movedRuntime = runtimes[sourceIndex];
     setReorderAnnouncement(
-      `${movedRuntime?.displayName ?? 'Terminal'} moved to position ${
-        destinationIndex + 1
-      } of ${runtimes.length}.`
+      t('terminal.runtime.reorder-announcement', {
+        terminal: movedRuntime?.displayName ?? t('terminal.runtime.terminal-fallback'),
+        position: destinationIndex + 1,
+        count: runtimes.length
+      })
     );
   };
 
@@ -226,11 +242,11 @@ export function TerminalWorkspace({
   };
 
   return (
-    <section className="terminal-workspace" aria-label="Managed terminals">
+    <section className="terminal-workspace" aria-label={t('terminal.runtime.managed-label')}>
       <div
         className="terminal-tabbar"
         role="tablist"
-        aria-label="Terminal tabs"
+        aria-label={t('terminal.runtime.tabs-label')}
         onPointerCancel={(event) => handleTabPointerEnd(event, false)}
         onPointerMove={handleTabPointerMove}
         onPointerUp={(event) => handleTabPointerEnd(event, true)}
@@ -289,7 +305,7 @@ export function TerminalWorkspace({
               </OverflowTooltip>
               <small>
                 {providerDefinition(item.provider).displayName} ·{' '}
-                {item.state}
+                {t(runtimeStateMessageKeys[item.state])}
               </small>
             </button>
           );
@@ -306,21 +322,24 @@ export function TerminalWorkspace({
       <header className="terminal-header">
         <div>
           <p className="card-label">
-            {workspace?.displayName ?? 'Workspace'} · {providerName} terminal
+            {t('terminal.runtime.terminal-context', {
+              workspace: workspace?.displayName ?? t('terminal.runtime.workspace-fallback'),
+              provider: providerName
+            })}
           </p>
           <h2>{runtime.displayName}</h2>
         </div>
         <div className="catalog-actions">
-          <span className={`runtime-state runtime-${runtime.state}`}>{runtime.state}</span>
+          <span className={`runtime-state runtime-${runtime.state}`}>{t(runtimeStateMessageKeys[runtime.state])}</span>
           <button
             className="secondary-button"
             onClick={() => setDetailsOpen(true)}
             type="button"
           >
-            Terminal details
+            {t('terminal.actions.terminal-details')}
           </button>
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
-            {stopping ? 'Stopping' : 'Stop'}
+            {stopping ? t('terminal.runtime.state-stopping') : t('common.actions.stop')}
           </button>
         </div>
       </header>
@@ -334,10 +353,10 @@ export function TerminalWorkspace({
             key={item.id}
           >
             <RegionErrorBoundary
-              description="This terminal process remains active. Retry its view to reattach without affecting other tabs."
-              heading="Terminal view unavailable"
+              description={t('terminal.runtime.terminal-view-description')}
+              heading={t('terminal.runtime.terminal-view-heading')}
               resetKey={`${item.id}:${item.state}`}
-              retryLabel="Retry terminal view"
+              retryLabel={t('terminal.runtime.terminal-view-retry')}
             >
             <ManagedTerminal
               active={visible && item.id === runtime.id}

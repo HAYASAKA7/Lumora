@@ -1,7 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TerminalProfiles } from './TerminalProfiles';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const detected = {
   id: 'a'.repeat(64),

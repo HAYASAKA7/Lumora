@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { WorkspaceSummary } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 
 interface WorkspaceTrustNoticeProps {
   workspace: WorkspaceSummary;
@@ -13,14 +14,15 @@ export function WorkspaceTrustNotice({
   confirmed,
   onConfirmedChange
 }: WorkspaceTrustNoticeProps): ReactNode {
+  const { t } = useLocalization();
   return (
     <section
-      aria-label="Workspace trust required"
+      aria-label={t('terminal.trust.required-label')}
       className="workspace-trust-notice"
     >
       <div className="workspace-trust-heading">
         <div>
-          <p className="card-label">Workspace trust required</p>
+          <p className="card-label">{t('terminal.trust.required-label')}</p>
           <h3>{workspace.displayName}</h3>
         </div>
         <code>{workspace.canonicalPath}</code>
@@ -31,15 +33,13 @@ export function WorkspaceTrustNotice({
           onChange={(event) => onConfirmedChange(event.currentTarget.checked)}
           type="checkbox"
         />
-        <span>I trust this workspace and want to run the provider here</span>
+        <span>{t('terminal.trust.confirmation')}</span>
       </label>
       <p>
-        The provider can read, change, and run files here using your
-        operating-system permissions.
+        {t('terminal.trust.permissions')}
       </p>
       <p>
-        Lumora records this approval, but it is not an OS sandbox and does not
-        restrict the provider beyond your account permissions.
+        {t('terminal.trust.sandbox-warning')}
       </p>
     </section>
   );

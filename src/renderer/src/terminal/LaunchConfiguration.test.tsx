@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { LaunchPreview } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const profileId = 'a'.repeat(64);
 const preview = {

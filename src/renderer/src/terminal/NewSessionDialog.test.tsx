@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -9,6 +9,9 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { NewSessionDialog } from './NewSessionDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const workspace: WorkspaceSummary = {
   id: 'a'.repeat(64),

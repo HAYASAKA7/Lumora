@@ -1,8 +1,11 @@
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { LaunchPreview } from '../../../shared/contracts';
 import { LaunchDetails } from './LaunchDetails';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const preview: LaunchPreview = {
   launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',

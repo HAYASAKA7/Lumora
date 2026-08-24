@@ -6,22 +6,23 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
+import { useLocalization } from '../localization/useLocalization';
 
-const IDENTITY_MATCH_LABELS: Record<
+const IDENTITY_MATCH_KEYS: Record<
   RuntimeSummary['reconciliationState'],
   string
 > = {
-  not_required: 'Native resume',
-  pending: 'Matching provider session',
-  linked: 'Linked',
-  ambiguous: 'Ambiguous — not linked',
-  unresolved: 'Not found — unlinked'
+  not_required: 'terminal.details.identity-native',
+  pending: 'terminal.details.identity-pending',
+  linked: 'terminal.details.identity-linked',
+  ambiguous: 'terminal.details.identity-ambiguous',
+  unresolved: 'terminal.details.identity-unresolved'
 };
 
-const LAUNCH_TYPE_LABELS: Record<RuntimeSummary['strategy'], string> = {
-  new: 'New session',
-  resume: 'Resume',
-  fork: 'Fork'
+const LAUNCH_TYPE_KEYS: Record<RuntimeSummary['strategy'], string> = {
+  new: 'terminal.details.strategy-new',
+  resume: 'terminal.details.strategy-resume',
+  fork: 'terminal.details.strategy-fork'
 };
 
 interface TerminalDetailsDialogProps {
@@ -37,6 +38,7 @@ export function TerminalDetailsDialog({
   workspace,
   onClose
 }: TerminalDetailsDialogProps): ReactNode {
+  const { t } = useLocalization();
   return (
     <div className="dialog-backdrop" role="presentation">
       <section
@@ -47,30 +49,30 @@ export function TerminalDetailsDialog({
       >
         <header>
           <div>
-            <p className="card-label">Runtime and launch metadata</p>
-            <h2 id="terminal-details-title">Terminal details</h2>
+            <p className="card-label">{t('terminal.details.metadata-label')}</p>
+            <h2 id="terminal-details-title">{t('terminal.details.title')}</h2>
           </div>
           <button
-            aria-label="Close terminal details"
+            aria-label={t('terminal.details.close-label')}
             className="text-button"
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
 
         <div className="dialog-body">
-        <aside aria-label="Launch inspector" className="terminal-inspector">
+        <aside aria-label={t('terminal.details.inspector-label')} className="terminal-inspector">
           <dl>
-            <div><dt>Provider</dt><dd>{runtime.provider}</dd></div>
-            <div><dt>Process</dt><dd>{runtime.pid ?? 'Not live'}</dd></div>
-            <div><dt>Executable</dt><dd>{preview?.executablePath ?? 'Saved runtime'}</dd></div>
-            <div><dt>Working directory</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? 'Unavailable'}</dd></div>
-            <div><dt>Launch type</dt><dd>{LAUNCH_TYPE_LABELS[runtime.strategy]}</dd></div>
-            <div><dt>Identity match</dt><dd>{IDENTITY_MATCH_LABELS[runtime.reconciliationState]}</dd></div>
-            <div><dt>Session</dt><dd>{runtime.sessionId?.slice(0, 12) ?? 'Not linked'}</dd></div>
-            <div><dt>Launch hash</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>
+            <div><dt>{t('terminal.details.provider')}</dt><dd>{runtime.provider}</dd></div>
+            <div><dt>{t('terminal.details.process')}</dt><dd>{runtime.pid ?? t('terminal.details.not-live')}</dd></div>
+            <div><dt>{t('terminal.launch.executable')}</dt><dd>{preview?.executablePath ?? t('terminal.details.saved-runtime')}</dd></div>
+            <div><dt>{t('terminal.launch.working-directory')}</dt><dd>{preview?.workingDirectory ?? workspace?.canonicalPath ?? t('terminal.details.unavailable')}</dd></div>
+            <div><dt>{t('terminal.details.launch-type')}</dt><dd>{t(LAUNCH_TYPE_KEYS[runtime.strategy])}</dd></div>
+            <div><dt>{t('terminal.details.identity-match')}</dt><dd>{t(IDENTITY_MATCH_KEYS[runtime.reconciliationState])}</dd></div>
+            <div><dt>{t('terminal.details.session')}</dt><dd>{runtime.sessionId?.slice(0, 12) ?? t('terminal.details.not-linked')}</dd></div>
+            <div><dt>{t('terminal.details.launch-hash')}</dt><dd>{runtime.launchHash.slice(0, 16)}</dd></div>
           </dl>
           {preview === undefined ? null : (
             <LaunchConfiguration preview={preview} />

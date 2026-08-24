@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -8,6 +8,9 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { TerminalWorkspace } from './TerminalWorkspace';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 vi.mock('./ManagedTerminal', () => ({
   ManagedTerminal: ({

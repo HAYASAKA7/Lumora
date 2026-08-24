@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -11,6 +11,9 @@ import type {
 } from '../../../shared/contracts';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { ResumeSessionDialog } from './ResumeSessionDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const workspace: WorkspaceSummary = {
   id: 'a'.repeat(64),

@@ -14,6 +14,7 @@ import { hasVerifiedStartPromptSupport } from '../../../shared/provider-definiti
 import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
+import { useLocalization } from '../localization/useLocalization';
 
 interface NewSessionDialogProps {
   api?: LumoraApi;
@@ -34,6 +35,7 @@ export function NewSessionDialog({
   onClose,
   onStarted
 }: NewSessionDialogProps): ReactNode {
+  const { t } = useLocalization();
   const availableWorkspaces = useMemo(
     () => workspaces.filter((workspace) => workspace.available),
     [workspaces]
@@ -159,7 +161,7 @@ export function NewSessionDialog({
             finishLaunchOperation(operation);
             return;
           }
-          setActionError('Workspace trust could not be saved.');
+          setActionError(t('terminal.new.trust-save-failed'));
           finishLaunchOperation(operation);
           return;
         }
@@ -177,7 +179,7 @@ export function NewSessionDialog({
           finishLaunchOperation(operation);
           return;
         }
-        setActionError('The provider terminal could not be started.');
+        setActionError(t('terminal.new.start-failed'));
         finishLaunchOperation(operation);
         preflight.retry();
       }
@@ -194,19 +196,19 @@ export function NewSessionDialog({
       >
         <header>
           <div>
-            <p className="card-label">Native provider launch</p>
-            <h2 id="new-session-title">New session</h2>
+            <p className="card-label">{t('terminal.new.launch-label')}</p>
+            <h2 id="new-session-title">{t('terminal.actions.new-session')}</h2>
           </div>
-          <button aria-label="Close new session" className="text-button" onClick={onClose} type="button">Close</button>
+          <button aria-label={t('terminal.new.close-label')} className="text-button" onClick={onClose} type="button">{t('common.actions.close')}</button>
         </header>
 
         <div className="dialog-body">
         <div className="launch-fields">
           <div className="select-field">
-            <span>Workspace</span>
+            <span>{t('terminal.new.workspace')}</span>
             <SelectMenu
               disabled={starting}
-              label="Workspace"
+              label={t('terminal.new.workspace')}
               onChange={setWorkspaceId}
               options={availableWorkspaces.map((workspace) => ({
                 value: workspace.id,
@@ -216,10 +218,10 @@ export function NewSessionDialog({
             />
           </div>
           <div className="select-field">
-            <span>Provider</span>
+            <span>{t('terminal.new.provider')}</span>
             <SelectMenu
               disabled={starting}
-              label="Provider"
+              label={t('terminal.new.provider')}
               onChange={(value) => setProvider(value as ProviderId)}
               options={readyProviders.map((installation) => ({
                 value: installation.provider,
@@ -229,13 +231,13 @@ export function NewSessionDialog({
             />
           </div>
           <div className="select-field">
-            <span>Terminal profile</span>
+            <span>{t('terminal.new.profile')}</span>
             <SelectMenu
               disabled={starting}
-              label="Terminal profile"
+              label={t('terminal.new.profile')}
               onChange={setProfileId}
               options={[
-                { value: '', label: 'Configured default' },
+                { value: '', label: t('terminal.new.configured-default') },
                 ...availableProfiles.map((profile) => ({
                   value: profile.id,
                   label: profile.name
@@ -246,12 +248,12 @@ export function NewSessionDialog({
           </div>
           {supportsStartPrompt ? (
             <label className="new-session-start-prompt">
-              <span>Start prompt (optional)</span>
+              <span>{t('terminal.new.task-prompt')}</span>
               <input
                 disabled={starting}
                 maxLength={4_096}
                 onChange={(event) => setStartPrompt(event.currentTarget.value)}
-                placeholder="Describe the first task, or leave empty"
+                placeholder={t('terminal.new.task-prompt-placeholder')}
                 type="text"
                 value={startPrompt}
               />
@@ -261,11 +263,11 @@ export function NewSessionDialog({
 
         <LaunchReadiness
           actionError={actionError}
-          emptyMessage="Select an available workspace, provider, and terminal profile."
-          failureMessage="The launch preview could not be prepared."
+          emptyMessage={t('terminal.new.empty-selection')}
+          failureMessage={t('terminal.new.preview-failed')}
           onRetry={retry}
           onTrustConfirmedChange={setTrustConfirmed}
-          preparingMessage="Preparing launch"
+          preparingMessage={t('terminal.launch.preparing')}
           preview={preview}
           status={preflight.status}
           trustConfirmed={trustConfirmed}
@@ -285,7 +287,7 @@ export function NewSessionDialog({
             onClick={start}
             type="button"
           >
-            {starting ? 'Starting terminal' : 'Start session'}
+            {t(starting ? 'terminal.actions.starting-terminal' : 'terminal.actions.start-session')}
           </button>
         </footer>
       </section>
