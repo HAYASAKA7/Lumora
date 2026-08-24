@@ -1,6 +1,6 @@
 {
   "name": "lumora",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "author": "HAYASAKA7",
   "description": "Local workspace and terminal manager for native AI-agent CLIs",

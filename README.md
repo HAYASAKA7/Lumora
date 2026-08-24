@@ -143,7 +143,9 @@ in the terminal, or provide one to launch the fork with that task.
 
 The **Home** page keeps a smaller recent-session list with direct Resume
 actions. Provider filters only include installed providers for which Lumora
-found resumable sessions.
+found resumable sessions. Its Provider discovery card also reports verified
+agent updates when automatic update checks are enabled; select the notice to
+open the existing update workflow in **Settings > Providers**.
 
 <p align="center">
   <img src="docs/screenshots/0.3/lumora_all_sessions.png" alt="Lumora 0.3 All sessions page with search, provider filters, token totals, and saved-session cards" width="1100">
@@ -246,9 +248,10 @@ contents, password warning, mixed-provider behavior, workspace mapping, and
 current verification matrix.
 ## Managed terminals
 
-Active terminals stay mounted while you move between Lumora pages. Use the tab
-bar or `Ctrl+Tab` to switch between active sessions. When the provider process
-exits, Lumora closes its tab and refreshes the catalog.
+Active terminals stay mounted while you move between Lumora pages. On the
+terminal page, use the tab bar or `Ctrl+Tab` to switch between active sessions.
+The shortcut remains inactive on other pages. When the provider process exits,
+Lumora closes its tab and refreshes the catalog.
 
 Drag terminal tabs to arrange their visible left-to-right order. `Ctrl+Tab`
 continues to use most-recently-used order. When a tab itself has focus,
@@ -386,7 +389,7 @@ and application navigation remains available through the shortcuts below.
 
 | Default shortcut | Action |
 | --- | --- |
-| `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order |
+| `Ctrl+Tab` | Cycle active terminal tabs in most-recently-used order while the terminal page is visible |
 | `Alt+Shift+Left` / `Alt+Shift+Right` | Move the focused terminal tab |
 | `Ctrl+Shift+T` | Return to running terminals and focus terminal input |
 | `Ctrl+Shift+L` | Collapse or expand the sidebar |

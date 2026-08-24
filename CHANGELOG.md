@@ -7,12 +7,20 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-08-24
+
 ### Added
 
 - Show verified agent updates in the Provider discovery card on local and
   Remote Lumora Home pages. Selecting the notice opens **Settings > Providers**
   for the existing update workflow, while disabled automatic checks remain
   silent and perform no background release request.
+
+### Fixed
+
+- Scope `Ctrl+Tab` terminal switching to the visible terminal page in local and
+  Remote Lumora, so the terminal switcher no longer opens over Home,
+  Workspaces, All sessions, Terminal profiles, or Settings.
 
 ## [0.3.7] - 2026-08-21
 
