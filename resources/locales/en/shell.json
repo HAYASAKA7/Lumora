@@ -1,0 +1,44 @@
+{
+  "product": {
+    "name": "Lumora",
+    "tagline": "Private by default · Native provider sessions"
+  },
+  "navigation": {
+    "home": "Home",
+    "workspaces": "Workspaces",
+    "sessions": "All sessions",
+    "terminal-profiles": "Terminal profiles",
+    "remote-computers": "Remote computers",
+    "settings": "Settings",
+    "transfer": "Session transfer"
+  },
+  "shortcuts": {
+    "home": "Home ({shortcut})",
+    "workspaces": "Workspaces ({shortcut})",
+    "sessions": "All sessions ({shortcut})",
+    "remote-computers": "Remote computers ({shortcut})",
+    "settings": "Settings ({shortcut})",
+    "terminals": "Terminals ({shortcut})",
+    "sidebar": "Toggle sidebar ({shortcut})"
+  },
+  "sidebar": {
+    "expand": "Expand sidebar",
+    "collapse": "Collapse sidebar",
+    "workspace-section": "Workspace",
+    "active-terminals": "Active terminals"
+  },
+  "topbar": {
+    "local-control-plane": "Local control plane",
+    "remote-control-plane": "Remote control plane",
+    "new-session": "New session"
+  },
+  "footer": {
+    "active-agents": "{count, plural, =0 {No active agents} one {# active agent} other {# active agents}}",
+    "platform-version": "{platform} · {architecture} · Lumora {version}"
+  },
+  "startup": {
+    "preparing": "Preparing Lumora…",
+    "scanning": "Scanning workspaces and sessions…",
+    "almost-ready": "Almost ready…"
+  }
+}

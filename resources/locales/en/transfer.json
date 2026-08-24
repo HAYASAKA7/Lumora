@@ -1,0 +1,43 @@
+{
+  "title": "Session transfer",
+  "subtitle": "Move native provider session files between computers.",
+  "experimental": "Experimental",
+  "guide": {
+    "title": "How transfer works",
+    "export": "Export copies the selected providers' original session files.",
+    "import": "Import places compatible session files in the selected provider location.",
+    "accounts": "Use the same provider account on the destination computer.",
+    "providers": "Install a provider before importing its sessions."
+  },
+  "export": {
+    "title": "Export sessions",
+    "choose": "Choose sessions or entire providers.",
+    "select-provider": "Select provider",
+    "select-sessions": "Select sessions",
+    "destination": "Export location",
+    "prepare": "Prepare export",
+    "execute": "Export archive",
+    "complete": "Export complete"
+  },
+  "import": {
+    "title": "Import sessions",
+    "choose-archive": "Choose transfer archive",
+    "inspect": "Inspect archive",
+    "destination": "Import destination",
+    "workspace-mapping": "Workspace mapping",
+    "create-missing-workspace": "Create missing workspace mapping",
+    "skip-uninstalled": "Skip providers that are not installed",
+    "execute": "Import sessions",
+    "complete": "Import complete"
+  },
+  "progress": {
+    "preparing": "Preparing…",
+    "copying": "Copying session files…",
+    "verifying": "Verifying archive…",
+    "canceling": "Canceling…"
+  },
+  "history": {
+    "title": "Transfer history",
+    "empty": "No transfers have been recorded."
+  }
+}

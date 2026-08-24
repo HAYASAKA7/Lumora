@@ -1,0 +1,39 @@
+{
+  "general": {
+    "title": "Something went wrong",
+    "description": "Lumora could not complete this operation.",
+    "retry": "Try again",
+    "region": "This part of Lumora could not be displayed."
+  },
+  "catalog": {
+    "load": "Lumora could not load the session catalog.",
+    "refresh": "Lumora could not refresh sessions."
+  },
+  "terminal": {
+    "operation": "Lumora could not complete the terminal operation.",
+    "start": "Lumora could not start this terminal.",
+    "stop": "Lumora could not stop this terminal.",
+    "clipboard": "Lumora could not access the clipboard."
+  },
+  "provider": {
+    "scan": "Lumora could not scan agent providers.",
+    "install": "Lumora could not install this provider.",
+    "update": "Lumora could not update this provider."
+  },
+  "remote": {
+    "operation": "Lumora could not complete the remote operation.",
+    "connect": "Lumora could not connect to this remote computer.",
+    "inspect-helper": "SSH connected, but Lumora could not inspect the remote helper installation.",
+    "session-scan": "Lumora could not scan remote sessions."
+  },
+  "transfer": {
+    "operation": "Lumora could not complete the session transfer.",
+    "invalid-archive": "This archive is not a valid Lumora session transfer.",
+    "provider-required": "Install {provider} before importing its sessions."
+  },
+  "localization": {
+    "load": "Lumora could not load language resources.",
+    "invalid-pack": "One or more user language packs were rejected.",
+    "fallback": "Lumora is using English for missing translations."
+  }
+}

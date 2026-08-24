@@ -1,0 +1,80 @@
+{
+  "actions": {
+    "new-session": "New session",
+    "resume-session": "Resume session",
+    "fork-session": "Fork session",
+    "start-session": "Start session",
+    "stop-terminal": "Stop terminal",
+    "terminal-details": "Terminal details",
+    "focus-terminal": "Focus terminal"
+  },
+  "new": {
+    "title": "Start a new session",
+    "provider": "Agent provider",
+    "workspace": "Workspace",
+    "profile": "Terminal profile",
+    "task-prompt": "Starting prompt",
+    "task-prompt-placeholder": "Optional prompt sent after the agent starts",
+    "no-prompt": "Leave blank to send nothing."
+  },
+  "resume": {
+    "title": "Resume session",
+    "provider": "Resume with",
+    "same-provider": "Original provider",
+    "cross-agent": "Cross-agent handoff",
+    "handoff-description": "Lumora will create a private temporary copy for the selected agent.",
+    "running-warning": "This session is already running in Lumora."
+  },
+  "fork": {
+    "title": "Fork session",
+    "description": "Start a new native session from this session.",
+    "unavailable": "This provider does not expose a verified native fork command."
+  },
+  "launch": {
+    "configuration": "Launch configuration",
+    "readiness": "Launch readiness",
+    "details": "Launch details",
+    "command": "Start command",
+    "working-directory": "Working directory",
+    "custom-command": "Custom command",
+    "use-detected-command": "Use detected command",
+    "preparing": "Preparing launch…",
+    "ready": "Ready to launch",
+    "blocked": "Launch is blocked"
+  },
+  "profiles": {
+    "title": "Terminal profiles",
+    "subtitle": "Shells Lumora can use to run native agents.",
+    "add": "Add terminal profile",
+    "edit": "Edit terminal profile",
+    "delete-title": "Delete terminal profile",
+    "detected": "Detected",
+    "custom": "Custom",
+    "recommended": "Recommended",
+    "arguments": "Arguments"
+  },
+  "runtime": {
+    "title": "Terminals",
+    "no-terminals": "No terminals are open.",
+    "stopping": "Stopping…",
+    "exited": "Terminal exited",
+    "recover-title": "Recover terminal",
+    "recover-description": "The terminal renderer lost its connection to the running process.",
+    "switcher-title": "Open terminals"
+  },
+  "trust": {
+    "title": "Trust this workspace?",
+    "description": "Agents started here can read and change files in this workspace.",
+    "trust-and-continue": "Trust and continue",
+    "not-trusted": "Workspace confirmation required"
+  },
+  "details": {
+    "title": "Terminal details",
+    "linked-session": "Linked session",
+    "unlinked": "Not linked yet",
+    "process-id": "Process ID",
+    "started": "Started",
+    "ended": "Ended",
+    "exit-code": "Exit code"
+  }
+}

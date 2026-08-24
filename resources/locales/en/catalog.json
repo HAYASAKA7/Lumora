@@ -1,0 +1,48 @@
+{
+  "home": {
+    "title": "Your agent workspace",
+    "subtitle": "Resume recent work or start a native provider session.",
+    "recent-sessions": "Recent sessions",
+    "provider-discovery": "Provider discovery",
+    "no-recent-sessions": "No recent sessions yet.",
+    "updates-available": "{count, plural, one {# provider update available} other {# provider updates available}}"
+  },
+  "workspaces": {
+    "title": "Workspaces",
+    "subtitle": "Projects discovered from native agent sessions.",
+    "search-placeholder": "Search workspaces",
+    "empty": "No workspaces found.",
+    "no-results": "No workspaces match your search.",
+    "hide-title": "Hide workspace",
+    "hide-description": "Choose whether sessions from this workspace should remain visible.",
+    "keep-sessions": "Keep its sessions visible",
+    "hide-sessions": "Hide its sessions too",
+    "hidden-title": "Hidden workspaces",
+    "hidden-empty": "No workspaces are hidden.",
+    "show-hidden": "Show hidden workspaces"
+  },
+  "sessions": {
+    "title": "All sessions",
+    "subtitle": "Sessions detected from enabled providers.",
+    "workspace-title": "Sessions in {workspace}",
+    "search-placeholder": "Search sessions",
+    "filter-provider": "Filter by provider",
+    "empty": "No sessions found.",
+    "no-results": "No sessions match your filters.",
+    "running-in-lumora": "Running in Lumora",
+    "resume-running-title": "Session already running",
+    "resume-running-description": "This session is already open in a Lumora terminal.",
+    "open-running-terminal": "Open terminal",
+    "lifetime-tokens": "{count, number} tokens",
+    "updated": "Updated {time}",
+    "created": "Created {time}",
+    "unavailable-workspace": "Workspace unavailable",
+    "unusable": "Session unavailable"
+  },
+  "loading": {
+    "catalog": "Scanning sessions…",
+    "workspaces": "Loading workspaces…",
+    "sessions": "Loading sessions…",
+    "more": "Loading more…"
+  }
+}

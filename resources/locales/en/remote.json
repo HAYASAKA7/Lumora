@@ -1,0 +1,49 @@
+{
+  "targets": {
+    "title": "Remote computers",
+    "subtitle": "Connect Lumora to native agents on another computer.",
+    "add": "Add remote computer",
+    "edit": "Edit remote computer",
+    "delete-title": "Delete remote computer",
+    "delete-description": "This removes the saved profile from Lumora. It does not change the remote computer.",
+    "empty": "No remote computers have been added.",
+    "open": "Open Remote Lumora"
+  },
+  "profile": {
+    "name": "Computer name",
+    "host": "Host",
+    "port": "Port",
+    "username": "Username",
+    "authentication": "Authentication",
+    "password": "Password",
+    "private-key": "Private key",
+    "remember-password": "Remember password for this profile",
+    "auto-connect": "Connect automatically",
+    "connect": "Connect",
+    "test-host-key": "Check host key"
+  },
+  "connection": {
+    "connecting": "Connecting to {target}…",
+    "connected": "Connected to {target}",
+    "offline": "{target} is offline.",
+    "reconnect": "Reconnect",
+    "disconnect": "Disconnect",
+    "host-key-title": "Trust this remote computer?",
+    "host-key-description": "Verify this fingerprint before connecting: {fingerprint}",
+    "failed": "Lumora could not connect to this remote computer."
+  },
+  "helper": {
+    "required": "Remote helper required",
+    "description": "Lumora uses a lightweight helper to inspect providers, sessions, and terminals.",
+    "install": "Install helper",
+    "update": "Update helper",
+    "installing": "Installing remote helper…",
+    "unsupported": "No verified helper is available for this operating system and architecture."
+  },
+  "window": {
+    "title": "Remote Lumora",
+    "reconnect-banner": "The remote connection was lost. Reconnect to refresh this workspace.",
+    "close-warning-title": "Disconnect active remote agents?",
+    "close-warning-description": "{count, plural, one {# remote agent is still running.} other {# remote agents are still running.}}"
+  }
+}

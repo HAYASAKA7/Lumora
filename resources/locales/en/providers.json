@@ -1,0 +1,36 @@
+{
+  "title": "Agent providers",
+  "subtitle": "Choose, detect, install, and update native agent CLIs.",
+  "actions": {
+    "scan": "Scan providers",
+    "check-updates": "Check for updates",
+    "install": "Install {provider}",
+    "update": "Update {provider}",
+    "open-guide": "Open install guide"
+  },
+  "states": {
+    "ready": "Ready",
+    "not-found": "Not installed",
+    "unavailable": "Unavailable",
+    "update-available": "Update available",
+    "current": "Up to date",
+    "checking-version": "Checking version…",
+    "installing": "Installing…",
+    "updating": "Updating…"
+  },
+  "settings": {
+    "enabled": "Use this provider",
+    "start-command": "Start command",
+    "start-command-description": "Use a command or shell alias available in the selected environment.",
+    "detected-command": "Detected command",
+    "custom-command": "Custom start command"
+  },
+  "environment": {
+    "title": "Developer environment",
+    "subtitle": "Basic tools used by supported agent providers.",
+    "node": "Node.js",
+    "npm": "npm",
+    "download-node": "Download Node.js",
+    "version-failed": "The executable was found, but its version check failed."
+  }
+}

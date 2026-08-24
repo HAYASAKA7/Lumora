@@ -15,7 +15,7 @@
     "build": "npm run typecheck && electron-vite build",
     "package:dir": "npm run helper:build && npm run build && electron-builder --dir",
     "package": "npm run helper:build && npm run build && electron-builder",
-    "verify": "npm test && npm run helper:test && npm run build",
+    "verify": "npm test && npm run locales:validate && npm run helper:test && npm run build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
     "benchmark:catalog": "vitest bench src/main/catalog/catalog-service.bench.ts --run --project node",
@@ -24,6 +24,7 @@
     "benchmark:terminal": "vitest bench src/main/terminal/output-buffer.bench.ts --run --project node",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "locales:validate": "node scripts/localization/validate-locales.cjs resources/locales",
     "helper:test": "node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...",
     "helper:ensure": "node scripts/helper/ensure-helper.cjs",
     "helper:build": "node scripts/helper/build-helper.cjs"
