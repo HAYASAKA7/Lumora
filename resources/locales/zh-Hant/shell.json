@@ -1,0 +1,14 @@
+{
+  "product": {"name": "Lumora", "tagline": "預設保護隱私 · 使用提供商的原生工作階段", "manager": "智慧體工作區管理器"},
+  "navigation": {"home": "首頁", "workspaces": "工作區", "sessions": "所有工作階段", "terminal-profiles": "終端機設定檔", "remote-computers": "遠端電腦", "settings": "設定", "transfer": "工作階段傳輸", "primary": "主導覽", "workspace-group": "工作區", "application-group": "應用程式", "online-computers": "{count, plural, one {# 台電腦在線} other {# 台電腦在線}}"},
+  "routes": {"home-eyebrow": "控制中心", "home-description": "簡明查看進行中的工作、最近工作階段，以及需要留意的事項。", "workspaces-eyebrow": "工作區索引", "workspaces-description": "整理程式碼儲存庫，並按可靠的階層查看支援的智慧體工作階段。", "sessions-eyebrow": "工作階段目錄", "sessions-description": "搜尋和篩選標準化的提供商工作階段，而不變更提供商擁有的資料。", "profiles-eyebrow": "Shell 設定檔", "profiles-description": "檢視已發現的 Shell，並定義用於託管工作階段的終端機環境。", "remote-eyebrow": "遠端 Lumora", "remote-description": "設定 SSH 存取，並為每台遠端電腦開啟獨立的 Lumora 視窗。", "settings-eyebrow": "應用程式設定", "settings-description": "設定提供商、儲存、安全性、外觀和診斷行為。"},
+  "shortcuts": {"home": "首頁 ({shortcut})", "workspaces": "工作區 ({shortcut})", "sessions": "所有工作階段 ({shortcut})", "remote-computers": "遠端電腦 ({shortcut})", "settings": "設定 ({shortcut})", "terminals": "終端機 ({shortcut})", "sidebar": "切換側邊欄 ({shortcut})"},
+  "sidebar": {"expand": "展開側邊欄", "collapse": "摺疊側邊欄", "workspace-section": "工作區", "active-terminals": "作用中的終端機", "skip-main": "跳至主要內容", "route-status": "{route} · {status}"},
+  "tray": {"show": "顯示 Lumora", "hide": "隱藏 Lumora", "running-agents": "正在執行的智慧體：{count}", "recent-sessions": "最近工作階段", "no-recent-sessions": "沒有最近工作階段", "running-suffix": "執行中", "exit": "結束 Lumora"},
+  "topbar": {"local-control-plane": "本機控制中心", "remote-control-plane": "遠端控制中心", "new-session": "新增工作階段", "session-actions": "工作階段操作"},
+  "footer": {"active-agents": "{count, plural, one {# 個作用中的智慧體} other {# 個作用中的智慧體}}", "platform-version": "{platform} · {architecture} · Lumora {version}", "reading-system": "正在讀取本機系統資訊", "system-unavailable": "系統詳細資訊無法使用", "sandboxed-renderer": "沙箱化轉譯器"},
+  "provider-summary": {"scanning": "正在掃描提供商安裝狀態", "unavailable": "提供商詳細資訊無法使用", "ready": "{total} 個提供商中有 {ready} 個已就緒"},
+  "runtime": {"open-terminals": "開啟的終端機", "quit-heading": "結束 Lumora？", "quit-confirm": "結束 Lumora", "quit-cancel": "保持 Lumora 執行", "quit-description": "Lumora 正在管理 {total} 個作用中的{total, plural, one {智慧體} other {智慧體}}（本機 {local} 個，遠端 {remote} 個）。結束會停止這些終端機工作階段。", "suppress-warning": "不再顯示此警告"},
+  "destination": {"status": "{route} 狀態", "ready": "基礎功能已就緒", "heading": "{route} 是下一個待連接的檢視", "description": "安全的導覽介面已就緒。提供商和目錄資料將在後續實作中接入。"},
+  "startup": {"preparing": "正在準備 Lumora…", "scanning": "正在掃描工作區和工作階段…", "almost-ready": "即將就緒…", "starting": "Lumora 正在啟動", "final-frame": "Lumora 啟動動畫的最後一幀"}
+}

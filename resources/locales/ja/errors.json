@@ -1,0 +1,58 @@
+{
+  "general": {
+    "title": "何か間違えた",
+    "description": "Lumora任務を完了できなかった",
+    "retry": "再度やってみてください",
+    "region": "Lumora展示できない",
+    "page-heading": "ページは利用できません",
+    "page-description": "Lumoraページを準備ができている時のみ再試してください.",
+    "retry-page": "復試ページ"
+  },
+  "catalog": {
+    "load": "Lumoraセッションカタログを読み込むことができなかった.",
+    "refresh": "Lumora授業を更新できませんでした",
+    "refresh-saved": "カタログ更新が失敗.最後の保存されたデータはまだ表示されています.",
+    "refresh-retry": "カタログ更新が失敗した 再度",
+    "workspace-refresh-saved": "ワークスペースセッションの更新が失敗した.最後の保存されたデータはまだ表示されています.",
+    "hide-workspace": "Lumoraワークスペースを隠せないよ 再度",
+    "restore-workspaces": "Lumora選択したワークスペースを復元できませんでした",
+    "restore-all-workspaces": "Lumora隠されたワークスペースを回復できなかった"
+  },
+  "terminal": {
+    "operation": "Lumoraターミナル操作を完了できなかった",
+    "start": "Lumoraターミナルを起動できませんでした",
+    "stop": "Lumoraターミナルを止められなかった",
+    "clipboard": "Lumora鍵盤にアクセスできませんでした",
+    "controls-heading": "ターミナル制御は利用できません",
+    "controls-description": "管理されたターミナルプロセスは依然としてLumora関連のないセッションを再開せずに ターミナル制御を再開します",
+    "retry-controls": "ターミナル制御を再試す"
+  },
+  "provider": {
+    "scan": "Lumora代理店のプロバイダーをスキャンできませんでした",
+    "install": "Lumoraプロバイダーがインストールできませんでした",
+    "update": "Lumoraプロバイダー 更新できなかった",
+    "save-selection": "Lumoraプロバイダーの選択を保存できなかった."
+  },
+  "settings": {
+    "save": "Lumora設定を保存できなかった",
+    "save-notices": "Lumora通知設定を保存できなかった.",
+    "background-invalid": "Lumora画像は使えなかった. 有効な画像を選択してください.PNGJPEG及びWebP25MB未満のファイル",
+    "background-remove": "Lumora管理された画像を削除できなかった."
+  },
+  "remote": {
+    "operation": "Lumora遠隔操作が完了できなかった",
+    "connect": "Lumora遠隔コンピュータに接続できませんでした",
+    "inspect-helper": "SSH繋がっているけどLumora遠隔ヘルパー装置を 検査できなかった",
+    "session-scan": "Lumora遠隔セッションをスキャンできませんでした"
+  },
+  "transfer": {
+    "operation": "Lumoraセッションの移転を完了できなかった",
+    "invalid-archive": "このアーカイブは有効ではありませんLumoraセッションの移転",
+    "provider-required": "インストール{provider}セッションを輸入する前に"
+  },
+  "localization": {
+    "load": "Lumora言語資源を読み込むことができなかった.",
+    "invalid-pack": "1 つ以上のユーザー言語パックは拒否されました.",
+    "fallback": "Lumora翻訳が欠落している場合,英語を使います."
+  }
+}

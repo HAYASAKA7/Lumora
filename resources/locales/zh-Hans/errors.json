@@ -1,0 +1,58 @@
+{
+  "general": {
+    "title": "有什么问题发生了",
+    "description": "Lumora没有完成这次行动.",
+    "retry": "再试一次",
+    "region": "现在的部分Lumora没有显示.",
+    "page-heading": "页面不可用",
+    "page-description": "Lumora您只需要在您的手机上使用此页面,",
+    "retry-page": "复试页面"
+  },
+  "catalog": {
+    "load": "Lumora无法加载会话目录.",
+    "refresh": "Lumora没有更新会话.",
+    "refresh-saved": "目录更新失败.最后保存的数据仍然显示.",
+    "refresh-retry": "卡塔罗目录更新失败,再试一次.",
+    "workspace-refresh-saved": "工作空间会话更新失败.最后保存的数据仍然显示.",
+    "hide-workspace": "Lumora我不能隐藏这个工作空间.",
+    "restore-workspaces": "Lumora无法恢复所选的工作空间.",
+    "restore-all-workspaces": "Lumora无法恢复隐藏的工作空间."
+  },
+  "terminal": {
+    "operation": "Lumora终端操作无法完成.",
+    "start": "Lumora没有启动这个终端.",
+    "stop": "Lumora没有办法阻止这个终端.",
+    "clipboard": "Lumora没有访问剪辑板.",
+    "controls-heading": "终端控制无法使用",
+    "controls-description": "管理终端流程仍然由Lumora试试终端控制,而不重新启动无关的会话.",
+    "retry-controls": "试试终端控制."
+  },
+  "provider": {
+    "scan": "Lumora没有能扫描智能体提供商.",
+    "install": "Lumora没有能安装这个提供商.",
+    "update": "Lumora无法更新这个提供商.",
+    "save-selection": "Lumora无法保存提供商选择."
+  },
+  "settings": {
+    "save": "Lumora没有能挽救这个设置.",
+    "save-notices": "Lumora无法保存信息通知设置.",
+    "background-invalid": "Lumora选择一个有效的图像.PNG现在JPEG其他WebP文件不到25MB.",
+    "background-remove": "Lumora无法删除所管理的图像."
+  },
+  "remote": {
+    "operation": "Lumora无法完成远程操作.",
+    "connect": "Lumora无法连接到远程计算机.",
+    "inspect-helper": "SSH连接,但Lumora无法检查远程辅助器的安装.",
+    "session-scan": "Lumora无法远程扫描会话."
+  },
+  "transfer": {
+    "operation": "Lumora没有完成会话转移.",
+    "invalid-archive": "这档案是不有效的Lumora会话转会.",
+    "provider-required": "安装{provider}在进口会话之前."
+  },
+  "localization": {
+    "load": "Lumora无法加载语言资源.",
+    "invalid-pack": "一个或多个用户语言包被拒绝.",
+    "fallback": "Lumora对于缺失的翻译,使用英语."
+  }
+}

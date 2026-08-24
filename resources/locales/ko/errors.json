@@ -1,0 +1,58 @@
+{
+  "general": {
+    "title": "뭔가 잘못됐어",
+    "description": "Lumora이 작전을 완료할 수 없었어요",
+    "retry": "다시 시도해봐",
+    "region": "이 부분Lumora표시할 수 없었습니다.",
+    "page-heading": "페이지가 사용되지 않습니다",
+    "page-description": "Lumora네비게이션, 터미널, 저장된 데이터들을 사용 가능하도록 유지하세요.",
+    "retry-page": "다시 시도 페이지"
+  },
+  "catalog": {
+    "load": "Lumora세션 카탈로그를 로드할 수 없었습니다.",
+    "refresh": "Lumora세션을 새로워질 수 없었어요",
+    "refresh-saved": "카탈로그 업데이트가 실패했습니다. 마지막 저장된 데이터는 여전히 표시됩니다.",
+    "refresh-retry": "카탈로그 업데이트가 실패해 다시 시도해봐",
+    "workspace-refresh-saved": "작업 공간 세션 업데이트가 실패했습니다. 마지막 저장된 데이터는 여전히 표시됩니다.",
+    "hide-workspace": "Lumora이 작업 공간을 숨길 수 없었어요",
+    "restore-workspaces": "Lumora선택된 작업 공간을 복구할 수 없었어요. 다시 시도해보세요.",
+    "restore-all-workspaces": "Lumora숨겨진 작업 공간을 복구할 수 없었어요"
+  },
+  "terminal": {
+    "operation": "Lumora터미널 운영을 완료할 수 없었습니다.",
+    "start": "Lumora이 터미널을 시작할 수 없었어요",
+    "stop": "Lumora이 터미널을 막을 수 없었어요",
+    "clipboard": "Lumora클립보드 접속이 불가능했습니다.",
+    "controls-heading": "터미널 제어 장치가 없습니다",
+    "controls-description": "관리되는 터미널 프로세스는 여전히Lumora- 관련 없는 세션을 다시 시작하지 않고 단말기 제어기를 다시 시도하세요.",
+    "retry-controls": "터미널 컨트롤을 다시 시도해 보세요."
+  },
+  "provider": {
+    "scan": "Lumora에이전트 제공자를 스캔할 수 없었어요",
+    "install": "Lumora이 제공자를 설치할 수 없었습니다.",
+    "update": "Lumora이 제공자를 업데이트 할 수 없었습니다.",
+    "save-selection": "Lumora제공자 선택을 저장할 수 없었습니다."
+  },
+  "settings": {
+    "save": "Lumora이 설정을 구할 수 없었어요",
+    "save-notices": "Lumora정보 알림 설정을 저장할 수 없었습니다.",
+    "background-invalid": "Lumora해당 이미지를 사용할 수 없었습니다. 유효한 이미지를 선택하세요.PNGJPEG또는WebP25MB 이하의 파일",
+    "background-remove": "Lumora관리된 이미지를 제거할 수 없었습니다."
+  },
+  "remote": {
+    "operation": "Lumora원격 조작이 완료되지 않았습니다.",
+    "connect": "Lumora이 원격 컴퓨터에 연결할 수 없었습니다.",
+    "inspect-helper": "SSH연결된, 하지만Lumora원격 보조기 설치를 검사할 수 없었어요",
+    "session-scan": "Lumora원격 세션 스캔이 불가능했습니다."
+  },
+  "transfer": {
+    "operation": "Lumora세션 전송을 완료할 수 없었습니다.",
+    "invalid-archive": "이 아카이브는 유효하지 않습니다Lumora세션 전송",
+    "provider-required": "설치{provider}그 세션들을 수입하기 전에"
+  },
+  "localization": {
+    "load": "Lumora언어 자원을 로드 할 수 없었습니다.",
+    "invalid-pack": "하나 이상의 사용자 언어 패키지는 거부되었습니다.",
+    "fallback": "Lumora실종된 번역을 위해 영어로 사용되고 있습니다."
+  }
+}

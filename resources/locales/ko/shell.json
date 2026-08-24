@@ -1,0 +1,14 @@
+{
+  "product": {"name": "Lumora", "tagline": "기본적으로 개인정보 보호 · 제공자의 기본 세션 사용", "manager": "에이전트 워크스페이스 관리자"},
+  "navigation": {"home": "홈", "workspaces": "워크스페이스", "sessions": "모든 세션", "terminal-profiles": "터미널 프로필", "remote-computers": "원격 컴퓨터", "settings": "설정", "transfer": "세션 전송", "primary": "기본 탐색", "workspace-group": "워크스페이스", "application-group": "애플리케이션", "online-computers": "{count, plural, one {컴퓨터 #대 온라인} other {컴퓨터 #대 온라인}}"},
+  "routes": {"home-eyebrow": "제어 센터", "home-description": "진행 중인 작업, 최근 세션, 주의가 필요한 항목을 간결하게 확인합니다.", "workspaces-eyebrow": "워크스페이스 목록", "workspaces-description": "저장소를 정리하고 지원되는 에이전트 세션을 신뢰할 수 있는 계층으로 확인합니다.", "sessions-eyebrow": "세션 카탈로그", "sessions-description": "제공자가 소유한 데이터를 변경하지 않고 표준화된 세션을 검색하고 필터링합니다.", "profiles-eyebrow": "셸 프로필", "profiles-description": "발견된 셸을 확인하고 관리되는 세션에서 사용할 터미널 환경을 정의합니다.", "remote-eyebrow": "원격 Lumora", "remote-description": "SSH 접근을 구성하고 원격 컴퓨터마다 독립된 Lumora 창을 엽니다.", "settings-eyebrow": "애플리케이션 설정", "settings-description": "제공자, 저장소, 보안, 모양 및 진단 동작을 구성합니다."},
+  "shortcuts": {"home": "홈 ({shortcut})", "workspaces": "워크스페이스 ({shortcut})", "sessions": "모든 세션 ({shortcut})", "remote-computers": "원격 컴퓨터 ({shortcut})", "settings": "설정 ({shortcut})", "terminals": "터미널 ({shortcut})", "sidebar": "사이드바 전환 ({shortcut})"},
+  "sidebar": {"expand": "사이드바 펼치기", "collapse": "사이드바 접기", "workspace-section": "워크스페이스", "active-terminals": "활성 터미널", "skip-main": "주요 콘텐츠로 이동", "route-status": "{route} · {status}"},
+  "tray": {"show": "Lumora 표시", "hide": "Lumora 숨기기", "running-agents": "실행 중인 에이전트: {count}", "recent-sessions": "최근 세션", "no-recent-sessions": "최근 세션 없음", "running-suffix": "실행 중", "exit": "Lumora 종료"},
+  "topbar": {"local-control-plane": "로컬 제어 센터", "remote-control-plane": "원격 제어 센터", "new-session": "새 세션", "session-actions": "세션 작업"},
+  "footer": {"active-agents": "{count, plural, one {활성 에이전트 #개} other {활성 에이전트 #개}}", "platform-version": "{platform} · {architecture} · Lumora {version}", "reading-system": "로컬 시스템 읽는 중", "system-unavailable": "시스템 정보를 사용할 수 없음", "sandboxed-renderer": "샌드박스 렌더러"},
+  "provider-summary": {"scanning": "제공자 설치 상태 스캔 중", "unavailable": "제공자 정보를 사용할 수 없음", "ready": "제공자 {total}개 중 {ready}개 준비됨"},
+  "runtime": {"open-terminals": "열린 터미널", "quit-heading": "Lumora를 종료할까요?", "quit-confirm": "Lumora 종료", "quit-cancel": "Lumora 계속 실행", "quit-description": "Lumora는 {total}개의 활성 {total, plural, one {에이전트} other {에이전트}}(로컬 {local}개, 원격 {remote}개)를 관리하고 있습니다. 종료하면 해당 터미널 세션이 중지됩니다.", "suppress-warning": "이 경고 다시 표시하지 않기"},
+  "destination": {"status": "{route} 상태", "ready": "기반 준비 완료", "heading": "{route}은(는) 다음에 연결할 화면입니다", "description": "안전한 탐색 화면이 준비되었습니다. 제공자 및 카탈로그 데이터는 이후 구현에서 연결됩니다."},
+  "startup": {"preparing": "Lumora 준비 중…", "scanning": "워크스페이스와 세션 스캔 중…", "almost-ready": "거의 준비되었습니다…", "starting": "Lumora 시작 중", "final-frame": "Lumora 시작 애니메이션의 마지막 프레임"}
+}
