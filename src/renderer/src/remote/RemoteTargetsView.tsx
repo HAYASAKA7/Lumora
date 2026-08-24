@@ -8,6 +8,7 @@ import type {
   RemoteHostKeyObservation,
   RemoteTargetSummary
 } from '../../../shared/contracts';
+import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
 
 interface RemoteTargetFormState {
@@ -32,17 +33,6 @@ const EMPTY_FORM: RemoteTargetFormState = {
   privateKeyPath: ''
 };
 
-const ROUTE_OPTIONS = [
-  { value: 'direct', label: 'Direct SSH' },
-  { value: 'ssh-config', label: 'OpenSSH config alias' }
-] as const;
-
-const AUTHENTICATION_OPTIONS = [
-  { value: 'agent', label: 'SSH agent' },
-  { value: 'password', label: 'Password' },
-  { value: 'private-key', label: 'Private key' }
-] as const;
-
 function formFrom(summary: RemoteTargetSummary): RemoteTargetFormState {
   const profile = summary.profile;
   return {
@@ -59,15 +49,15 @@ function formFrom(summary: RemoteTargetSummary): RemoteTargetFormState {
   };
 }
 
-function validateForm(form: RemoteTargetFormState):
+function validateForm(form: RemoteTargetFormState, t: (key: string) => string):
   | { ok: true; input: RemoteConnectionProfileInput }
   | { ok: false; message: string } {
   const displayName = form.displayName.trim();
   if (displayName.length === 0) {
-    return { ok: false, message: 'Enter a name for this remote computer.' };
+    return { ok: false, message: t('remote.validation.name') };
   }
   if (form.authenticationMethod === 'private-key' && form.privateKeyPath.trim().length === 0) {
-    return { ok: false, message: 'Enter the private key path.' };
+    return { ok: false, message: t('remote.validation.private-key') };
   }
   const authentication: RemoteAuthenticationProfile =
     form.authenticationMethod === 'private-key'
@@ -77,12 +67,12 @@ function validateForm(form: RemoteTargetFormState):
     const host = form.host.trim();
     const username = form.username.trim();
     const port = Number(form.port);
-    if (host.length === 0) return { ok: false, message: 'Enter the remote host.' };
+    if (host.length === 0) return { ok: false, message: t('remote.validation.host') };
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      return { ok: false, message: 'Enter a port from 1 to 65535.' };
+      return { ok: false, message: t('remote.validation.port') };
     }
     if (username.length === 0) {
-      return { ok: false, message: 'Enter the SSH username.' };
+      return { ok: false, message: t('remote.validation.username') };
     }
     return {
       ok: true,
@@ -91,7 +81,7 @@ function validateForm(form: RemoteTargetFormState):
   }
   const sshConfigHost = form.sshConfigHost.trim();
   if (sshConfigHost.length === 0 || /\s/.test(sshConfigHost)) {
-    return { ok: false, message: 'Enter one OpenSSH config alias without spaces.' };
+    return { ok: false, message: t('remote.validation.ssh-alias') };
   }
   return {
     ok: true,
@@ -99,14 +89,24 @@ function validateForm(form: RemoteTargetFormState):
   };
 }
 
-function address(summary: RemoteTargetSummary): string {
+function address(summary: RemoteTargetSummary, openSshConfig: string): string {
   const profile = summary.profile;
   return profile.route === 'direct'
     ? `${profile.username}@${profile.host}:${profile.port}`
-    : `OpenSSH config · ${profile.sshConfigHost}`;
+    : `${openSshConfig} · ${profile.sshConfigHost}`;
 }
 
 export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) {
+  const { t } = useLocalization();
+  const routeOptions = [
+    { value: 'direct' as const, label: t('remote.profile.direct-ssh') },
+    { value: 'ssh-config' as const, label: t('remote.profile.ssh-config-alias') }
+  ];
+  const authenticationOptions = [
+    { value: 'agent' as const, label: t('remote.profile.ssh-agent') },
+    { value: 'password' as const, label: t('remote.profile.password') },
+    { value: 'private-key' as const, label: t('remote.profile.private-key') }
+  ];
   const [targets, setTargets] = useState<RemoteTargetSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<RemoteTargetFormState | null>(null);
@@ -130,7 +130,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       () => {
         if (active) {
           setLoading(false);
-          setError('Lumora could not load remote computers.');
+          setError(t('remote.errors.load-targets'));
         }
       }
     );
@@ -166,7 +166,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
     setBusyId('form');
     setError(null);
     try {
-      const validation = validateForm(form);
+      const validation = validateForm(form, t);
       if (!validation.ok) {
         setFormError(validation.message);
         return;
@@ -179,7 +179,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       setForm(null);
       setEditingId(null);
     } catch {
-      setFormError('Lumora could not save this remote computer. Check the fields and try again.');
+      setFormError(t('remote.errors.save-target'));
     } finally {
       setBusyId(null);
     }
@@ -196,7 +196,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       setDeleting(null);
     } catch {
       setDeleteError(
-        'Lumora could not delete this remote computer. Disconnect it and try again.'
+        t('remote.errors.delete-target')
       );
     } finally {
       setBusyId(null);
@@ -209,7 +209,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
     try {
       setObservation(await api.observeRemoteHost(id));
     } catch {
-      setError('Lumora could not read the remote computer identity.');
+      setError(t('remote.errors.read-identity'));
     } finally {
       setBusyId(null);
     }
@@ -222,7 +222,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       replaceTarget(await api.trustRemoteHost(observation));
       setObservation(null);
     } catch {
-      setError('Lumora could not save the trusted fingerprint.');
+      setError(t('remote.errors.save-fingerprint'));
     } finally {
       setBusyId(null);
     }
@@ -232,9 +232,9 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
     <section className="remote-targets-view">
       <header className="view-header remote-targets-heading">
         <div>
-          <p className="eyebrow">Remote mode</p>
-          <h1>Remote computers</h1>
-          <p>Configure SSH access and open an isolated Lumora window for each computer.</p>
+          <p className="eyebrow">{t('remote.targets.eyebrow')}</p>
+          <h1>{t('remote.targets.title')}</h1>
+          <p>{t('remote.targets.description')}</p>
         </div>
         <button
           className="refresh-button"
@@ -244,15 +244,15 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
             setForm({ ...EMPTY_FORM });
           }}
         >
-          Add remote computer
+          {t('remote.targets.add')}
         </button>
       </header>
 
       {error !== null && <p className="inline-notice error">{error}</p>}
       {loading ? (
-        <p className="empty-state">Loading remote computers…</p>
+        <p className="empty-state">{t('remote.targets.loading')}</p>
       ) : targets.length === 0 ? (
-        <p className="empty-state">No remote computers configured yet.</p>
+        <p className="empty-state">{t('remote.targets.empty')}</p>
       ) : (
         <div className="remote-target-grid">
           {targets.map((item) => {
@@ -262,16 +262,16 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <div className="remote-target-card-heading">
                   <div>
                     <h2>{item.target.displayName}</h2>
-                    <p>{address(item)}</p>
+                    <p>{address(item, t('remote.profile.open-ssh-config'))}</p>
                   </div>
                   <span className={`remote-state state-${item.target.connectionState}`}>
-                    {item.target.connectionState}
+                    {t(`remote.states.${item.target.connectionState}`)}
                   </span>
                 </div>
                 <dl className="remote-target-meta">
-                  <div><dt>Authentication</dt><dd>{item.profile.authentication.method}</dd></div>
-                  <div><dt>Platform</dt><dd>{item.target.platform} · {item.target.architecture}</dd></div>
-                  <div><dt>Identity</dt><dd>{trusted ? 'Verified' : 'Not verified'}</dd></div>
+                  <div><dt>{t('remote.profile.authentication')}</dt><dd>{t(`remote.profile.authentication-${item.profile.authentication.method}`)}</dd></div>
+                  <div><dt>{t('remote.targets.platform')}</dt><dd>{item.target.platform} · {item.target.architecture}</dd></div>
+                  <div><dt>{t('remote.targets.identity')}</dt><dd>{t(trusted ? 'remote.targets.verified' : 'remote.targets.not-verified')}</dd></div>
                 </dl>
                 <div className="remote-target-actions">
                   {trusted ? (
@@ -279,7 +279,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                       className="refresh-button"
                       onClick={() => void api.openRemoteTargetWindow(item.target.id)}
                     >
-                      Open remote Lumora
+                      {t('remote.targets.open')}
                     </button>
                   ) : (
                     <button
@@ -287,11 +287,11 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                       disabled={busyId === item.target.id}
                       onClick={() => void verify(item.target.id)}
                     >
-                      {busyId === item.target.id ? 'Checking…' : 'Verify identity'}
+                      {t(busyId === item.target.id ? 'remote.targets.checking' : 'remote.targets.verify')}
                     </button>
                   )}
                   <button
-                    aria-label={`Edit ${item.target.displayName}`}
+                    aria-label={t('remote.targets.edit-named', { name: item.target.displayName })}
                     className="secondary-button"
                     onClick={() => {
                       setEditingId(item.target.id);
@@ -299,10 +299,10 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                       setForm(formFrom(item));
                     }}
                   >
-                    Edit
+                    {t('common.actions.edit')}
                   </button>
                   <button
-                    aria-label={`Delete ${item.target.displayName}`}
+                    aria-label={t('remote.targets.delete-named', { name: item.target.displayName })}
                     className="text-button danger-text"
                     onClick={() => {
                       setDeleteError(null);
@@ -310,7 +310,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                     }}
                     type="button"
                   >
-                    Delete
+                    {t('common.actions.delete')}
                   </button>
                 </div>
               </article>
@@ -321,56 +321,56 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
 
       {form !== null && (
         <div className="dialog-backdrop" role="presentation">
-          <section aria-label="Remote computer profile" aria-modal="true" className="new-session-dialog remote-profile-dialog" role="dialog">
+          <section aria-label={t('remote.profile.dialog-label')} aria-modal="true" className="new-session-dialog remote-profile-dialog" role="dialog">
             <header>
               <div>
-                <p className="card-label">Remote connection</p>
-                <h2>{editingId === null ? 'Add remote computer' : 'Edit remote computer'}</h2>
+                <p className="card-label">{t('remote.profile.eyebrow')}</p>
+                <h2>{t(editingId === null ? 'remote.targets.add' : 'remote.targets.edit')}</h2>
               </div>
-              <button aria-label="Close remote computer profile" className="text-button" onClick={() => setForm(null)} type="button">Close</button>
+              <button aria-label={t('remote.profile.close-dialog')} className="text-button" onClick={() => setForm(null)} type="button">{t('common.actions.close')}</button>
             </header>
             <div className="dialog-body remote-profile-dialog-body" data-testid="remote-profile-dialog-body">
               <div className="remote-profile-fields">
-              <label><span>Name</span><input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
+              <label><span>{t('remote.profile.name')}</span><input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
               <div className="remote-profile-field">
-                <span>Connection route</span>
+                <span>{t('remote.profile.route')}</span>
                 <SelectMenu
-                  label="Connection route"
+                  label={t('remote.profile.route')}
                   onChange={(route) => setForm({ ...form, route })}
-                  options={ROUTE_OPTIONS}
+                  options={routeOptions}
                   value={form.route}
                 />
               </div>
               {form.route === 'direct' ? (
                 <div className="remote-direct-fields">
-                  <label><span>Host</span><input value={form.host} onChange={(event) => setForm({ ...form, host: event.target.value })} /></label>
-                  <label><span>Port</span><input inputMode="numeric" value={form.port} onChange={(event) => setForm({ ...form, port: event.target.value })} /></label>
-                  <label><span>Username</span><input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} /></label>
+                  <label><span>{t('remote.profile.host')}</span><input value={form.host} onChange={(event) => setForm({ ...form, host: event.target.value })} /></label>
+                  <label><span>{t('remote.profile.port')}</span><input inputMode="numeric" value={form.port} onChange={(event) => setForm({ ...form, port: event.target.value })} /></label>
+                  <label><span>{t('remote.profile.username')}</span><input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} /></label>
                 </div>
               ) : (
-                <label><span>SSH config alias</span><input value={form.sshConfigHost} onChange={(event) => setForm({ ...form, sshConfigHost: event.target.value })} /></label>
+                <label><span>{t('remote.profile.ssh-config-input')}</span><input value={form.sshConfigHost} onChange={(event) => setForm({ ...form, sshConfigHost: event.target.value })} /></label>
               )}
               <div className="remote-profile-field">
-                <span>Authentication</span>
+                <span>{t('remote.profile.authentication')}</span>
                 <SelectMenu
-                  label="Authentication"
+                  label={t('remote.profile.authentication')}
                   onChange={(authenticationMethod) => setForm({ ...form, authenticationMethod })}
-                  options={AUTHENTICATION_OPTIONS}
+                  options={authenticationOptions}
                   value={form.authenticationMethod}
                 />
               </div>
               {form.authenticationMethod === 'private-key' && (
-                <label><span>Private key path</span><input value={form.privateKeyPath} onChange={(event) => setForm({ ...form, privateKeyPath: event.target.value })} /></label>
+                <label><span>{t('remote.profile.private-key-path')}</span><input value={form.privateKeyPath} onChange={(event) => setForm({ ...form, privateKeyPath: event.target.value })} /></label>
               )}
-              <p className="form-help">Passwords and key passphrases are requested only when connecting and are never saved.</p>
+              <p className="form-help">{t('remote.profile.secret-help')}</p>
               {formError !== null && (
                 <p className="inline-notice error" role="alert">{formError}</p>
               )}
               </div>
             </div>
             <footer className="modal-actions">
-              <button className="secondary-button" onClick={() => setForm(null)}>Cancel</button>
-              <button className="refresh-button" disabled={busyId === 'form'} onClick={() => void save()}>{busyId === 'form' ? 'Saving…' : 'Save remote computer'}</button>
+              <button className="secondary-button" onClick={() => setForm(null)}>{t('common.actions.cancel')}</button>
+              <button className="refresh-button" disabled={busyId === 'form'} onClick={() => void save()}>{t(busyId === 'form' ? 'common.actions.saving' : 'remote.profile.save')}</button>
             </footer>
           </section>
         </div>
@@ -379,30 +379,26 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
       {deleting !== null && (
         <div className="dialog-backdrop" role="presentation">
           <section
-            aria-label="Delete remote computer"
+            aria-label={t('remote.targets.delete-title')}
             aria-modal="true"
             className="new-session-dialog remote-delete-dialog"
             role="dialog"
           >
             <header>
               <div>
-                <p className="card-label">Remote connection</p>
-                <h2>Delete remote computer</h2>
+                <p className="card-label">{t('remote.profile.eyebrow')}</p>
+                <h2>{t('remote.targets.delete-title')}</h2>
               </div>
               <button
-                aria-label="Close remote computer deletion"
+                aria-label={t('remote.targets.close-delete')}
                 className="text-button"
                 disabled={busyId === deleting.target.id}
                 onClick={() => setDeleting(null)}
                 type="button"
-              >Close</button>
+              >{t('common.actions.close')}</button>
             </header>
             <div className="dialog-body remote-delete-dialog-body">
-              <p>
-                Delete <strong>{deleting.target.displayName}</strong> from Lumora?
-                Lumora will close its remote window and connection, but will not
-                change anything on the remote computer.
-              </p>
+              <p>{t('remote.targets.delete-confirm', { name: deleting.target.displayName })}</p>
               {deleteError !== null && (
                 <p className="inline-notice error" role="alert">{deleteError}</p>
               )}
@@ -413,13 +409,13 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 disabled={busyId === deleting.target.id}
                 onClick={() => setDeleting(null)}
                 type="button"
-              >Cancel</button>
+              >{t('common.actions.cancel')}</button>
               <button
                 className="secondary-button danger-text"
                 disabled={busyId === deleting.target.id}
                 onClick={() => void remove()}
                 type="button"
-              >{busyId === deleting.target.id ? 'Deleting…' : 'Delete remote computer'}</button>
+              >{t(busyId === deleting.target.id ? 'common.actions.deleting' : 'remote.targets.delete-title')}</button>
             </footer>
           </section>
         </div>
@@ -427,21 +423,21 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
 
       {observation !== null && (
         <div className="dialog-backdrop" role="presentation">
-          <section aria-label="Verify remote identity" aria-modal="true" className="new-session-dialog remote-fingerprint-dialog" role="dialog">
+          <section aria-label={t('remote.targets.verify')} aria-modal="true" className="new-session-dialog remote-fingerprint-dialog" role="dialog">
             <header>
               <div>
-                <p className="card-label">Remote security</p>
-                <h2>Verify remote identity</h2>
+                <p className="card-label">{t('remote.targets.security')}</p>
+                <h2>{t('remote.targets.verify')}</h2>
               </div>
-              <button aria-label="Close remote identity verification" className="text-button" onClick={() => setObservation(null)} type="button">Close</button>
+              <button aria-label={t('remote.targets.close-verification')} className="text-button" onClick={() => setObservation(null)} type="button">{t('common.actions.close')}</button>
             </header>
             <div className="dialog-body remote-fingerprint-dialog-body">
-              <p>Compare this SHA-256 fingerprint with the remote computer before trusting it.</p>
+              <p>{t('remote.targets.fingerprint-help')}</p>
               <code>{observation.fingerprint}</code>
             </div>
             <footer className="modal-actions">
-              <button className="secondary-button" onClick={() => setObservation(null)}>Cancel</button>
-              <button className="refresh-button" onClick={() => void trust()}>Trust this fingerprint</button>
+              <button className="secondary-button" onClick={() => setObservation(null)}>{t('common.actions.cancel')}</button>
+              <button className="refresh-button" onClick={() => void trust()}>{t('remote.targets.trust-fingerprint')}</button>
             </footer>
           </section>
         </div>

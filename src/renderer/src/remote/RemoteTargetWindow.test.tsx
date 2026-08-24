@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,6 +8,13 @@ import {
   type RemoteLifecycleEvent
 } from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT,
+  TestLocalizationProvider
+} from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 vi.mock('../terminal/ManagedTerminal', () => ({
   ManagedTerminal: ({ runtime }: { runtime: { displayName: string } }) => (
@@ -99,6 +106,43 @@ function deferred<T>() {
 }
 
 describe('RemoteTargetWindow', () => {
+  it('updates an already-open remote window when the active language changes', async () => {
+    const api = {
+      ...providerApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([summary]),
+      getRemoteCredentialStatus: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        storageState: 'available',
+        credentialState: 'none',
+        autoConnect: false
+      })
+    } as unknown as LumoraApi;
+    const japanese = {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      revision: 2,
+      locale: 'ja',
+      formattingLocale: 'ja-JP',
+      messages: {
+        ...TEST_LOCALIZATION_SNAPSHOT.messages,
+        'remote.window.isolated-target': 'リモート Lumora・独立した接続先',
+        'remote.authentication.ssh-password': 'SSH パスワード'
+      }
+    } as const;
+    const view = <RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />;
+    const { rerender } = rtlRender(
+      <TestLocalizationProvider>{view}</TestLocalizationProvider>
+    );
+    expect(await screen.findByText('Remote Lumora · isolated target'))
+      .toBeInTheDocument();
+
+    rerender(
+      <TestLocalizationProvider snapshot={japanese}>{view}</TestLocalizationProvider>
+    );
+
+    expect(screen.getByText('リモート Lumora・独立した接続先')).toBeInTheDocument();
+    expect(screen.getByLabelText('SSH パスワード')).toBeInTheDocument();
+    expect(api.listRemoteTargets).toHaveBeenCalledOnce();
+  });
   it('hydrates a kept connection from lifecycle cache without rescanning', async () => {
     const readySummary = {
       ...summary,

@@ -74,6 +74,7 @@ import { useProviderUpdates } from '../providers/useProviderUpdates';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
 import { AboutPanel } from '../settings/AboutPanel';
+import { useLocalization } from '../localization/useLocalization';
 
 interface RemoteTargetWindowProps {
   executionTargetId: RemoteExecutionTargetId;
@@ -132,73 +133,49 @@ function normalizeRemoteGeneralSettings(
 
 const REMOTE_ROUTES = [
   {
-    id: 'home', label: 'Home', icon: 'home', eyebrow: 'Remote computer',
-    description: 'Review the connected target and its most recent provider sessions.'
+    id: 'home', labelKey: 'shell.navigation.home', icon: 'home', eyebrowKey: 'remote.shell.home-eyebrow',
+    descriptionKey: 'remote.shell.home-description'
   },
   {
-    id: 'workspaces', label: 'Workspaces', icon: 'workspace',
-    eyebrow: 'Remote workspace index',
-    description: 'Browse provider-owned workspace groupings discovered on this computer.'
+    id: 'workspaces', labelKey: 'shell.navigation.workspaces', icon: 'workspace',
+    eyebrowKey: 'remote.shell.workspaces-eyebrow',
+    descriptionKey: 'remote.shell.workspaces-description'
   },
   {
-    id: 'sessions', label: 'All sessions', icon: 'sessions',
-    eyebrow: 'Remote session catalog',
-    description: 'Search and resume provider-owned sessions from this computer.'
+    id: 'sessions', labelKey: 'shell.navigation.sessions', icon: 'sessions',
+    eyebrowKey: 'remote.shell.sessions-eyebrow',
+    descriptionKey: 'remote.shell.sessions-description'
   },
   {
-    id: 'settings', label: 'Settings', icon: 'settings',
-    eyebrow: 'Remote settings',
-    description: 'Configure target-scoped providers and inspect this connection.'
+    id: 'settings', labelKey: 'shell.navigation.settings', icon: 'settings',
+    eyebrowKey: 'remote.shell.settings-eyebrow',
+    descriptionKey: 'remote.shell.settings-description'
   }
 ] as const;
 
-const REMOTE_PRIMARY_ROUTES = REMOTE_ROUTES.filter(
-  (route) => route.id !== 'settings'
-);
-const REMOTE_SETTINGS_ROUTE = REMOTE_ROUTES.find(
-  (route) => route.id === 'settings'
-)!;
-
-const TOOL_STATE_LABELS: Record<DeveloperToolStatus['state'], string> = {
-  ready: 'Detected',
-  not_found: 'Not found',
-  probe_failed: 'Probe failed'
+const REMOTE_CONNECTION_ERROR_KEYS: Record<RemoteTargetErrorCode, string> = {
+  REMOTE_TARGET_AUTHENTICATION_FAILED: 'remote.connection-errors.authentication-failed',
+  REMOTE_TARGET_HOST_KEY_CHANGED: 'remote.connection-errors.host-key-changed',
+  REMOTE_TARGET_SSH_TIMEOUT: 'remote.connection-errors.timeout',
+  REMOTE_TARGET_SSH_CONNECTION_FAILED: 'remote.connection-errors.connection-failed',
+  REMOTE_TARGET_PLATFORM_PROBE_FAILED: 'remote.connection-errors.platform-probe-failed',
+  REMOTE_TARGET_HELPER_BUNDLE_FAILED: 'remote.connection-errors.helper-bundle-failed',
+  REMOTE_TARGET_FILE_TRANSFER_FAILED: 'remote.connection-errors.file-transfer-failed',
+  REMOTE_TARGET_HELPER_INSPECTION_FAILED: 'remote.connection-errors.helper-inspection-failed',
+  REMOTE_TARGET_CREDENTIAL_REQUIRED: 'remote.connection-errors.credential-required',
+  REMOTE_TARGET_CREDENTIAL_UNAVAILABLE: 'remote.connection-errors.credential-unavailable',
+  REMOTE_TARGET_OPERATION_FAILED: 'remote.connection-errors.operation-failed'
 };
 
-const REMOTE_CONNECTION_ERROR_MESSAGES: Record<RemoteTargetErrorCode, string> = {
-  REMOTE_TARGET_AUTHENTICATION_FAILED:
-    'SSH authentication failed. Check the profile username and enter the same credential that works in a native SSH client.',
-  REMOTE_TARGET_HOST_KEY_CHANGED:
-    'The remote computer identity changed. Return to local Lumora and verify its host fingerprint before reconnecting.',
-  REMOTE_TARGET_SSH_TIMEOUT:
-    'The SSH connection timed out. Check that the remote computer is reachable and its SSH service is responding.',
-  REMOTE_TARGET_SSH_CONNECTION_FAILED:
-    'Lumora could not establish the SSH connection. Check the host, port, SSH service, and network route.',
-  REMOTE_TARGET_PLATFORM_PROBE_FAILED:
-    'SSH connected, but Lumora could not identify the remote operating system. Check that the account can run non-interactive shell commands.',
-  REMOTE_TARGET_HELPER_BUNDLE_FAILED:
-    'SSH connected, but Lumora could not verify a helper for this operating system and architecture. Rebuild the helper bundle or use a packaged Lumora build.',
-  REMOTE_TARGET_FILE_TRANSFER_FAILED:
-    'SSH connected, but Lumora could not open the remote file-transfer service. Check that the SSH server has SFTP enabled.',
-  REMOTE_TARGET_HELPER_INSPECTION_FAILED:
-    'SSH connected, but Lumora could not inspect the remote helper installation. Check the remote account permissions and try again.',
-  REMOTE_TARGET_CREDENTIAL_REQUIRED:
-    'Lumora needs the SSH credential again. Enter it below to reconnect manually.',
-  REMOTE_TARGET_CREDENTIAL_UNAVAILABLE:
-    'The remembered SSH credential is unavailable. Enter it below to reconnect manually.',
-  REMOTE_TARGET_OPERATION_FAILED:
-    'Lumora could not connect to this remote computer. Check the profile and try again.'
-};
-
-function remoteConnectionErrorMessage(error: unknown): string {
-  return REMOTE_CONNECTION_ERROR_MESSAGES[readRemoteTargetErrorCode(error)];
+function remoteConnectionErrorMessage(error: unknown, t: (key: string) => string): string {
+  return t(REMOTE_CONNECTION_ERROR_KEYS[readRemoteTargetErrorCode(error)]);
 }
 
-function endpoint(summary: RemoteTargetSummary): string {
+function endpoint(summary: RemoteTargetSummary, sshConfigLabel = 'SSH config'): string {
   const profile = summary.profile;
   return profile.route === 'direct'
     ? `${profile.username}@${profile.host}:${profile.port}`
-    : `SSH config · ${profile.sshConfigHost}`;
+    : `${sshConfigLabel} · ${profile.sshConfigHost}`;
 }
 
 function canonicalProviders(providers: readonly ProviderId[]): ProviderId[] {
@@ -217,35 +194,33 @@ function ToolCard({
   command: 'node' | 'npm';
   status: DeveloperToolStatus;
 }): ReactNode {
+  const { t } = useLocalization();
   return (
     <article className={`remote-discovery-card state-${status.state}`}>
       <header>
         <div>
-          <p className="card-label">Remote prerequisite</p>
+          <p className="card-label">{t('remote.environment.prerequisite')}</p>
           <h3>{displayName}</h3>
         </div>
         <span className={`remote-state state-${status.state}`}>
-          {TOOL_STATE_LABELS[status.state]}
+          {t(`remote.environment.states.${status.state.replaceAll('_', '-')}`)}
         </span>
       </header>
       {status.state === 'ready' ? (
         <dl className="remote-discovery-details">
-          <div><dt>Version</dt><dd>{status.version}</dd></div>
-          <div><dt>Executable</dt><dd>{status.executablePath}</dd></div>
+          <div><dt>{t('common.labels.version')}</dt><dd>{status.version}</dd></div>
+          <div><dt>{t('remote.environment.executable')}</dt><dd>{status.executablePath}</dd></div>
         </dl>
       ) : status.state === 'probe_failed' ? (
         <>
-          <p>
-            Lumora found {displayName}, but <code>{command} --version</code> did
-            not complete successfully on the remote computer.
-          </p>
+          <p>{t('remote.environment.probe-failed', {
+            name: displayName,
+            command: `${command} --version`
+          })}</p>
           <p className="remote-discovery-path">{status.executablePath}</p>
         </>
       ) : (
-        <p>
-          Install or repair {displayName} on the remote computer, then refresh
-          this page.
-        </p>
+        <p>{t('remote.environment.not-found', { name: displayName })}</p>
       )}
     </article>
   );
@@ -256,6 +231,7 @@ export function RemoteTargetWindow({
   api = window.lumora,
   appearance = DEFAULT_REMOTE_APPEARANCE
 }: RemoteTargetWindowProps) {
+  const { t } = useLocalization();
   const [summary, setSummary] = useState<RemoteTargetSummary | null>(null);
   const [details, setDetails] = useState<RemoteTargetConnectionDetails | null>(null);
   const [helperInstall, setHelperInstall] = useState<RemoteHelperInstallDetails | null>(null);
@@ -383,7 +359,7 @@ export function RemoteTargetWindow({
       });
       if (!closed) setWindowCloseRequest(null);
     } catch {
-      setError('Lumora could not close this remote connection safely.');
+      setError(t('remote.errors.close-connection'));
     }
   }, [api, suppressRemoteDisconnectWarning]);
 
@@ -409,9 +385,9 @@ export function RemoteTargetWindow({
           ({ target }) => target.id === executionTargetId
         ) ?? null;
         setSummary(current);
-        setError(current === null ? 'This remote target is unavailable.' : null);
+        setError(current === null ? t('remote.errors.target-unavailable') : null);
       } catch {
-        if (active) setError('Lumora could not load this remote target.');
+        if (active) setError(t('remote.errors.load-target'));
       }
     })();
     return () => { active = false; };
@@ -474,7 +450,7 @@ export function RemoteTargetWindow({
     } catch {
       if (!componentMounted.current) return;
       setHelperInstall(null);
-      setError('Lumora could not inspect the remote helper installation.');
+      setError(t('remote.errors.inspect-helper'));
     }
   }, [api]);
 
@@ -502,7 +478,7 @@ export function RemoteTargetWindow({
       },
       (connectionError) => {
         if (componentMounted.current) {
-          setError(remoteConnectionErrorMessage(connectionError));
+          setError(remoteConnectionErrorMessage(connectionError, t));
         }
       }
     ).finally(() => {
@@ -699,7 +675,7 @@ export function RemoteTargetWindow({
       },
       () => {
         if (active) {
-          setError('Lumora could not load the remote terminal runtime.');
+          setError(t('remote.errors.load-runtime'));
         }
       }
     );
@@ -936,9 +912,9 @@ export function RemoteTargetWindow({
     return (
       <main className="remote-window-shell">
         <section className="remote-window-card" aria-live="polite">
-          <p className="eyebrow">Remote Lumora</p>
-          <h1>Connecting to target manager</h1>
-          <p>{error ?? 'Loading the isolated remote workspace…'}</p>
+          <p className="eyebrow">{t('remote.window.title')}</p>
+          <h1>{t('remote.window.connecting-manager')}</h1>
+          <p>{error ?? t('remote.window.loading-workspace')}</p>
         </section>
       </main>
     );
@@ -962,16 +938,16 @@ export function RemoteTargetWindow({
     return (
       <main className="remote-window-shell">
         <section className="remote-window-card" aria-live="polite">
-          <p className="eyebrow">Remote Lumora</p>
+          <p className="eyebrow">{t('remote.window.title')}</p>
           <h1>
             {showAutomaticConnecting
-              ? `Connecting to ${summary.target.displayName}`
-              : `Preparing ${summary.target.displayName}`}
+              ? t('remote.window.connecting-target', { target: summary.target.displayName })
+              : t('remote.window.preparing-target', { target: summary.target.displayName })}
           </h1>
           <p>
             {showAutomaticConnecting
-              ? 'Establishing the remembered SSH connection…'
-              : 'Checking secure connection preferences…'}
+              ? t('remote.window.establishing-remembered')
+              : t('remote.window.checking-preferences')}
           </p>
         </section>
       </main>
@@ -1013,7 +989,7 @@ export function RemoteTargetWindow({
       setAutoConnectDraft(status.autoConnect);
     } catch {
       setRememberCredential(true);
-      setError('Lumora could not forget the remembered SSH credential.');
+      setError(t('remote.errors.forget-credential'));
     } finally {
       setCredentialPreferenceBusy(false);
     }
@@ -1036,7 +1012,7 @@ export function RemoteTargetWindow({
       setAutoConnectDraft(status.autoConnect);
     } catch {
       setAutoConnectDraft(!enabled);
-      setError('Lumora could not update automatic connection for this profile.');
+      setError(t('remote.errors.update-auto-connect'));
     } finally {
       setCredentialPreferenceBusy(false);
     }
@@ -1052,9 +1028,7 @@ export function RemoteTargetWindow({
         },
         () => {
           setAutoConnectDraft(false);
-          setError(
-            'The SSH connection succeeded, but automatic connection could not be enabled.'
-          );
+          setError(t('remote.errors.auto-connect-after-connection'));
         }
       );
       return;
@@ -1094,7 +1068,7 @@ export function RemoteTargetWindow({
       await applyConnectedDetails(connectedDetails);
       syncCredentialPreferencesAfterConnection();
     } catch (connectionError) {
-      setError(remoteConnectionErrorMessage(connectionError));
+      setError(remoteConnectionErrorMessage(connectionError, t));
     } finally {
       setBusy(false);
     }
@@ -1111,7 +1085,7 @@ export function RemoteTargetWindow({
       setShowHelperInstall(false);
       autoScannedKey.current = null;
     } catch {
-      setError('Lumora could not disconnect this remote computer cleanly.');
+      setError(t('remote.errors.disconnect'));
     } finally {
       setBusy(false);
     }
@@ -1131,7 +1105,7 @@ export function RemoteTargetWindow({
       setHelperInstall(null);
       setShowHelperInstall(false);
     } catch {
-      setError('Lumora could not install or start the remote helper.');
+      setError(t('remote.errors.install-helper'));
     } finally {
       setBusy(false);
     }
@@ -1153,7 +1127,7 @@ export function RemoteTargetWindow({
       await refreshDiscovery();
       return true;
     } catch {
-      setProviderSaveError('The remote provider selection could not be saved.');
+      setProviderSaveError(t('remote.errors.save-providers'));
       return false;
     } finally {
       setSavingProviders(false);
@@ -1163,22 +1137,22 @@ export function RemoteTargetWindow({
   const renderOverview = () => (
     <section className="remote-window-panel">
       <dl className="remote-facts">
-        <div><dt>Platform</dt><dd>{summary.target.platform}</dd></div>
-        <div><dt>Architecture</dt><dd>{summary.target.architecture}</dd></div>
-        <div><dt>Home</dt><dd>{details?.homeDirectory ?? 'Detected after connection'}</dd></div>
-        <div><dt>Shell</dt><dd>{details?.defaultShell ?? 'Detected after connection'}</dd></div>
+        <div><dt>{t('common.labels.platform')}</dt><dd>{summary.target.platform}</dd></div>
+        <div><dt>{t('remote.overview.architecture')}</dt><dd>{summary.target.architecture}</dd></div>
+        <div><dt>{t('remote.overview.home')}</dt><dd>{details?.homeDirectory ?? t('remote.overview.detected-after-connection')}</dd></div>
+        <div><dt>{t('remote.overview.shell')}</dt><dd>{details?.defaultShell ?? t('remote.overview.detected-after-connection')}</dd></div>
       </dl>
 
       {!trusted && (
         <p className="inline-notice warning">
-          Verify this computer in the local Lumora window before authentication.
+          {t('remote.overview.verify-first')}
         </p>
       )}
       {error !== null && <p className="inline-notice error">{error}</p>}
 
       {!connected && !helperPending && authentication.method === 'password' && (
         <label className="remote-secret-field">
-          <span>SSH password</span>
+          <span>{t('remote.authentication.ssh-password')}</span>
           <input
             autoComplete="off"
             type="password"
@@ -1189,7 +1163,7 @@ export function RemoteTargetWindow({
       )}
       {!connected && !helperPending && authentication.method === 'private-key' && (
         <label className="remote-secret-field">
-          <span>Private-key passphrase (optional)</span>
+          <span>{t('remote.authentication.passphrase-optional')}</span>
           <input
             autoComplete="off"
             type="password"
@@ -1206,18 +1180,18 @@ export function RemoteTargetWindow({
               <span>
                 <strong>
                   {authentication.method === 'password'
-                    ? 'Remember password'
-                    : 'Remember passphrase'}
+                    ? t('remote.authentication.remember-password')
+                    : t('remote.authentication.remember-passphrase')}
                 </strong>
                 <small>
-                  Protect this credential with the operating system's secure storage.
+                  {t('remote.authentication.secure-storage-description')}
                 </small>
               </span>
               <span className="settings-switch">
                 <input
                   aria-label={authentication.method === 'password'
-                    ? 'Remember password'
-                    : 'Remember passphrase'}
+                    ? t('remote.authentication.remember-password')
+                    : t('remote.authentication.remember-passphrase')}
                   checked={rememberCredential}
                   disabled={
                     credentialPreferenceBusy ||
@@ -1238,12 +1212,12 @@ export function RemoteTargetWindow({
           )}
           <label className="remote-connection-option">
             <span>
-              <strong>Connect automatically</strong>
-              <small>Attempt this profile once when its remote Lumora window opens.</small>
+              <strong>{t('remote.profile.auto-connect')}</strong>
+              <small>{t('remote.authentication.auto-connect-description')}</small>
             </span>
             <span className="settings-switch">
               <input
-                aria-label="Connect automatically"
+                aria-label={t('remote.profile.auto-connect')}
                 checked={autoConnectDraft}
                 disabled={
                   credentialPreferenceBusy ||
@@ -1265,8 +1239,7 @@ export function RemoteTargetWindow({
           {credentialStatus.storageState !== 'available' &&
             authentication.method !== 'agent' && (
               <p className="remote-credential-help">
-                Secure credential storage is unavailable. Lumora will keep this
-                credential in memory for the current connection only.
+                {t('remote.authentication.storage-unavailable')}
               </p>
             )}
         </div>
@@ -1275,19 +1248,19 @@ export function RemoteTargetWindow({
       <div className="remote-window-actions">
         {connected ? (
           <button className="secondary-button" disabled={busy} onClick={() => void disconnect()}>
-            {busy ? 'Disconnecting…' : 'Disconnect'}
+            {t(busy ? 'common.states.disconnecting' : 'common.actions.disconnect')}
           </button>
         ) : helperPending ? (
           <>
             <button className="secondary-button" disabled={busy} onClick={() => void disconnect()}>
-              Disconnect
+              {t('common.actions.disconnect')}
             </button>
             <button
               className="refresh-button"
               disabled={busy || helperInstall === null}
               onClick={() => setShowHelperInstall(true)}
             >
-              Install Lumora helper
+              {t('remote.helper.install-lumora')}
             </button>
           </>
         ) : (
@@ -1301,7 +1274,7 @@ export function RemoteTargetWindow({
             }
             onClick={() => void connect()}
           >
-            {busy ? 'Connecting…' : 'Connect'}
+            {t(busy ? 'common.states.connecting' : 'remote.profile.connect')}
           </button>
         )}
       </div>
@@ -1312,32 +1285,31 @@ export function RemoteTargetWindow({
     <section className="remote-window-panel">
       <div className="remote-panel-heading">
         <div>
-          <p className="card-label">Remote prerequisites</p>
-          <h2>Environment</h2>
-          <p>Node.js and npm are checked on this remote computer only.</p>
+          <p className="card-label">{t('remote.environment.prerequisites')}</p>
+          <h2>{t('settings.tabs.environment')}</h2>
+          <p>{t('remote.environment.description')}</p>
         </div>
         <button
           className="refresh-button"
           disabled={!discoverySupported || discovery.state === 'loading'}
           onClick={() => void refreshDiscovery()}
         >
-          {discovery.state === 'loading' ? 'Scanning…' : 'Refresh'}
+          {t(discovery.state === 'loading' ? 'remote.environment.scanning' : 'common.actions.refresh')}
         </button>
       </div>
       {discovery.state === 'loading' && (
         <p className="remote-discovery-message" aria-live="polite">
-          Scanning the remote environment…
+          {t('remote.environment.scanning-environment')}
         </p>
       )}
       {discovery.state === 'unsupported' && (
         <p className="inline-notice warning">
-          This remote helper cannot scan providers yet. Reconnect and update the
-          Lumora helper from Overview.
+          {t('remote.environment.unsupported')}
         </p>
       )}
       {discovery.state === 'error' && (
         <p className="inline-notice error">
-          Lumora could not scan this remote computer. The SSH connection remains open.
+          {t('remote.environment.scan-error')}
         </p>
       )}
       {discovery.state === 'ready' && (
@@ -1385,7 +1357,7 @@ export function RemoteTargetWindow({
       setGeneralSettings(normalizeRemoteGeneralSettings(saved));
     } catch {
       setGeneralSettings(previous);
-      setGeneralSettingsSaveError('Lumora could not save this remote setting.');
+      setGeneralSettingsSaveError(t('remote.errors.save-setting'));
     } finally {
       setGeneralSettingsSaving(false);
     }
@@ -1411,7 +1383,7 @@ export function RemoteTargetWindow({
       setHideWorkspaceIntent(null);
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not hide this remote workspace. Try again.'
+        t('remote.errors.hide-workspace')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1432,7 +1404,7 @@ export function RemoteTargetWindow({
       }));
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not restore the selected remote workspaces. Try again.'
+        t('remote.errors.restore-workspaces')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1450,7 +1422,7 @@ export function RemoteTargetWindow({
       setWorkspaceVisibilityPolicies(await api.restoreAllWorkspaceVisibility());
     } catch {
       setWorkspaceVisibilityError(
-        'Lumora could not restore hidden remote workspaces. Try again.'
+        t('remote.errors.restore-all-workspaces')
       );
     } finally {
       setWorkspaceVisibilityBusy(false);
@@ -1459,17 +1431,17 @@ export function RemoteTargetWindow({
 
   const renderRemoteSettings = () => {
     const categories = [
-      { id: 'general' as const, label: 'General' },
-      { id: 'providers' as const, label: 'Providers' },
-      { id: 'environment' as const, label: 'Environment' },
-      { id: 'launch' as const, label: 'Launch' },
-      { id: 'security' as const, label: 'Security' },
-      { id: 'about' as const, label: 'About' }
+      { id: 'general' as const, label: t('settings.tabs.general') },
+      { id: 'providers' as const, label: t('settings.tabs.providers') },
+      { id: 'environment' as const, label: t('settings.tabs.environment') },
+      { id: 'launch' as const, label: t('settings.tabs.launch') },
+      { id: 'security' as const, label: t('settings.tabs.security') },
+      { id: 'about' as const, label: t('settings.tabs.about') }
     ];
     return (
       <div className="settings-layout">
         <div
-          aria-label="Settings categories"
+          aria-label={t('settings.categories-label')}
           className="settings-category-tabs"
           role="tablist"
         >
@@ -1548,7 +1520,16 @@ export function RemoteTargetWindow({
   };
 
   if (connected || shellOpened) {
-    const activeRoute = REMOTE_ROUTES.find((route) => route.id === page)!;
+    const translatedRoutes = REMOTE_ROUTES.map((route) => ({
+      id: route.id,
+      icon: route.icon,
+      label: t(route.labelKey),
+      eyebrow: t(route.eyebrowKey),
+      description: t(route.descriptionKey)
+    }));
+    const activeRoute = translatedRoutes.find((route) => route.id === page)!;
+    const primaryRoutes = translatedRoutes.filter((route) => route.id !== 'settings');
+    const settingsRoute = translatedRoutes.find((route) => route.id === 'settings')!;
     const catalogSnapshot = baseCatalogStatus.state === 'ready'
       ? baseCatalogStatus.snapshot
       : null;
@@ -1586,8 +1567,11 @@ export function RemoteTargetWindow({
         providerScan={providerScan}
         providerSummary={
           providerScan === null
-            ? 'Scanning remote providers'
-            : `${providerScan.providers.filter((provider) => provider.state === 'ready').length} of ${providerScan.providers.length} providers ready`
+            ? t('remote.catalog.scanning-providers')
+            : t('remote.catalog.providers-ready', {
+                ready: providerScan.providers.filter((provider) => provider.state === 'ready').length,
+                total: providerScan.providers.length
+              })
         }
         runtimes={runtimes}
         runningSessionIds={runningSessionIds}
@@ -1609,7 +1593,7 @@ export function RemoteTargetWindow({
           }}
           onOpenWorkspace={setSelectedWorkspaceId}
           onRefresh={() => void refreshSessions()}
-          scopeLabel="Remote provider folders"
+          scopeLabel={t('remote.catalog.provider-folders')}
           status={visibleWorkspaceCatalogStatus}
         />
       ) : (
@@ -1658,8 +1642,8 @@ export function RemoteTargetWindow({
         banner={!connected ? (
           <section className="remote-reconnect-banner" role="alert">
             <div>
-              <strong>The connection to this remote computer was lost.</strong>
-              <span>Your current page and cached catalog remain available.</span>
+              <strong>{t('remote.window.connection-lost')}</strong>
+              <span>{t('remote.window.cached-catalog')}</span>
             </div>
             <button
               className="refresh-button"
@@ -1668,7 +1652,7 @@ export function RemoteTargetWindow({
                 setShellOpened(false);
               }}
               type="button"
-            >Reconnect</button>
+            >{t('remote.connection.reconnect')}</button>
           </section>
         ) : null}
         className={terminalActive ? 'terminal-active' : ''}
@@ -1722,15 +1706,15 @@ export function RemoteTargetWindow({
           label: activeRoute.label
         }}
         primaryNavigation={{
-          ariaLabel: 'Primary navigation',
-          label: 'Remote',
-          routes: REMOTE_PRIMARY_ROUTES
+          ariaLabel: t('shell.navigation.primary'),
+          label: t('remote.shell.remote-group'),
+          routes: primaryRoutes
         }}
         secondaryNavigation={{
-          label: 'Application',
+          label: t('shell.navigation.application-group'),
           routes: [
             {
-              ...REMOTE_SETTINGS_ROUTE,
+              ...settingsRoute,
               shortcut: formatShortcutChord(
                 keyboardSettings.openSettings,
                 summary.target.platform === 'unknown'
@@ -1752,18 +1736,18 @@ export function RemoteTargetWindow({
             </div>
             <div className="status-cluster status-cluster-secondary">
               <span className="status-item">
-                {liveRuntimes.length} remote {liveRuntimes.length === 1 ? 'agent' : 'agents'}
+                {t('remote.window.active-agents', { count: liveRuntimes.length })}
               </span>
               <span className="status-divider" aria-hidden="true" />
               <span className="status-item">
-                {connected ? 'SSH helper connected' : 'Connection unavailable'}
+                {t(connected ? 'remote.window.helper-connected' : 'remote.window.connection-unavailable')}
               </span>
             </div>
           </footer>
         }
         topbar={{
-          context: endpoint(summary),
-          kicker: 'Remote Lumora',
+          context: endpoint(summary, t('remote.profile.ssh-config-short')),
+          kicker: t('remote.window.title'),
           actions: (
             connected ? (
               <>
@@ -1772,7 +1756,7 @@ export function RemoteTargetWindow({
                     className="secondary-button"
                     onClick={openLiveTerminals}
                     type="button"
-                  >Open terminals</button>
+                  >{t('remote.window.open-terminals')}</button>
                 ) : null}
                 {!terminalActive && workspaceCatalogPresentation?.snapshot.workspaces.some(
                   (workspace) => workspace.available
@@ -1787,7 +1771,7 @@ export function RemoteTargetWindow({
                       });
                     }}
                     type="button"
-                  >New session</button>
+                  >{t('remote.window.new-session')}</button>
                 ) : null}
                 <button
                   className="secondary-button"
@@ -1795,7 +1779,7 @@ export function RemoteTargetWindow({
                   onClick={() => void disconnect()}
                   type="button"
                 >
-                  {busy ? 'Disconnecting…' : 'Disconnect'}
+                  {t(busy ? 'common.states.disconnecting' : 'common.actions.disconnect')}
                 </button>
               </>
             ) : undefined
@@ -1805,23 +1789,17 @@ export function RemoteTargetWindow({
           <>
             {windowCloseRequest !== null ? (
               <ConfirmDialog
-                cancelLabel="Keep running"
-                confirmLabel="Disconnect and close"
-                description={(
-                  <>
-                    This remote computer has {windowCloseRequest.activeTerminalCount}{' '}
-                    active terminal {windowCloseRequest.activeTerminalCount === 1
-                      ? 'session'
-                      : 'sessions'}. Disconnecting will stop the SSH connection
-                    and those terminal sessions.
-                  </>
-                )}
-                heading="Disconnect remote computer?"
+                cancelLabel={t('remote.close-warning.keep-running')}
+                confirmLabel={t('remote.close-warning.disconnect-close')}
+                description={t('remote.close-warning.description', {
+                  count: windowCloseRequest.activeTerminalCount
+                })}
+                heading={t('remote.close-warning.heading')}
                 onCancel={() => void resolveWindowClose('keep_running')}
                 onConfirm={() => void resolveWindowClose('disconnect')}
                 suppression={{
                   checked: suppressRemoteDisconnectWarning,
-                  label: "Don't show this warning again",
+                  label: t('remote.close-warning.suppress'),
                   onChange: setSuppressRemoteDisconnectWarning
                 }}
               />
@@ -1893,56 +1871,51 @@ export function RemoteTargetWindow({
       <section className="remote-window-card">
         <header className="remote-window-header">
           <div>
-            <p className="eyebrow">Remote Lumora · isolated target</p>
+            <p className="eyebrow">{t('remote.window.isolated-target')}</p>
             <h1>{summary.target.displayName}</h1>
-            <p>{endpoint(summary)}</p>
+            <p>{endpoint(summary, t('remote.profile.ssh-config-short'))}</p>
           </div>
           <span className={`remote-state state-${summary.target.connectionState}`}>
-            {summary.target.connectionState}
+            {t(`remote.states.${summary.target.connectionState}`)}
           </span>
         </header>
 
         {renderOverview()}
 
         <footer className="remote-phase-note">
-          Environment, providers, launch settings, sessions, and terminals stay
-          isolated to this target.
+          {t('remote.window.isolation-note')}
         </footer>
       </section>
       {showHelperInstall && helperInstall !== null && (
         <div className="dialog-backdrop" role="presentation">
           <section
-            aria-label="Install Lumora helper"
+            aria-label={t('remote.helper.install-lumora')}
             aria-modal="true"
             className="new-session-dialog remote-helper-install-dialog"
             role="dialog"
           >
             <header>
               <div>
-                <p className="card-label">Remote helper</p>
-                <h2>Install Lumora helper</h2>
+                <p className="card-label">{t('remote.helper.eyebrow')}</p>
+                <h2>{t('remote.helper.install-lumora')}</h2>
               </div>
               <button
-                aria-label="Close helper installation"
+                aria-label={t('remote.helper.close-installation')}
                 className="text-button"
                 disabled={busy}
                 onClick={() => setShowHelperInstall(false)}
                 type="button"
-              >Close</button>
+              >{t('common.actions.close')}</button>
             </header>
             <div className="dialog-body remote-helper-dialog-body">
-              <p>
-                Lumora will install its lightweight helper for your account on
-                <strong> {summary.target.displayName}</strong>. Administrator access is not required.
-              </p>
+              <p>{t('remote.helper.install-description', { target: summary.target.displayName })}</p>
               <dl className="remote-helper-install-facts">
-                <div><dt>Version</dt><dd>{helperInstall.helperVersion}</dd></div>
-                <div><dt>Location</dt><dd>{helperInstall.installLocation}</dd></div>
+                <div><dt>{t('common.labels.version')}</dt><dd>{helperInstall.helperVersion}</dd></div>
+                <div><dt>{t('remote.helper.location')}</dt><dd>{helperInstall.installLocation}</dd></div>
               </dl>
               {helperInstall.status === 'invalid' && (
                 <p className="inline-notice warning">
-                  The existing helper is invalid and will be replaced only after
-                  the new copy has been verified.
+                  {t('remote.helper.invalid-replace')}
                 </p>
               )}
             </div>
@@ -1951,12 +1924,12 @@ export function RemoteTargetWindow({
                 className="secondary-button"
                 disabled={busy}
                 onClick={() => setShowHelperInstall(false)}
-              >Cancel</button>
+              >{t('common.actions.cancel')}</button>
               <button
                 className="refresh-button"
                 disabled={busy}
                 onClick={() => void installHelper()}
-              >{busy ? 'Installing…' : 'Install helper'}</button>
+              >{t(busy ? 'remote.helper.installing-short' : 'remote.helper.install')}</button>
             </footer>
           </section>
         </div>

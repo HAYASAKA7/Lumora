@@ -1,8 +1,14 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LumoraApi } from '../../../shared/contracts';
 import { RemoteTargetsView } from './RemoteTargetsView';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const TARGET_ID = '499eb042-41e3-4199-be55-c8689dc342a5';
 const fingerprint = 'SHA256:57qsnZ7C9rC8S3dftMDSqdHcpZ+PZfNclRBfXZXp0mM';
@@ -36,6 +42,31 @@ const summary = {
 } as const;
 
 describe('RemoteTargetsView', () => {
+  it('renders the remote target surface in the active locale', async () => {
+    const api = {
+      listRemoteTargets: vi.fn().mockResolvedValue([])
+    } as unknown as LumoraApi;
+    render(<RemoteTargetsView api={api} />, {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      locale: 'ja',
+      formattingLocale: 'ja-JP',
+      messages: {
+        ...TEST_LOCALIZATION_SNAPSHOT.messages,
+        'remote.targets.title': 'リモートコンピューター',
+        'remote.targets.add': 'リモートコンピューターを追加',
+        'remote.targets.empty': 'リモートコンピューターはまだありません。'
+      }
+    });
+
+    expect(await screen.findByRole('heading', {
+      name: 'リモートコンピューター'
+    })).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'リモートコンピューターを追加'
+    })).toBeInTheDocument();
+    expect(screen.getByText('リモートコンピューターはまだありません。'))
+      .toBeInTheDocument();
+  });
   it('updates a remote card from authoritative lifecycle events', async () => {
     let lifecycleListener: ((event: unknown) => void) | undefined;
     const api = {
