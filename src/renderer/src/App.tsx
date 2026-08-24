@@ -1232,7 +1232,7 @@ function AppContent(): ReactNode {
         return;
       }
       if (keyboardEventMatchesChord(event, switcherChord)) {
-        if (openRuntimeIds.length === 0) return;
+        if (!terminalActive || openRuntimeIds.length === 0) return;
 
         event.preventDefault();
         event.stopPropagation();

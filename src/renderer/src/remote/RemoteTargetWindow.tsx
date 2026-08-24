@@ -772,7 +772,7 @@ export function RemoteTargetWindow({
         return;
       }
       if (keyboardEventMatchesChord(event, keyboardSettings.terminalSwitcher)) {
-        if (openRuntimeIds.length === 0) return;
+        if (activeRuntimeId === null || openRuntimeIds.length === 0) return;
         event.preventDefault();
         event.stopPropagation();
         const currentIndex = activeRuntimeId === null

@@ -1498,6 +1498,35 @@ describe('App', () => {
     expect(attachRuntime).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores the terminal switcher shortcut outside the terminal page', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad0'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad1',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    render(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Open terminals' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
+  });
+
   it('cycles open terminals in MRU order and commits on modifier release', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad0'

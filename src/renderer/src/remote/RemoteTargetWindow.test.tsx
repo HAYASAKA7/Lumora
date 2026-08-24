@@ -1588,6 +1588,80 @@ describe('RemoteTargetWindow', () => {
     ptyInput.remove();
   });
 
+  it('ignores the terminal switcher shortcut outside the remote terminal page', async () => {
+    const readySummary = {
+      ...summary,
+      target: {
+        ...summary.target,
+        connectionState: 'ready' as const,
+        helperVersion: '0.3.1',
+        protocolVersion: 1,
+        capabilities: ['provider-scan' as const, 'session-scan' as const]
+      }
+    };
+    const firstRuntime = {
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ad0',
+      displayName: 'First remote session',
+      strategy: 'new' as const,
+      sessionId: null,
+      nativeSessionId: null,
+      reconciliationState: 'not_required' as const,
+      provider: 'codex' as const,
+      workspaceId: 'a'.repeat(64),
+      terminalProfileId: 'b'.repeat(64),
+      launchHash: 'c'.repeat(64),
+      state: 'running' as const,
+      pid: 4321,
+      createdAt: '2026-08-05T04:01:00.000Z',
+      startedAt: '2026-08-05T04:01:01.000Z',
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    };
+    const secondRuntime = {
+      ...firstRuntime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789ad1',
+      displayName: 'Second remote session',
+      pid: 4322
+    };
+    const api = {
+      ...runtimeApiDefaults(),
+      listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),
+      getRemoteProviderPreferences: vi.fn().mockResolvedValue({
+        enabledProviders: ['codex']
+      }),
+      scanRemoteDiscovery: vi.fn().mockResolvedValue(discovery),
+      scanRemoteSessions: vi.fn().mockResolvedValue({
+        executionTargetId: TARGET_ID,
+        scannedAt: '2026-08-05T04:03:02.000Z',
+        sessions: [],
+        providers: [],
+        snapshot: {
+          refreshedAt: '2026-08-05T04:03:02.000Z',
+          workspaces: [], sessions: [], providerStatus: [],
+          providerFacets: [], diagnostics: []
+        }
+      }),
+      listRuntimes: vi.fn().mockResolvedValue([firstRuntime, secondRuntime])
+    } as unknown as LumoraApi;
+
+    render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
+
+    await screen.findByLabelText('First remote session terminal content');
+    fireEvent.keyDown(window, {
+      code: 'Digit1', key: '1', ctrlKey: true
+    });
+    expect(await screen.findByRole('heading', {
+      name: 'Home', level: 1
+    })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+
+    expect(screen.getByRole('heading', {
+      name: 'Home', level: 1
+    })).toBeInTheDocument();
+  });
+
   it('keeps connected pages stable and explains when the helper cannot scan yet', async () => {
     const readyWithoutDiscovery = {
       ...summary,
