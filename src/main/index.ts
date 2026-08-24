@@ -64,6 +64,10 @@ import { registerTransferIpc } from './ipc/register-transfer-ipc';
 import { createTerminalClipboardService } from './terminal/terminal-clipboard-service';
 import { TerminalImageStager } from './terminal/terminal-image-stager';
 import { registerWorkspaceVisibilityIpc } from './ipc/register-workspace-visibility-ipc';
+import {
+  LocalizationService,
+  resolveLocalePaths
+} from './localization';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
@@ -249,6 +253,7 @@ const startupPresentation = createStartupPresentationController();
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
+let localizationService: LocalizationService | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let applicationReleaseRuntime: ApplicationReleaseRuntime | null = null;
@@ -788,8 +793,21 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     scanProviders: scanEnabledProviders,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
-    onGeneralSettingsSaved: (settings) =>
-      providerPolicy.replace(settings.enabledProviders)
+    onGeneralSettingsSaved: (settings) => {
+      providerPolicy.replace(settings.enabledProviders);
+      localizationService?.setPreference(settings.languagePreference);
+    }
+  });
+  const localePaths = resolveLocalePaths({
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    userDataPath: userDataDirectory
+  });
+  localizationService = new LocalizationService({
+    preference: terminalRuntime.getGeneralSettings().languagePreference,
+    preferredSystemLanguages: app.getPreferredSystemLanguages(),
+    ...localePaths
   });
   remoteWindowStateManager = await createSharedWindowStateManager({
     statePath: join(app.getPath('userData'), 'remote-window-state.json'),
@@ -1136,6 +1154,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     subscribeRuntimeEvents: (listener) => terminalRuntime!.subscribe(listener),
     openExternal: (url) => shell.openExternal(url),
     sendGeneralSettingsChanged: () => {
+      localizationService?.setPreference(
+        terminalRuntime!.getGeneralSettings().languagePreference
+      );
       broadcastGeneralSettingsChanged();
     },
     sendRuntimeEvent: (event) => {
