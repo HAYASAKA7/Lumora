@@ -24,7 +24,7 @@ describe('local test worker configuration', () => {
 
   it('runs each complete verification gate once', () => {
     expect(packageJson.scripts.verify).toBe(
-      'npm test && npm run helper:test && npm run build'
+      'npm test && npm run locales:validate && npm run locales:check-strings && npm run helper:test && npm run build'
     );
     expect(packageJson.scripts.build).toBe(
       'npm run typecheck && electron-vite build'

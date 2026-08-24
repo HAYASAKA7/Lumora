@@ -2920,9 +2920,10 @@ describe('App', () => {
     setSystemInfoResult(undefined, vi.fn().mockResolvedValue(degradedProviderScan));
     renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
 
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
-    expect(screen.getByText('Not found')).toBeInTheDocument();
+    expect(screen.getByText('Not installed')).toBeInTheDocument();
     expect(
       screen.getByText('Claude Code was not found on PATH.')
     ).toBeInTheDocument();
