@@ -53,6 +53,10 @@
   "localization": {
     "load": "Lumora言語資源を読み込むことができなかった.",
     "invalid-pack": "1 つ以上のユーザー言語パックは拒否されました.",
-    "fallback": "Lumora翻訳が欠落している場合,英語を使います."
+    "fallback": "不足している翻訳には英語を使用しています。",
+    "unavailable": "言語リソースを利用できません。",
+    "opening": "Lumora を開いています",
+    "window-auth-heading": "ウィンドウの認証に失敗しました",
+    "window-auth-description": "このウィンドウを閉じて、Lumora をもう一度開いてください。"
   }
 }

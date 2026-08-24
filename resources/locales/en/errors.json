@@ -53,6 +53,10 @@
   "localization": {
     "load": "Lumora could not load language resources.",
     "invalid-pack": "One or more user language packs were rejected.",
-    "fallback": "Lumora is using English for missing translations."
+    "fallback": "Lumora is using English for missing translations.",
+    "unavailable": "Language resources are unavailable.",
+    "opening": "Opening Lumora",
+    "window-auth-heading": "Window authorization failed",
+    "window-auth-description": "Close this window and open Lumora again."
   }
 }

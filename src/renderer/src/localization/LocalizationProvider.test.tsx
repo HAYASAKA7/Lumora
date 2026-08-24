@@ -122,7 +122,7 @@ describe('LocalizationProvider', () => {
       </LocalizationProvider>
     );
     await waitFor(() => {
-      expect(screen.getByText('Localization unavailable')).toBeInTheDocument();
+      expect(screen.getByText('Language resources are unavailable.')).toBeInTheDocument();
     });
   });
 });

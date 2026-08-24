@@ -398,7 +398,7 @@ export async function createSharedWindowStateManager({
     initialNormalBounds: WindowBounds
   ): WindowStateManager => {
     if (disposal !== null) {
-      throw new Error('Cannot track a window after state management ended.');
+      throw new Error('Cannot track a window after state management ended.'); // i18n-ignore: internal invariant
     }
 
     latestState = {

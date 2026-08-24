@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 import type { LocalizationSnapshot, LumoraApi } from '../../../shared/contracts';
+import englishErrors from '../../../../resources/locales/en/errors.json';
 import {
   createLocalizationValue,
   LocalizationContext
@@ -56,14 +57,14 @@ export function LocalizationProvider({
   if (failed && value === null) {
     return (
       <main className="window-bootstrap" role="alert">
-        Localization unavailable
+        {englishErrors.localization.unavailable}
       </main>
     );
   }
   if (value === null) {
     return (
       <main
-        aria-label="Opening Lumora"
+        aria-label={englishErrors.localization.opening}
         className="window-bootstrap"
         data-testid="localization-bootstrap"
       >

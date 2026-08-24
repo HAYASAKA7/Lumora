@@ -34,7 +34,10 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['src/{main,preload,shared}/**/*.test.ts']
+          include: [
+            'src/{main,preload,shared}/**/*.test.ts',
+            'scripts/localization/**/*.test.ts'
+          ]
         }
       },
       {

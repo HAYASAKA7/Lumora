@@ -15,7 +15,7 @@ export function createWindowContextRegistry(): WindowContextRegistry {
   return {
     register(senderId, input) {
       if (!Number.isSafeInteger(senderId) || senderId <= 0) {
-        throw new Error('Window sender ID must be a positive safe integer.');
+        throw new Error('Window sender ID must be a positive safe integer.'); // i18n-ignore: internal invariant
       }
 
       const context = LumoraWindowContextSchema.parse(input);
@@ -25,7 +25,7 @@ export function createWindowContextRegistry(): WindowContextRegistry {
         (current.mode !== context.mode ||
           current.executionTargetId !== context.executionTargetId)
       ) {
-        throw new Error(
+        throw new Error( // i18n-ignore: internal invariant
           'Window sender is already bound to another execution target.'
         );
       }

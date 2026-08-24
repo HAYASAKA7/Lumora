@@ -248,7 +248,7 @@ export function Tooltip({
 }: TooltipProps): React.JSX.Element {
   const context = useContext(TooltipContext);
   if (!isValidElement<TooltipChildProps>(children)) {
-    throw new Error('Tooltip requires one element child.');
+    throw new Error('Tooltip requires one element child.'); // i18n-ignore: developer invariant
   }
 
   const { activeId, close, open: requestOpen } = context;

@@ -7,23 +7,11 @@ import {
   type LumoraWindowContext
 } from '../../shared/contracts';
 import { WindowRoot } from './WindowRoot';
+import { TEST_LOCALIZATION_SNAPSHOT } from './test/render-with-localization';
 
 const TARGET_ID = '0e3f3da6-b340-49f6-b03b-8ae032c3af74';
-const localizationSnapshot = {
-  revision: 1,
-  preference: 'en',
-  locale: 'en',
-  formattingLocale: 'en-US',
-  direction: 'ltr',
-  availableLocales: [{
-    locale: 'en', displayName: 'English', direction: 'ltr',
-    sources: ['bundled'], catalogVersion: 1
-  }],
-  messages: {},
-  warnings: []
-} as const;
 const localizationApi = {
-  getLocalizationSnapshot: vi.fn().mockResolvedValue(localizationSnapshot),
+  getLocalizationSnapshot: vi.fn().mockResolvedValue(TEST_LOCALIZATION_SNAPSHOT),
   onLocalizationChanged: vi.fn(() => vi.fn())
 };
 

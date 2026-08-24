@@ -21,7 +21,7 @@ export function createLocalizationValue(
 export function useLocalization(): LocalizationContextValue {
   const value = useContext(LocalizationContext);
   if (value === null) {
-    throw new Error('LocalizationProvider is required.');
+    throw new Error('LocalizationProvider is required.'); // i18n-ignore: internal invariant
   }
   return value;
 }

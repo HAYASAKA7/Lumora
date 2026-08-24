@@ -9,6 +9,7 @@ import App from './App';
 import { buildAppearancePresentation } from './appearance/presentation';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
 import { LocalizationProvider } from './localization/LocalizationProvider';
+import { useLocalization } from './localization/useLocalization';
 import { RemoteTargetWindow } from './remote/RemoteTargetWindow';
 
 export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
@@ -21,6 +22,7 @@ export function WindowRoot({ api = window.lumora }: { api?: LumoraApi }) {
 }
 
 function WindowContent({ api }: { api: LumoraApi }) {
+  const { t } = useLocalization();
   const [context, setContext] = useState<LumoraWindowContext | null>(null);
   const [appearance, setAppearance] = useState<AppearancePresentation | null>(null);
   const [failed, setFailed] = useState(false);
@@ -71,15 +73,15 @@ function WindowContent({ api }: { api: LumoraApi }) {
       <main className="remote-window-shell">
         <section className="remote-window-card">
           <p className="eyebrow">Lumora</p>
-          <h1>Window authorization failed</h1>
-          <p>Close this window and open Lumora again.</p>
+          <h1>{t('errors.localization.window-auth-heading')}</h1>
+          <p>{t('errors.localization.window-auth-description')}</p>
         </section>
       </main>
     );
   }
   if (context === null) {
     return (
-      <main className="window-bootstrap" aria-label="Opening Lumora">
+      <main className="window-bootstrap" aria-label={t('errors.localization.opening')}>
         <span className="window-bootstrap-indicator" />
       </main>
     );
@@ -87,7 +89,7 @@ function WindowContent({ api }: { api: LumoraApi }) {
   if (context.mode === 'local') return <App />;
   if (appearance === null) {
     return (
-      <main className="window-bootstrap" aria-label="Opening Lumora">
+      <main className="window-bootstrap" aria-label={t('errors.localization.opening')}>
         <span className="window-bootstrap-indicator" />
       </main>
     );

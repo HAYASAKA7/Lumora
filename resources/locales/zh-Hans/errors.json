@@ -53,6 +53,10 @@
   "localization": {
     "load": "Lumora无法加载语言资源.",
     "invalid-pack": "一个或多个用户语言包被拒绝.",
-    "fallback": "Lumora对于缺失的翻译,使用英语."
+    "fallback": "Lumora 将对缺少的翻译使用英语。",
+    "unavailable": "语言资源不可用。",
+    "opening": "正在打开 Lumora",
+    "window-auth-heading": "窗口授权失败",
+    "window-auth-description": "请关闭此窗口，然后重新打开 Lumora。"
   }
 }
