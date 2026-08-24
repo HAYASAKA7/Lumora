@@ -33,6 +33,7 @@ import {
   LocaleReloadResultSchema,
   LocaleSummarySchema,
   LocalizationSnapshotSchema,
+  LocalizationFolderOpenResultSchema,
   parseStoredGeneralSettings,
   PROVIDER_IDS,
   ProviderIdSchema,
@@ -263,6 +264,24 @@ describe('localization contracts', () => {
       loadedUserPacks: 1,
       rejectedUserPacks: 0
     }).loadedUserPacks).toBe(1);
+    expect(LocalizationFolderOpenResultSchema.parse({ opened: true })).toEqual({
+      opened: true
+    });
+  });
+
+  it('defines narrow localization channels', () => {
+    expect(IPC_CHANNELS.localizationSnapshotGet).toBe(
+      'lumora:localization:snapshot:get'
+    );
+    expect(IPC_CHANNELS.localizationReload).toBe(
+      'lumora:localization:reload'
+    );
+    expect(IPC_CHANNELS.localizationUserFolderOpen).toBe(
+      'lumora:localization:user-folder:open'
+    );
+    expect(IPC_CHANNELS.localizationChanged).toBe(
+      'lumora:localization:changed'
+    );
   });
 });
 

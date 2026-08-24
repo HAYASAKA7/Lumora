@@ -32,6 +32,56 @@ const emptyCatalog = {
 } as const;
 
 describe('createLumoraApi', () => {
+  it('exposes validated localization operations and change events', async () => {
+    const snapshot = {
+      revision: 1,
+      preference: 'system',
+      locale: 'en',
+      formattingLocale: 'en-US',
+      direction: 'ltr',
+      availableLocales: [{
+        locale: 'en',
+        displayName: 'English',
+        direction: 'ltr',
+        sources: ['bundled'],
+        catalogVersion: 1
+      }],
+      messages: { 'common.actions.cancel': 'Cancel' },
+      warnings: []
+    } as const;
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === IPC_CHANNELS.localizationSnapshotGet) return snapshot;
+      if (channel === IPC_CHANNELS.localizationReload) return {
+        snapshot,
+        loadedUserPacks: 0,
+        rejectedUserPacks: 0
+      };
+      return { opened: true };
+    });
+    let receiver: ((value: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(invoke, (channel, listener) => {
+      expect(channel).toBe(IPC_CHANNELS.localizationChanged);
+      receiver = listener;
+      return unsubscribe;
+    });
+
+    await expect(api.getLocalizationSnapshot()).resolves.toEqual(snapshot);
+    await expect(api.reloadLocalization()).resolves.toMatchObject({ snapshot });
+    await expect(api.openUserLocaleFolder()).resolves.toBeUndefined();
+    const listener = vi.fn();
+    expect(api.onLocalizationChanged(listener)).toBe(unsubscribe);
+    const deliver = receiver as unknown as (value: unknown) => void;
+    deliver(snapshot);
+    expect(listener).toHaveBeenCalledWith(snapshot);
+    expect(invoke.mock.calls.slice(0, 3)).toEqual([
+      [IPC_CHANNELS.localizationSnapshotGet],
+      [IPC_CHANNELS.localizationReload],
+      [IPC_CHANNELS.localizationUserFolderOpen]
+    ]);
+    expect(() => deliver({ ...snapshot, revision: -1 })).toThrow();
+  });
+
   it('uses narrow About channels and validates their results', async () => {
     const invoke = vi.fn(async (channel: string) => {
       if (channel === IPC_CHANNELS.applicationAboutGet) return {

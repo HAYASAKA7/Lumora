@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
+import { mkdir, stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -56,6 +56,7 @@ import { registerAboutIpc } from './ipc/register-about-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
+import { registerLocalizationIpc } from './ipc/register-localization-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
 import { registerSystemIpc } from './ipc/register-system-ipc';
 import { registerTargetIpc } from './ipc/register-target-ipc';
@@ -260,6 +261,7 @@ let applicationReleaseRuntime: ApplicationReleaseRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteLifecycleEvents: (() => void) | null = null;
+let unsubscribeLocalizationEvents: (() => void) | null = null;
 let activeWindowStateManager: WindowStateManager | null = null;
 let remoteWindowStateManager: SharedWindowStateManager | null = null;
 let activeStartupBackgroundActivity:
@@ -1137,6 +1139,23 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  unsubscribeLocalizationEvents = registerLocalizationIpc({
+    ipc: ipcMain,
+    authorize: authorizeTargetIpc,
+    service: localizationService,
+    openUserLocaleFolder: async () => {
+      await mkdir(localePaths.userRoot, { recursive: true });
+      const error = await shell.openPath(localePaths.userRoot);
+      if (error !== '') throw new Error(error);
+    },
+    broadcast: (snapshot) => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.localizationChanged, snapshot);
+      }
+      targetWindowManager.broadcast(IPC_CHANNELS.localizationChanged, snapshot);
+    },
+    ...(developmentOrigin === undefined ? {} : { developmentOrigin })
+  });
   unsubscribeTerminalEvents = registerTerminalIpc({
     ipc: ipcMain,
     authorize: authorizeTargetIpc,
@@ -1337,6 +1356,8 @@ app.on('before-quit', (event) => {
       unsubscribeRemoteLifecycleEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
+      unsubscribeLocalizationEvents?.();
+      unsubscribeLocalizationEvents = null;
       runtime?.close();
       if (terminalRuntime === runtime) {
         terminalRuntime = null;
@@ -1364,6 +1385,8 @@ app.on('will-quit', () => {
   trayController = null;
   unsubscribeTerminalEvents?.();
   unsubscribeTerminalEvents = null;
+  unsubscribeLocalizationEvents?.();
+  unsubscribeLocalizationEvents = null;
   const transfer = transferRuntime;
   transferRuntime = null;
   const closeDatabaseOwners = () => {

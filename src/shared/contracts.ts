@@ -1136,6 +1136,9 @@ export const LocaleReloadResultSchema = z.strictObject({
   loadedUserPacks: z.number().int().nonnegative().max(64),
   rejectedUserPacks: z.number().int().nonnegative().max(64)
 });
+export const LocalizationFolderOpenResultSchema = z.strictObject({
+  opened: z.literal(true)
+});
 
 export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
 export type LocaleDirection = z.infer<typeof LocaleDirectionSchema>;
@@ -1144,6 +1147,9 @@ export type LocaleSummary = z.infer<typeof LocaleSummarySchema>;
 export type LocaleWarning = z.infer<typeof LocaleWarningSchema>;
 export type LocalizationSnapshot = z.infer<typeof LocalizationSnapshotSchema>;
 export type LocaleReloadResult = z.infer<typeof LocaleReloadResultSchema>;
+export type LocalizationFolderOpenResult = z.infer<
+  typeof LocalizationFolderOpenResultSchema
+>;
 
 export const GeneralSettingsSchema = z.strictObject({
   version: z.literal(10),
@@ -2020,6 +2026,10 @@ export const IPC_CHANNELS = {
   appearanceBackgroundGet: 'lumora:appearance:background:get',
   appearanceBackgroundChoose: 'lumora:appearance:background:choose',
   appearanceBackgroundRemove: 'lumora:appearance:background:remove',
+  localizationSnapshotGet: 'lumora:localization:snapshot:get',
+  localizationReload: 'lumora:localization:reload',
+  localizationUserFolderOpen: 'lumora:localization:user-folder:open',
+  localizationChanged: 'lumora:localization:changed',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -2059,6 +2069,12 @@ export const IPC_CHANNELS = {
 
 export interface LumoraApi {
   getWindowContext(): Promise<LumoraWindowContext>;
+  getLocalizationSnapshot(): Promise<LocalizationSnapshot>;
+  reloadLocalization(): Promise<LocaleReloadResult>;
+  openUserLocaleFolder(): Promise<void>;
+  onLocalizationChanged(
+    listener: (snapshot: LocalizationSnapshot) => void
+  ): () => void;
   onApplicationQuitRequest(
     listener: (request: ApplicationQuitRequest) => void
   ): () => void;

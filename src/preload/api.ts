@@ -26,6 +26,9 @@ import {
   LaunchPreviewSchema,
   LaunchSettingsLayerInputSchema,
   LaunchSettingsLayerListSchema,
+  LocaleReloadResultSchema,
+  LocalizationFolderOpenResultSchema,
+  LocalizationSnapshotSchema,
   LumoraWindowContextSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
@@ -112,6 +115,23 @@ export function createLumoraApi(
 ): LumoraApi {
   let startupPresentationClaim: Promise<boolean> | null = null;
   const api: LumoraApi = {
+    async getLocalizationSnapshot() {
+      const value = await invoke(IPC_CHANNELS.localizationSnapshotGet);
+      return LocalizationSnapshotSchema.parse(value);
+    },
+    async reloadLocalization() {
+      const value = await invoke(IPC_CHANNELS.localizationReload);
+      return LocaleReloadResultSchema.parse(value);
+    },
+    async openUserLocaleFolder() {
+      const value = await invoke(IPC_CHANNELS.localizationUserFolderOpen);
+      LocalizationFolderOpenResultSchema.parse(value);
+    },
+    onLocalizationChanged(listener) {
+      return subscribe(IPC_CHANNELS.localizationChanged, (value) => {
+        listener(LocalizationSnapshotSchema.parse(value));
+      });
+    },
     onApplicationQuitRequest(listener) {
       return subscribe(IPC_CHANNELS.applicationQuitRequest, (value) => {
         listener(ApplicationQuitRequestSchema.parse(value));
