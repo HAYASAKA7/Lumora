@@ -16,8 +16,8 @@ import {
   SESSION_PROVIDER_IDS,
   providerDefinition
 } from '../../../shared/provider-definitions';
-import { formatLifetimeTokens } from './session-usage';
 import { Tooltip } from '../ui/Tooltip';
+import { useLocalization } from '../localization/useLocalization';
 
 const SESSION_BATCH_SIZE = 40;
 const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
@@ -51,6 +51,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
+  const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
     ? null
     : resolveSessionResumeDisabledReason({
@@ -60,8 +61,8 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         profiles
       });
   const actionDescription = running
-    ? 'Open running terminal'
-    : 'Resume this session';
+    ? t('catalog.sessions.open-running')
+    : t('catalog.sessions.resume');
   return (
     <Tooltip content={disabledReason} multiline>
       <article
@@ -76,7 +77,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         <div className="workspace-session-heading">
           <h3>{session.title}</h3>
           {running ? (
-            <span className="session-running-badge">Running</span>
+            <span className="session-running-badge">{t('catalog.sessions.running')}</span>
           ) : null}
           <span className={`provider-badge provider-${session.provider}`}>
             {providerDefinition(session.provider).displayName}
@@ -84,20 +85,24 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         </div>
         <div className="workspace-metadata">
           <span>
-            Updated{' '}
-            <time dateTime={session.updatedAt}>
-              {new Date(session.updatedAt).toLocaleString()}
-            </time>
+            {t('catalog.sessions.updated', {
+              time: `${formatDate(new Date(session.updatedAt))} ${formatTime(new Date(session.updatedAt))}`
+            })}
           </span>
           {session.lifetimeTokens === null ? null : (
             <span className="session-token-usage">
-              {formatLifetimeTokens(session.lifetimeTokens)}
+              {t('catalog.sessions.lifetime-tokens', {
+                count: formatNumber(session.lifetimeTokens, {
+                  notation: 'compact',
+                  maximumFractionDigits: 1
+                })
+              })}
             </span>
           )}
           {session.sourceFreshness === 'stale' ? (
-            <span className="source-stale">Stale source</span>
+            <span className="source-stale">{t('catalog.sessions.stale-source')}</span>
           ) : (
-            <span className="source-current">Current</span>
+            <span className="source-current">{t('catalog.sessions.current-source')}</span>
           )}
         </div>
       </div>
@@ -108,8 +113,8 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
             <button
               aria-description={disabledReason ?? actionDescription}
               aria-label={running
-                ? `Open running terminal ${session.title}`
-                : `Resume ${session.title}`}
+                ? t('catalog.sessions.open-running-label', { session: session.title })
+                : t('catalog.sessions.resume-label', { session: session.title })}
               className="workspace-session-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
@@ -137,6 +142,7 @@ export function WorkspaceSessionsView({
   onResume,
   operationError
 }: WorkspaceSessionsViewProps): ReactNode {
+  const { t } = useLocalization();
   const sessions =
     status.state === 'ready'
       ? status.snapshot.sessions.filter(
@@ -155,10 +161,10 @@ export function WorkspaceSessionsView({
     return (
       <section className="catalog-panel workspace-detail">
         <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-          Back to workspaces
+          {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-state" role="status">
-          Loading workspace sessions
+          {t('catalog.workspaces.loading-sessions')}
         </div>
       </section>
     );
@@ -168,15 +174,15 @@ export function WorkspaceSessionsView({
     return (
       <section className="catalog-panel workspace-detail">
         <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-          Back to workspaces
+          {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-state catalog-error" role="alert">
           <div>
-            <h2>Workspace history unavailable</h2>
-            <p>Lumora could not read this workspace's session history.</p>
+            <h2>{t('catalog.workspaces.history-unavailable-title')}</h2>
+            <p>{t('catalog.workspaces.history-unavailable-description')}</p>
           </div>
           <button className="secondary-button" data-lumora-command onClick={onRetry} tabIndex={-1} type="button">
-            Try again
+            {t('errors.general.retry')}
           </button>
         </div>
       </section>
@@ -190,11 +196,11 @@ export function WorkspaceSessionsView({
     return (
       <section className="catalog-panel workspace-detail">
         <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-          Back to workspaces
+          {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-empty" role="status">
-          <h2>Workspace no longer available</h2>
-          <p>This workspace is no longer present in the local catalog.</p>
+          <h2>{t('catalog.workspaces.missing-title')}</h2>
+          <p>{t('catalog.workspaces.missing-description')}</p>
         </div>
       </section>
     );
@@ -208,11 +214,11 @@ export function WorkspaceSessionsView({
     >
       <div className="workspace-detail-toolbar">
         <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-          Back to workspaces
+          {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-actions">
           <span className={`origin-badge origin-${workspace.origin}`}>
-            {workspace.origin === 'manual' ? 'Manual' : 'Discovered'}
+            {t(`catalog.workspaces.origin-${workspace.origin}`)}
           </span>
           <button
             className="secondary-button"
@@ -222,7 +228,7 @@ export function WorkspaceSessionsView({
             tabIndex={-1}
             type="button"
           >
-            {isRefreshing ? 'Refreshing sessions' : 'Refresh sessions'}
+            {t(isRefreshing ? 'catalog.workspaces.refreshing-sessions' : 'catalog.workspaces.refresh-sessions')}
           </button>
 
         </div>
@@ -236,18 +242,17 @@ export function WorkspaceSessionsView({
 
       <header className="workspace-detail-header">
         <div>
-          <p className="card-label">Workspace history</p>
-          <h2 id="workspace-session-title">{workspace.displayName} sessions</h2>
+          <p className="card-label">{t('catalog.workspaces.history-label')}</p>
+          <h2 id="workspace-session-title">{t('catalog.workspaces.history-title', { workspace: workspace.displayName })}</h2>
         </div>
         {!workspace.available ? (
-          <span className="availability-badge">Unavailable</span>
+          <span className="availability-badge">{t('catalog.workspaces.unavailable')}</span>
         ) : null}
       </header>
       <p className="workspace-path">{workspace.canonicalPath}</p>
       <div className="workspace-metadata workspace-detail-metadata">
         <span>
-          {workspace.sessionCount}{' '}
-          {workspace.sessionCount === 1 ? 'session' : 'sessions'}
+          {t('catalog.sessions.count', { count: workspace.sessionCount })}
         </span>
         {SESSION_PROVIDER_IDS.filter(
           (provider) => (workspace.providerCounts[provider] ?? 0) > 0
@@ -262,8 +267,8 @@ export function WorkspaceSessionsView({
 
       {sessions.length === 0 ? (
         <div className="catalog-empty">
-          <h3>No sessions in this workspace</h3>
-          <p>Refresh after using a supported agent in this folder.</p>
+          <h3>{t('catalog.workspaces.sessions-empty-title')}</h3>
+          <p>{t('catalog.workspaces.sessions-empty-description')}</p>
         </div>
       ) : (
         <>
@@ -282,7 +287,7 @@ export function WorkspaceSessionsView({
           </div>
           <ProgressiveListControl
             hasMore={progress.hasMore}
-            label="Load more sessions"
+            label={t('catalog.sessions.load-more')}
             onLoadMore={progress.showMore}
           />
         </>

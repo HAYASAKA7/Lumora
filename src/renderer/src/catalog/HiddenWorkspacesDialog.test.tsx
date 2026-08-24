@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HiddenWorkspaceEntry } from './catalog-visibility';
 import { HiddenWorkspacesDialog } from './HiddenWorkspacesDialog';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const entries: HiddenWorkspaceEntry[] = [
   {

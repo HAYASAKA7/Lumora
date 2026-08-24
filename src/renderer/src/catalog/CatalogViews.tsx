@@ -19,10 +19,10 @@ import {
   SESSION_PROVIDER_IDS,
   providerDefinition
 } from '../../../shared/provider-definitions';
-import { formatLifetimeTokens } from './session-usage';
 import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
 import { ActionMenu } from '../ui/ActionMenu';
+import { useLocalization } from '../localization/useLocalization';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -54,27 +54,28 @@ const WorkspaceCard = memo(function WorkspaceCard({
   onHideWorkspace?: ((workspace: WorkspaceSummary) => void) | undefined;
   onOpenWorkspace(workspaceId: string): void;
 }): ReactNode {
+  const { formatDate, formatTime, t } = useLocalization();
   return (
     <article className="workspace-card">
       <header>
         <div className="workspace-heading">
           <h3>{workspace.displayName}</h3>
           {!workspace.available ? (
-            <span className="availability-badge">Unavailable</span>
+            <span className="availability-badge">{t('catalog.workspaces.unavailable')}</span>
           ) : null}
         </div>
         <div className="workspace-card-heading-actions">
           <span className={`origin-badge origin-${workspace.origin}`}>
-            {workspace.origin === 'manual' ? 'Manual' : 'Discovered'}
+            {t(`catalog.workspaces.origin-${workspace.origin}`)}
           </span>
           {onHideWorkspace === undefined ? null : (
             <ActionMenu
               className="workspace-card-menu-button"
-              items={[{ id: 'hide', label: 'Hide workspace' }]}
-              label={`More actions for ${workspace.displayName}`}
+              items={[{ id: 'hide', label: t('catalog.workspaces.hide-action') }]}
+              label={t('catalog.workspaces.actions-label', { workspace: workspace.displayName })}
               onSelect={() => onHideWorkspace(workspace)}
             >
-              <Tooltip content="Workspace actions">
+              <Tooltip content={t('catalog.workspaces.actions-tooltip')}>
                   <span aria-hidden="true">•••</span>
               </Tooltip>
             </ActionMenu>
@@ -84,8 +85,7 @@ const WorkspaceCard = memo(function WorkspaceCard({
       <p className="workspace-path">{workspace.canonicalPath}</p>
       <div className="workspace-metadata">
         <span>
-          {workspace.sessionCount}{' '}
-          {workspace.sessionCount === 1 ? 'session' : 'sessions'}
+          {t('catalog.sessions.count', { count: workspace.sessionCount })}
         </span>
         {SESSION_PROVIDER_IDS.filter(
           (provider) => (workspace.providerCounts[provider] ?? 0) > 0
@@ -97,15 +97,17 @@ const WorkspaceCard = memo(function WorkspaceCard({
         ))}
         {workspace.lastActivityAt === null ? null : (
           <span>
-            Last activity{' '}
-            <time dateTime={workspace.lastActivityAt}>
-              {new Date(workspace.lastActivityAt).toLocaleString()}
-            </time>
+            {t('catalog.workspaces.last-activity', {
+              time: `${formatDate(new Date(workspace.lastActivityAt))} ${formatTime(new Date(workspace.lastActivityAt))}`
+            })}
           </span>
         )}
       </div>
       <button
-        aria-label={`Open sessions for ${workspace.displayName} at ${workspace.canonicalPath}`}
+        aria-label={t('catalog.workspaces.open-sessions-label', {
+          workspace: workspace.displayName,
+          path: workspace.canonicalPath
+        })}
         className="workspace-card-action"
         onClick={() => onOpenWorkspace(workspace.id)}
         data-lumora-command
@@ -125,8 +127,9 @@ export function WorkspacesView({
   onHideWorkspace,
   onManageHiddenWorkspaces,
   onOpenWorkspace,
-  scopeLabel = 'Canonical local folders'
+  scopeLabel
 }: WorkspacesViewProps): ReactNode {
+  const { t } = useLocalization();
   const [queryText, setQueryText] = useState('');
   const workspaces =
     status.state === 'ready' ? status.snapshot.workspaces : [];
@@ -148,7 +151,7 @@ export function WorkspacesView({
   if (status.state === 'loading') {
     return (
       <div className="catalog-state" role="status">
-        Loading catalog
+        {t('catalog.loading.catalog')}
       </div>
     );
   }
@@ -157,8 +160,8 @@ export function WorkspacesView({
     return (
       <section className="catalog-state catalog-error" role="alert">
         <div>
-          <h2>Catalog unavailable</h2>
-          <p>Lumora could not read its local session catalog.</p>
+          <h2>{t('catalog.errors.catalog-title')}</h2>
+          <p>{t('catalog.errors.catalog-description')}</p>
         </div>
         <button
           className="secondary-button"
@@ -167,7 +170,7 @@ export function WorkspacesView({
           tabIndex={-1}
           type="button"
         >
-          Try again
+          {t('errors.general.retry')}
         </button>
       </section>
     );
@@ -177,10 +180,10 @@ export function WorkspacesView({
     <section className="catalog-panel" aria-labelledby="workspace-list-title">
       <div className="session-toolbar">
         <label className="search-control">
-          <span>Search workspaces</span>
+          <span>{t('catalog.workspaces.search-label')}</span>
           <input
             onChange={(event) => setQueryText(event.currentTarget.value)}
-            placeholder="Search name or path"
+            placeholder={t('catalog.workspaces.search-placeholder')}
             type="search"
             value={queryText}
           />
@@ -194,7 +197,7 @@ export function WorkspacesView({
               tabIndex={-1}
               type="button"
             >
-              Hidden workspaces ({hiddenWorkspaceCount})
+              {t('catalog.workspaces.hidden-count', { count: hiddenWorkspaceCount })}
             </button>
           )}
           <button
@@ -205,7 +208,7 @@ export function WorkspacesView({
             tabIndex={-1}
             type="button"
           >
-            {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
+            {t(isRefreshing ? 'catalog.workspaces.refreshing' : 'catalog.workspaces.refresh')}
           </button>
           {onAddWorkspace === undefined ? null : (
             <button
@@ -215,32 +218,33 @@ export function WorkspacesView({
               tabIndex={-1}
               type="button"
             >
-              Add workspace
+              {t('catalog.workspaces.add')}
             </button>
           )}
         </div>
       </div>
 
       <div className="catalog-result-heading">
-        <p className="card-label">{scopeLabel}</p>
+        <p className="card-label">{scopeLabel ?? t('catalog.workspaces.scope-local')}</p>
         <h2 aria-live="polite" id="workspace-list-title">
           {normalizedQuery.length === 0
-            ? `${workspaces.length} ${workspaces.length === 1 ? 'workspace' : 'workspaces'}`
-            : `${filteredWorkspaces.length} of ${workspaces.length} workspaces`}
+            ? t('catalog.workspaces.count', { count: workspaces.length })
+            : t('catalog.workspaces.filtered-count', {
+                visible: filteredWorkspaces.length,
+                total: workspaces.length
+              })}
         </h2>
       </div>
 
       {workspaces.length === 0 ? (
         <div className="catalog-empty">
-          <h3>No workspaces yet</h3>
-          <p>
-            Add a folder or refresh to discover workspaces from provider sessions.
-          </p>
+          <h3>{t('catalog.workspaces.empty-title')}</h3>
+          <p>{t('catalog.workspaces.empty-description')}</p>
         </div>
       ) : filteredWorkspaces.length === 0 ? (
         <div className="catalog-empty">
-          <h3>No matching workspaces</h3>
-          <p>Try a different workspace name or path.</p>
+          <h3>{t('catalog.workspaces.no-results-title')}</h3>
+          <p>{t('catalog.workspaces.no-results-description')}</p>
         </div>
       ) : (
         <>
@@ -258,7 +262,7 @@ export function WorkspacesView({
           </div>
           <ProgressiveListControl
             hasMore={progress.hasMore}
-            label="Load more workspaces"
+            label={t('catalog.workspaces.load-more')}
             onLoadMore={progress.showMore}
           />
         </>
@@ -306,6 +310,7 @@ const SessionRow = memo(function SessionRow({
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
+  const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
     ? null
     : resolveSessionResumeDisabledReason({
@@ -315,8 +320,8 @@ const SessionRow = memo(function SessionRow({
         profiles
       });
   const actionDescription = running
-    ? 'Open running terminal'
-    : 'Resume this session';
+    ? t('catalog.sessions.open-running')
+    : t('catalog.sessions.resume');
   return (
     <Tooltip content={disabledReason} multiline>
       <tr
@@ -335,8 +340,8 @@ const SessionRow = memo(function SessionRow({
             <button
               aria-description={disabledReason ?? actionDescription}
               aria-label={running
-                ? `Open running terminal ${session.title}`
-                : `Resume ${session.title}`}
+                ? t('catalog.sessions.open-running-label', { session: session.title })
+                : t('catalog.sessions.resume-label', { session: session.title })}
               className="session-row-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
@@ -348,7 +353,7 @@ const SessionRow = memo(function SessionRow({
         )}
         <strong>{session.title}</strong>
         {running ? (
-          <span className="session-running-badge">Running</span>
+          <span className="session-running-badge">{t('catalog.sessions.running')}</span>
         ) : null}
       </td>
       <td>
@@ -358,26 +363,31 @@ const SessionRow = memo(function SessionRow({
       </td>
       <td>
         <span className="session-workspace">
-          {workspace?.displayName ?? 'Unavailable workspace'}
+          {workspace?.displayName ?? t('catalog.sessions.unavailable-workspace')}
         </span>
       </td>
       <td>
         <time dateTime={session.updatedAt}>
-          {new Date(session.updatedAt).toLocaleString()}
+          {`${formatDate(new Date(session.updatedAt))} ${formatTime(new Date(session.updatedAt))}`}
         </time>
       </td>
-      <td aria-label={session.lifetimeTokens === null ? 'Lifetime tokens unavailable' : undefined}>
+      <td aria-label={session.lifetimeTokens === null ? t('catalog.sessions.lifetime-tokens-unavailable') : undefined}>
         {session.lifetimeTokens === null ? null : (
           <span className="session-token-usage">
-            {formatLifetimeTokens(session.lifetimeTokens)}
+            {t('catalog.sessions.lifetime-tokens', {
+              count: formatNumber(session.lifetimeTokens, {
+                notation: 'compact',
+                maximumFractionDigits: 1
+              })
+            })}
           </span>
         )}
       </td>
       <td>
         {session.sourceFreshness === 'stale' ? (
-          <span className="source-stale">Stale source</span>
+          <span className="source-stale">{t('catalog.sessions.stale-source')}</span>
         ) : (
-          <span className="source-current">Current</span>
+          <span className="source-current">{t('catalog.sessions.current-source')}</span>
         )}
       </td>
       </tr>
@@ -402,6 +412,7 @@ export function SessionsView({
   onRefresh,
   onResume
 }: SessionsViewProps): ReactNode {
+  const { t } = useLocalization();
   const sessionCount =
     status.state === 'ready' ? status.snapshot.sessions.length : 0;
   const progress = useProgressiveList({
@@ -414,7 +425,7 @@ export function SessionsView({
   if (status.state === 'loading') {
     return (
       <div className="catalog-state" role="status">
-        Loading catalog
+        {t('catalog.loading.catalog')}
       </div>
     );
   }
@@ -423,8 +434,8 @@ export function SessionsView({
     return (
       <section className="catalog-state catalog-error" role="alert">
         <div>
-          <h2>Catalog unavailable</h2>
-          <p>Lumora could not read its local session catalog.</p>
+          <h2>{t('catalog.errors.catalog-title')}</h2>
+          <p>{t('catalog.errors.catalog-description')}</p>
         </div>
         <button
           className="secondary-button"
@@ -433,7 +444,7 @@ export function SessionsView({
           tabIndex={-1}
           type="button"
         >
-          Try again
+          {t('errors.general.retry')}
         </button>
       </section>
     );
@@ -449,23 +460,23 @@ export function SessionsView({
     <section className="catalog-panel" aria-labelledby="session-list-title">
       <div className="session-toolbar">
         <label className="search-control">
-          <span>Search sessions</span>
+          <span>{t('catalog.sessions.search-label')}</span>
           <input
             onChange={(event) => onSearchChange(event.currentTarget.value)}
-            placeholder="Search title or workspace"
+            placeholder={t('catalog.sessions.search-placeholder')}
             type="search"
             value={queryText}
           />
         </label>
         <div className="filter-control">
-          <span>Provider</span>
+          <span>{t('catalog.sessions.provider-filter')}</span>
           <SelectMenu
-            label="Provider"
+            label={t('catalog.sessions.provider-filter')}
             onChange={(value) =>
               onProviderChange(value === '' ? null : value as ProviderId)
             }
             options={[
-              { value: '', label: 'All providers' },
+              { value: '', label: t('catalog.sessions.all-providers') },
               ...snapshot.providerFacets.map(({ provider, sessionCount }) => ({
                 value: provider,
                 label: `${providerDefinition(provider).displayName} (${sessionCount})`
@@ -482,7 +493,7 @@ export function SessionsView({
           tabIndex={-1}
           type="button"
         >
-          {isRefreshing ? 'Refreshing catalog' : 'Refresh catalog'}
+          {t(isRefreshing ? 'catalog.workspaces.refreshing' : 'catalog.workspaces.refresh')}
         </button>
 
       </div>
@@ -504,9 +515,9 @@ export function SessionsView({
                 <strong>{diagnostic.message}</strong>
                 <span>{diagnostic.recovery}</span>
               </div>
-              <Tooltip content="Dismiss warning">
+              <Tooltip content={t('catalog.sessions.dismiss-warning')}>
                 <button
-                  aria-label={`Dismiss warning: ${diagnostic.message}`}
+                  aria-label={t('catalog.sessions.dismiss-warning-label', { warning: diagnostic.message })}
                   className="catalog-diagnostic-dismiss"
                   onClick={() => onDismissDiagnostic(identity)}
                   data-lumora-command
@@ -522,22 +533,21 @@ export function SessionsView({
 
 
       <div className="catalog-result-heading">
-        <p className="card-label">Normalized provider metadata</p>
+        <p className="card-label">{t('catalog.sessions.scope-label')}</p>
         <h2 id="session-list-title">
-          {snapshot.sessions.length}{' '}
-          {snapshot.sessions.length === 1 ? 'session' : 'sessions'}
+          {t('catalog.sessions.count', { count: snapshot.sessions.length })}
         </h2>
       </div>
 
       {snapshot.sessions.length === 0 ? (
         <div className="catalog-empty">
           <h3>
-            {hasFilters ? 'No sessions match these filters' : 'No sessions yet'}
+            {t(hasFilters ? 'catalog.sessions.no-results-title' : 'catalog.sessions.empty-title')}
           </h3>
           <p>
             {hasFilters
-              ? 'Change the search or provider filter to broaden the results.'
-              : 'Refresh after using a supported agent in a workspace.'}
+              ? t('catalog.sessions.no-results-description')
+              : t('catalog.sessions.empty-description')}
           </p>
         </div>
       ) : (
@@ -546,12 +556,12 @@ export function SessionsView({
             <table className="session-table">
               <thead>
                 <tr>
-                  <th scope="col">Session</th>
-                  <th scope="col">Provider</th>
-                  <th scope="col">Workspace</th>
-                  <th scope="col">Updated</th>
-                  <th scope="col">Tokens</th>
-                  <th scope="col">Source</th>
+                  <th scope="col">{t('catalog.sessions.column-session')}</th>
+                  <th scope="col">{t('catalog.sessions.column-provider')}</th>
+                  <th scope="col">{t('catalog.sessions.column-workspace')}</th>
+                  <th scope="col">{t('catalog.sessions.column-updated')}</th>
+                  <th scope="col">{t('catalog.sessions.column-tokens')}</th>
+                  <th scope="col">{t('catalog.sessions.column-source')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -573,7 +583,7 @@ export function SessionsView({
           </div>
           <ProgressiveListControl
             hasMore={progress.hasMore}
-            label="Load more sessions"
+            label={t('catalog.sessions.load-more')}
             onLoadMore={progress.showMore}
           />
         </>
@@ -607,10 +617,11 @@ export function CatalogHomeSummary({
   onOpenProviderUpdates?(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
+  const { formatNumber, t } = useLocalization();
   if (status.state === 'loading') {
     return (
       <div className="catalog-state" role="status">
-        Loading catalog
+        {t('catalog.loading.catalog')}
       </div>
     );
   }
@@ -618,8 +629,7 @@ export function CatalogHomeSummary({
   if (status.state === 'error') {
     return (
       <div className="catalog-state catalog-error" role="alert">
-        Catalog summaries are unavailable. Workspaces and sessions can be retried
-        from their dedicated views.
+        {t('catalog.errors.summary')}
       </div>
     );
   }
@@ -640,40 +650,35 @@ export function CatalogHomeSummary({
     (provider) => providerDefinition(provider).displayName
   );
   return (
-    <div className="dashboard-grid" aria-label="Workspace overview">
+    <div className="dashboard-grid" aria-label={t('catalog.home.overview-label')}>
       <article className="dashboard-card catalog-metric-card">
-        <p className="card-label">Runtime view</p>
-        <h2>Running agents</h2>
+        <p className="card-label">{t('catalog.home.runtime-label')}</p>
+        <h2>{t('catalog.home.running-agents')}</h2>
         <strong className="metric-value">
           {liveRuntimes.length === 0
-            ? 'No managed processes'
-            : `${liveRuntimes.length} running ${liveRuntimes.length === 1 ? 'agent' : 'agents'}`}
+            ? t('catalog.home.managed-processes-empty')
+            : t('catalog.home.managed-processes', { count: liveRuntimes.length })}
         </strong>
         <p className="card-description">
-          Native agent terminals owned by Lumora
+          {t('catalog.home.managed-processes-description')}
         </p>
       </article>
 
       <article className="dashboard-card catalog-metric-card">
-        <p className="card-label">Diagnostics</p>
-        <h2>Needs attention</h2>
+        <p className="card-label">{t('catalog.home.diagnostics-label')}</p>
+        <h2>{t('catalog.home.needs-attention')}</h2>
         <strong className="metric-value">
           {lostRuntimes.length === 0
-            ? `${snapshot.diagnostics.length} catalog ${
-                snapshot.diagnostics.length === 1 ? 'issue' : 'issues'
-              }`
-            : `${attentionCount} ${
-                attentionCount === 1 ? 'item needs' : 'items need'
-              } attention`}
+            ? t('catalog.home.catalog-issues', { count: snapshot.diagnostics.length })
+            : t('catalog.home.attention-items', { count: attentionCount })}
         </strong>
         <p className="card-description">
           {lostRuntimes.length === 0
-            ? 'Provider discovery problems remain visible without hiding healthy data.'
-            : `${snapshot.diagnostics.length} catalog ${
-                snapshot.diagnostics.length === 1 ? 'issue' : 'issues'
-              } · ${lostRuntimes.length} lost ${
-                lostRuntimes.length === 1 ? 'runtime' : 'runtimes'
-              }`}
+            ? t('catalog.home.diagnostic-description')
+            : t('catalog.home.diagnostic-breakdown', {
+                catalogCount: snapshot.diagnostics.length,
+                runtimeCount: lostRuntimes.length
+              })}
         </p>
         {lostRuntimes.length === 0 ? null : (
           <ul className="runtime-recovery-list">
@@ -690,8 +695,8 @@ export function CatalogHomeSummary({
                     </strong>
                     <small>
                       {recovery?.strategy === 'resume'
-                        ? 'Resume saved session'
-                        : 'Restart as new session'}
+                        ? t('catalog.home.resume-saved-session')
+                        : t('catalog.home.restart-new-session')}
                     </small>
                   </span>
                   {onRecover === undefined ? null : (
@@ -702,7 +707,7 @@ export function CatalogHomeSummary({
                       tabIndex={-1}
                       type="button"
                     >
-                      Recover
+                      {t('catalog.home.recover')}
                     </button>
                   )}
                 </li>
@@ -713,14 +718,13 @@ export function CatalogHomeSummary({
       </article>
 
       <article className="dashboard-card recent-session-card">
-        <p className="card-label">Recent sessions</p>
-        <h2>Recent sessions</h2>
+        <p className="card-label">{t('catalog.home.recent-sessions')}</p>
+        <h2>{t('catalog.home.recent-sessions')}</h2>
         <strong className="metric-value">
-          {snapshot.sessions.length} saved{' '}
-          {snapshot.sessions.length === 1 ? 'session' : 'sessions'}
+          {t('catalog.home.saved-sessions', { count: snapshot.sessions.length })}
         </strong>
         {recentSessions.length === 0 ? (
-          <p className="card-description">No provider sessions discovered yet.</p>
+          <p className="card-description">{t('catalog.home.no-recent-sessions')}</p>
         ) : (
           <ul className="recent-session-list">
             {recentSessions.map((session) => {
@@ -753,26 +757,31 @@ export function CatalogHomeSummary({
                       )}
                       {session.lifetimeTokens === null ? null : (
                         <span className="session-token-usage">
-                          {formatLifetimeTokens(session.lifetimeTokens)}
+                          {t('catalog.sessions.lifetime-tokens', {
+                            count: formatNumber(session.lifetimeTokens, {
+                              notation: 'compact',
+                              maximumFractionDigits: 1
+                            })
+                          })}
                         </span>
                       )}
                       {running ? (
-                        <span className="session-running-badge">Running</span>
+                        <span className="session-running-badge">{t('catalog.sessions.running')}</span>
                       ) : null}
                     </span>
                   </span>
                   {onResume === undefined ? null : (
                     <Tooltip
                       content={disabledReason ?? (
-                        running ? 'Open running terminal' : 'Resume this session'
+                        running ? t('catalog.sessions.open-running') : t('catalog.sessions.resume')
                       )}
                     >
                       <button
                         aria-description={disabledReason ?? (
-                          running ? 'Open running terminal' : 'Resume this session'
+                          running ? t('catalog.sessions.open-running') : t('catalog.sessions.resume')
                         )}
                         aria-label={running
-                          ? `Open running terminal ${session.title}`
+                          ? t('catalog.sessions.open-running-label', { session: session.title })
                           : undefined}
                         className="text-button recent-session-resume"
                         disabled={disabledReason !== null}
@@ -781,7 +790,7 @@ export function CatalogHomeSummary({
                         tabIndex={-1}
                         type="button"
                       >
-                        {running ? 'Open' : 'Resume'}
+                        {t(running ? 'common.actions.open' : 'common.actions.resume')}
                       </button>
                     </Tooltip>
                   )}
@@ -793,23 +802,23 @@ export function CatalogHomeSummary({
       </article>
 
       <article className="dashboard-card catalog-metric-card">
-        <p className="card-label">Provider discovery</p>
-        <h2>Scan health</h2>
+        <p className="card-label">{t('catalog.home.provider-discovery')}</p>
+        <h2>{t('catalog.home.scan-health')}</h2>
         <strong className="metric-value">
-          {snapshot.workspaces.length}{' '}
-          {snapshot.workspaces.length === 1 ? 'workspace' : 'workspaces'}
+          {t('catalog.workspaces.count', { count: snapshot.workspaces.length })}
         </strong>
         <div className="empty-state">
           <span className="empty-state-mark" aria-hidden="true" />
-          {providerSummary ?? 'Provider status available in Settings'}
+          {providerSummary ?? t('catalog.home.provider-status-settings')}
         </div>
         {updateProviderNames.length === 0 || onOpenProviderUpdates === undefined
           ? null
           : (
             <button
-              aria-label={`${updateProviderNames.length} agent ${
-                updateProviderNames.length === 1 ? 'update' : 'updates'
-              } available: ${updateProviderNames.join(', ')}. Open Provider Settings`}
+              aria-label={t('catalog.home.updates-available-label', {
+                count: updateProviderNames.length,
+                providers: updateProviderNames.join(', ')
+              })}
               className="provider-update-notice"
               data-lumora-command
               onClick={onOpenProviderUpdates}
@@ -817,8 +826,7 @@ export function CatalogHomeSummary({
               type="button"
             >
               <span className="provider-update-notice-count">
-                {updateProviderNames.length} agent{' '}
-                {updateProviderNames.length === 1 ? 'update' : 'updates'} available
+                {t('catalog.home.updates-available', { count: updateProviderNames.length })}
               </span>
               <span aria-hidden="true"> · </span>
               <OverflowTooltip content={updateProviderNames.join(', ')}>

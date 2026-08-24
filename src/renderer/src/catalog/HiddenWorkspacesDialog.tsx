@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 
 import type { HiddenWorkspaceEntry } from './catalog-visibility';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { useLocalization } from '../localization/useLocalization';
 
 interface HiddenWorkspacesDialogProps {
   busy: boolean;
@@ -28,6 +29,7 @@ export function HiddenWorkspacesDialog({
   onRestore,
   onRestoreAll
 }: HiddenWorkspacesDialogProps): ReactNode {
+  const { t } = useLocalization();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [query, setQuery] = useState('');
@@ -75,40 +77,40 @@ export function HiddenWorkspacesDialog({
       >
         <header>
           <div>
-            <p className="card-label">Workspace visibility</p>
-            <h2 id={titleId}>Hidden workspaces</h2>
+            <p className="card-label">{t('catalog.workspaces.visibility-label')}</p>
+            <h2 id={titleId}>{t('catalog.workspaces.hidden-title')}</h2>
           </div>
           <button
-            aria-label="Close hidden workspaces"
+            aria-label={t('catalog.workspaces.close-hidden-label')}
             className="text-button"
             disabled={busy}
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
         <div className="dialog-body">
           <label className="search-control hidden-workspace-search">
-            <span>Search hidden workspaces</span>
+            <span>{t('catalog.workspaces.search-hidden')}</span>
             <input
-              aria-label="Search hidden workspaces"
+              aria-label={t('catalog.workspaces.search-hidden')}
               onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Search name or path"
+              placeholder={t('catalog.workspaces.search-placeholder')}
               type="search"
               value={query}
             />
           </label>
           {entries.length === 0 ? (
             <div className="catalog-empty hidden-workspace-empty">
-              <h3>No hidden workspaces</h3>
-              <p>Workspaces you hide will be available here to restore.</p>
+              <h3>{t('catalog.workspaces.hidden-empty-title')}</h3>
+              <p>{t('catalog.workspaces.hidden-empty-description')}</p>
             </div>
           ) : (
             <>
               <label className="hidden-workspace-select-all">
                 <input
-                  aria-label="Select all hidden"
+                  aria-label={t('catalog.workspaces.select-all-hidden')}
                   checked={allHiddenSelected}
                   disabled={busy || entries.length === 0}
                   onChange={(event) => {
@@ -124,7 +126,7 @@ export function HiddenWorkspacesDialog({
                   }}
                   type="checkbox"
                 />
-                <span>Select all hidden</span>
+                <span>{t('catalog.workspaces.select-all-hidden')}</span>
               </label>
               <div className="hidden-workspace-list">
                 {visible.map(({ workspace, policy }) => (
@@ -147,8 +149,8 @@ export function HiddenWorkspacesDialog({
                     </span>
                     <span className="availability-badge">
                       {policy.mode === 'workspace_only'
-                        ? 'Sessions visible'
-                        : 'Sessions hidden'}
+                        ? t('catalog.workspaces.sessions-visible')
+                        : t('catalog.workspaces.sessions-hidden')}
                     </span>
                   </label>
                 ))}
@@ -164,7 +166,7 @@ export function HiddenWorkspacesDialog({
             onClick={onRestoreAll}
             type="button"
           >
-            Restore all
+            {t('catalog.workspaces.restore-all')}
           </button>
           <span className="modal-actions-spacer" />
           <button
@@ -174,7 +176,7 @@ export function HiddenWorkspacesDialog({
             ref={closeRef}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
           <button
             className="refresh-button"
@@ -182,7 +184,7 @@ export function HiddenWorkspacesDialog({
             onClick={() => onRestore(selectedWorkspaceIds)}
             type="button"
           >
-            Restore selected
+            {t('catalog.workspaces.restore-selected')}
           </button>
         </footer>
       </section>

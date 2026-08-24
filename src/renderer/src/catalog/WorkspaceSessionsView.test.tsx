@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,6 +7,9 @@ import type {
   TerminalProfile
 } from '../../../shared/contracts';
 import { WorkspaceSessionsView } from './WorkspaceSessionsView';
+import { renderWithLocalization } from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const workspaceId = 'a'.repeat(64);
 const otherWorkspaceId = 'b'.repeat(64);

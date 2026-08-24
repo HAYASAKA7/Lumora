@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { useLocalization } from '../localization/useLocalization';
 
 interface HideWorkspaceDialogProps {
   busy: boolean;
@@ -23,6 +24,7 @@ export function HideWorkspaceDialog({
   onClose,
   onHide
 }: HideWorkspaceDialogProps): ReactNode {
+  const { t } = useLocalization();
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const [mode, setMode] = useState<WorkspaceVisibilityMode>('workspace_only');
@@ -48,17 +50,17 @@ export function HideWorkspaceDialog({
       >
         <header>
           <div>
-            <p className="card-label">Workspace visibility</p>
-            <h2 id={titleId}>Hide {workspace.displayName}</h2>
+            <p className="card-label">{t('catalog.workspaces.visibility-label')}</p>
+            <h2 id={titleId}>{t('catalog.workspaces.hide-title', { workspace: workspace.displayName })}</h2>
           </div>
           <button
-            aria-label="Close workspace visibility"
+            aria-label={t('catalog.workspaces.close-visibility-label')}
             className="text-button"
             disabled={busy}
             onClick={onClose}
             type="button"
           >
-            Close
+            {t('common.actions.close')}
           </button>
         </header>
         <div className="dialog-body">
@@ -70,30 +72,30 @@ export function HideWorkspaceDialog({
           </div>
           <div className="workspace-visibility-field">
             <span>
-              <strong>Session visibility</strong>
+              <strong>{t('catalog.workspaces.session-visibility')}</strong>
               <small>
-                Choose whether sessions remain available outside the Workspaces page.
+                {t('catalog.workspaces.session-visibility-description')}
               </small>
             </span>
             <SelectMenu
               disabled={busy}
-              label="Session visibility"
+              label={t('catalog.workspaces.session-visibility')}
               onChange={(value) => setMode(value as WorkspaceVisibilityMode)}
               options={[
                 {
                   value: 'workspace_only',
-                  label: 'Hide workspace only'
+                  label: t('catalog.workspaces.hide-workspace-only')
                 },
                 {
                   value: 'workspace_and_sessions',
-                  label: 'Hide workspace and its sessions'
+                  label: t('catalog.workspaces.hide-workspace-sessions')
                 }
               ]}
               value={mode}
             />
           </div>
           <p className="workspace-visibility-note">
-            Nothing is deleted from this computer or from the provider.
+            {t('catalog.workspaces.hide-note')}
           </p>
           {error === null ? null : <p role="alert" className="general-setting-error">{error}</p>}
         </div>
@@ -105,7 +107,7 @@ export function HideWorkspaceDialog({
             ref={cancelRef}
             type="button"
           >
-            Cancel
+            {t('common.actions.cancel')}
           </button>
           <button
             className="refresh-button"
@@ -113,7 +115,7 @@ export function HideWorkspaceDialog({
             onClick={() => onHide(mode)}
             type="button"
           >
-            {busy ? 'Hiding workspace' : 'Hide workspace'}
+            {t(busy ? 'catalog.workspaces.hiding' : 'catalog.workspaces.hide-action')}
           </button>
         </footer>
       </section>

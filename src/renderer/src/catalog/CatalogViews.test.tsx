@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -12,6 +12,12 @@ import {
   SessionsView,
   WorkspacesView
 } from './CatalogViews';
+import {
+  renderWithLocalization,
+  TEST_LOCALIZATION_SNAPSHOT
+} from '../test/render-with-localization';
+
+const render = renderWithLocalization;
 
 const catalogSnapshot: CatalogSnapshot = {
   refreshedAt: '2026-07-11T04:00:00.000Z',
@@ -146,6 +152,34 @@ function repeatedSessions(count: number): CatalogSnapshot['sessions'] {
 }
 
 describe('WorkspacesView', () => {
+  it('renders catalog-owned workspace copy from the active locale', () => {
+    renderWithLocalization(
+      <WorkspacesView
+        isRefreshing={false}
+        onOpenWorkspace={vi.fn()}
+        onRefresh={vi.fn()}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+      />,
+      {
+        ...TEST_LOCALIZATION_SNAPSHOT,
+        locale: 'zh-Hans',
+        formattingLocale: 'zh-CN',
+        messages: {
+          ...TEST_LOCALIZATION_SNAPSHOT.messages,
+          'catalog.workspaces.search-label': '搜索工作区',
+          'catalog.workspaces.count': '{count, plural, other {# 个工作区}}',
+          'catalog.workspaces.origin-manual': '手动添加'
+        }
+      }
+    );
+
+    expect(screen.getByRole('searchbox', { name: '搜索工作区' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '2 个工作区' })).toBeInTheDocument();
+    expect(screen.getByText('手动添加')).toBeInTheDocument();
+    expect(screen.getByText('Lumora')).toBeInTheDocument();
+    expect(screen.getByText('D:\\Projects\\AI\\Lumora')).toBeInTheDocument();
+  });
+
   it('supports a read-only remote scope without local workspace controls', () => {
     const { container } = render(
       <WorkspacesView
