@@ -4,7 +4,8 @@ import {
   AppearanceBackgroundStateSchema,
   IPC_CHANNELS,
   type AppearanceSettings,
-  type AppearanceBackgroundState
+  type AppearanceBackgroundState,
+  type ThemePreset
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 
@@ -36,6 +37,7 @@ interface RegisterAppearanceIpcDependencies {
   authorizeWrite: IpcAuthorizer;
   service: AppearanceBackgroundService;
   getAppearanceSettings(): AppearanceSettings;
+  getThemePreset(appearance: AppearanceSettings): Promise<ThemePreset | null>;
   showOpenDialog(options: {
     properties: ['openFile'];
     filters: Array<{ name: string; extensions: string[] }>;
@@ -79,6 +81,7 @@ export function registerAppearanceIpc({
   authorizeWrite,
   service,
   getAppearanceSettings,
+  getThemePreset,
   showOpenDialog,
   developmentOrigin
 }: RegisterAppearanceIpcDependencies): void {
@@ -95,9 +98,11 @@ export function registerAppearanceIpc({
   ipc.handle(IPC_CHANNELS.appearancePresentationGet, async (event) => {
     assertTrusted(event, authorizeRead, developmentOrigin);
     try {
+      const appearance = getAppearanceSettings();
       return AppearancePresentationSchema.parse({
-        appearance: getAppearanceSettings(),
-        background: await service.getState()
+        appearance,
+        background: await service.getState(),
+        themePreset: await getThemePreset(appearance)
       });
     } catch {
       throw new AppearanceIpcError();

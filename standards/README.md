@@ -26,6 +26,7 @@ The words **must**, **must not**, **should**, and **may** are intentional:
 | Scanning, terminal output, and renderer responsiveness | [Performance](performance/README.md) |
 | Versions, packages, and GitHub Actions | [Release](release/README.md) |
 | User, developer, and product documentation | [Documentation](documentation/README.md) |
+| Bundled languages and translatable UI | [Localization](localization/README.md) |
 
 ## Using these standards
 

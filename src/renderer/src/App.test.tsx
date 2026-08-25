@@ -270,6 +270,7 @@ interface CatalogApiOverrides {
   getGeneralSettings?: ReturnType<typeof vi.fn>;
   onGeneralSettingsChanged?: (listener: () => void) => () => void;
   getAppearanceBackground?: ReturnType<typeof vi.fn>;
+  getThemePresets?: ReturnType<typeof vi.fn>;
   chooseAppearanceBackground?: ReturnType<typeof vi.fn>;
   removeAppearanceBackground?: ReturnType<typeof vi.fn>;
   saveGeneralSettings?: ReturnType<typeof vi.fn>;
@@ -386,6 +387,11 @@ function setSystemInfoResult(
       removeAppearanceBackground:
         catalogApi.removeAppearanceBackground ??
         vi.fn().mockResolvedValue({ available: false, revision: null }),
+      getThemePresets: catalogApi.getThemePresets ?? vi.fn().mockResolvedValue({
+        presets: [],
+        rejectedCount: 0
+      }),
+      openThemePresetFolder: vi.fn().mockResolvedValue(undefined),
       getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
       trustWorkspaceForLaunch: vi.fn(),
       revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
@@ -1075,6 +1081,51 @@ describe('App', () => {
     expect(document.querySelector('.app-shell')?.getAttribute('style')).toContain(
       '--appearance-opacity-popup-raised: 98.153%'
     );
+  });
+
+  it('applies a selected data-only theme pack to the application shell', async () => {
+    setSystemInfoResult(undefined, undefined, {
+      getGeneralSettings: vi.fn().mockResolvedValue({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance,
+          theme: 'dark',
+          themePresetId: 'midnight-cyan'
+        }
+      }),
+      getThemePresets: vi.fn().mockResolvedValue({
+        rejectedCount: 0,
+        presets: [{
+          id: 'midnight-cyan',
+          displayName: 'Midnight cyan',
+          baseTheme: 'dark',
+          palette: {
+            accent: '#22D3EE',
+            onAccent: '#06202A',
+            background: '#07111F',
+            sidebar: '#081525',
+            sidebarText: '#E6F7FF',
+            surface: '#102033',
+            surfaceRaised: '#172A40',
+            control: '#1C334D',
+            text: '#F3FAFF',
+            textMuted: '#9CB2C8',
+            border: '#39536D',
+            success: '#41D6A3',
+            warning: '#F2BE5C',
+            danger: '#F4778A'
+          }
+        }]
+      })
+    });
+
+    renderWithLocalization(<App />);
+
+    await waitFor(() => {
+      expect(document.querySelector('.app-shell')?.getAttribute('style'))
+        .toContain('--blue: #22D3EE');
+    });
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   });
 
   it('adds the surface mosaic layer only for a positive saved strength', async () => {

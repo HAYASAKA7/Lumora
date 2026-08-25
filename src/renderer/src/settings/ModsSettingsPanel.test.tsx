@@ -11,12 +11,14 @@ describe('ModsSettingsPanel', () => {
       rootPath: 'C:\\Users\\Lumora\\mods',
       localesPath: 'C:\\Users\\Lumora\\mods\\locales',
       fontsPath: 'C:\\Users\\Lumora\\mods\\fonts',
+      themesPath: 'C:\\Users\\Lumora\\mods\\themes',
       usesDefault: true
     };
     const custom = {
       rootPath: 'D:\\My Mods',
       localesPath: 'D:\\My Mods\\locales',
       fontsPath: 'D:\\My Mods\\fonts',
+      themesPath: 'D:\\My Mods\\themes',
       usesDefault: false
     };
     const api = {
@@ -29,6 +31,7 @@ describe('ModsSettingsPanel', () => {
       openModsRoot: vi.fn().mockResolvedValue(undefined),
       openUserLocaleFolder: vi.fn().mockResolvedValue(undefined),
       openFontPresetFolder: vi.fn().mockResolvedValue(undefined),
+      openThemePresetFolder: vi.fn().mockResolvedValue(undefined),
       reloadLocalization: vi.fn().mockResolvedValue({
         snapshot: {},
         loadedUserPacks: 1,
@@ -48,6 +51,9 @@ describe('ModsSettingsPanel', () => {
     expect(screen.getByText(custom.fontsPath)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Open font presets folder' }));
     await waitFor(() => expect(api.openFontPresetFolder).toHaveBeenCalledOnce());
+    expect(screen.getByText(custom.themesPath)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open theme packs folder' }));
+    await waitFor(() => expect(api.openThemePresetFolder).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole('button', { name: 'Reload languages' }));
     await waitFor(() => expect(api.reloadLocalization).toHaveBeenCalledOnce());
     expect(screen.getByRole('status')).toHaveTextContent('Language packs reloaded.');
@@ -58,6 +64,7 @@ describe('ModsSettingsPanel', () => {
     expect(api.openModsRoot).toHaveBeenCalledOnce();
     expect(api.openUserLocaleFolder).toHaveBeenCalledOnce();
     expect(api.openFontPresetFolder).toHaveBeenCalledOnce();
+    expect(api.openThemePresetFolder).toHaveBeenCalledOnce();
     expect(api.resetModsRoot).toHaveBeenCalledOnce();
   });
 

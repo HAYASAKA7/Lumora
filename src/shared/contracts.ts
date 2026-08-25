@@ -1036,6 +1036,11 @@ export const FontFamilyNameSchema = z.string()
 
 export const AppearanceSettingsSchema = z.strictObject({
   theme: AppearanceThemeSchema,
+  themePresetId: z.string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u)
+    .nullable(),
   lightTerminalInLightMode: z.boolean(),
   interfaceFontFamily: FontFamilyNameSchema.nullable(),
   terminalFontFamily: FontFamilyNameSchema.nullable(),
@@ -1054,6 +1059,7 @@ export type AppearanceSettings = z.infer<typeof AppearanceSettingsSchema>;
 
 export const DEFAULT_APPEARANCE_SETTINGS = {
   theme: 'lumora',
+  themePresetId: null,
   lightTerminalInLightMode: false,
   interfaceFontFamily: null,
   terminalFontFamily: null,
@@ -1156,6 +1162,7 @@ export const ModsSettingsSchema = z.strictObject({
   rootPath: z.string().min(1).max(32_768),
   localesPath: z.string().min(1).max(32_768),
   fontsPath: z.string().min(1).max(32_768),
+  themesPath: z.string().min(1).max(32_768),
   usesDefault: z.boolean()
 });
 export const ModsRootChooseResultSchema = z.strictObject({
@@ -1186,6 +1193,84 @@ export const FontPresetListSchema = z.strictObject({
   rejectedCount: z.number().int().min(0).max(1_000_000)
 });
 
+export const ThemePresetIdSchema = z.string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+
+export const ThemeColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/u);
+
+export const ThemePaletteSchema = z.strictObject({
+  accent: ThemeColorSchema,
+  onAccent: ThemeColorSchema,
+  background: ThemeColorSchema,
+  sidebar: ThemeColorSchema,
+  sidebarText: ThemeColorSchema,
+  surface: ThemeColorSchema,
+  surfaceRaised: ThemeColorSchema,
+  control: ThemeColorSchema,
+  text: ThemeColorSchema,
+  textMuted: ThemeColorSchema,
+  border: ThemeColorSchema,
+  success: ThemeColorSchema,
+  warning: ThemeColorSchema,
+  danger: ThemeColorSchema
+});
+
+function relativeLuminance(color: string): number {
+  const components = [1, 3, 5].map((offset) =>
+    Number.parseInt(color.slice(offset, offset + 2), 16) / 255
+  ).map((component) => component <= 0.04045
+    ? component / 12.92
+    : ((component + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * (components[0] ?? 0) +
+    0.7152 * (components[1] ?? 0) +
+    0.0722 * (components[2] ?? 0);
+}
+
+function themeContrast(foreground: string, background: string): number {
+  const lighter = Math.max(
+    relativeLuminance(foreground),
+    relativeLuminance(background)
+  );
+  const darker = Math.min(
+    relativeLuminance(foreground),
+    relativeLuminance(background)
+  );
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+export const ThemePresetSchema = z.strictObject({
+  id: ThemePresetIdSchema,
+  displayName: z.string().trim().min(1).max(80).refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    'Theme names must not contain control characters.'
+  ),
+  baseTheme: AppearanceThemeSchema,
+  palette: ThemePaletteSchema
+}).superRefine((theme, context) => {
+  const checks = [
+    ['text', theme.palette.text, theme.palette.surface, 4.5],
+    ['muted text', theme.palette.textMuted, theme.palette.surface, 3],
+    ['sidebar text', theme.palette.sidebarText, theme.palette.sidebar, 4.5],
+    ['accent text', theme.palette.onAccent, theme.palette.accent, 4.5]
+  ] as const;
+  for (const [label, foreground, background, minimum] of checks) {
+    if (themeContrast(foreground, background) < minimum) {
+      context.addIssue({
+        code: 'custom',
+        path: ['palette'],
+        message: `Theme ${label} contrast must be at least ${minimum}:1.`
+      });
+    }
+  }
+});
+
+export const ThemePresetListSchema = z.strictObject({
+  presets: z.array(ThemePresetSchema).max(64),
+  rejectedCount: z.number().int().min(0).max(1_000_000)
+});
+
 export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
 export type LocaleDirection = z.infer<typeof LocaleDirectionSchema>;
 export type LocaleManifest = z.infer<typeof LocaleManifestSchema>;
@@ -1200,9 +1285,11 @@ export type ModsSettings = z.infer<typeof ModsSettingsSchema>;
 export type ModsRootChooseResult = z.infer<typeof ModsRootChooseResultSchema>;
 export type FontPreset = z.infer<typeof FontPresetSchema>;
 export type FontPresetList = z.infer<typeof FontPresetListSchema>;
+export type ThemePreset = z.infer<typeof ThemePresetSchema>;
+export type ThemePresetList = z.infer<typeof ThemePresetListSchema>;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(11),
+  version: z.literal(12),
   languagePreference: LanguagePreferenceSchema,
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
@@ -1373,7 +1460,7 @@ export type ApplicationQuitResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 11,
+  version: 12,
   languagePreference: 'system',
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
@@ -1391,7 +1478,19 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
 
-const VersionTenAppearanceSettingsSchema = AppearanceSettingsSchema.omit({
+const VersionElevenAppearanceSettingsSchema = AppearanceSettingsSchema.omit({
+  themePresetId: true
+});
+
+const VersionElevenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  appearance: true
+}).extend({
+  version: z.literal(11),
+  appearance: VersionElevenAppearanceSettingsSchema
+});
+
+const VersionTenAppearanceSettingsSchema = VersionElevenAppearanceSettingsSchema.omit({
   interfaceFontFamily: true,
   terminalFontFamily: true
 });
@@ -1500,11 +1599,23 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionEleven = VersionElevenGeneralSettingsSchema.safeParse(value);
+  if (versionEleven.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionEleven.data,
+      version: 12,
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionEleven.data.appearance
+      }
+    });
+  }
+
   const versionTen = VersionTenGeneralSettingsSchema.safeParse(value);
   if (versionTen.success) {
     return GeneralSettingsSchema.parse({
       ...versionTen.data,
-      version: 11,
+      version: 12,
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionTen.data.appearance
@@ -1516,7 +1627,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionNine.success) {
     return GeneralSettingsSchema.parse({
       ...versionNine.data,
-      version: 11,
+      version: 12,
       languagePreference: 'system',
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
@@ -1529,7 +1640,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionEight.success) {
     return GeneralSettingsSchema.parse({
       ...versionEight.data,
-      version: 11,
+      version: 12,
       languagePreference: 'system',
       warnBeforeApplicationQuit: true,
       warnBeforeRemoteDisconnect: true,
@@ -1545,7 +1656,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSeven.data,
-      version: 11,
+      version: 12,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
       appearance: {
@@ -1560,7 +1671,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSix.data,
-      version: 11,
+      version: 12,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1576,7 +1687,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFive.data,
-      version: 11,
+      version: 12,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1596,7 +1707,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 11
+      version: 12
     });
   }
 
@@ -1605,7 +1716,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 11
+      version: 12
     });
   }
 
@@ -1614,7 +1725,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 11
+      version: 12
     });
   }
 
@@ -2049,7 +2160,8 @@ export type AppearanceBackgroundState = z.infer<
 
 export const AppearancePresentationSchema = z.strictObject({
   appearance: AppearanceSettingsSchema,
-  background: AppearanceBackgroundStateSchema
+  background: AppearanceBackgroundStateSchema,
+  themePreset: ThemePresetSchema.nullable()
 });
 
 export type AppearancePresentation = z.infer<
@@ -2128,6 +2240,8 @@ export const IPC_CHANNELS = {
   modsRootOpen: 'lumora:mods:root:open',
   fontPresetsGet: 'lumora:mods:fonts:get',
   fontPresetFolderOpen: 'lumora:mods:fonts:folder:open',
+  themePresetsGet: 'lumora:mods:themes:get',
+  themePresetFolderOpen: 'lumora:mods:themes:folder:open',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -2176,6 +2290,8 @@ export interface LumoraApi {
   openModsRoot(): Promise<void>;
   getFontPresets(): Promise<FontPresetList>;
   openFontPresetFolder(): Promise<void>;
+  getThemePresets(): Promise<ThemePresetList>;
+  openThemePresetFolder(): Promise<void>;
   onLocalizationChanged(
     listener: (snapshot: LocalizationSnapshot) => void
   ): () => void;

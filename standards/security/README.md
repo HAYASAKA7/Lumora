@@ -55,6 +55,12 @@ encryption, use private staging, expire operation tokens, verify native imports,
 and roll back when supported. Historical handoff content must be marked as
 untrusted context.
 
+Mods are untrusted local input and must remain data-only. Main-process loaders
+must bound counts and sizes, reject links and non-regular files, validate names
+against filenames, parse strict schemas, and expose only normalized contracts.
+Mods must not load scripts, stylesheets, arbitrary selectors, commands, or
+native binaries.
+
 ## Canonical references
 
 - `src/main/security-policy.ts`

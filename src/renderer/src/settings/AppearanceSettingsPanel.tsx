@@ -5,7 +5,8 @@ import type {
   AppearanceSettings,
   GeneralSettings,
   FontPreset,
-  LumoraApi
+  LumoraApi,
+  ThemePresetList
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization } from '../localization/useLocalization';
@@ -16,7 +17,7 @@ import {
 
 interface AppearanceSettingsPanelProps {
   active?: boolean;
-  api?: Pick<LumoraApi, 'getFontPresets'>;
+  api?: Pick<LumoraApi, 'getFontPresets' | 'openThemePresetFolder'>;
   background: AppearanceBackgroundState;
   backgroundBusy: boolean;
   backgroundError: string | null;
@@ -25,7 +26,11 @@ interface AppearanceSettingsPanelProps {
   saveError: string | null;
   onChange(settings: GeneralSettings): void;
   onChooseBackground(): void;
+  onRefreshThemePresets?(): void;
   onRemoveBackground(): void;
+  themePresets?: ThemePresetList;
+  themePresetsBusy?: boolean;
+  themePresetsError?: boolean;
 }
 
 const THEME_OPTIONS = [
@@ -42,6 +47,11 @@ const THEME_OPTIONS = [
   descriptionKey: string;
 }>;
 
+const EMPTY_THEME_PRESETS: ThemePresetList = {
+  presets: [],
+  rejectedCount: 0
+};
+
 export function AppearanceSettingsPanel({
   active = true,
   api = window.lumora,
@@ -53,7 +63,11 @@ export function AppearanceSettingsPanel({
   saveError,
   onChange,
   onChooseBackground,
-  onRemoveBackground
+  onRefreshThemePresets = () => undefined,
+  onRemoveBackground,
+  themePresets = EMPTY_THEME_PRESETS,
+  themePresetsBusy = false,
+  themePresetsError = false
 }: AppearanceSettingsPanelProps) {
   const { t } = useLocalization();
   const [interfaceFontDraft, setInterfaceFontDraft] = useState(
@@ -67,6 +81,10 @@ export function AppearanceSettingsPanel({
   const [fontPresetsError, setFontPresetsError] = useState(false);
   const [rejectedFontPresets, setRejectedFontPresets] = useState(0);
   const [selectedFontPreset, setSelectedFontPreset] = useState('');
+  const [selectedThemePreset, setSelectedThemePreset] = useState(
+    settings.appearance.themePresetId ?? ''
+  );
+  const [themeFolderError, setThemeFolderError] = useState(false);
   const updateAppearance = (next: Partial<AppearanceSettings>) => {
     onChange({
       ...settings,
@@ -81,6 +99,15 @@ export function AppearanceSettingsPanel({
     settings.appearance.interfaceFontFamily,
     settings.appearance.terminalFontFamily
   ]);
+
+  useEffect(() => {
+    const configured = settings.appearance.themePresetId;
+    setSelectedThemePreset(
+      configured !== null && themePresets.presets.some(({ id }) => id === configured)
+        ? configured
+        : ''
+    );
+  }, [settings.appearance.themePresetId, themePresets.presets]);
 
   const loadFontPresets = useCallback(async () => {
     setFontPresetsBusy(true);
@@ -110,6 +137,9 @@ export function AppearanceSettingsPanel({
     const value = draft.trim() || null;
     if (settings.appearance[key] !== value) updateAppearance({ [key]: value });
   };
+  const selectedTheme = themePresets.presets.find(
+    ({ id }) => id === selectedThemePreset
+  );
 
   return (
     <section
@@ -129,9 +159,13 @@ export function AppearanceSettingsPanel({
         {THEME_OPTIONS.map((option) => (
           <label className="appearance-theme-option" key={option.id}>
             <input
-              checked={settings.appearance.theme === option.id}
+              checked={settings.appearance.themePresetId === null &&
+                settings.appearance.theme === option.id}
               name="appearance-theme"
-              onChange={() => updateAppearance({ theme: option.id })}
+              onChange={() => updateAppearance({
+                theme: option.id,
+                themePresetId: null
+              })}
               type="radio"
               value={option.id}
             />
@@ -142,6 +176,138 @@ export function AppearanceSettingsPanel({
           </label>
         ))}
       </fieldset>
+
+      <section
+        aria-labelledby="appearance-theme-packs-title"
+        className="appearance-background-section appearance-theme-packs-section"
+      >
+        <div className="appearance-section-heading">
+          <div>
+            <p className="card-label">{t('settings.appearance.theme-packs')}</p>
+            <h3 id="appearance-theme-packs-title">
+              {t('settings.appearance.theme-packs-title')}
+            </h3>
+            <p>{t('settings.appearance.theme-packs-description')}</p>
+          </div>
+        </div>
+        <div className="appearance-theme-pack-control">
+          <div className="appearance-select-control">
+            <span>{t('settings.appearance.theme-pack')}</span>
+            <SelectMenu
+              disabled={saving || themePresetsBusy}
+              label={t('settings.appearance.theme-pack')}
+              onChange={setSelectedThemePreset}
+              options={[
+                { value: '', label: t('settings.appearance.choose-theme-pack') },
+                ...themePresets.presets.map((theme) => ({
+                  value: theme.id,
+                  label: theme.displayName
+                }))
+              ]}
+              value={selectedThemePreset}
+            />
+          </div>
+          {selectedTheme === undefined ? null : (() => {
+            const preview = [
+              selectedTheme.palette.sidebar,
+              selectedTheme.palette.surface,
+              selectedTheme.palette.surfaceRaised,
+              selectedTheme.palette.accent,
+              selectedTheme.palette.text
+            ];
+            return (
+              <div
+                aria-label={t('settings.appearance.theme-preview', {
+                  theme: selectedTheme.displayName
+                })}
+                className="appearance-theme-preview"
+              >
+                {preview.map((color, index) => (
+                  <span key={`${color}-${index}`} style={{ backgroundColor: color }} />
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+        <div className="provider-panel-actions appearance-theme-pack-actions">
+          <button
+            className="secondary-button"
+            data-lumora-command
+            disabled={saving || selectedThemePreset === ''}
+            onClick={() => {
+              const selected = themePresets.presets.find(
+                ({ id }) => id === selectedThemePreset
+              );
+              if (selected === undefined) return;
+              updateAppearance({
+                theme: selected.baseTheme,
+                themePresetId: selected.id
+              });
+            }}
+            tabIndex={-1}
+            type="button"
+          >
+            {t('settings.appearance.apply-theme-pack')}
+          </button>
+          <button
+            className="secondary-button"
+            data-lumora-command
+            disabled={themePresetsBusy}
+            onClick={onRefreshThemePresets}
+            tabIndex={-1}
+            type="button"
+          >
+            {t('settings.appearance.reload-theme-packs')}
+          </button>
+          <button
+            className="secondary-button"
+            data-lumora-command
+            disabled={themePresetsBusy}
+            onClick={() => {
+              setThemeFolderError(false);
+              void api.openThemePresetFolder().catch(() => {
+                setThemeFolderError(true);
+              });
+            }}
+            tabIndex={-1}
+            type="button"
+          >
+            {t('settings.appearance.open-theme-packs')}
+          </button>
+          <button
+            className="secondary-button"
+            data-lumora-command
+            disabled={saving || settings.appearance.themePresetId === null}
+            onClick={() => updateAppearance({
+              theme: 'lumora',
+              themePresetId: null
+            })}
+            tabIndex={-1}
+            type="button"
+          >
+            {t('settings.appearance.reset-theme')}
+          </button>
+        </div>
+        {themePresets.rejectedCount > 0 ? (
+          <p className="general-setting-error" role="status">
+            {t('settings.appearance.theme-packs-rejected', {
+              count: themePresets.rejectedCount
+            })}
+          </p>
+        ) : null}
+        {settings.appearance.themePresetId !== null &&
+        !themePresets.presets.some(({ id }) =>
+          id === settings.appearance.themePresetId) ? (
+          <p className="general-setting-error" role="status">
+            {t('settings.appearance.theme-pack-missing')}
+          </p>
+        ) : null}
+        {themePresetsError || themeFolderError ? (
+          <p className="general-setting-error" role="alert">
+            {t('settings.appearance.theme-packs-error')}
+          </p>
+        ) : null}
+      </section>
 
       <label className="general-setting-card">
         <span className="general-setting-copy">

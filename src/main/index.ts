@@ -71,6 +71,7 @@ import {
 } from './localization';
 import { ModsSettingsStore } from './mods/mods-settings-store';
 import { loadFontPresets } from './mods/font-preset-loader';
+import { loadThemePresets } from './mods/theme-preset-loader';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
@@ -1150,6 +1151,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     authorizeWrite: authorizeLocalIpc,
     service: appearanceBackgroundStore,
     getAppearanceSettings: () => terminalRuntime!.getGeneralSettings().appearance,
+    getThemePreset: async (appearance) => {
+      if (appearance.themePresetId === null) return null;
+      const settings = await modsSettingsStore.ensureRoot();
+      const themes = await loadThemePresets(settings.themesPath);
+      return themes.presets.find(
+        (theme) => theme.id === appearance.themePresetId
+      ) ?? null;
+    },
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
@@ -1200,6 +1209,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     openFontPresetFolder: async () => {
       const settings = await modsSettingsStore.ensureRoot();
       const error = await shell.openPath(settings.fontsPath);
+      if (error !== '') throw new Error(error);
+    },
+    getThemePresets: async () => {
+      const settings = await modsSettingsStore.ensureRoot();
+      return loadThemePresets(settings.themesPath);
+    },
+    openThemePresetFolder: async () => {
+      const settings = await modsSettingsStore.ensureRoot();
+      const error = await shell.openPath(settings.themesPath);
       if (error !== '') throw new Error(error);
     },
     broadcast: (snapshot) => {

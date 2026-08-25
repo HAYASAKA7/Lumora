@@ -3,6 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { buildAppearancePresentation } from './presentation';
 
+const themePreset = {
+  id: 'midnight-cyan',
+  displayName: 'Midnight cyan',
+  baseTheme: 'dark' as const,
+  palette: {
+    accent: '#22D3EE', onAccent: '#06202A', background: '#07111F',
+    sidebar: '#081525', sidebarText: '#E6F7FF', surface: '#102033',
+    surfaceRaised: '#172A40', control: '#1C334D', text: '#F3FAFF',
+    textMuted: '#9CB2C8', border: '#39536D', success: '#41D6A3',
+    warning: '#F2BE5C', danger: '#F4778A'
+  }
+};
+
 describe('buildAppearancePresentation', () => {
   it('keeps global font variables when the managed image is unavailable', () => {
     expect(buildAppearancePresentation(
@@ -38,7 +51,8 @@ describe('buildAppearancePresentation', () => {
         interfaceFontFamily: 'Atkinson Hyperlegible',
         terminalFontFamily: 'JetBrains Mono'
       },
-      { available: true, revision: '1720000000000-4096' }
+      { available: true, revision: '1720000000000-4096' },
+      themePreset
     );
 
     expect(presentation.backgroundActive).toBe(true);
@@ -50,6 +64,10 @@ describe('buildAppearancePresentation', () => {
       '--appearance-opacity-normal': '50%',
       '--appearance-opacity-popup': '82.5%',
       '--appearance-surface-mosaic': '12px'
+    });
+    expect(presentation.shellStyle).toMatchObject({
+      '--blue': '#22D3EE',
+      '--raw-surface': '#102033'
     });
     expect(presentation.backgroundStyle).toEqual({
       backgroundImage:

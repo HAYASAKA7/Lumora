@@ -7,6 +7,7 @@ import type {
   SessionSummary,
   SystemInfo,
   TerminalProfile,
+  ThemePresetList,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import {
@@ -53,6 +54,9 @@ interface SettingsViewProps {
   generalSettings: GeneralSettings;
   generalSettingsSaveError: string | null;
   generalSettingsSaving: boolean;
+  themePresets?: ThemePresetList;
+  themePresetsBusy?: boolean;
+  themePresetsError?: boolean;
   onCategoryChange: (category: SettingsCategory) => void;
   onChooseAppearanceBackground: () => void;
   onGeneralSettingsChange: (settings: GeneralSettings) => void;
@@ -62,6 +66,7 @@ interface SettingsViewProps {
   onRefreshEnvironment: () => void;
   onRefreshProviders: () => void;
   onRefreshProviderUpdates: () => Promise<void>;
+  onRefreshThemePresets?: () => Promise<void>;
   onSaveEnabledProviders: (
     providers: readonly GeneralSettings['enabledProviders'][number][]
   ) => Promise<boolean>;
@@ -102,6 +107,9 @@ export function SettingsView({
   generalSettings,
   generalSettingsSaveError,
   generalSettingsSaving,
+  themePresets = { presets: [], rejectedCount: 0 },
+  themePresetsBusy = false,
+  themePresetsError = false,
   onCategoryChange,
   onChooseAppearanceBackground,
   onGeneralSettingsChange,
@@ -111,6 +119,7 @@ export function SettingsView({
   onRefreshEnvironment,
   onRefreshProviders,
   onRefreshProviderUpdates,
+  onRefreshThemePresets = async () => undefined,
   onSaveEnabledProviders,
   onSessionImportCompleted,
   platform,
@@ -235,9 +244,13 @@ export function SettingsView({
           onChange={onGeneralSettingsChange}
           onChooseBackground={onChooseAppearanceBackground}
           onRemoveBackground={onRemoveAppearanceBackground}
+          onRefreshThemePresets={() => void onRefreshThemePresets()}
           saveError={generalSettingsSaveError}
           saving={generalSettingsSaving}
           settings={generalSettings}
+          themePresets={themePresets}
+          themePresetsBusy={themePresetsBusy}
+          themePresetsError={themePresetsError}
         />
       </section>
 

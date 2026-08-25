@@ -1853,6 +1853,40 @@ button {
   justify-content: flex-end;
 }
 
+.appearance-theme-pack-control {
+  display: grid;
+  gap: 10px;
+}
+
+.appearance-theme-pack-control .appearance-select-control {
+  width: 100%;
+}
+
+.appearance-theme-preview {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-height: 42px;
+  padding: 4px;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.appearance-theme-preview span:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.appearance-theme-preview span:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.appearance-theme-pack-actions {
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .appearance-control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

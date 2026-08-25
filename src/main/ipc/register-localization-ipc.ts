@@ -1,6 +1,7 @@
 import {
   IPC_CHANNELS,
   FontPresetListSchema,
+  ThemePresetListSchema,
   LocaleReloadResultSchema,
   LocalizationFolderOpenResultSchema,
   LocalizationSnapshotSchema,
@@ -8,6 +9,7 @@ import {
   ModsSettingsSchema,
   type LocaleReloadResult,
   type FontPresetList,
+  type ThemePresetList,
   type LocalizationSnapshot,
   type ModsRootChooseResult,
   type ModsSettings
@@ -58,6 +60,8 @@ export function registerLocalizationIpc(input: {
   openModsRoot(): Promise<void>;
   getFontPresets(): Promise<FontPresetList>;
   openFontPresetFolder(): Promise<void>;
+  getThemePresets(): Promise<ThemePresetList>;
+  openThemePresetFolder(): Promise<void>;
   broadcast(snapshot: LocalizationSnapshot): void;
   developmentOrigin?: string;
 }): () => void {
@@ -134,6 +138,19 @@ export function registerLocalizationIpc(input: {
     authorize(event, input.authorizeLocal);
     return safely(async () => {
       await input.openFontPresetFolder();
+      return LocalizationFolderOpenResultSchema.parse({ opened: true });
+    });
+  });
+  input.ipc.handle(IPC_CHANNELS.themePresetsGet, async (event) => {
+    authorize(event, input.authorizeLocal);
+    return safely(async () => ThemePresetListSchema.parse(
+      await input.getThemePresets()
+    ));
+  });
+  input.ipc.handle(IPC_CHANNELS.themePresetFolderOpen, async (event) => {
+    authorize(event, input.authorizeLocal);
+    return safely(async () => {
+      await input.openThemePresetFolder();
       return LocalizationFolderOpenResultSchema.parse({ opened: true });
     });
   });

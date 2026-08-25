@@ -406,7 +406,7 @@ describe('TerminalRepository', () => {
     database.exec('PRAGMA ignore_check_constraints = OFF');
   });
 
-  it('preserves version-ten global appearance settings while adding font defaults', () => {
+  it('preserves version-ten global appearance settings while adding newer defaults', () => {
     const versionTenAppearance = { ...DEFAULT_GENERAL_SETTINGS.appearance } as
       Record<string, unknown>;
     delete versionTenAppearance.interfaceFontFamily;
@@ -424,7 +424,7 @@ describe('TerminalRepository', () => {
     }), timestamp);
 
     expect(repository.getGeneralSettings()).toMatchObject({
-      version: 11,
+      version: 12,
       startMaximized: false,
       appearance: {
         ...DEFAULT_GENERAL_SETTINGS.appearance,

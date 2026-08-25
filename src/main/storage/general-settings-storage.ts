@@ -109,7 +109,7 @@ function mergeStoredSettings(
   return {
     ...fallback,
     ...stored,
-    version: 11,
+    version: 12,
     appearance: {
       ...fallback.appearance,
       ...objectValue(stored.appearance)
@@ -131,7 +131,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 11,
+      version: 12,
       ...globalProjection(global),
       ...targetProjection(target)
     });

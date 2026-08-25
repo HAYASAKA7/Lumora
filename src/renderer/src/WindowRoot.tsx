@@ -97,7 +97,8 @@ function WindowContent({ api }: { api: LumoraApi }) {
 
   const presentation = buildAppearancePresentation(
     appearance.appearance,
-    appearance.background
+    appearance.background,
+    appearance.themePreset ?? null
   );
   return (
     <div

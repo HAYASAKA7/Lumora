@@ -7,6 +7,23 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add secure data-only Theme Mods under the Mods `themes` directory, with a
+  fixed semantic palette, preview and apply controls, local and Remote Lumora
+  appearance parity, bounded validation, and safe built-in-theme fallback.
+
+### Changed
+
+- Require new user-visible features to update and validate all five bundled
+  language packs in the same change.
+
+### Security
+
+- Reject theme links, oversized or malformed files, unsafe identifiers,
+  filename mismatches, incomplete palettes, and insufficient text contrast.
+  Theme Mods cannot load code or target arbitrary component selectors.
+
 ## [0.4.1] - 2026-08-25
 
 ### Added

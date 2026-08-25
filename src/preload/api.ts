@@ -19,6 +19,7 @@ import {
   DiagnosticSummarySchema,
   ExternalOpenResultSchema,
   FontPresetListSchema,
+  ThemePresetListSchema,
   GeneralSettingsChangedSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
@@ -152,6 +153,14 @@ export function createLumoraApi(
     },
     async openFontPresetFolder() {
       const value = await invoke(IPC_CHANNELS.fontPresetFolderOpen);
+      LocalizationFolderOpenResultSchema.parse(value);
+    },
+    async getThemePresets() {
+      const value = await invoke(IPC_CHANNELS.themePresetsGet);
+      return ThemePresetListSchema.parse(value);
+    },
+    async openThemePresetFolder() {
+      const value = await invoke(IPC_CHANNELS.themePresetFolderOpen);
       LocalizationFolderOpenResultSchema.parse(value);
     },
     onLocalizationChanged(listener) {

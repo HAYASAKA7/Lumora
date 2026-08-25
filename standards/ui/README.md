@@ -13,6 +13,11 @@ borders, focus, status, shadows, and opacity must use semantic variables so
 Lumora Mixed, Light, Dark, custom backgrounds, mosaic, and popup opacity remain
 consistent.
 
+Data-only Theme Mods may set only the approved semantic palette. Components
+must not read pack files, pack-specific IDs, or arbitrary selectors. A new
+semantic color token must be mapped from built-in themes and Theme Mods and
+covered by readable light, dark, and customized-theme tests.
+
 ## Dialogs and overlays
 
 Workflow dialogs must use the established shell:

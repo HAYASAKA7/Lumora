@@ -31,6 +31,7 @@ const modsSettings = {
   rootPath: 'D:\\Lumora Mods',
   localesPath: 'D:\\Lumora Mods\\locales',
   fontsPath: 'D:\\Lumora Mods\\fonts',
+  themesPath: 'D:\\Lumora Mods\\themes',
   usesDefault: false
 };
 const fontPresets = {
@@ -42,6 +43,7 @@ const fontPresets = {
   }],
   rejectedCount: 0
 };
+const themePresets = { presets: [], rejectedCount: 0 };
 
 function harness(
   context: LumoraWindowContext = { mode: 'local', executionTargetId: 'local' }
@@ -83,6 +85,8 @@ function harness(
     openModsRoot: vi.fn().mockResolvedValue(undefined),
     getFontPresets: vi.fn().mockResolvedValue(fontPresets),
     openFontPresetFolder: vi.fn().mockResolvedValue(undefined),
+    getThemePresets: vi.fn().mockResolvedValue(themePresets),
+    openThemePresetFolder: vi.fn().mockResolvedValue(undefined),
     broadcast
   });
   return { handlers, service, broadcast, dispose, unsubscribe, publish: () => {
@@ -130,6 +134,12 @@ describe('registerLocalizationIpc', () => {
     await expect(
       handlers.get(IPC_CHANNELS.fontPresetFolderOpen)!(trustedEvent)
     ).resolves.toEqual({ opened: true });
+    await expect(
+      handlers.get(IPC_CHANNELS.themePresetsGet)!(trustedEvent)
+    ).resolves.toEqual(themePresets);
+    await expect(
+      handlers.get(IPC_CHANNELS.themePresetFolderOpen)!(trustedEvent)
+    ).resolves.toEqual({ opened: true });
 
     const remote = harness({
       mode: 'remote',
@@ -143,7 +153,9 @@ describe('registerLocalizationIpc', () => {
       IPC_CHANNELS.modsRootReset,
       IPC_CHANNELS.modsRootOpen,
       IPC_CHANNELS.fontPresetsGet,
-      IPC_CHANNELS.fontPresetFolderOpen
+      IPC_CHANNELS.fontPresetFolderOpen,
+      IPC_CHANNELS.themePresetsGet,
+      IPC_CHANNELS.themePresetFolderOpen
     ]) {
       await expect(remote.handlers.get(channel)!(trustedEvent))
         .rejects.toThrow('local only');

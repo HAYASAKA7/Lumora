@@ -50,6 +50,8 @@ import {
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   SystemInfoSchema,
+  ThemePresetListSchema,
+  ThemePresetSchema,
   WorkspaceTrustDecisionListSchema,
   WorkspaceTrustDecisionSchema,
   WorkspaceTrustGrantRequestSchema,
@@ -313,6 +315,43 @@ describe('localization contracts', () => {
       presets: [],
       rejectedCount: 65
     }).success).toBe(true);
+  });
+
+  it('validates bounded data-only theme preset Mods', () => {
+    const theme = {
+      id: 'midnight-cyan',
+      displayName: 'Midnight cyan',
+      baseTheme: 'dark' as const,
+      palette: {
+        accent: '#22D3EE',
+        onAccent: '#06202A',
+        background: '#07111F',
+        sidebar: '#081525',
+        sidebarText: '#E6F7FF',
+        surface: '#102033',
+        surfaceRaised: '#172A40',
+        control: '#1C334D',
+        text: '#F3FAFF',
+        textMuted: '#9CB2C8',
+        border: '#39536D',
+        success: '#41D6A3',
+        warning: '#F2BE5C',
+        danger: '#F4778A'
+      }
+    };
+    expect(ThemePresetSchema.parse(theme)).toEqual(theme);
+    expect(ThemePresetSchema.safeParse({
+      ...theme,
+      palette: { ...theme.palette, accent: 'url(https://example.com)' }
+    }).success).toBe(false);
+    expect(ThemePresetSchema.safeParse({
+      ...theme,
+      palette: { ...theme.palette, text: '#102033' }
+    }).success).toBe(false);
+    expect(ThemePresetListSchema.parse({
+      presets: [theme],
+      rejectedCount: 2
+    }).presets).toHaveLength(1);
   });
 });
 
@@ -1661,7 +1700,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 11,
+      version: 12,
       languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
@@ -1678,6 +1717,7 @@ describe('managed terminal contracts', () => {
       enabledProviders: [...PROVIDER_IDS],
       appearance: {
         theme: 'lumora',
+        themePresetId: null,
         lightTerminalInLightMode: false,
         interfaceFontFamily: null,
         terminalFontFamily: null,
@@ -1817,6 +1857,15 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
+    const versionEleven = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 11,
+      appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
+    } as Record<string, unknown>;
+    delete (versionEleven.appearance as Record<string, unknown>).themePresetId;
+    expect(parseStoredGeneralSettings(versionEleven)).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
     const versionTen = {
       ...DEFAULT_GENERAL_SETTINGS,
       version: 10,
@@ -1828,6 +1877,7 @@ describe('managed terminal contracts', () => {
     } as Record<string, unknown>;
     delete (versionTen.appearance as Record<string, unknown>).interfaceFontFamily;
     delete (versionTen.appearance as Record<string, unknown>).terminalFontFamily;
+    delete (versionTen.appearance as Record<string, unknown>).themePresetId;
     expect(parseStoredGeneralSettings(versionTen)).toEqual({
       ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: false,

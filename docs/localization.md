@@ -17,7 +17,8 @@ Open **Settings > Mods** to manage Lumora's data-only customization directory.
 The default location is inside Lumora's per-user application data, but users
 can select another writable directory on any local drive, including a writable
 folder beside a portable installation. Language packs live under its `locales`
-folder, and data-only font presets live under `fonts`. Do not modify bundled
+folder, data-only font presets live under `fonts`, and data-only theme packs
+live under `themes`. Do not modify bundled
 packs inside the Lumora installation. A user pack can add a locale or override
 part of an existing locale without changing application code.
 
@@ -113,6 +114,50 @@ schema and filename, and rejects symbolic links or other non-regular files.
 Invalid presets are isolated and reported without blocking healthy presets.
 Use **Open font presets** in **Settings > Mods** to open the exact active folder.
 Font-file import is intentionally deferred to a later customization phase.
+
+## Theme packs
+
+Theme packs are optional JSON files in the active Mods root's `themes` folder.
+They customize Lumora through a fixed semantic palette rather than exposing
+individual component selectors. Open **Settings > Appearance**, choose a pack,
+review its color preview, and apply it. Use **Open theme packs** in **Settings >
+Mods** to open the exact active folder.
+
+The filename must match the pack `id`. For example, `midnight-cyan.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "midnight-cyan",
+  "displayName": "Midnight cyan",
+  "baseTheme": "dark",
+  "palette": {
+    "accent": "#24c7d9",
+    "onAccent": "#041014",
+    "background": "#07111d",
+    "sidebar": "#07131f",
+    "sidebarText": "#d9f8ff",
+    "surface": "#102033",
+    "surfaceRaised": "#172b42",
+    "control": "#1b3048",
+    "text": "#eaf8ff",
+    "textMuted": "#a7c0cf",
+    "border": "#35506a",
+    "success": "#55d6a8",
+    "warning": "#f4c96b",
+    "danger": "#ff7d91"
+  }
+}
+```
+
+`baseTheme` selects Lumora's compatible light or dark terminal palette while
+the semantic colors style application chrome, pages, cards, controls, dialogs,
+and the terminal container. Provider-owned TUI colors remain provider output.
+Lumora validates required colors and readable text contrast before exposing a
+pack. It reads at most 64 files, limits each file to 64 KiB, rejects symbolic
+links, malformed data, unsafe IDs, filename mismatches, and invalid contrast,
+and falls back to the selected built-in theme if an active pack disappears.
+Theme packs never execute code.
 
 ## Maintainer checks
 

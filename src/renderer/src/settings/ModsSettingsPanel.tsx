@@ -15,6 +15,7 @@ type ModsApi = Pick<
   | 'openModsRoot'
   | 'openUserLocaleFolder'
   | 'openFontPresetFolder'
+  | 'openThemePresetFolder'
   | 'reloadLocalization'
 >;
 
@@ -145,6 +146,28 @@ export function ModsSettingsPanel({
                   type="button"
                 >
                   {t('settings.mods.open-root')}
+                </button>
+              </div>
+            </div>
+            <div className="general-setting-row general-setting-row-control mods-setting-row">
+              <span className="general-setting-copy">
+                <strong>{t('settings.mods.theme-packs')}</strong>
+                <code className="mods-path">{settings.themesPath}</code>
+                <span>{t('settings.mods.theme-packs-description')}</span>
+              </span>
+              <div className="provider-panel-actions">
+                <button
+                  className="secondary-button"
+                  data-lumora-command
+                  disabled={busy}
+                  onClick={() => void update(async () => {
+                    await api.openThemePresetFolder();
+                    return null;
+                  })}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  {t('settings.mods.open-theme-packs')}
                 </button>
               </div>
             </div>

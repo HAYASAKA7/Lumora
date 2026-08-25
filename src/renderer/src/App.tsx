@@ -26,6 +26,7 @@ import type {
   RuntimeSummary,
   SessionSummary,
   SystemInfo,
+  ThemePresetList,
   WorkspaceVisibilityMode,
   WorkspaceVisibilityPolicy,
   WorkspaceSummary
@@ -144,7 +145,8 @@ type StartupTask =
   | 'runtimes'
   | 'keyboard'
   | 'generalSettings'
-  | 'appearanceBackground';
+  | 'appearanceBackground'
+  | 'themePresets';
 
 const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   system: false,
@@ -156,7 +158,8 @@ const INITIAL_STARTUP_TASKS: Record<StartupTask, boolean> = {
   runtimes: false,
   keyboard: false,
   generalSettings: false,
-  appearanceBackground: false
+  appearanceBackground: false,
+  themePresets: false
 };
 
 const ROUTE_SPECS = [
@@ -386,6 +389,12 @@ function AppContent(): ReactNode {
     useState(false);
   const [appearanceBackgroundError, setAppearanceBackgroundError] =
     useState<string | null>(null);
+  const [themePresets, setThemePresets] = useState<ThemePresetList>({
+    presets: [],
+    rejectedCount: 0
+  });
+  const [themePresetsBusy, setThemePresetsBusy] = useState(false);
+  const [themePresetsError, setThemePresetsError] = useState(false);
   const [settingsCategory, setSettingsCategory] =
     useState<SettingsCategory>('general');
   const [sidebarExpanded, setSidebarExpanded] = useState(() =>
@@ -487,8 +496,15 @@ function AppContent(): ReactNode {
     };
   }, []);
 
+  const activeThemePreset = useMemo(() => {
+    const id = generalSettings?.appearance.themePresetId ?? null;
+    return id === null
+      ? null
+      : themePresets.presets.find((theme) => theme.id === id) ?? null;
+  }, [generalSettings?.appearance.themePresetId, themePresets.presets]);
   const resolvedTheme = resolveAppearanceTheme(
-    generalSettings?.appearance.theme ?? DEFAULT_GENERAL_SETTINGS.appearance.theme
+    activeThemePreset?.baseTheme ?? generalSettings?.appearance.theme ??
+      DEFAULT_GENERAL_SETTINGS.appearance.theme
   );
   const resolvedTerminalTheme = terminalThemeFor(
     resolvedTheme,
@@ -505,6 +521,17 @@ function AppContent(): ReactNode {
     setStartupTasks((current) =>
       current[task] ? current : { ...current, [task]: true }
     );
+  }, []);
+  const refreshThemePresets = useCallback(async () => {
+    setThemePresetsBusy(true);
+    setThemePresetsError(false);
+    try {
+      setThemePresets(await window.lumora.getThemePresets());
+    } catch {
+      setThemePresetsError(true);
+    } finally {
+      setThemePresetsBusy(false);
+    }
   }, []);
   selectedWorkspaceIdRef.current = selectedWorkspaceId;
 
@@ -619,6 +646,30 @@ function AppContent(): ReactNode {
       }
     );
 
+    return () => {
+      isCurrent = false;
+    };
+  }, [settleStartupTask]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    setThemePresetsBusy(true);
+    void window.lumora.getThemePresets().then(
+      (themes) => {
+        if (isCurrent) {
+          setThemePresets(themes);
+          setThemePresetsError(false);
+        }
+      },
+      () => {
+        if (isCurrent) setThemePresetsError(true);
+      }
+    ).finally(() => {
+      if (isCurrent) {
+        setThemePresetsBusy(false);
+        settleStartupTask('themePresets');
+      }
+    });
     return () => {
       isCurrent = false;
     };
@@ -1576,7 +1627,8 @@ function AppContent(): ReactNode {
     DEFAULT_GENERAL_SETTINGS.appearance;
   const appearancePresentation = buildAppearancePresentation(
     appearance,
-    appearanceBackground
+    appearanceBackground,
+    activeThemePreset
   );
   const appearanceBackgroundActive = appearancePresentation.backgroundActive;
   const appearanceShellStyle = appearancePresentation.shellStyle;
@@ -1799,6 +1851,9 @@ function AppContent(): ReactNode {
                 }
                 generalSettingsSaveError={generalSettingsSaveError}
                 generalSettingsSaving={generalSettingsSaving}
+                themePresets={themePresets}
+                themePresetsBusy={themePresetsBusy}
+                themePresetsError={themePresetsError}
                 onCategoryChange={setSettingsCategory}
                 onChooseAppearanceBackground={chooseAppearanceBackground}
                 onGeneralSettingsChange={updateGeneralSettings}
@@ -1808,6 +1863,7 @@ function AppContent(): ReactNode {
                 onRefreshEnvironment={refreshEnvironment}
                 onRefreshProviderUpdates={providerUpdates.refresh}
                 onRefreshProviders={refreshProviders}
+                onRefreshThemePresets={refreshThemePresets}
                 onSaveEnabledProviders={saveEnabledProviders}
                 onSessionImportCompleted={refreshCatalog}
                 platform={

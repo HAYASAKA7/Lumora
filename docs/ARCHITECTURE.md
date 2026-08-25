@@ -404,8 +404,8 @@ first use, the main process resolves a supported operating-system locale and
 falls back to bundled English; a later explicit language choice is global to
 local and Remote Lumora windows and native application surfaces.
 
-User language packs and font presets are data-only Mods. The active Mods root
-defaults to a directory under `userData`, while a private preference can point
+User language packs, font presets, and theme packs are data-only Mods. The
+active Mods root defaults to a directory under `userData`, while a private preference can point
 to another writable local directory. Changing that preference does not move or
 delete content. The former per-user `locales` directory remains a compatibility
 source. Catalog precedence is the active Mods pack, the legacy user pack, the
@@ -418,6 +418,14 @@ deterministically, rejects links, non-regular files, oversized data, filename
 mismatches, and invalid schemas, and isolates rejected presets from healthy
 ones. The renderer combines a selected font with an immutable interface or
 terminal fallback stack.
+
+Theme packs are bounded JSON records under the active Mods root's `themes`
+directory. They provide a fixed semantic palette and light-or-dark base theme;
+they cannot target arbitrary selectors or execute code. The main process
+rejects links, malformed schemas, unsafe identifiers, filename mismatches,
+oversized files, and palettes that fail required text-contrast checks. The
+renderer maps accepted semantic colors onto Lumora's existing appearance
+tokens, while provider-owned terminal output remains outside the pack.
 
 The main process owns Mods filesystem access and native folder selection.
 Before activation, catalogs pass bounded schema, ICU placeholder, path, file,
@@ -465,8 +473,9 @@ resume-confirmation workflow used inside the app.
 
 ## Appearance and managed backgrounds
 
-General settings schema version 11 stores theme, background presentation, and
-independent interface and terminal font preferences. The renderer applies the
+General settings schema version 12 stores built-in or data-only Mod theme
+selection, background presentation, and independent interface and terminal
+font preferences. The renderer applies the
 explicit `lumora`, `light`, or `dark`
 selection through semantic color tokens, with `lumora` as the default mixed
 dark-sidebar and light-workspace palette. Version 5 settings migrate without

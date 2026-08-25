@@ -32,12 +32,14 @@ describe('ModsSettingsStore', () => {
       rootPath: join(userData, 'mods'),
       localesPath: join(userData, 'mods', 'locales'),
       fontsPath: join(userData, 'mods', 'fonts'),
+      themesPath: join(userData, 'mods', 'themes'),
       usesDefault: true
     });
     await expect(store.selectRoot(custom)).resolves.toMatchObject({
       rootPath: custom,
       localesPath: join(custom, 'locales'),
       fontsPath: join(custom, 'fonts'),
+      themesPath: join(custom, 'themes'),
       usesDefault: false
     });
     expect(isAbsolute(custom)).toBe(true);

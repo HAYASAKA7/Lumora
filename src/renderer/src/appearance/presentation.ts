@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react';
 
 import type {
   AppearanceBackgroundState,
-  AppearanceSettings
+  AppearanceSettings,
+  ThemePreset
 } from '../../../shared/contracts';
 import {
   buildAppearanceOpacityTiers,
@@ -12,9 +13,10 @@ import {
   resolveInterfaceFontFamily,
   resolveTerminalFontFamily
 } from './font-family';
+import { buildThemePresetStyle } from './theme-preset';
 
 type AppearanceShellStyle = CSSProperties &
-  Partial<Record<`--appearance-${string}` | '--font-ui' | '--font-mono', string>>;
+  Partial<Record<`--${string}`, string>>;
 
 export interface AppearancePresentationStyles {
   backgroundActive: boolean;
@@ -40,10 +42,12 @@ const BACKGROUND_POSITIONS: Record<
 
 export function buildAppearancePresentation(
   appearance: AppearanceSettings,
-  background: AppearanceBackgroundState
+  background: AppearanceBackgroundState,
+  themePreset: ThemePreset | null = null
 ): AppearancePresentationStyles {
   const backgroundActive = appearance.backgroundEnabled && background.available;
   const fontStyle: AppearanceShellStyle = {
+    ...buildThemePresetStyle(themePreset),
     '--font-ui': resolveInterfaceFontFamily(appearance.interfaceFontFamily),
     '--font-mono': resolveTerminalFontFamily(appearance.terminalFontFamily)
   };

@@ -104,7 +104,8 @@ describe('remote target preload API', () => {
       if (channel === IPC_CHANNELS.appearancePresentationGet) {
         return {
           appearance: DEFAULT_GENERAL_SETTINGS.appearance,
-          background: { available: false, revision: null }
+          background: { available: false, revision: null },
+          themePreset: null
         };
       }
       return summary;
@@ -147,7 +148,8 @@ describe('remote target preload API', () => {
     await expect(api.openRemoteTargetWindow(TARGET_ID)).resolves.toBeUndefined();
     await expect(api.getAppearancePresentation()).resolves.toEqual({
       appearance: DEFAULT_GENERAL_SETTINGS.appearance,
-      background: { available: false, revision: null }
+      background: { available: false, revision: null },
+      themePreset: null
     });
 
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.remoteTargetConnect, {

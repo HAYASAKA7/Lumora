@@ -11,6 +11,66 @@ import { renderWithLocalization } from '../test/render-with-localization';
 const render = renderWithLocalization;
 
 describe('AppearanceSettingsPanel', () => {
+  it('applies a validated theme Mod and can return to a built-in theme', () => {
+    const onChange = vi.fn();
+    const themePresets = {
+      presets: [{
+        id: 'midnight-cyan',
+        displayName: 'Midnight cyan',
+        baseTheme: 'dark' as const,
+        palette: {
+          accent: '#22D3EE', onAccent: '#06202A', background: '#07111F',
+          sidebar: '#081525', sidebarText: '#E6F7FF', surface: '#102033',
+          surfaceRaised: '#172A40', control: '#1C334D', text: '#F3FAFF',
+          textMuted: '#9CB2C8', border: '#39536D', success: '#41D6A3',
+          warning: '#F2BE5C', danger: '#F4778A'
+        }
+      }],
+      rejectedCount: 0
+    };
+    render(
+      <AppearanceSettingsPanel
+        background={{ available: false, revision: null }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRefreshThemePresets={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+        themePresets={themePresets}
+        themePresetsBusy={false}
+        themePresetsError={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Theme pack' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Midnight cyan' }));
+    expect(screen.getByLabelText('Midnight cyan color preview').children)
+      .toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply theme pack' }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        theme: 'dark',
+        themePresetId: 'midnight-cyan'
+      }
+    });
+
+    fireEvent.click(screen.getByDisplayValue('light'));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        theme: 'light',
+        themePresetId: null
+      }
+    });
+  });
+
   it('commits independent font drafts and applies data-only Mod presets', async () => {
     const onChange = vi.fn();
     const api = {

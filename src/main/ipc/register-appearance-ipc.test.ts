@@ -33,6 +33,7 @@ function createHarness(
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     service,
     getAppearanceSettings: () => DEFAULT_GENERAL_SETTINGS.appearance,
+    getThemePreset: vi.fn().mockResolvedValue(null),
     showOpenDialog: vi.fn().mockResolvedValue(
       cancelled ? { canceled: true, filePaths: [] } : {
         canceled: false,
@@ -86,7 +87,8 @@ describe('registerAppearanceIpc', () => {
       handlers.get(IPC_CHANNELS.appearancePresentationGet)!(trustedEvent)
     ).resolves.toEqual({
       appearance: DEFAULT_GENERAL_SETTINGS.appearance,
-      background: { available: false, revision: null }
+      background: { available: false, revision: null },
+      themePreset: null
     });
     await expect(
       handlers.get(IPC_CHANNELS.appearanceBackgroundChoose)!(trustedEvent)
