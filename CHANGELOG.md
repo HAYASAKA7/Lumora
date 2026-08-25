@@ -7,23 +7,6 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-
-- Add secure data-only Theme Mods under the Mods `themes` directory, with a
-  fixed semantic palette, preview and apply controls, local and Remote Lumora
-  appearance parity, bounded validation, and safe built-in-theme fallback.
-
-### Changed
-
-- Require new user-visible features to update and validate all five bundled
-  language packs in the same change.
-
-### Security
-
-- Reject theme links, oversized or malformed files, unsafe identifiers,
-  filename mismatches, incomplete palettes, and insufficient text contrast.
-  Theme Mods cannot load code or target arbitrary component selectors.
-
 ## [0.4.1] - 2026-08-25
 
 ### Added
@@ -34,12 +17,17 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   without restarting or reattaching their sessions.
 - Add data-only font presets under the Mods `fonts` directory, with bounded
   validation, isolated rejection, reload controls, and a native folder action.
+- Add secure data-only Theme Mods under the Mods `themes` directory, with a
+  fixed semantic palette, preview and apply controls, local and Remote Lumora
+  appearance parity, bounded validation, and safe built-in-theme fallback.
 
 ### Changed
 
 - Upgrade global settings storage to preserve the new font preferences while
   migrating older appearance settings without changing their existing theme
   or background choices.
+- Require new user-visible features to update and validate all five bundled
+  language packs in the same change.
 
 ### Security
 
@@ -47,6 +35,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rejects symbolic links, mismatched filenames, oversized files, malformed
   schemas, and executable content; importing font files remains deferred. Mods
   data and native folder operations remain restricted to the local window.
+- Reject theme links, oversized or malformed files, unsafe identifiers,
+  filename mismatches, incomplete palettes, and insufficient text contrast.
+  Theme Mods cannot load code or target arbitrary component selectors.
 
 ## [0.4.0] - 2026-08-25
 
