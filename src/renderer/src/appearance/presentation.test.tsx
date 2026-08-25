@@ -4,7 +4,7 @@ import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { buildAppearancePresentation } from './presentation';
 
 describe('buildAppearancePresentation', () => {
-  it('does not expose background styles when the managed image is unavailable', () => {
+  it('keeps global font variables when the managed image is unavailable', () => {
     expect(buildAppearancePresentation(
       {
         ...DEFAULT_GENERAL_SETTINGS.appearance,
@@ -15,7 +15,10 @@ describe('buildAppearancePresentation', () => {
       backgroundActive: false,
       backgroundStyle: undefined,
       hasSurfaceMosaic: false,
-      shellStyle: undefined
+      shellStyle: {
+        '--font-ui': 'Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        '--font-mono': '"Cascadia Mono", "SFMono-Regular", Consolas, monospace'
+      }
     });
   });
 
@@ -31,7 +34,9 @@ describe('buildAppearancePresentation', () => {
         backgroundPosition: 'bottom-right',
         surfaceMosaic: 12,
         surfaceOpacity: 0.5,
-        terminalOpacity: 0.4
+        terminalOpacity: 0.4,
+        interfaceFontFamily: 'Atkinson Hyperlegible',
+        terminalFontFamily: 'JetBrains Mono'
       },
       { available: true, revision: '1720000000000-4096' }
     );
@@ -39,6 +44,8 @@ describe('buildAppearancePresentation', () => {
     expect(presentation.backgroundActive).toBe(true);
     expect(presentation.hasSurfaceMosaic).toBe(true);
     expect(presentation.shellStyle).toMatchObject({
+      '--font-ui': '"Atkinson Hyperlegible", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      '--font-mono': '"JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace',
       '--appearance-terminal-opacity': '40%',
       '--appearance-opacity-normal': '50%',
       '--appearance-opacity-popup': '82.5%',

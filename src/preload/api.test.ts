@@ -86,13 +86,25 @@ describe('createLumoraApi', () => {
     const settings = {
       rootPath: 'D:\\Lumora Mods',
       localesPath: 'D:\\Lumora Mods\\locales',
+      fontsPath: 'D:\\Lumora Mods\\fonts',
       usesDefault: false
+    };
+    const fontPresets = {
+      presets: [{
+        id: 'my-font',
+        displayName: 'My font',
+        interfaceFontFamily: 'Inter',
+        terminalFontFamily: null
+      }],
+      rejectedCount: 0
     };
     const invoke = vi.fn(async (channel: string) => {
       if (channel === IPC_CHANNELS.modsRootChoose) {
         return { canceled: false, settings };
       }
       if (channel === IPC_CHANNELS.modsRootOpen) return { opened: true };
+      if (channel === IPC_CHANNELS.fontPresetsGet) return fontPresets;
+      if (channel === IPC_CHANNELS.fontPresetFolderOpen) return { opened: true };
       return settings;
     });
     const api = createLumoraApi(invoke);
@@ -104,11 +116,15 @@ describe('createLumoraApi', () => {
     });
     await expect(api.resetModsRoot()).resolves.toEqual(settings);
     await expect(api.openModsRoot()).resolves.toBeUndefined();
+    await expect(api.getFontPresets()).resolves.toEqual(fontPresets);
+    await expect(api.openFontPresetFolder()).resolves.toBeUndefined();
     expect(invoke.mock.calls).toEqual([
       [IPC_CHANNELS.modsSettingsGet],
       [IPC_CHANNELS.modsRootChoose],
       [IPC_CHANNELS.modsRootReset],
-      [IPC_CHANNELS.modsRootOpen]
+      [IPC_CHANNELS.modsRootOpen],
+      [IPC_CHANNELS.fontPresetsGet],
+      [IPC_CHANNELS.fontPresetFolderOpen]
     ]);
   });
 

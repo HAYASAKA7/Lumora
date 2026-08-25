@@ -21,6 +21,7 @@ import { providerDefinition } from '../../../shared/provider-definitions';
 import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { useLocalization } from '../localization/useLocalization';
+import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
 
 const runtimeStateMessageKeys: Record<RuntimeState, string> = {
   launching: 'terminal.runtime.state-launching',
@@ -34,6 +35,7 @@ const runtimeStateMessageKeys: Record<RuntimeState, string> = {
 interface TerminalWorkspaceProps {
   api?: LumoraApi;
   backgroundOpacity?: number;
+  fontFamily?: string;
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
   focusRequestKey?: number;
@@ -61,6 +63,7 @@ const TAB_DRAG_THRESHOLD = 5;
 export function TerminalWorkspace({
   api = window.lumora,
   backgroundOpacity = 1,
+  fontFamily = DEFAULT_TERMINAL_FONT_STACK,
   runtimes,
   activeRuntimeId,
   focusRequestKey = 0,
@@ -362,6 +365,7 @@ export function TerminalWorkspace({
               active={visible && item.id === runtime.id}
               api={api}
               backgroundOpacity={backgroundOpacity}
+              fontFamily={fontFamily}
               focusRequestKey={focusRequestKey}
               platform={platform}
               runtime={item}

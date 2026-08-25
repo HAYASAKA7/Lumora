@@ -26,6 +26,7 @@ const xterm = vi.hoisted(() => ({
   textarea: null as HTMLTextAreaElement | null,
   terminalOptions: null as {
     allowTransparency?: boolean;
+    fontFamily?: string;
     theme?: { background?: string; foreground?: string };
     linkHandler?: {
       activate(event: MouseEvent, uri: string): void;
@@ -45,12 +46,14 @@ vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     options: {
       allowTransparency?: boolean;
+      fontFamily?: string;
       theme?: { background?: string; foreground?: string };
       linkHandler?: { activate(event: MouseEvent, uri: string): void };
     };
     textarea: HTMLTextAreaElement | undefined;
     constructor(options?: {
       allowTransparency?: boolean;
+      fontFamily?: string;
       theme?: { background?: string; foreground?: string };
       linkHandler?: {
         activate(event: MouseEvent, uri: string): void;
@@ -242,6 +245,47 @@ describe('ManagedTerminal', () => {
       foreground: '#d8e2ef'
     }));
     expect(xterm.terminalConstructed).toHaveBeenCalledOnce();
+  });
+
+  it('updates its font and refits without rebuilding or reattaching', async () => {
+    const attachRuntime = vi.fn().mockResolvedValue({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    });
+    installLumora({ attachRuntime });
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        fontFamily='"JetBrains Mono", monospace'
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    await waitFor(() => expect(xterm.terminalConstructed).toHaveBeenCalledOnce());
+    await waitFor(() => expect(attachRuntime).toHaveBeenCalledOnce());
+    expect(xterm.terminalOptions?.fontFamily).toBe('"JetBrains Mono", monospace');
+    xterm.fitTerminal.mockClear();
+
+    rerender(
+      <ManagedTerminal
+        active
+        fontFamily='"Cascadia Mono", monospace'
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    await waitFor(() => {
+      expect(xterm.terminalOptions?.fontFamily).toBe('"Cascadia Mono", monospace');
+    });
+    expect(xterm.fitTerminal).toHaveBeenCalled();
+    expect(xterm.terminalConstructed).toHaveBeenCalledOnce();
+    expect(attachRuntime).toHaveBeenCalledOnce();
   });
 
   it('opens confirmed terminal hyperlinks through the Lumora bridge', async () => {

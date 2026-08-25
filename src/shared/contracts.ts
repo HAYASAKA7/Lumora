@@ -1025,9 +1025,20 @@ export const AppearanceBackgroundPositionSchema = z.enum([
   'bottom-right'
 ]);
 
+export const FontFamilyNameSchema = z.string()
+  .trim()
+  .min(1)
+  .max(128)
+  .refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    'Font family names must not contain control characters.'
+  );
+
 export const AppearanceSettingsSchema = z.strictObject({
   theme: AppearanceThemeSchema,
   lightTerminalInLightMode: z.boolean(),
+  interfaceFontFamily: FontFamilyNameSchema.nullable(),
+  terminalFontFamily: FontFamilyNameSchema.nullable(),
   backgroundEnabled: z.boolean(),
   backgroundOpacity: z.number().min(0).max(1),
   backgroundBrightness: z.number().min(0.5).max(1.5),
@@ -1044,6 +1055,8 @@ export type AppearanceSettings = z.infer<typeof AppearanceSettingsSchema>;
 export const DEFAULT_APPEARANCE_SETTINGS = {
   theme: 'lumora',
   lightTerminalInLightMode: false,
+  interfaceFontFamily: null,
+  terminalFontFamily: null,
   backgroundEnabled: false,
   backgroundOpacity: 0.55,
   backgroundBrightness: 1,
@@ -1142,11 +1155,35 @@ export const LocalizationFolderOpenResultSchema = z.strictObject({
 export const ModsSettingsSchema = z.strictObject({
   rootPath: z.string().min(1).max(32_768),
   localesPath: z.string().min(1).max(32_768),
+  fontsPath: z.string().min(1).max(32_768),
   usesDefault: z.boolean()
 });
 export const ModsRootChooseResultSchema = z.strictObject({
   canceled: z.boolean(),
   settings: ModsSettingsSchema
+});
+
+export const FontPresetIdSchema = z.string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+
+export const FontPresetSchema = z.strictObject({
+  id: FontPresetIdSchema,
+  displayName: z.string().trim().min(1).max(80).refine(
+    (value) => !/[\u0000-\u001f\u007f]/u.test(value),
+    'Font preset names must not contain control characters.'
+  ),
+  interfaceFontFamily: FontFamilyNameSchema.nullable(),
+  terminalFontFamily: FontFamilyNameSchema.nullable()
+}).refine(
+  (value) => value.interfaceFontFamily !== null || value.terminalFontFamily !== null,
+  'A font preset must select at least one font family.'
+);
+
+export const FontPresetListSchema = z.strictObject({
+  presets: z.array(FontPresetSchema).max(64),
+  rejectedCount: z.number().int().min(0).max(1_000_000)
 });
 
 export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
@@ -1161,9 +1198,11 @@ export type LocalizationFolderOpenResult = z.infer<
 >;
 export type ModsSettings = z.infer<typeof ModsSettingsSchema>;
 export type ModsRootChooseResult = z.infer<typeof ModsRootChooseResultSchema>;
+export type FontPreset = z.infer<typeof FontPresetSchema>;
+export type FontPresetList = z.infer<typeof FontPresetListSchema>;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(10),
+  version: z.literal(11),
   languagePreference: LanguagePreferenceSchema,
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
@@ -1334,7 +1373,7 @@ export type ApplicationQuitResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 10,
+  version: 11,
   languagePreference: 'system',
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
@@ -1352,7 +1391,20 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
 
-const VersionNineGeneralSettingsSchema = GeneralSettingsSchema.omit({
+const VersionTenAppearanceSettingsSchema = AppearanceSettingsSchema.omit({
+  interfaceFontFamily: true,
+  terminalFontFamily: true
+});
+
+const VersionTenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  appearance: true
+}).extend({
+  version: z.literal(10),
+  appearance: VersionTenAppearanceSettingsSchema
+});
+
+const VersionNineGeneralSettingsSchema = VersionTenGeneralSettingsSchema.omit({
   version: true,
   languagePreference: true
 }).extend({ version: z.literal(9) });
@@ -1374,7 +1426,7 @@ const VersionSevenGeneralSettingsSchema = z.strictObject({
   crossAgentWorkflowEnabled: z.boolean(),
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema,
-  appearance: AppearanceSettingsSchema
+  appearance: VersionTenAppearanceSettingsSchema
 });
 
 const VersionSixGeneralSettingsSchema = z.strictObject({
@@ -1387,10 +1439,10 @@ const VersionSixGeneralSettingsSchema = z.strictObject({
   crossAgentWorkflowEnabled: z.boolean(),
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   enabledProviders: EnabledProviderIdsSchema,
-  appearance: AppearanceSettingsSchema
+  appearance: VersionTenAppearanceSettingsSchema
 });
 
-const VersionFiveAppearanceSettingsSchema = AppearanceSettingsSchema
+const VersionFiveAppearanceSettingsSchema = VersionTenAppearanceSettingsSchema
   .omit({ surfaceMosaic: true })
   .extend({ theme: z.enum(['system', 'lumora', 'light', 'dark']) });
 
@@ -1448,12 +1500,28 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionTen = VersionTenGeneralSettingsSchema.safeParse(value);
+  if (versionTen.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionTen.data,
+      version: 11,
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionTen.data.appearance
+      }
+    });
+  }
+
   const versionNine = VersionNineGeneralSettingsSchema.safeParse(value);
   if (versionNine.success) {
     return GeneralSettingsSchema.parse({
       ...versionNine.data,
-      version: 10,
-      languagePreference: 'system'
+      version: 11,
+      languagePreference: 'system',
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionNine.data.appearance
+      }
     });
   }
 
@@ -1461,10 +1529,14 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionEight.success) {
     return GeneralSettingsSchema.parse({
       ...versionEight.data,
-      version: 10,
+      version: 11,
       languagePreference: 'system',
       warnBeforeApplicationQuit: true,
-      warnBeforeRemoteDisconnect: true
+      warnBeforeRemoteDisconnect: true,
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionEight.data.appearance
+      }
     });
   }
 
@@ -1473,9 +1545,13 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSeven.data,
-      version: 10,
+      version: 11,
       showUnavailableWorkspaces: true,
-      showUnusableSessions: true
+      showUnusableSessions: true,
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionSeven.data.appearance
+      }
     });
   }
 
@@ -1484,10 +1560,14 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSix.data,
-      version: 10,
+      version: 11,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
-      showUnusableSessions: true
+      showUnusableSessions: true,
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        ...versionSix.data.appearance
+      }
     });
   }
 
@@ -1496,11 +1576,12 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFive.data,
-      version: 10,
+      version: 11,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
       appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionFive.data.appearance,
         theme: versionFive.data.appearance.theme === 'system'
           ? 'lumora'
@@ -1515,7 +1596,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 10
+      version: 11
     });
   }
 
@@ -1524,7 +1605,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 10
+      version: 11
     });
   }
 
@@ -1533,7 +1614,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 10
+      version: 11
     });
   }
 
@@ -2045,6 +2126,8 @@ export const IPC_CHANNELS = {
   modsRootChoose: 'lumora:mods:root:choose',
   modsRootReset: 'lumora:mods:root:reset',
   modsRootOpen: 'lumora:mods:root:open',
+  fontPresetsGet: 'lumora:mods:fonts:get',
+  fontPresetFolderOpen: 'lumora:mods:fonts:folder:open',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -2091,6 +2174,8 @@ export interface LumoraApi {
   chooseModsRoot(): Promise<ModsRootChooseResult>;
   resetModsRoot(): Promise<ModsSettings>;
   openModsRoot(): Promise<void>;
+  getFontPresets(): Promise<FontPresetList>;
+  openFontPresetFolder(): Promise<void>;
   onLocalizationChanged(
     listener: (snapshot: LocalizationSnapshot) => void
   ): () => void;

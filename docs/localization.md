@@ -17,9 +17,9 @@ Open **Settings > Mods** to manage Lumora's data-only customization directory.
 The default location is inside Lumora's per-user application data, but users
 can select another writable directory on any local drive, including a writable
 folder beside a portable installation. Language packs live under its `locales`
-folder. Do not modify bundled packs inside the Lumora installation. A user pack
-can add a locale or override part of an existing locale without changing
-application code.
+folder, and data-only font presets live under `fonts`. Do not modify bundled
+packs inside the Lumora installation. A user pack can add a locale or override
+part of an existing locale without changing application code.
 
 Changing the Mods directory does not move or delete files. Lumora continues to
 load packs from the former managed per-user `locales` directory for backward
@@ -81,6 +81,38 @@ and 16,384 code points per message.
 If a pack is rejected, review the warning in Mods settings, compare its
 manifest and placeholders with the current English catalog, and reload. Rename
 or remove the invalid folder to return immediately to bundled translations.
+
+## Font presets
+
+Font presets are optional JSON files in the active Mods root's `fonts` folder.
+They select fonts already installed on the local computer; they do not contain,
+download, or install font files. Open **Settings > Appearance**, reload the
+preset list, and choose a preset to apply its available interface or terminal
+font fields.
+
+The filename must match the preset `id`. For example, `coding-fonts.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "coding-fonts",
+  "displayName": "Coding fonts",
+  "interfaceFontFamily": "Inter",
+  "terminalFontFamily": "JetBrains Mono"
+}
+```
+
+At least one font-family field is required. A preset may omit the other field,
+in which case applying it leaves that existing choice unchanged. Font names are
+treated as data and are combined with Lumora's safe platform fallback stacks.
+Remote Lumora renders with fonts available on the local computer, because its
+window is local even when its provider processes run over SSH.
+
+Lumora reads at most 64 preset files, limits each file to 64 KiB, validates the
+schema and filename, and rejects symbolic links or other non-regular files.
+Invalid presets are isolated and reported without blocking healthy presets.
+Use **Open font presets** in **Settings > Mods** to open the exact active folder.
+Font-file import is intentionally deferred to a later customization phase.
 
 ## Maintainer checks
 

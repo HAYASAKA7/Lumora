@@ -228,6 +228,7 @@ export function SettingsView({
         role="tabpanel"
       >
         <AppearanceSettingsPanel
+          active={activeCategory === 'appearance'}
           background={appearanceBackground}
           backgroundBusy={appearanceBackgroundBusy}
           backgroundError={appearanceBackgroundError}

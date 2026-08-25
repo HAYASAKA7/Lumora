@@ -80,7 +80,9 @@ describe('WindowRoot', () => {
           ...DEFAULT_GENERAL_SETTINGS.appearance,
           theme: 'dark',
           backgroundEnabled: true,
-          surfaceMosaic: 9
+          surfaceMosaic: 9,
+          interfaceFontFamily: 'Atkinson Hyperlegible',
+          terminalFontFamily: 'JetBrains Mono'
         },
         background: { available: true, revision: '1720000000000-4096' }
       }),
@@ -93,6 +95,12 @@ describe('WindowRoot', () => {
     expect(shell).toHaveAttribute('data-theme', 'dark');
     expect(shell).toHaveClass('has-appearance-background', 'has-surface-mosaic');
     expect(shell.getAttribute('style')).toContain('--appearance-surface-mosaic: 9px');
+    expect(shell.getAttribute('style')).toContain(
+      '--font-ui: "Atkinson Hyperlegible", Inter'
+    );
+    expect(shell.getAttribute('style')).toContain(
+      '--font-mono: "JetBrains Mono", "Cascadia Mono"'
+    );
     expect(shell.querySelector('.appearance-background-layer')).toHaveStyle({
       backgroundImage:
         'url("app://appearance/background?revision=1720000000000-4096")'

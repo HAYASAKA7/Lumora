@@ -30,7 +30,17 @@ const trustedEvent: Event = { senderFrame: { url: 'app://lumora/index.html' } };
 const modsSettings = {
   rootPath: 'D:\\Lumora Mods',
   localesPath: 'D:\\Lumora Mods\\locales',
+  fontsPath: 'D:\\Lumora Mods\\fonts',
   usesDefault: false
+};
+const fontPresets = {
+  presets: [{
+    id: 'my-font',
+    displayName: 'My font',
+    interfaceFontFamily: 'Inter',
+    terminalFontFamily: null
+  }],
+  rejectedCount: 0
 };
 
 function harness(
@@ -55,6 +65,10 @@ function harness(
   const dispose = registerLocalizationIpc({
     ipc: { handle: (channel, handler) => handlers.set(channel, handler) },
     authorize: () => context,
+    authorizeLocal: () => {
+      if (context.mode !== 'local') throw new Error('local only');
+      return context;
+    },
     service,
     openUserLocaleFolder: vi.fn().mockResolvedValue(undefined),
     getModsSettings: vi.fn().mockResolvedValue(modsSettings),
@@ -67,6 +81,8 @@ function harness(
       usesDefault: true
     }),
     openModsRoot: vi.fn().mockResolvedValue(undefined),
+    getFontPresets: vi.fn().mockResolvedValue(fontPresets),
+    openFontPresetFolder: vi.fn().mockResolvedValue(undefined),
     broadcast
   });
   return { handlers, service, broadcast, dispose, unsubscribe, publish: () => {
@@ -76,7 +92,7 @@ function harness(
 }
 
 describe('registerLocalizationIpc', () => {
-  it('serves validated snapshots and reload results to local and remote windows', async () => {
+  it('serves validated snapshots to local and remote windows', async () => {
     for (const context of [
       { mode: 'local', executionTargetId: 'local' },
       {
@@ -88,21 +104,49 @@ describe('registerLocalizationIpc', () => {
       await expect(
         handlers.get(IPC_CHANNELS.localizationSnapshotGet)!(trustedEvent)
       ).resolves.toEqual(snapshot);
-      await expect(
-        handlers.get(IPC_CHANNELS.localizationReload)!(trustedEvent)
-      ).resolves.toMatchObject({ snapshot, loadedUserPacks: 0 });
-      await expect(
-        handlers.get(IPC_CHANNELS.localizationUserFolderOpen)!(trustedEvent)
-      ).resolves.toEqual({ opened: true });
-      await expect(
-        handlers.get(IPC_CHANNELS.modsSettingsGet)!(trustedEvent)
-      ).resolves.toEqual(modsSettings);
-      await expect(
-        handlers.get(IPC_CHANNELS.modsRootChoose)!(trustedEvent)
-      ).resolves.toEqual({ canceled: false, settings: modsSettings });
-      await expect(
-        handlers.get(IPC_CHANNELS.modsRootOpen)!(trustedEvent)
-      ).resolves.toEqual({ opened: true });
+    }
+  });
+
+  it('limits Mods data and native folder operations to the local window', async () => {
+    const { handlers } = harness();
+    await expect(
+      handlers.get(IPC_CHANNELS.localizationReload)!(trustedEvent)
+    ).resolves.toMatchObject({ snapshot, loadedUserPacks: 0 });
+    await expect(
+      handlers.get(IPC_CHANNELS.localizationUserFolderOpen)!(trustedEvent)
+    ).resolves.toEqual({ opened: true });
+    await expect(
+      handlers.get(IPC_CHANNELS.modsSettingsGet)!(trustedEvent)
+    ).resolves.toEqual(modsSettings);
+    await expect(
+      handlers.get(IPC_CHANNELS.modsRootChoose)!(trustedEvent)
+    ).resolves.toEqual({ canceled: false, settings: modsSettings });
+    await expect(
+      handlers.get(IPC_CHANNELS.modsRootOpen)!(trustedEvent)
+    ).resolves.toEqual({ opened: true });
+    await expect(
+      handlers.get(IPC_CHANNELS.fontPresetsGet)!(trustedEvent)
+    ).resolves.toEqual(fontPresets);
+    await expect(
+      handlers.get(IPC_CHANNELS.fontPresetFolderOpen)!(trustedEvent)
+    ).resolves.toEqual({ opened: true });
+
+    const remote = harness({
+      mode: 'remote',
+      executionTargetId: '5dd607fb-cd81-4a17-bb5f-0fba91ad631f'
+    });
+    for (const channel of [
+      IPC_CHANNELS.localizationReload,
+      IPC_CHANNELS.localizationUserFolderOpen,
+      IPC_CHANNELS.modsSettingsGet,
+      IPC_CHANNELS.modsRootChoose,
+      IPC_CHANNELS.modsRootReset,
+      IPC_CHANNELS.modsRootOpen,
+      IPC_CHANNELS.fontPresetsGet,
+      IPC_CHANNELS.fontPresetFolderOpen
+    ]) {
+      await expect(remote.handlers.get(channel)!(trustedEvent))
+        .rejects.toThrow('local only');
     }
   });
 
@@ -110,6 +154,11 @@ describe('registerLocalizationIpc', () => {
     const { handlers, service } = harness();
     await expect(
       handlers.get(IPC_CHANNELS.localizationSnapshotGet)!({
+        senderFrame: { url: 'https://example.com' }
+      })
+    ).rejects.toMatchObject({ code: 'IPC_UNTRUSTED_SENDER' });
+    await expect(
+      handlers.get(IPC_CHANNELS.fontPresetsGet)!({
         senderFrame: { url: 'https://example.com' }
       })
     ).rejects.toMatchObject({ code: 'IPC_UNTRUSTED_SENDER' });

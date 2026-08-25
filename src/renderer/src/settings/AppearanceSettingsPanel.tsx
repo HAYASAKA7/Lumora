@@ -1,14 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
   AppearanceBackgroundState,
   AppearanceSettings,
-  GeneralSettings
+  GeneralSettings,
+  FontPreset,
+  LumoraApi
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization } from '../localization/useLocalization';
+import {
+  resolveInterfaceFontFamily,
+  resolveTerminalFontFamily
+} from '../appearance/font-family';
 
 interface AppearanceSettingsPanelProps {
+  active?: boolean;
+  api?: Pick<LumoraApi, 'getFontPresets'>;
   background: AppearanceBackgroundState;
   backgroundBusy: boolean;
   backgroundError: string | null;
@@ -35,6 +43,8 @@ const THEME_OPTIONS = [
 }>;
 
 export function AppearanceSettingsPanel({
+  active = true,
+  api = window.lumora,
   background,
   backgroundBusy,
   backgroundError,
@@ -46,11 +56,59 @@ export function AppearanceSettingsPanel({
   onRemoveBackground
 }: AppearanceSettingsPanelProps) {
   const { t } = useLocalization();
+  const [interfaceFontDraft, setInterfaceFontDraft] = useState(
+    settings.appearance.interfaceFontFamily ?? ''
+  );
+  const [terminalFontDraft, setTerminalFontDraft] = useState(
+    settings.appearance.terminalFontFamily ?? ''
+  );
+  const [fontPresets, setFontPresets] = useState<FontPreset[]>([]);
+  const [fontPresetsBusy, setFontPresetsBusy] = useState(false);
+  const [fontPresetsError, setFontPresetsError] = useState(false);
+  const [rejectedFontPresets, setRejectedFontPresets] = useState(0);
+  const [selectedFontPreset, setSelectedFontPreset] = useState('');
   const updateAppearance = (next: Partial<AppearanceSettings>) => {
     onChange({
       ...settings,
       appearance: { ...settings.appearance, ...next }
     });
+  };
+
+  useEffect(() => {
+    setInterfaceFontDraft(settings.appearance.interfaceFontFamily ?? '');
+    setTerminalFontDraft(settings.appearance.terminalFontFamily ?? '');
+  }, [
+    settings.appearance.interfaceFontFamily,
+    settings.appearance.terminalFontFamily
+  ]);
+
+  const loadFontPresets = useCallback(async () => {
+    setFontPresetsBusy(true);
+    setFontPresetsError(false);
+    try {
+      const result = await api.getFontPresets();
+      setFontPresets(result.presets);
+      setRejectedFontPresets(result.rejectedCount);
+      setSelectedFontPreset((current) =>
+        result.presets.some((preset) => preset.id === current) ? current : ''
+      );
+    } catch {
+      setFontPresetsError(true);
+    } finally {
+      setFontPresetsBusy(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    if (active) void loadFontPresets();
+  }, [active, loadFontPresets]);
+
+  const commitFont = (
+    key: 'interfaceFontFamily' | 'terminalFontFamily',
+    draft: string
+  ) => {
+    const value = draft.trim() || null;
+    if (settings.appearance[key] !== value) updateAppearance({ [key]: value });
   };
 
   return (
@@ -109,6 +167,117 @@ export function AppearanceSettingsPanel({
           </span>
         </span>
       </label>
+
+      <section aria-labelledby="appearance-typography-title" className="appearance-background-section appearance-typography-section">
+        <div className="appearance-section-heading">
+          <div>
+            <p className="card-label">{t('settings.appearance.typography')}</p>
+            <h3 id="appearance-typography-title">{t('settings.appearance.typography-title')}</h3>
+            <p>{t('settings.appearance.typography-description')}</p>
+          </div>
+        </div>
+        <div className="appearance-font-grid">
+          <FontFamilyEditor
+            description={t('settings.appearance.interface-font-description')}
+            disabled={saving}
+            draft={interfaceFontDraft}
+            label={t('settings.appearance.interface-font')}
+            onChange={setInterfaceFontDraft}
+            onCommit={() => commitFont('interfaceFontFamily', interfaceFontDraft)}
+            onReset={() => {
+              setInterfaceFontDraft('');
+              updateAppearance({ interfaceFontFamily: null });
+            }}
+            placeholder={t('settings.appearance.interface-font-placeholder')}
+            previewText={t('settings.appearance.font-preview')}
+            previewFont={resolveInterfaceFontFamily(
+              settings.appearance.interfaceFontFamily
+            )}
+            resetDisabled={settings.appearance.interfaceFontFamily === null}
+            resetLabel={t('settings.appearance.reset-interface-font')}
+          />
+          <FontFamilyEditor
+            description={t('settings.appearance.terminal-font-description')}
+            disabled={saving}
+            draft={terminalFontDraft}
+            label={t('settings.appearance.terminal-font')}
+            onChange={setTerminalFontDraft}
+            onCommit={() => commitFont('terminalFontFamily', terminalFontDraft)}
+            onReset={() => {
+              setTerminalFontDraft('');
+              updateAppearance({ terminalFontFamily: null });
+            }}
+            placeholder={t('settings.appearance.terminal-font-placeholder')}
+            previewText={t('settings.appearance.font-preview')}
+            previewFont={resolveTerminalFontFamily(
+              settings.appearance.terminalFontFamily
+            )}
+            resetDisabled={settings.appearance.terminalFontFamily === null}
+            resetLabel={t('settings.appearance.reset-terminal-font')}
+          />
+        </div>
+        <div className="appearance-font-presets">
+          <div className="appearance-select-control">
+            <span>{t('settings.appearance.font-preset')}</span>
+            <SelectMenu
+              disabled={saving || fontPresetsBusy}
+              label={t('settings.appearance.font-preset')}
+              onChange={setSelectedFontPreset}
+              options={[
+                { value: '', label: t('settings.appearance.choose-font-preset') },
+                ...fontPresets.map((preset) => ({
+                  value: preset.id,
+                  label: preset.displayName
+                }))
+              ]}
+              value={selectedFontPreset}
+            />
+          </div>
+          <div className="provider-panel-actions">
+            <button
+              className="secondary-button"
+              disabled={saving || selectedFontPreset === ''}
+              onClick={() => {
+                const preset = fontPresets.find(({ id }) => id === selectedFontPreset);
+                if (preset === undefined) return;
+                const next: Partial<AppearanceSettings> = {};
+                if (preset.interfaceFontFamily !== null) {
+                  next.interfaceFontFamily = preset.interfaceFontFamily;
+                  setInterfaceFontDraft(preset.interfaceFontFamily);
+                }
+                if (preset.terminalFontFamily !== null) {
+                  next.terminalFontFamily = preset.terminalFontFamily;
+                  setTerminalFontDraft(preset.terminalFontFamily);
+                }
+                updateAppearance(next);
+              }}
+              type="button"
+            >
+              {t('settings.appearance.apply-font-preset')}
+            </button>
+            <button
+              className="secondary-button"
+              disabled={fontPresetsBusy}
+              onClick={() => void loadFontPresets()}
+              type="button"
+            >
+              {t('settings.appearance.refresh-font-presets')}
+            </button>
+          </div>
+        </div>
+        {rejectedFontPresets > 0 ? (
+          <p className="general-setting-error" role="status">
+            {t('settings.appearance.font-presets-rejected', {
+              count: rejectedFontPresets
+            })}
+          </p>
+        ) : null}
+        {fontPresetsError ? (
+          <p className="general-setting-error" role="alert">
+            {t('settings.appearance.font-presets-error')}
+          </p>
+        ) : null}
+      </section>
 
       <section aria-labelledby="appearance-background-title" className="appearance-background-section">
         <div className="appearance-section-heading">
@@ -268,6 +437,73 @@ export function AppearanceSettingsPanel({
         <p className="general-setting-error" role="alert">{saveError}</p>
       )}
     </section>
+  );
+}
+
+function FontFamilyEditor({
+  description,
+  disabled,
+  draft,
+  label,
+  onChange,
+  onCommit,
+  onReset,
+  placeholder,
+  previewText,
+  previewFont,
+  resetDisabled,
+  resetLabel
+}: {
+  description: string;
+  disabled: boolean;
+  draft: string;
+  label: string;
+  onChange(value: string): void;
+  onCommit(): void;
+  onReset(): void;
+  placeholder: string;
+  previewText: string;
+  previewFont: string;
+  resetDisabled: boolean;
+  resetLabel: string;
+}) {
+  return (
+    <div className="appearance-font-control">
+      <label>
+        <strong>{label}</strong>
+        <span>{description}</span>
+        <input
+          aria-label={label}
+          disabled={disabled}
+          maxLength={128}
+          onBlur={onCommit}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              onCommit();
+            }
+          }}
+          placeholder={placeholder}
+          type="text"
+          value={draft}
+        />
+      </label>
+      <p
+        className="appearance-font-preview"
+        style={{ fontFamily: previewFont }}
+      >
+        {previewText}
+      </p>
+      <button
+        className="secondary-button"
+        disabled={disabled || resetDisabled}
+        onClick={onReset}
+        type="button"
+      >
+        {resetLabel}
+      </button>
+    </div>
   );
 }
 

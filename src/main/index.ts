@@ -70,6 +70,7 @@ import {
   resolveLocalePaths
 } from './localization';
 import { ModsSettingsStore } from './mods/mods-settings-store';
+import { loadFontPresets } from './mods/font-preset-loader';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
@@ -1155,6 +1156,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   unsubscribeLocalizationEvents = registerLocalizationIpc({
     ipc: ipcMain,
     authorize: authorizeTargetIpc,
+    authorizeLocal: authorizeLocalIpc,
     service: localizationService,
     openUserLocaleFolder: async () => {
       const settings = await modsSettingsStore.ensureRoot();
@@ -1189,6 +1191,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     openModsRoot: async () => {
       const settings = await modsSettingsStore.ensureRoot();
       const error = await shell.openPath(settings.rootPath);
+      if (error !== '') throw new Error(error);
+    },
+    getFontPresets: async () => {
+      const settings = await modsSettingsStore.ensureRoot();
+      return loadFontPresets(settings.fontsPath);
+    },
+    openFontPresetFolder: async () => {
+      const settings = await modsSettingsStore.ensureRoot();
+      const error = await shell.openPath(settings.fontsPath);
       if (error !== '') throw new Error(error);
     },
     broadcast: (snapshot) => {

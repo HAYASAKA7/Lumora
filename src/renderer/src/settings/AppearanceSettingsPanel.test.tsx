@@ -1,13 +1,71 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  type LumoraApi
+} from '../../../shared/contracts';
 import { AppearanceSettingsPanel } from './AppearanceSettingsPanel';
 import { renderWithLocalization } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
 
 describe('AppearanceSettingsPanel', () => {
+  it('commits independent font drafts and applies data-only Mod presets', async () => {
+    const onChange = vi.fn();
+    const api = {
+      getFontPresets: vi.fn().mockResolvedValue({
+        presets: [{
+          id: 'readable',
+          displayName: 'Readable pair',
+          interfaceFontFamily: 'Atkinson Hyperlegible',
+          terminalFontFamily: 'JetBrains Mono'
+        }],
+        rejectedCount: 0
+      })
+    } as unknown as LumoraApi;
+    render(
+      <AppearanceSettingsPanel
+        active
+        api={api}
+        background={{ available: false, revision: null }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+
+    const interfaceFont = screen.getByRole('textbox', { name: 'Interface font' });
+    fireEvent.change(interfaceFont, { target: { value: 'Segoe UI Variable' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.blur(interfaceFont);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      appearance: expect.objectContaining({
+        interfaceFontFamily: 'Segoe UI Variable',
+        terminalFontFamily: null
+      })
+    }));
+
+    await waitFor(() => expect(api.getFontPresets).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Font preset' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Readable pair' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply font preset' }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      appearance: expect.objectContaining({
+        interfaceFontFamily: 'Atkinson Hyperlegible',
+        terminalFontFamily: 'JetBrains Mono'
+      })
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh font presets' }));
+    await waitFor(() => expect(api.getFontPresets).toHaveBeenCalledTimes(2));
+  });
+
   it('offers Lumora mixed as the default without a System theme option', () => {
     render(
       <AppearanceSettingsPanel

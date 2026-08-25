@@ -43,6 +43,7 @@ import { projectCatalogVisibility } from './catalog/catalog-visibility';
 import {
   buildAppearancePresentation
 } from './appearance/presentation';
+import { resolveTerminalFontFamily } from './appearance/font-family';
 import { resolveAppearanceTheme, terminalThemeFor } from './appearance/theme';
 import { useCatalogAutoRefresh } from './catalog/useCatalogAutoRefresh';
 import { RegionErrorBoundary } from './errors/RegionErrorBoundary';
@@ -1852,6 +1853,9 @@ function AppContent(): ReactNode {
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
                 focusRequestKey={terminalFocusRequestKey}
+                fontFamily={resolveTerminalFontFamily(
+                  appearance.terminalFontFamily
+                )}
                 onActivate={activateRuntime}
                 onReorder={reorderRuntimeTab}
                 onRuntimeChange={updateRuntime}

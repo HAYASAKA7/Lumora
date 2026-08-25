@@ -48,6 +48,7 @@ import { HiddenWorkspacesDialog } from '../catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from '../catalog/HideWorkspaceDialog';
 import { projectCatalogVisibility } from '../catalog/catalog-visibility';
 import { terminalThemeFor } from '../appearance/theme';
+import { resolveTerminalFontFamily } from '../appearance/font-family';
 import { LaunchSettingsPanel } from '../settings/LaunchSettingsPanel';
 import {
   LumoraShell,
@@ -1671,6 +1672,9 @@ export function RemoteTargetWindow({
                       : 1
                   }
                   focusRequestKey={terminalFocusRequestKey}
+                  fontFamily={resolveTerminalFontFamily(
+                    generalSettings.appearance.terminalFontFamily
+                  )}
                   onActivate={activateRuntime}
                   onReorder={reorderRuntimeTab}
                   onRuntimeChange={updateRuntime}

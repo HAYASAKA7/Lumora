@@ -1,8 +1,9 @@
 :root {
   color: #172033;
   background: #dbe4f0;
-  font-family:
-    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-ui);
   font-size: 14px;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -270,6 +271,7 @@ button {
   height: 100vh;
   min-height: 620px;
   overflow: hidden;
+  font-family: var(--font-ui);
   background: var(--navy-950);
   transition: grid-template-columns 340ms ease;
 }
@@ -1209,7 +1211,7 @@ button {
 .provider-path {
   overflow-wrap: anywhere;
   color: var(--text-muted);
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
 }
 
@@ -1313,7 +1315,7 @@ button {
   background: var(--control-surface);
   border: 1px solid var(--line-strong);
   border-radius: 7px;
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
 }
 
@@ -1779,6 +1781,78 @@ button {
   gap: 8px;
 }
 
+.appearance-font-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.appearance-font-control {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.appearance-font-control label,
+.appearance-font-control label > span {
+  display: grid;
+  gap: 6px;
+}
+
+.appearance-font-control label > span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.appearance-font-control input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  color: var(--text);
+  background: var(--control-surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  font-family: var(--font-ui);
+}
+
+.appearance-font-preview {
+  min-width: 0;
+  padding: 12px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.appearance-font-control .secondary-button {
+  justify-self: start;
+}
+
+.appearance-font-presets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.appearance-font-presets .appearance-select-control {
+  width: 100%;
+}
+
+.appearance-font-presets .provider-panel-actions {
+  width: 100%;
+  justify-content: flex-end;
+}
+
 .appearance-control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2095,7 +2169,7 @@ button {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   cursor: pointer;
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.76rem;
   font-weight: 700;
 }
@@ -2174,7 +2248,7 @@ button {
 }
 
 .launch-settings-commands input {
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .provider-panel-state {
@@ -2487,7 +2561,7 @@ button {
   margin: 11px 0 0;
   overflow-wrap: anywhere;
   color: var(--text-muted);
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   line-height: 1.5;
 }
@@ -5033,6 +5107,7 @@ button {
   }
 
   .appearance-theme-options,
+  .appearance-font-grid,
   .appearance-control-grid {
     grid-template-columns: 1fr;
   }

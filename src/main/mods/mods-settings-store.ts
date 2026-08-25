@@ -37,6 +37,7 @@ export class ModsSettingsStore {
     return ModsSettingsSchema.parse({
       rootPath,
       localesPath: join(rootPath, 'locales'),
+      fontsPath: join(rootPath, 'fonts'),
       usesDefault: stored.selectedRoot === null
     });
   }
@@ -44,6 +45,7 @@ export class ModsSettingsStore {
   async selectRoot(rootPath: string): Promise<ModsSettings> {
     await this.assertWritableDirectory(rootPath);
     await mkdir(join(rootPath, 'locales'), { recursive: true });
+    await mkdir(join(rootPath, 'fonts'), { recursive: true });
     const selectedRoot = this.samePath(rootPath, this.options.defaultRoot)
       ? null
       : rootPath;
@@ -54,6 +56,7 @@ export class ModsSettingsStore {
   async resetRoot(): Promise<ModsSettings> {
     await this.assertWritableDirectory(this.options.defaultRoot);
     await mkdir(join(this.options.defaultRoot, 'locales'), { recursive: true });
+    await mkdir(join(this.options.defaultRoot, 'fonts'), { recursive: true });
     await this.save({ ...DEFAULT_SETTINGS });
     return this.getSettings();
   }
@@ -61,6 +64,7 @@ export class ModsSettingsStore {
   async ensureRoot(): Promise<ModsSettings> {
     const settings = await this.getSettings();
     await mkdir(settings.localesPath, { recursive: true });
+    await mkdir(settings.fontsPath, { recursive: true });
     return settings;
   }
 

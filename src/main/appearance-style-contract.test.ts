@@ -37,6 +37,21 @@ const managedSurfaceTokens = [
 ] as const;
 
 describe('appearance style contract', () => {
+  it('keeps font preset controls and actions in separate vertical rows', () => {
+    const presetLayoutRule = stylesheet.match(
+      /\.appearance-font-presets\s*\{([^}]*)\}/
+    )?.[1];
+    const presetActionsRule = stylesheet.match(
+      /\.appearance-font-presets \.provider-panel-actions\s*\{([^}]*)\}/
+    )?.[1];
+
+    expect(presetLayoutRule).toContain('display: grid');
+    expect(presetLayoutRule).toContain(
+      'grid-template-columns: minmax(0, 1fr)'
+    );
+    expect(presetActionsRule).toContain('justify-content: flex-end');
+  });
+
   it('composes every semantic component surface from centralized opacity tiers', () => {
     const rootRule = stylesheet.match(/^:root\s*\{([^}]*)\}/m)?.[1];
     const appearanceRule = stylesheet.match(

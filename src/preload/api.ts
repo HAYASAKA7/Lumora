@@ -18,6 +18,7 @@ import {
   DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema,
   ExternalOpenResultSchema,
+  FontPresetListSchema,
   GeneralSettingsChangedSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
@@ -143,6 +144,14 @@ export function createLumoraApi(
     },
     async openModsRoot() {
       const value = await invoke(IPC_CHANNELS.modsRootOpen);
+      LocalizationFolderOpenResultSchema.parse(value);
+    },
+    async getFontPresets() {
+      const value = await invoke(IPC_CHANNELS.fontPresetsGet);
+      return FontPresetListSchema.parse(value);
+    },
+    async openFontPresetFolder() {
+      const value = await invoke(IPC_CHANNELS.fontPresetFolderOpen);
       LocalizationFolderOpenResultSchema.parse(value);
     },
     onLocalizationChanged(listener) {

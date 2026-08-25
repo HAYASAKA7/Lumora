@@ -406,6 +406,35 @@ describe('TerminalRepository', () => {
     database.exec('PRAGMA ignore_check_constraints = OFF');
   });
 
+  it('preserves version-ten global appearance settings while adding font defaults', () => {
+    const versionTenAppearance = { ...DEFAULT_GENERAL_SETTINGS.appearance } as
+      Record<string, unknown>;
+    delete versionTenAppearance.interfaceFontFamily;
+    delete versionTenAppearance.terminalFontFamily;
+
+    database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES ('generalSettings.global.v2', ?, ?)`
+    ).run(JSON.stringify({
+      startMaximized: false,
+      appearance: {
+        ...versionTenAppearance,
+        surfaceOpacity: 0.73
+      }
+    }), timestamp);
+
+    expect(repository.getGeneralSettings()).toMatchObject({
+      version: 11,
+      startMaximized: false,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceOpacity: 0.73,
+        interfaceFontFamily: null,
+        terminalFontFamily: null
+      }
+    });
+  });
+
   it('shares the language preference globally without sharing target providers', () => {
     const remoteId = '0198f8b6-18f3-7ca0-9f0f-123456789a11';
     database.prepare(

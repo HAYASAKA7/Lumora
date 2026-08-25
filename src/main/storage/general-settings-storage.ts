@@ -101,6 +101,22 @@ function objectValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function mergeStoredSettings(
+  fallback: GeneralSettings,
+  value: unknown
+): Record<string, unknown> {
+  const stored = objectValue(value);
+  return {
+    ...fallback,
+    ...stored,
+    version: 11,
+    appearance: {
+      ...fallback.appearance,
+      ...objectValue(stored.appearance)
+    }
+  };
+}
+
 export class GeneralSettingsStorage {
   constructor(
     private readonly database: DatabaseSync,
@@ -115,7 +131,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 10,
+      version: 11,
       ...globalProjection(global),
       ...targetProjection(target)
     });
@@ -150,11 +166,9 @@ export class GeneralSettingsStorage {
       'SELECT value_json FROM app_preference WHERE key = ?'
     ).get(GLOBAL_SETTINGS_KEY) as { value_json: string } | undefined;
     if (currentRow !== undefined) {
-      const current = GeneralSettingsSchema.safeParse({
-        ...fallback,
-        ...objectValue(parseJson(currentRow.value_json)),
-        version: 10
-      });
+      const current = GeneralSettingsSchema.safeParse(
+        mergeStoredSettings(fallback, parseJson(currentRow.value_json))
+      );
       return current.success ? current.data : fallback;
     }
 
@@ -170,23 +184,25 @@ export class GeneralSettingsStorage {
     if (legacyGlobalRow === undefined && localTargetRow === undefined) {
       return fallback;
     }
-    const formerLocalTarget = GeneralSettingsSchema.safeParse({
-      ...fallback,
-      ...(localTargetRow === undefined
+    const formerLocalTarget = GeneralSettingsSchema.safeParse(
+      mergeStoredSettings(
+        fallback,
+        localTargetRow === undefined
+          ? {}
+          : parseJson(localTargetRow.value_json)
+      )
+    );
+    const parsed = GeneralSettingsSchema.safeParse(mergeStoredSettings(
+      {
+        ...fallback,
+        ...(formerLocalTarget.success
+          ? formerTargetProjection(formerLocalTarget.data)
+          : {})
+      },
+      legacyGlobalRow === undefined
         ? {}
-        : objectValue(parseJson(localTargetRow.value_json))),
-      version: 10
-    });
-    const parsed = GeneralSettingsSchema.safeParse({
-      ...fallback,
-      ...(formerLocalTarget.success
-        ? formerTargetProjection(formerLocalTarget.data)
-        : {}),
-      ...(legacyGlobalRow === undefined
-        ? {}
-        : objectValue(parseJson(legacyGlobalRow.value_json))),
-      version: 10
-    });
+        : parseJson(legacyGlobalRow.value_json)
+    ));
     if (!parsed.success) return fallback;
     this.writeGlobal(globalProjection(parsed.data), new Date().toISOString());
     return parsed.data;
@@ -203,11 +219,9 @@ export class GeneralSettingsStorage {
       this.writeTarget(targetProjection(fallback), new Date().toISOString());
       return fallback;
     }
-    const parsed = GeneralSettingsSchema.safeParse({
-      ...fallback,
-      ...objectValue(parseJson(row.value_json)),
-      version: 10
-    });
+    const parsed = GeneralSettingsSchema.safeParse(
+      mergeStoredSettings(fallback, parseJson(row.value_json))
+    );
     return parsed.success ? parsed.data : fallback;
   }
 

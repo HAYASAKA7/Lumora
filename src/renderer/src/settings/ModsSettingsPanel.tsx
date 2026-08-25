@@ -14,6 +14,7 @@ type ModsApi = Pick<
   | 'resetModsRoot'
   | 'openModsRoot'
   | 'openUserLocaleFolder'
+  | 'openFontPresetFolder'
   | 'reloadLocalization'
 >;
 
@@ -144,6 +145,28 @@ export function ModsSettingsPanel({
                   type="button"
                 >
                   {t('settings.mods.open-root')}
+                </button>
+              </div>
+            </div>
+            <div className="general-setting-row general-setting-row-control mods-setting-row">
+              <span className="general-setting-copy">
+                <strong>{t('settings.mods.font-presets')}</strong>
+                <code className="mods-path">{settings.fontsPath}</code>
+                <span>{t('settings.mods.font-presets-description')}</span>
+              </span>
+              <div className="provider-panel-actions">
+                <button
+                  className="secondary-button"
+                  data-lumora-command
+                  disabled={busy}
+                  onClick={() => void update(async () => {
+                    await api.openFontPresetFolder();
+                    return null;
+                  })}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  {t('settings.mods.open-font-presets')}
                 </button>
               </div>
             </div>

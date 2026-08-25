@@ -404,12 +404,20 @@ first use, the main process resolves a supported operating-system locale and
 falls back to bundled English; a later explicit language choice is global to
 local and Remote Lumora windows and native application surfaces.
 
-User language packs are data-only Mods. The active Mods root defaults to a
-directory under `userData`, while a private preference can point to another
-writable local directory. Changing that preference does not move or delete
-content. The former per-user `locales` directory remains a compatibility
+User language packs and font presets are data-only Mods. The active Mods root
+defaults to a directory under `userData`, while a private preference can point
+to another writable local directory. Changing that preference does not move or
+delete content. The former per-user `locales` directory remains a compatibility
 source. Catalog precedence is the active Mods pack, the legacy user pack, the
 matching bundled locale, and finally immutable bundled English.
+
+Font presets are bounded JSON records under the active Mods root's `fonts`
+directory. They contain installed font-family names only; Lumora does not load
+font binaries or executable extension code. The loader sorts candidates
+deterministically, rejects links, non-regular files, oversized data, filename
+mismatches, and invalid schemas, and isolates rejected presets from healthy
+ones. The renderer combines a selected font with an immutable interface or
+terminal fallback stack.
 
 The main process owns Mods filesystem access and native folder selection.
 Before activation, catalogs pass bounded schema, ICU placeholder, path, file,
@@ -457,8 +465,9 @@ resume-confirmation workflow used inside the app.
 
 ## Appearance and managed backgrounds
 
-General settings schema version 6 stores theme and background presentation
-preferences. The renderer applies the explicit `lumora`, `light`, or `dark`
+General settings schema version 11 stores theme, background presentation, and
+independent interface and terminal font preferences. The renderer applies the
+explicit `lumora`, `light`, or `dark`
 selection through semantic color tokens, with `lumora` as the default mixed
 dark-sidebar and light-workspace palette. Version 5 settings migrate without
 discarding appearance values, add a zero-strength Surface mosaic, and normalize
@@ -466,6 +475,11 @@ temporary pre-release `system` selections to `lumora`. Xterm
 palettes update on existing terminal instances, so a
 theme change does not recreate a PTY, discard scrollback, or interrupt an
 agent. A separate preference keeps terminals dark in Light mode by default.
+Installed-font choices are represented as validated family names, quoted before
+presentation, and always followed by cross-platform fallback stacks. Xterm font
+changes update and refit the existing instance without remounting it or
+reattaching the PTY. Remote windows use the same global appearance settings and
+resolve fonts on the local renderer computer rather than the SSH target.
 
 Custom background selection remains privileged. The main process accepts only
 PNG, JPEG, and WebP selections from a native file dialog, rejects empty or

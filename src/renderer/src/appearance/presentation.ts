@@ -8,15 +8,19 @@ import {
   buildAppearanceOpacityTiers,
   formatAppearanceOpacity
 } from './opacity-tiers';
+import {
+  resolveInterfaceFontFamily,
+  resolveTerminalFontFamily
+} from './font-family';
 
 type AppearanceShellStyle = CSSProperties &
-  Partial<Record<`--appearance-${string}`, string>>;
+  Partial<Record<`--appearance-${string}` | '--font-ui' | '--font-mono', string>>;
 
 export interface AppearancePresentationStyles {
   backgroundActive: boolean;
   backgroundStyle: CSSProperties | undefined;
   hasSurfaceMosaic: boolean;
-  shellStyle: AppearanceShellStyle | undefined;
+  shellStyle: AppearanceShellStyle;
 }
 
 const BACKGROUND_POSITIONS: Record<
@@ -39,12 +43,16 @@ export function buildAppearancePresentation(
   background: AppearanceBackgroundState
 ): AppearancePresentationStyles {
   const backgroundActive = appearance.backgroundEnabled && background.available;
+  const fontStyle: AppearanceShellStyle = {
+    '--font-ui': resolveInterfaceFontFamily(appearance.interfaceFontFamily),
+    '--font-mono': resolveTerminalFontFamily(appearance.terminalFontFamily)
+  };
   if (!backgroundActive) {
     return {
       backgroundActive: false,
       backgroundStyle: undefined,
       hasSurfaceMosaic: false,
-      shellStyle: undefined
+      shellStyle: fontStyle
     };
   }
 
@@ -53,6 +61,7 @@ export function buildAppearancePresentation(
     backgroundActive: true,
     hasSurfaceMosaic: appearance.surfaceMosaic > 0,
     shellStyle: {
+      ...fontStyle,
       '--appearance-terminal-opacity': `${Math.round(appearance.terminalOpacity * 100)}%`,
       '--appearance-opacity-recessed': formatAppearanceOpacity(opacity.recessed),
       '--appearance-opacity-normal': formatAppearanceOpacity(opacity.normal),

@@ -7,6 +7,28 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add independent interface and terminal font choices in **Settings >
+  Appearance**. Lumora uses installed local fonts, preserves safe
+  cross-platform fallbacks, and updates open local and remote terminal views
+  without restarting or reattaching their sessions.
+- Add data-only font presets under the Mods `fonts` directory, with bounded
+  validation, isolated rejection, reload controls, and a native folder action.
+
+### Changed
+
+- Upgrade global settings storage to preserve the new font preferences while
+  migrating older appearance settings without changing their existing theme
+  or background choices.
+
+### Security
+
+- Keep font Mods declarative: presets contain font-family names only. Lumora
+  rejects symbolic links, mismatched filenames, oversized files, malformed
+  schemas, and executable content; importing font files remains deferred. Mods
+  data and native folder operations remain restricted to the local window.
+
 ## [0.4.0] - 2026-08-25
 
 ### Added

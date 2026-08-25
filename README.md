@@ -337,9 +337,11 @@ Advanced users can manage the data-only Mods directory from
 reload packs without restarting Lumora. The Mods directory defaults to
 Lumora's per-user data but can be changed to another writable local folder.
 Changing it does not move or delete existing files. Invalid packs are isolated
-and the last valid catalog stays active. See
+and the last valid catalog stays active. The same Mods root contains a `fonts`
+folder for optional data-only font presets. See
 [Localization and Mods](docs/localization.md) for the directory layout,
-manifest, namespaces, compatibility rules, limits, and recovery steps.
+language manifest, font-preset format, compatibility rules, limits, and
+recovery steps.
 
 ### Providers and environment
 
@@ -358,6 +360,15 @@ mixed—the original dark-sidebar and light-workspace design—is the default.
 Theme changes apply immediately. Terminals stay dark by default even in Light
 mode; enable the separate light-terminal switch
 if you prefer a fully light workspace.
+
+The same page lets you choose independent interface and terminal fonts from
+fonts already installed on the computer running Lumora. Clear either field to
+restore Lumora's cross-platform default stack. Changes apply immediately,
+including to terminals that are already open, without restarting the provider
+or losing scrollback. Remote Lumora uses fonts installed on the local computer
+that renders its window, not fonts installed on the SSH target. Data-only font
+presets placed under the Mods `fonts` folder can apply either or both choices;
+Lumora does not install or load font files in this version.
 
 You can also choose a PNG, JPEG, or WebP image as a shared background across
 the sidebar, workspace, cards, terminals, and in-app dialogs. Lumora keeps the

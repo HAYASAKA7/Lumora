@@ -16,11 +16,13 @@ import {
 import { encodeTerminalNativeKey } from './terminal-native-key';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useLocalization } from '../localization/useLocalization';
+import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
 
 interface ManagedTerminalProps {
   api?: LumoraApi;
   active: boolean;
   backgroundOpacity?: number;
+  fontFamily?: string;
   focusRequestKey?: number;
   platform: SystemInfo['platform'];
   runtime: RuntimeSummary;
@@ -64,6 +66,7 @@ export function ManagedTerminal({
   api = window.lumora,
   active,
   backgroundOpacity = 1,
+  fontFamily = DEFAULT_TERMINAL_FONT_STACK,
   focusRequestKey = 0,
   platform,
   runtime,
@@ -77,6 +80,7 @@ export function ManagedTerminal({
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const themeRef = useRef({ theme, backgroundOpacity });
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
+  const fontFamilyRef = useRef(fontFamily);
   const interruptDeadlineRef = useRef<number | null>(null);
   const acceptingInputRef = useRef(isRuntimeLive(runtime));
   const interruptTimerRef = useRef<number | null>(null);
@@ -86,6 +90,7 @@ export function ManagedTerminal({
   activeRef.current = active;
   platformRef.current = platform;
   themeRef.current = { theme, backgroundOpacity };
+  fontFamilyRef.current = fontFamily;
 
   const clearInterruptGuard = useCallback(() => {
     interruptDeadlineRef.current = null;
@@ -108,7 +113,7 @@ export function ManagedTerminal({
         const terminal = new Terminal({
           allowTransparency: true,
           cursorBlink: true,
-          fontFamily: 'Cascadia Mono, SFMono-Regular, Consolas, monospace',
+          fontFamily: fontFamilyRef.current,
           fontSize: 13,
           scrollback: 5_000,
           theme: terminalPalette(
@@ -450,6 +455,13 @@ export function ManagedTerminal({
       terminal.options.theme = terminalPalette(theme, backgroundOpacity);
     }
   }, [backgroundOpacity, theme]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (terminal === null) return;
+    terminal.options.fontFamily = fontFamily;
+    fitAddonRef.current?.fit();
+  }, [fontFamily]);
 
   useEffect(() => {
     if (!isRuntimeLive(runtime)) {

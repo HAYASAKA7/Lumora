@@ -18,6 +18,9 @@ import {
   DeveloperEnvironmentScanResultSchema,
   ExecutionTargetIdSchema,
   ExecutionTargetSchema,
+  FontFamilyNameSchema,
+  FontPresetListSchema,
+  FontPresetSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
   KeyboardSettingsSchema,
@@ -282,6 +285,34 @@ describe('localization contracts', () => {
     expect(IPC_CHANNELS.localizationChanged).toBe(
       'lumora:localization:changed'
     );
+    expect(IPC_CHANNELS.fontPresetsGet).toBe('lumora:mods:fonts:get');
+    expect(IPC_CHANNELS.fontPresetFolderOpen).toBe(
+      'lumora:mods:fonts:folder:open'
+    );
+  });
+
+  it('validates normalized data-only font preset Mods', () => {
+    expect(FontPresetSchema.parse({
+      id: 'my-fonts',
+      displayName: 'My fonts',
+      interfaceFontFamily: 'Inter',
+      terminalFontFamily: null
+    })).toEqual({
+      id: 'my-fonts',
+      displayName: 'My fonts',
+      interfaceFontFamily: 'Inter',
+      terminalFontFamily: null
+    });
+    expect(FontPresetSchema.safeParse({
+      id: 'empty',
+      displayName: 'Empty',
+      interfaceFontFamily: null,
+      terminalFontFamily: null
+    }).success).toBe(false);
+    expect(FontPresetListSchema.safeParse({
+      presets: [],
+      rejectedCount: 65
+    }).success).toBe(true);
   });
 });
 
@@ -1630,7 +1661,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 10,
+      version: 11,
       languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
@@ -1648,6 +1679,8 @@ describe('managed terminal contracts', () => {
       appearance: {
         theme: 'lumora',
         lightTerminalInLightMode: false,
+        interfaceFontFamily: null,
+        terminalFontFamily: null,
         backgroundEnabled: false,
         backgroundOpacity: 0.55,
         backgroundBrightness: 1,
@@ -1658,6 +1691,20 @@ describe('managed terminal contracts', () => {
         backgroundFit: 'cover',
         backgroundPosition: 'center'
       }
+    });
+    expect(FontFamilyNameSchema.parse(' JetBrains Mono ')).toBe('JetBrains Mono');
+    expect(FontFamilyNameSchema.safeParse('Bad\nFont').success).toBe(false);
+    expect(FontFamilyNameSchema.safeParse('x'.repeat(129)).success).toBe(false);
+    expect(GeneralSettingsSchema.parse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        interfaceFontFamily: 'Atkinson Hyperlegible',
+        terminalFontFamily: 'JetBrains Mono'
+      }
+    }).appearance).toMatchObject({
+      interfaceFontFamily: 'Atkinson Hyperlegible',
+      terminalFontFamily: 'JetBrains Mono'
     });
     expect(GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
@@ -1770,9 +1817,34 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
-    const versionNine = { ...DEFAULT_GENERAL_SETTINGS } as Record<string, unknown>;
+    const versionTen = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 10,
+      showInformationalNotices: false,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceOpacity: 0.71
+      }
+    } as Record<string, unknown>;
+    delete (versionTen.appearance as Record<string, unknown>).interfaceFontFamily;
+    delete (versionTen.appearance as Record<string, unknown>).terminalFontFamily;
+    expect(parseStoredGeneralSettings(versionTen)).toEqual({
+      ...DEFAULT_GENERAL_SETTINGS,
+      showInformationalNotices: false,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        surfaceOpacity: 0.71
+      }
+    });
+    const versionNine = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 9,
+      appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
+    } as Record<string, unknown>;
     versionNine.version = 9;
     delete versionNine.languagePreference;
+    delete (versionNine.appearance as Record<string, unknown>).interfaceFontFamily;
+    delete (versionNine.appearance as Record<string, unknown>).terminalFontFamily;
     expect(parseStoredGeneralSettings(versionNine)).toEqual(DEFAULT_GENERAL_SETTINGS);
     const versionEight = { ...versionNine } as Record<string, unknown>;
     versionEight.version = 8;
@@ -1883,7 +1955,11 @@ describe('managed terminal contracts', () => {
       crossAgentWorkflowEnabled: true,
       crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['codex', 'claude'],
-      appearance: { ...versionFiveAppearance, surfaceMosaic: 0 }
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        ...versionFiveAppearance,
+        surfaceMosaic: 0
+      }
     });
     expect(parseStoredGeneralSettings({
       version: 5,
@@ -1895,7 +1971,10 @@ describe('managed terminal contracts', () => {
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
       enabledProviders: [...PROVIDER_IDS],
-      appearance: { ...versionFiveAppearance, theme: 'system' }
+      appearance: {
+        ...versionFiveAppearance,
+        theme: 'system'
+      }
     }).appearance.theme).toBe('lumora');
     expect(parseStoredGeneralSettings({ version: 5 })).toEqual(
       DEFAULT_GENERAL_SETTINGS

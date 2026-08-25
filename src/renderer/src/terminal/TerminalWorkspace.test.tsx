@@ -15,10 +15,12 @@ const render = renderWithLocalization;
 vi.mock('./ManagedTerminal', () => ({
   ManagedTerminal: ({
     active,
+    fontFamily,
     platform,
     runtime
   }: {
     active: boolean;
+    fontFamily?: string;
     platform: SystemInfo['platform'];
     runtime: RuntimeSummary;
   }) => {
@@ -28,6 +30,7 @@ vi.mock('./ManagedTerminal', () => ({
     return (
       <div
         data-active={active}
+        data-font-family={fontFamily}
         data-platform={platform}
         data-testid={`managed-terminal-${runtime.id}`}
       />
@@ -113,6 +116,37 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('forwards the configured terminal font to every retained terminal', () => {
+    const secondRuntime: RuntimeSummary = {
+      ...runtime,
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+      displayName: 'Second terminal'
+    };
+
+    render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        fontFamily='"JetBrains Mono", monospace'
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime, secondRuntime]}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(screen.getByTestId(`managed-terminal-${runtime.id}`)).toHaveAttribute(
+      'data-font-family',
+      '"JetBrains Mono", monospace'
+    );
+    expect(screen.getByTestId(`managed-terminal-${secondRuntime.id}`)).toHaveAttribute(
+      'data-font-family',
+      '"JetBrains Mono", monospace'
+    );
+  });
+
   it('contains one terminal render failure without removing other tabs', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const brokenRuntime: RuntimeSummary = {

@@ -1,11 +1,13 @@
 import {
   IPC_CHANNELS,
+  FontPresetListSchema,
   LocaleReloadResultSchema,
   LocalizationFolderOpenResultSchema,
   LocalizationSnapshotSchema,
   ModsRootChooseResultSchema,
   ModsSettingsSchema,
   type LocaleReloadResult,
+  type FontPresetList,
   type LocalizationSnapshot,
   type ModsRootChooseResult,
   type ModsSettings
@@ -47,17 +49,23 @@ class IpcAccessError extends Error {
 export function registerLocalizationIpc(input: {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
+  authorizeLocal: IpcAuthorizer;
   service: LocalizationServicePort;
   openUserLocaleFolder(): Promise<void>;
   getModsSettings(): Promise<ModsSettings>;
   chooseModsRoot(): Promise<ModsRootChooseResult>;
   resetModsRoot(): Promise<ModsSettings>;
   openModsRoot(): Promise<void>;
+  getFontPresets(): Promise<FontPresetList>;
+  openFontPresetFolder(): Promise<void>;
   broadcast(snapshot: LocalizationSnapshot): void;
   developmentOrigin?: string;
 }): () => void {
-  const authorize = (event: IpcEvent): void => {
-    input.authorize(event);
+  const authorize = (
+    event: IpcEvent,
+    authorizer: IpcAuthorizer = input.authorize
+  ): void => {
+    authorizer(event);
     if (
       event.senderFrame === null ||
       !isTrustedRendererUrl(event.senderFrame.url, input.developmentOrigin)
@@ -81,38 +89,51 @@ export function registerLocalizationIpc(input: {
     ));
   });
   input.ipc.handle(IPC_CHANNELS.localizationReload, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(() => LocaleReloadResultSchema.parse(input.service.reload()));
   });
   input.ipc.handle(IPC_CHANNELS.localizationUserFolderOpen, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(async () => {
       await input.openUserLocaleFolder();
       return LocalizationFolderOpenResultSchema.parse({ opened: true });
     });
   });
   input.ipc.handle(IPC_CHANNELS.modsSettingsGet, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(async () => ModsSettingsSchema.parse(
       await input.getModsSettings()
     ));
   });
   input.ipc.handle(IPC_CHANNELS.modsRootChoose, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(async () => ModsRootChooseResultSchema.parse(
       await input.chooseModsRoot()
     ));
   });
   input.ipc.handle(IPC_CHANNELS.modsRootReset, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(async () => ModsSettingsSchema.parse(
       await input.resetModsRoot()
     ));
   });
   input.ipc.handle(IPC_CHANNELS.modsRootOpen, async (event) => {
-    authorize(event);
+    authorize(event, input.authorizeLocal);
     return safely(async () => {
       await input.openModsRoot();
+      return LocalizationFolderOpenResultSchema.parse({ opened: true });
+    });
+  });
+  input.ipc.handle(IPC_CHANNELS.fontPresetsGet, async (event) => {
+    authorize(event, input.authorizeLocal);
+    return safely(async () => FontPresetListSchema.parse(
+      await input.getFontPresets()
+    ));
+  });
+  input.ipc.handle(IPC_CHANNELS.fontPresetFolderOpen, async (event) => {
+    authorize(event, input.authorizeLocal);
+    return safely(async () => {
+      await input.openFontPresetFolder();
       return LocalizationFolderOpenResultSchema.parse({ opened: true });
     });
   });
