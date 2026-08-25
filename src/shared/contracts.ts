@@ -1139,6 +1139,15 @@ export const LocaleReloadResultSchema = z.strictObject({
 export const LocalizationFolderOpenResultSchema = z.strictObject({
   opened: z.literal(true)
 });
+export const ModsSettingsSchema = z.strictObject({
+  rootPath: z.string().min(1).max(32_768),
+  localesPath: z.string().min(1).max(32_768),
+  usesDefault: z.boolean()
+});
+export const ModsRootChooseResultSchema = z.strictObject({
+  canceled: z.boolean(),
+  settings: ModsSettingsSchema
+});
 
 export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
 export type LocaleDirection = z.infer<typeof LocaleDirectionSchema>;
@@ -1150,6 +1159,8 @@ export type LocaleReloadResult = z.infer<typeof LocaleReloadResultSchema>;
 export type LocalizationFolderOpenResult = z.infer<
   typeof LocalizationFolderOpenResultSchema
 >;
+export type ModsSettings = z.infer<typeof ModsSettingsSchema>;
+export type ModsRootChooseResult = z.infer<typeof ModsRootChooseResultSchema>;
 
 export const GeneralSettingsSchema = z.strictObject({
   version: z.literal(10),
@@ -2030,6 +2041,10 @@ export const IPC_CHANNELS = {
   localizationReload: 'lumora:localization:reload',
   localizationUserFolderOpen: 'lumora:localization:user-folder:open',
   localizationChanged: 'lumora:localization:changed',
+  modsSettingsGet: 'lumora:mods:settings:get',
+  modsRootChoose: 'lumora:mods:root:choose',
+  modsRootReset: 'lumora:mods:root:reset',
+  modsRootOpen: 'lumora:mods:root:open',
   terminalProfilesGet: 'lumora:terminal:profiles:get',
   terminalProfileSave: 'lumora:terminal:profiles:save',
   terminalProfileDelete: 'lumora:terminal:profiles:delete',
@@ -2072,6 +2087,10 @@ export interface LumoraApi {
   getLocalizationSnapshot(): Promise<LocalizationSnapshot>;
   reloadLocalization(): Promise<LocaleReloadResult>;
   openUserLocaleFolder(): Promise<void>;
+  getModsSettings(): Promise<ModsSettings>;
+  chooseModsRoot(): Promise<ModsRootChooseResult>;
+  resetModsRoot(): Promise<ModsSettings>;
+  openModsRoot(): Promise<void>;
   onLocalizationChanged(
     listener: (snapshot: LocalizationSnapshot) => void
   ): () => void;

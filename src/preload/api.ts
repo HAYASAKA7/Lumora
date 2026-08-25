@@ -29,6 +29,8 @@ import {
   LocaleReloadResultSchema,
   LocalizationFolderOpenResultSchema,
   LocalizationSnapshotSchema,
+  ModsRootChooseResultSchema,
+  ModsSettingsSchema,
   LumoraWindowContextSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
@@ -125,6 +127,22 @@ export function createLumoraApi(
     },
     async openUserLocaleFolder() {
       const value = await invoke(IPC_CHANNELS.localizationUserFolderOpen);
+      LocalizationFolderOpenResultSchema.parse(value);
+    },
+    async getModsSettings() {
+      const value = await invoke(IPC_CHANNELS.modsSettingsGet);
+      return ModsSettingsSchema.parse(value);
+    },
+    async chooseModsRoot() {
+      const value = await invoke(IPC_CHANNELS.modsRootChoose);
+      return ModsRootChooseResultSchema.parse(value);
+    },
+    async resetModsRoot() {
+      const value = await invoke(IPC_CHANNELS.modsRootReset);
+      return ModsSettingsSchema.parse(value);
+    },
+    async openModsRoot() {
+      const value = await invoke(IPC_CHANNELS.modsRootOpen);
       LocalizationFolderOpenResultSchema.parse(value);
     },
     onLocalizationChanged(listener) {

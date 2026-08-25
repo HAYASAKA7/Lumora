@@ -69,6 +69,7 @@ import {
   LocalizationService,
   resolveLocalePaths
 } from './localization';
+import { ModsSettingsStore } from './mods/mods-settings-store';
 import { findExecutable } from './platform/executable-locator';
 import { canonicalizeWorkspacePath } from './platform/workspace-path';
 import { resolveApplicationEnvironment } from './platform/login-shell-path';
@@ -812,10 +813,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     resourcesPath: process.resourcesPath,
     userDataPath: userDataDirectory
   });
+  const modsSettingsStore = new ModsSettingsStore({
+    preferencesPath: localePaths.modsPreferencesPath,
+    defaultRoot: localePaths.defaultModsRoot
+  });
+  const modsSettings = await modsSettingsStore.getSettings();
   localizationService = new LocalizationService({
     preference: terminalRuntime.getGeneralSettings().languagePreference,
     preferredSystemLanguages: app.getPreferredSystemLanguages(),
-    ...localePaths
+    bundledRoot: localePaths.bundledRoot,
+    userRoots: [localePaths.legacyUserRoot, modsSettings.localesPath]
   });
   remoteWindowStateManager = await createSharedWindowStateManager({
     statePath: join(app.getPath('userData'), 'remote-window-state.json'),
@@ -1150,8 +1157,38 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     authorize: authorizeTargetIpc,
     service: localizationService,
     openUserLocaleFolder: async () => {
-      await mkdir(localePaths.userRoot, { recursive: true });
-      const error = await shell.openPath(localePaths.userRoot);
+      const settings = await modsSettingsStore.ensureRoot();
+      const error = await shell.openPath(settings.localesPath);
+      if (error !== '') throw new Error(error);
+    },
+    getModsSettings: () => modsSettingsStore.getSettings(),
+    chooseModsRoot: async () => {
+      const current = await modsSettingsStore.getSettings();
+      const selection = await dialog.showOpenDialog({
+        defaultPath: current.rootPath,
+        properties: ['openDirectory', 'createDirectory']
+      });
+      if (selection.canceled || selection.filePaths[0] === undefined) {
+        return { canceled: true, settings: current };
+      }
+      const settings = await modsSettingsStore.selectRoot(selection.filePaths[0]);
+      localizationService!.setUserRoots([
+        localePaths.legacyUserRoot,
+        settings.localesPath
+      ]);
+      return { canceled: false, settings };
+    },
+    resetModsRoot: async () => {
+      const settings = await modsSettingsStore.resetRoot();
+      localizationService!.setUserRoots([
+        localePaths.legacyUserRoot,
+        settings.localesPath
+      ]);
+      return settings;
+    },
+    openModsRoot: async () => {
+      const settings = await modsSettingsStore.ensureRoot();
+      const error = await shell.openPath(settings.rootPath);
       if (error !== '') throw new Error(error);
     },
     broadcast: (snapshot) => {

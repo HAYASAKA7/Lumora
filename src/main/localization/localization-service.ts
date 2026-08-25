@@ -16,7 +16,8 @@ export type LocalizationServiceOptions = {
   preference: LanguagePreference;
   preferredSystemLanguages: readonly string[];
   bundledRoot: string;
-  userRoot: string;
+  userRoot?: string;
+  userRoots?: readonly string[];
 };
 
 function packMessages(
@@ -42,10 +43,14 @@ export class LocalizationService {
   private snapshot: LocalizationSnapshot;
   private translator: Translator;
   private readonly listeners = new Set<(snapshot: LocalizationSnapshot) => void>();
+  private userRoots: readonly string[];
 
   constructor(private readonly options: LocalizationServiceOptions) {
+    this.userRoots = options.userRoots === undefined
+      ? options.userRoot === undefined ? [] : [options.userRoot]
+      : [...options.userRoots];
     this.preference = options.preference;
-    this.packs = loadLocalePacks(options);
+    this.packs = loadLocalePacks({ ...options, userRoots: this.userRoots });
     this.snapshot = this.createSnapshot(this.packs, 1);
     this.translator = new Translator(
       this.snapshot.formattingLocale,
@@ -74,7 +79,10 @@ export class LocalizationService {
   }
 
   reload(): LocaleReloadResult {
-    const nextPacks = loadLocalePacks(this.options);
+    const nextPacks = loadLocalePacks({
+      ...this.options,
+      userRoots: this.userRoots
+    });
     const candidate = this.createSnapshot(nextPacks, this.snapshot.revision + 1);
     this.packs = nextPacks;
     if (comparable(candidate) !== comparable(this.snapshot)) {
@@ -85,6 +93,11 @@ export class LocalizationService {
       loadedUserPacks: nextPacks.loadedUserPacks,
       rejectedUserPacks: nextPacks.rejectedUserPacks
     };
+  }
+
+  setUserRoots(userRoots: readonly string[]): LocaleReloadResult {
+    this.userRoots = [...userRoots];
+    return this.reload();
   }
 
   private createSnapshot(

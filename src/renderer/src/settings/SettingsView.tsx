@@ -27,10 +27,12 @@ import { WorkspaceTrustPanel } from './WorkspaceTrustPanel';
 import { SessionTransferPanel } from '../transfer/SessionTransferPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { AboutPanel } from './AboutPanel';
+import { ModsSettingsPanel } from './ModsSettingsPanel';
 
 export type SettingsCategory =
   | 'general'
   | 'appearance'
+  | 'mods'
   | 'providers'
   | 'environment'
   | 'launch'
@@ -78,6 +80,7 @@ interface SettingsViewProps {
 const SETTINGS_CATEGORIES = [
   { id: 'general', labelKey: 'settings.tabs.general' },
   { id: 'appearance', labelKey: 'settings.tabs.appearance' },
+  { id: 'mods', labelKey: 'settings.tabs.mods' },
   { id: 'providers', labelKey: 'settings.tabs.providers' },
   { id: 'environment', labelKey: 'settings.tabs.environment' },
   { id: 'launch', labelKey: 'settings.tabs.launch' },
@@ -205,6 +208,16 @@ export function SettingsView({
           saving={generalSettingsSaving}
           settings={generalSettings}
         />
+      </section>
+
+      <section
+        aria-labelledby="settings-tab-mods"
+        className="settings-category-panel"
+        hidden={activeCategory !== 'mods'}
+        id="settings-panel-mods"
+        role="tabpanel"
+      >
+        <ModsSettingsPanel active={activeCategory === 'mods'} />
       </section>
 
       <section

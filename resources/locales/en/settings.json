@@ -4,6 +4,7 @@
   "tabs": {
     "general": "General",
     "appearance": "Appearance",
+    "mods": "Mods",
     "providers": "Providers",
     "environment": "Environment",
     "launch": "Launch",
@@ -67,6 +68,26 @@
     "remote-disconnect": "Disconnect when a remote window closes",
     "remote-disconnect-description": "Close its SSH connection when the remote Lumora window closes. Running remote agents require confirmation first.",
     "save-error": "Lumora could not save this setting."
+  },
+  "mods": {
+    "eyebrow": "Customization",
+    "title": "Mods",
+    "description": "Manage safe, data-only customizations without changing Lumora's installed resources.",
+    "loading": "Loading Mods settings…",
+    "root-title": "Mods directory",
+    "root-label": "Mods root",
+    "default-description": "Lumora is using the managed default Mods directory.",
+    "custom-description": "Lumora is using your custom Mods directory.",
+    "choose-root": "Choose folder",
+    "restore-default": "Use default",
+    "open-root": "Open Mods folder",
+    "language-packs": "Language packs",
+    "language-packs-description": "Add validated language packs to this locales folder.",
+    "open-language-packs": "Open locales folder",
+    "reload-language-packs": "Reload languages",
+    "reload-complete": "Language packs reloaded.",
+    "reload-rejected": "Language packs reloaded, but {count, plural, one {# pack could not be loaded} other {# packs could not be loaded}}.",
+    "operation-failed": "Lumora could not complete the Mods operation. Check that the folder is available and writable."
   },
   "appearance": {
     "title": "Appearance",

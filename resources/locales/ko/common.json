@@ -23,7 +23,7 @@
     "refresh": "새로 고침",
     "reload": "다시 불러오기",
     "remove": "제거",
-    "reset": "다시 설정",
+    "reset": "재설정",
     "resume": "재개",
     "retry": "다시 시도",
     "save": "저장",
@@ -72,11 +72,11 @@
     "optional": "선택 사항",
     "path": "경로",
     "platform": "플랫폼",
-    "provider": "제공자",
+    "provider": "공급자",
     "status": "상태",
     "system-default": "시스템 기본값",
     "version": "버전",
-    "workspace": "워크스페이스",
+    "workspace": "작업 공간",
     "confirmation": "확인",
     "options": "{label} 옵션"
   },
@@ -84,6 +84,6 @@
     "agents": "{count, plural, other {# 활성 에이전트}}",
     "items": "{count, plural, other {#개 항목}}",
     "sessions": "{count, plural, other {#개 세션}}",
-    "workspaces": "{count, plural, other {#개 워크스페이스}}"
+    "workspaces": "{count, plural, other {#개 작업 공간}}"
   }
 }

@@ -3,8 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_GENERAL_SETTINGS,
-  type LocalizationSnapshot,
-  type LumoraApi
+  type LocalizationSnapshot
 } from '../../../shared/contracts';
 import {
   renderWithLocalization,
@@ -191,7 +190,7 @@ describe('GeneralSettingsPanel', () => {
     );
   });
 
-  it('offers available languages, preserves every setting, and manages user packs', async () => {
+  it('offers available languages and preserves every setting', () => {
     const onChange = vi.fn();
     const snapshot: LocalizationSnapshot = {
       ...TEST_LOCALIZATION_SNAPSHOT,
@@ -213,18 +212,8 @@ describe('GeneralSettingsPanel', () => {
         message: 'Internal parser detail must not be displayed.'
       }]
     };
-    const api = {
-      openUserLocaleFolder: vi.fn().mockResolvedValue({ opened: true }),
-      reloadLocalization: vi.fn().mockResolvedValue({
-        snapshot,
-        loadedUserPacks: 1,
-        rejectedUserPacks: 1
-      })
-    } as unknown as LumoraApi;
-
     renderWithLocalization(
       <GeneralSettingsPanel
-        api={api}
         onChange={onChange}
         saveError={null}
         saving={false}
@@ -236,7 +225,7 @@ describe('GeneralSettingsPanel', () => {
     const language = screen.getByRole('button', { name: 'Language' });
     expect(language).toHaveTextContent('fr (Unavailable)');
     fireEvent.click(language);
-    expect(screen.getByRole('option', { name: /System default/ })).toBeVisible();
+    expect(screen.queryByRole('option', { name: /System default/ })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /日本語/ })).toBeVisible();
     fireEvent.click(screen.getByRole('option', { name: /日本語/ }));
     expect(onChange).toHaveBeenCalledWith({
@@ -244,16 +233,41 @@ describe('GeneralSettingsPanel', () => {
       languagePreference: 'ja'
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open language folder' }));
-    expect(api.openUserLocaleFolder).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole('button', { name: 'Reload languages' }));
-    expect(api.reloadLocalization).toHaveBeenCalledOnce();
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Languages reloaded. 1 language pack could not be loaded.'
+    expect(screen.queryByRole('button', { name: 'Open language folder' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('shows the resolved system language without exposing a system-default option', () => {
+    const snapshot: LocalizationSnapshot = {
+      ...TEST_LOCALIZATION_SNAPSHOT,
+      locale: 'ja',
+      formattingLocale: 'ja-JP',
+      availableLocales: [
+        TEST_LOCALIZATION_SNAPSHOT.availableLocales[0]!,
+        {
+          locale: 'ja',
+          displayName: '日本語',
+          direction: 'ltr',
+          sources: ['bundled'],
+          catalogVersion: 1
+        }
+      ]
+    };
+
+    renderWithLocalization(
+      <GeneralSettingsPanel
+        onChange={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={{ ...DEFAULT_GENERAL_SETTINGS, languagePreference: 'system' }}
+      />,
+      snapshot
     );
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'A custom language pack could not be loaded.'
-    );
-    expect(screen.queryByText(/private\\locales|Internal parser/)).not.toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: 'Language' })).toHaveTextContent('日本語');
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    expect(screen.getByRole('option', { name: 'English' })).toBeVisible();
+    expect(screen.getByRole('option', { name: '日本語' })).toBeVisible();
+    expect(screen.queryByRole('option', { name: /System default|英語|English\s+—/ })).not.toBeInTheDocument();
   });
 });

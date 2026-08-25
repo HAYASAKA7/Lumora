@@ -1939,6 +1939,24 @@ button {
   min-width: 112px;
 }
 
+.mods-setting-row {
+  align-items: flex-start;
+}
+
+.mods-setting-row .provider-panel-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mods-path {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .general-setting-card > .select-menu {
   flex: 0 0 auto;
   min-width: 112px;

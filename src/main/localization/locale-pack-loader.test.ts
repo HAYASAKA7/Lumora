@@ -56,6 +56,34 @@ afterEach(() => {
 });
 
 describe('locale pack loader', () => {
+  it('loads ordered user roots with the Mods root taking precedence', () => {
+    const bundledRoot = root();
+    const legacyRoot = root();
+    const modsRoot = root();
+    pack(bundledRoot, 'en', {
+      common: { actions: { cancel: 'Cancel', confirm: 'Confirm' } }
+    });
+    pack(legacyRoot, 'en', {
+      partial: true,
+      common: { actions: { cancel: 'Legacy' } }
+    });
+    pack(modsRoot, 'en', {
+      partial: true,
+      common: { actions: { confirm: 'Mods confirm' } }
+    });
+
+    const result = loadLocalePacks({
+      bundledRoot,
+      userRoots: [legacyRoot, modsRoot]
+    });
+
+    expect(result.user.get('en')?.messages['common.actions.cancel']).toBe('Legacy');
+    expect(result.user.get('en')?.messages['common.actions.confirm']).toBe(
+      'Mods confirm'
+    );
+    expect(result.loadedUserPacks).toBe(1);
+  });
+
   it('loads complete bundles and safe partial user overrides', () => {
     const bundledRoot = root();
     const userRoot = root();

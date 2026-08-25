@@ -9,12 +9,16 @@ export type LocalePathInput = {
 
 export function resolveLocalePaths(input: LocalePathInput): {
   bundledRoot: string;
-  userRoot: string;
+  legacyUserRoot: string;
+  defaultModsRoot: string;
+  modsPreferencesPath: string;
 } {
   return {
     bundledRoot: input.isPackaged
       ? join(input.resourcesPath, 'locales')
       : join(input.appPath, 'resources', 'locales'),
-    userRoot: join(input.userDataPath, 'locales')
+    legacyUserRoot: join(input.userDataPath, 'locales'),
+    defaultModsRoot: join(input.userDataPath, 'mods'),
+    modsPreferencesPath: join(input.userDataPath, 'mods-settings.json')
   };
 }

@@ -233,19 +233,24 @@ function loadRoot(root: string, complete: boolean): Map<string, LoadedLocalePack
 
 export function loadLocalePacks(input: {
   bundledRoot: string;
-  userRoot: string;
+  userRoot?: string;
+  userRoots?: readonly string[];
 }): LoadedLocalePacks {
   const bundled = loadRoot(input.bundledRoot, true);
   if (!bundled.has('en')) throw new Error('Bundled English locale is required.');
   const user = new Map<string, LoadedLocalePack>();
   const warnings: LocaleWarning[] = [];
   let rejectedUserPacks = 0;
-  if (existsSync(input.userRoot)) {
-    const userRootLink = lstatSync(input.userRoot);
+  const userRoots = input.userRoots ?? (
+    input.userRoot === undefined ? [] : [input.userRoot]
+  );
+  for (const userRoot of userRoots) {
+  if (existsSync(userRoot)) {
+    const userRootLink = lstatSync(userRoot);
     if (!userRootLink.isDirectory() || userRootLink.isSymbolicLink()) {
       throw new Error('Locale root must be a regular directory.');
     }
-    const rootRealPath = realpathSync(input.userRoot);
+    const rootRealPath = realpathSync(userRoot);
     const folders = readdirSync(rootRealPath, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
       .slice(0, LIMITS.packs);
@@ -275,9 +280,13 @@ export function loadLocalePacks(input: {
             'The user locale contains an unknown message key.'
           ));
         }
+        const prior = user.get(pack.manifest.locale);
         user.set(pack.manifest.locale, {
           manifest: pack.manifest,
-          messages: Object.freeze(recognized)
+          messages: Object.freeze({
+            ...(prior?.messages ?? {}),
+            ...recognized
+          })
         });
       } catch (error) {
         rejectedUserPacks += 1;
@@ -292,6 +301,7 @@ export function loadLocalePacks(input: {
         ));
       }
     }
+  }
   }
   const locales = new Set([...bundled.keys(), ...user.keys()]);
   const summaries = [...locales].sort((left, right) => {

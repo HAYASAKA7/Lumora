@@ -1,62 +1,10 @@
 {
-  "general": {
-    "title": "何か間違えた",
-    "description": "Lumora任務を完了できなかった",
-    "retry": "再度やってみてください",
-    "region": "Lumora展示できない",
-    "page-heading": "ページは利用できません",
-    "page-description": "Lumoraページを準備ができている時のみ再試してください.",
-    "retry-page": "復試ページ"
-  },
-  "catalog": {
-    "load": "Lumoraセッションカタログを読み込むことができなかった.",
-    "refresh": "Lumora授業を更新できませんでした",
-    "refresh-saved": "カタログ更新が失敗.最後の保存されたデータはまだ表示されています.",
-    "refresh-retry": "カタログ更新が失敗した 再度",
-    "workspace-refresh-saved": "ワークスペースセッションの更新が失敗した.最後の保存されたデータはまだ表示されています.",
-    "hide-workspace": "Lumoraワークスペースを隠せないよ 再度",
-    "restore-workspaces": "Lumora選択したワークスペースを復元できませんでした",
-    "restore-all-workspaces": "Lumora隠されたワークスペースを回復できなかった"
-  },
-  "terminal": {
-    "operation": "Lumoraターミナル操作を完了できなかった",
-    "start": "Lumoraターミナルを起動できませんでした",
-    "stop": "Lumoraターミナルを止められなかった",
-    "clipboard": "Lumora鍵盤にアクセスできませんでした",
-    "controls-heading": "ターミナル制御は利用できません",
-    "controls-description": "管理されたターミナルプロセスは依然としてLumora関連のないセッションを再開せずに ターミナル制御を再開します",
-    "retry-controls": "ターミナル制御を再試す"
-  },
-  "provider": {
-    "scan": "Lumora代理店のプロバイダーをスキャンできませんでした",
-    "install": "Lumoraプロバイダーがインストールできませんでした",
-    "update": "Lumoraプロバイダー 更新できなかった",
-    "save-selection": "Lumoraプロバイダーの選択を保存できなかった."
-  },
-  "settings": {
-    "save": "Lumora設定を保存できなかった",
-    "save-notices": "Lumora通知設定を保存できなかった.",
-    "background-invalid": "Lumora画像は使えなかった. 有効な画像を選択してください.PNGJPEG及びWebP25MB未満のファイル",
-    "background-remove": "Lumora管理された画像を削除できなかった."
-  },
-  "remote": {
-    "operation": "Lumora遠隔操作が完了できなかった",
-    "connect": "Lumora遠隔コンピュータに接続できませんでした",
-    "inspect-helper": "SSH繋がっているけどLumora遠隔ヘルパー装置を 検査できなかった",
-    "session-scan": "Lumora遠隔セッションをスキャンできませんでした"
-  },
-  "transfer": {
-    "operation": "Lumoraセッションの移転を完了できなかった",
-    "invalid-archive": "このアーカイブは有効ではありませんLumoraセッションの移転",
-    "provider-required": "インストール{provider}セッションを輸入する前に"
-  },
-  "localization": {
-    "load": "Lumora言語資源を読み込むことができなかった.",
-    "invalid-pack": "1 つ以上のユーザー言語パックは拒否されました.",
-    "fallback": "不足している翻訳には英語を使用しています。",
-    "unavailable": "言語リソースを利用できません。",
-    "opening": "Lumora を開いています",
-    "window-auth-heading": "ウィンドウの認証に失敗しました",
-    "window-auth-description": "このウィンドウを閉じて、Lumora をもう一度開いてください。"
-  }
+  "general": {"title": "問題が発生しました", "description": "Lumora はこの操作を完了できませんでした。", "retry": "再試行", "region": "Lumora のこの部分は現在表示できません。", "page-heading": "ページを利用できません", "page-description": "Lumora はこのページを読み込めませんでした。他のページは引き続き利用できます。", "retry-page": "ページを再読み込み"},
+  "catalog": {"load": "Lumora はセッションカタログを読み込めませんでした。", "refresh": "Lumora はセッションを更新できませんでした。", "refresh-saved": "カタログの更新に失敗しました。最後に保存されたデータを表示しています。", "refresh-retry": "カタログの更新に失敗しました。もう一度お試しください。", "workspace-refresh-saved": "ワークスペースのセッション更新に失敗しました。最後に保存されたデータを表示しています。", "hide-workspace": "Lumora はこのワークスペースを非表示にできませんでした。", "restore-workspaces": "Lumora は選択したワークスペースを復元できませんでした。", "restore-all-workspaces": "Lumora は非表示のワークスペースを復元できませんでした。"},
+  "terminal": {"operation": "Lumora はターミナル操作を完了できませんでした。", "start": "Lumora はこのターミナルを起動できませんでした。", "stop": "Lumora はこのターミナルを停止できませんでした。", "clipboard": "Lumora はクリップボードにアクセスできませんでした。", "controls-heading": "ターミナル操作を利用できません", "controls-description": "Lumora は引き続きターミナルプロセスを管理しています。他のセッションを再起動せずに操作を再試行してください。", "retry-controls": "ターミナル操作を再試行"},
+  "provider": {"scan": "Lumora はエージェントプロバイダーをスキャンできませんでした。", "install": "Lumora はこのプロバイダーをインストールできませんでした。", "update": "Lumora はこのプロバイダーを更新できませんでした。", "save-selection": "Lumora はプロバイダーの選択を保存できませんでした。"},
+  "settings": {"save": "Lumora はこの設定を保存できませんでした。", "save-notices": "Lumora は情報通知の設定を保存できませんでした。", "background-invalid": "Lumora は選択した画像を使用できません。25 MB 未満の PNG、JPEG、または WebP ファイルを選択してください。", "background-remove": "Lumora は管理対象の画像を削除できませんでした。"},
+  "remote": {"operation": "Lumora はリモート操作を完了できませんでした。", "connect": "Lumora はリモートコンピューターに接続できませんでした。", "inspect-helper": "SSH には接続しましたが、Lumora はリモートヘルパーのインストールを確認できませんでした。", "session-scan": "Lumora はリモートセッションをスキャンできませんでした。"},
+  "transfer": {"operation": "Lumora はセッション転送を完了できませんでした。", "invalid-archive": "このアーカイブは有効な Lumora セッション転送ファイルではありません。", "provider-required": "セッションをインポートする前に {provider} をインストールしてください。"},
+  "localization": {"load": "Lumora は言語リソースを読み込めませんでした。", "invalid-pack": "1 つ以上のユーザー言語パックが拒否されました。", "fallback": "翻訳がない項目は英語で表示されます。", "unavailable": "言語リソースを利用できません。", "opening": "Lumora を開いています", "window-auth-heading": "ウィンドウの認証に失敗しました", "window-auth-description": "このウィンドウを閉じてから、Lumora をもう一度開いてください。"}
 }

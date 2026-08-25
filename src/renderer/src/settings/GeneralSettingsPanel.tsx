@@ -1,9 +1,5 @@
-import { useState } from 'react';
-
 import type {
-  GeneralSettings,
-  LocaleWarning,
-  LumoraApi
+  GeneralSettings
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
@@ -13,7 +9,6 @@ interface GeneralSettingsPanelProps {
   saving: boolean;
   saveError: string | null;
   onChange(settings: GeneralSettings): void;
-  api?: Pick<LumoraApi, 'openUserLocaleFolder' | 'reloadLocalization'>;
 }
 
 type BooleanGeneralSettingKey =
@@ -82,44 +77,19 @@ const GENERAL_SETTING_DEFINITIONS = {
 } as const satisfies Record<BooleanGeneralSettingKey, BooleanGeneralSettingDefinition>;
 
 export function GeneralSettingsPanel({
-  api = window.lumora,
   settings,
   saving,
   saveError,
   onChange
 }: GeneralSettingsPanelProps) {
   const { snapshot, t } = useLocalization();
-  const [localeActionStatus, setLocaleActionStatus] = useState<string | null>(null);
-  const [localeActionError, setLocaleActionError] = useState<string | null>(null);
   const localeOptions: Array<{
     value: GeneralSettings['languagePreference'];
     label: string;
-  }> = [
-    {
-      value: 'system',
-      label: t('settings.general.language-system-active', {
-        language: snapshot.availableLocales.find(
-          (locale) => locale.locale === snapshot.locale
-        )?.displayName ?? snapshot.locale
-      })
-    },
-    ...snapshot.availableLocales.map((locale) => {
-      let translatedName = locale.displayName;
-      try {
-        translatedName = new Intl.DisplayNames(snapshot.formattingLocale, {
-          type: 'language'
-        }).of(locale.locale) ?? locale.displayName;
-      } catch {
-        // The manifest self-name remains a stable fallback.
-      }
-      return {
-        value: locale.locale,
-        label: translatedName === locale.displayName
-          ? locale.displayName
-          : `${locale.displayName} — ${translatedName}`
-      };
-    })
-  ];
+  }> = snapshot.availableLocales.map((locale) => ({
+    value: locale.locale,
+    label: locale.displayName
+  }));
   if (
     settings.languagePreference !== 'system' &&
     !snapshot.availableLocales.some(
@@ -133,16 +103,6 @@ export function GeneralSettingsPanel({
       })
     });
   }
-
-  const warningText = (warning: LocaleWarning): string => {
-    const keys: Record<LocaleWarning['code'], string> = {
-      'invalid-user-pack': 'settings.general.language-warning-invalid',
-      'unsupported-schema': 'settings.general.language-warning-schema',
-      'catalog-version-mismatch': 'settings.general.language-warning-catalog',
-      'unknown-message-key': 'settings.general.language-warning-key'
-    };
-    return t(keys[warning.code]);
-  };
 
   const renderBooleanSetting = (setting: BooleanGeneralSettingDefinition) => {
     const descriptionId = `general-${setting.key}-description`;
@@ -212,72 +172,14 @@ export function GeneralSettingsPanel({
                 languagePreference: value
               })}
               options={localeOptions}
-              value={settings.languagePreference}
+              value={
+                settings.languagePreference === 'system'
+                  ? snapshot.locale
+                  : settings.languagePreference
+              }
             />
           </div>
-          <div className="general-setting-row general-setting-row-control">
-            <span className="general-setting-copy">
-              <strong>{t('settings.general.open-language-folder')}</strong>
-              <span>{t('settings.general.language-description')}</span>
-            </span>
-            <div className="provider-panel-actions">
-              <button
-                className="secondary-button"
-                data-lumora-command
-                disabled={saving}
-                onClick={() => {
-                  setLocaleActionError(null);
-                  void api.openUserLocaleFolder().catch(() => {
-                    setLocaleActionError(t('settings.general.language-open-failed'));
-                  });
-                }}
-                tabIndex={-1}
-                type="button"
-              >
-                {t('settings.general.open-language-folder')}
-              </button>
-              <button
-                className="secondary-button"
-                data-lumora-command
-                disabled={saving}
-                onClick={() => {
-                  setLocaleActionError(null);
-                  setLocaleActionStatus(null);
-                  void api.reloadLocalization().then(
-                    (result) => {
-                      const rejected = result.rejectedUserPacks === 0
-                        ? ''
-                        : ` ${t('settings.general.language-rejected', {
-                            count: result.rejectedUserPacks
-                          })}`;
-                      setLocaleActionStatus(
-                        `${t('settings.general.language-reload-complete')}${rejected}`
-                      );
-                    },
-                    () => setLocaleActionError(
-                      t('settings.general.language-reload-failed')
-                    )
-                  );
-                }}
-                tabIndex={-1}
-                type="button"
-              >
-                {t('settings.general.reload-languages')}
-              </button>
-            </div>
-          </div>
         </div>
-        {localeActionStatus === null ? null : <p role="status">{localeActionStatus}</p>}
-        {localeActionError === null ? null : (
-          <p className="general-setting-error" role="alert">{localeActionError}</p>
-        )}
-        {snapshot.warnings.length === 0 ? null : (
-          <div className="general-setting-error" role="alert">
-            {[...new Set(snapshot.warnings.map(warningText))].map((message) => (
-              <p key={message}>{message}</p>
-            ))}
-          </div>
-        )}
       </section>
 
       <section

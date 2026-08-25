@@ -58,6 +58,12 @@ vi.mock('./AppearanceSettingsPanel', () => ({
   AppearanceSettingsPanel: () => <div>Appearance content</div>
 }));
 
+vi.mock('./ModsSettingsPanel', () => ({
+  ModsSettingsPanel: ({ active }: { active: boolean }) => (
+    <div data-active={String(active)}>Mods content</div>
+  )
+}));
+
 vi.mock('./WorkspaceTrustPanel', () => ({
   WorkspaceTrustPanel: () => <div>Security content</div>
 }));
@@ -177,6 +183,7 @@ describe('SettingsView', () => {
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'General',
       'Appearance',
+      'Mods',
       'Providers',
       'Environment',
       'Launch',
@@ -204,6 +211,7 @@ describe('SettingsView', () => {
 
     expect(screen.getByText('General content')).toBeVisible();
     expect(screen.getByText('Appearance content')).toBeInTheDocument();
+    expect(screen.getByText('Mods content')).toBeInTheDocument();
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('Environment loading')).toBeInTheDocument();
     expect(screen.getByText('Launch content')).toBeInTheDocument();
@@ -264,6 +272,7 @@ describe('SettingsView', () => {
     expect(document.getElementById('settings-panel-providers')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-general')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-appearance')).toBeInTheDocument();
+    expect(document.getElementById('settings-panel-mods')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-environment')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-launch')).toBeInTheDocument();
     expect(document.getElementById('settings-panel-security')).toBeInTheDocument();
@@ -274,6 +283,7 @@ describe('SettingsView', () => {
     expect(screen.getByText('Providers content')).toBeInTheDocument();
     expect(screen.getByText('General content')).toBeInTheDocument();
     expect(screen.getByText('Appearance content')).toBeInTheDocument();
+    expect(screen.getByText('Mods content')).toBeInTheDocument();
     expect(screen.getByText('Keyboard content')).toBeInTheDocument();
     expect(screen.getByText('Transfer content')).toBeInTheDocument();
     expect(screen.getByText('Diagnostics content')).toBeInTheDocument();

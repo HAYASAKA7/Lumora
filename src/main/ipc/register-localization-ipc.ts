@@ -3,8 +3,12 @@ import {
   LocaleReloadResultSchema,
   LocalizationFolderOpenResultSchema,
   LocalizationSnapshotSchema,
+  ModsRootChooseResultSchema,
+  ModsSettingsSchema,
   type LocaleReloadResult,
-  type LocalizationSnapshot
+  type LocalizationSnapshot,
+  type ModsRootChooseResult,
+  type ModsSettings
 } from '../../shared/contracts';
 import { isTrustedRendererUrl } from '../security-policy';
 import type { IpcAuthorizer } from './ipc-access';
@@ -45,6 +49,10 @@ export function registerLocalizationIpc(input: {
   authorize: IpcAuthorizer;
   service: LocalizationServicePort;
   openUserLocaleFolder(): Promise<void>;
+  getModsSettings(): Promise<ModsSettings>;
+  chooseModsRoot(): Promise<ModsRootChooseResult>;
+  resetModsRoot(): Promise<ModsSettings>;
+  openModsRoot(): Promise<void>;
   broadcast(snapshot: LocalizationSnapshot): void;
   developmentOrigin?: string;
 }): () => void {
@@ -80,6 +88,31 @@ export function registerLocalizationIpc(input: {
     authorize(event);
     return safely(async () => {
       await input.openUserLocaleFolder();
+      return LocalizationFolderOpenResultSchema.parse({ opened: true });
+    });
+  });
+  input.ipc.handle(IPC_CHANNELS.modsSettingsGet, async (event) => {
+    authorize(event);
+    return safely(async () => ModsSettingsSchema.parse(
+      await input.getModsSettings()
+    ));
+  });
+  input.ipc.handle(IPC_CHANNELS.modsRootChoose, async (event) => {
+    authorize(event);
+    return safely(async () => ModsRootChooseResultSchema.parse(
+      await input.chooseModsRoot()
+    ));
+  });
+  input.ipc.handle(IPC_CHANNELS.modsRootReset, async (event) => {
+    authorize(event);
+    return safely(async () => ModsSettingsSchema.parse(
+      await input.resetModsRoot()
+    ));
+  });
+  input.ipc.handle(IPC_CHANNELS.modsRootOpen, async (event) => {
+    authorize(event);
+    return safely(async () => {
+      await input.openModsRoot();
       return LocalizationFolderOpenResultSchema.parse({ opened: true });
     });
   });

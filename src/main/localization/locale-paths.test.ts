@@ -12,7 +12,9 @@ describe('locale paths', () => {
       userDataPath: join('D:', 'Profiles', 'Lumora-dev')
     })).toEqual({
       bundledRoot: join('D:', 'Projects', 'Lumora', 'resources', 'locales'),
-      userRoot: join('D:', 'Profiles', 'Lumora-dev', 'locales')
+      legacyUserRoot: join('D:', 'Profiles', 'Lumora-dev', 'locales'),
+      defaultModsRoot: join('D:', 'Profiles', 'Lumora-dev', 'mods'),
+      modsPreferencesPath: join('D:', 'Profiles', 'Lumora-dev', 'mods-settings.json')
     });
   });
 
@@ -24,7 +26,9 @@ describe('locale paths', () => {
       userDataPath: '/home/user/.config/Lumora'
     })).toEqual({
       bundledRoot: join('/opt/Lumora/resources', 'locales'),
-      userRoot: join('/home/user/.config/Lumora', 'locales')
+      legacyUserRoot: join('/home/user/.config/Lumora', 'locales'),
+      defaultModsRoot: join('/home/user/.config/Lumora', 'mods'),
+      modsPreferencesPath: join('/home/user/.config/Lumora', 'mods-settings.json')
     });
   });
 });

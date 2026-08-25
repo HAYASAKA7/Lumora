@@ -11,12 +11,19 @@ Lumora translates only application-owned interface text. Provider TUI output,
 commands, prompts, session and workspace names, paths, host data, diagnostic
 logs, and stable error codes stay unchanged.
 
-## User language packs
+## Mods and user language packs
 
-Open **Settings > General > Language > Open language-pack folder** to reach the
-managed per-user folder. Do not modify the bundled packs inside the Lumora
+Open **Settings > Mods** to manage Lumora's data-only customization directory.
+The default location is inside Lumora's per-user application data, but users
+can select another writable directory on any local drive. Language packs live
+under its `locales` folder. Do not modify bundled packs inside the Lumora
 installation. A user pack can add a locale or override part of an existing
 locale without changing application code.
+
+Changing the Mods directory does not move or delete files. Lumora continues to
+load packs from the former managed per-user `locales` directory for backward
+compatibility. When the same locale exists in more than one place, the active
+Mods pack overrides the legacy user pack, which overrides bundled messages.
 
 Each pack uses a canonical locale tag as its folder name:
 
@@ -55,7 +62,7 @@ bundled English. Copy keys and ICU arguments exactly from
 names, commands, paths, shortcut notation, and placeholders such as `{count}`
 must remain intact.
 
-Use **Reload language packs** after saving changes. Reload is atomic: Lumora
+Use **Reload languages** in **Settings > Mods** after saving changes. Reload is atomic: Lumora
 keeps the last valid catalog if the new files cannot be accepted. Compatibility
 warnings appear when a pack targets another catalog version or contains unknown
 keys. Invalid packs are rejected individually and never replace bundled
@@ -70,7 +77,7 @@ excessive packs. Current limits are 64 packs, 512 KiB per file, 4 MiB per pack,
 32 MiB for the user locale root, 10,000 messages per pack, eight nesting levels,
 and 16,384 code points per message.
 
-If a pack is rejected, review the warning in Language settings, compare its
+If a pack is rejected, review the warning in Mods settings, compare its
 manifest and placeholders with the current English catalog, and reload. Rename
 or remove the invalid folder to return immediately to bundled translations.
 

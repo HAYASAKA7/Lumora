@@ -27,6 +27,11 @@ const snapshot: LocalizationSnapshot = {
   warnings: []
 };
 const trustedEvent: Event = { senderFrame: { url: 'app://lumora/index.html' } };
+const modsSettings = {
+  rootPath: 'D:\\Lumora Mods',
+  localesPath: 'D:\\Lumora Mods\\locales',
+  usesDefault: false
+};
 
 function harness(
   context: LumoraWindowContext = { mode: 'local', executionTargetId: 'local' }
@@ -52,6 +57,16 @@ function harness(
     authorize: () => context,
     service,
     openUserLocaleFolder: vi.fn().mockResolvedValue(undefined),
+    getModsSettings: vi.fn().mockResolvedValue(modsSettings),
+    chooseModsRoot: vi.fn().mockResolvedValue({
+      canceled: false,
+      settings: modsSettings
+    }),
+    resetModsRoot: vi.fn().mockResolvedValue({
+      ...modsSettings,
+      usesDefault: true
+    }),
+    openModsRoot: vi.fn().mockResolvedValue(undefined),
     broadcast
   });
   return { handlers, service, broadcast, dispose, unsubscribe, publish: () => {
@@ -78,6 +93,15 @@ describe('registerLocalizationIpc', () => {
       ).resolves.toMatchObject({ snapshot, loadedUserPacks: 0 });
       await expect(
         handlers.get(IPC_CHANNELS.localizationUserFolderOpen)!(trustedEvent)
+      ).resolves.toEqual({ opened: true });
+      await expect(
+        handlers.get(IPC_CHANNELS.modsSettingsGet)!(trustedEvent)
+      ).resolves.toEqual(modsSettings);
+      await expect(
+        handlers.get(IPC_CHANNELS.modsRootChoose)!(trustedEvent)
+      ).resolves.toEqual({ canceled: false, settings: modsSettings });
+      await expect(
+        handlers.get(IPC_CHANNELS.modsRootOpen)!(trustedEvent)
       ).resolves.toEqual({ opened: true });
     }
   });

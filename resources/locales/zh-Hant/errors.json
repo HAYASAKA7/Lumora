@@ -1,62 +1,10 @@
 {
-  "general": {
-    "title": "有什么問題發生了",
-    "description": "Lumora沒有完成這次行動.",
-    "retry": "再試一次",
-    "region": "現在的部分Lumora沒有顯示.",
-    "page-heading": "頁面不可用",
-    "page-description": "Lumora您只需要在您的手機上使用此頁面,",
-    "retry-page": "復試頁面"
-  },
-  "catalog": {
-    "load": "Lumora無法加載工作階段目錄.",
-    "refresh": "Lumora沒有更新工作階段.",
-    "refresh-saved": "目錄更新失敗.最后保存的數據仍然顯示.",
-    "refresh-retry": "卡塔羅目錄更新失敗,再試一次.",
-    "workspace-refresh-saved": "工作空間工作階段更新失敗.最后保存的數據仍然顯示.",
-    "hide-workspace": "Lumora我不能隱藏這個工作空間.",
-    "restore-workspaces": "Lumora無法恢復所選的工作空間.",
-    "restore-all-workspaces": "Lumora無法恢復隱藏的工作空間."
-  },
-  "terminal": {
-    "operation": "Lumora終端操作無法完成.",
-    "start": "Lumora沒有啟動這個終端.",
-    "stop": "Lumora沒有辦法阻止這個終端.",
-    "clipboard": "Lumora沒有訪問剪輯板.",
-    "controls-heading": "終端控制無法使用",
-    "controls-description": "管理終端流程仍然由Lumora試試終端控制,而不重新啟動無關的工作階段.",
-    "retry-controls": "試試終端控制."
-  },
-  "provider": {
-    "scan": "Lumora沒有能掃描智慧體提供商.",
-    "install": "Lumora沒有能安裝這個提供商.",
-    "update": "Lumora無法更新這個提供商.",
-    "save-selection": "Lumora無法保存提供商選擇."
-  },
-  "settings": {
-    "save": "Lumora沒有能挽救這個設置.",
-    "save-notices": "Lumora無法保存信息通知設置.",
-    "background-invalid": "Lumora選擇一個有效的圖像.PNG現在JPEG其他WebP文件不到25MB.",
-    "background-remove": "Lumora無法刪除所管理的圖像."
-  },
-  "remote": {
-    "operation": "Lumora無法完成遠程操作.",
-    "connect": "Lumora無法連接到遠程計算機.",
-    "inspect-helper": "SSH連接,但Lumora無法檢查遠程輔助器的安裝.",
-    "session-scan": "Lumora無法遠程掃描工作階段."
-  },
-  "transfer": {
-    "operation": "Lumora沒有完成工作階段轉移.",
-    "invalid-archive": "這檔案是不有效的Lumora工作階段轉會.",
-    "provider-required": "安裝{provider}在進口工作階段之前."
-  },
-  "localization": {
-    "load": "Lumora無法加載語言資源.",
-    "invalid-pack": "一個或多個用戶語言包被拒絕.",
-    "fallback": "Lumora 將對缺少的翻譯使用英語。",
-    "unavailable": "語言資源無法使用。",
-    "opening": "正在開啟 Lumora",
-    "window-auth-heading": "視窗授權失敗",
-    "window-auth-description": "請關閉此視窗，然後重新開啟 Lumora。"
-  }
+  "general": {"title": "發生問題", "description": "Lumora 無法完成此操作。", "retry": "再試一次", "region": "Lumora 的這個部分目前無法顯示。", "page-heading": "頁面無法使用", "page-description": "Lumora 無法載入此頁面。其他頁面仍可使用。", "retry-page": "重新載入頁面"},
+  "catalog": {"load": "Lumora 無法載入工作階段目錄。", "refresh": "Lumora 無法重新整理工作階段。", "refresh-saved": "目錄重新整理失敗。仍在顯示上次儲存的資料。", "refresh-retry": "目錄重新整理失敗。請再試一次。", "workspace-refresh-saved": "工作區工作階段重新整理失敗。仍在顯示上次儲存的資料。", "hide-workspace": "Lumora 無法隱藏此工作區。", "restore-workspaces": "Lumora 無法還原所選工作區。", "restore-all-workspaces": "Lumora 無法還原隱藏的工作區。"},
+  "terminal": {"operation": "Lumora 無法完成終端機操作。", "start": "Lumora 無法啟動此終端機。", "stop": "Lumora 無法停止此終端機。", "clipboard": "Lumora 無法存取剪貼簿。", "controls-heading": "終端機控制無法使用", "controls-description": "Lumora 仍在管理終端機程序。請重試終端機控制，不必重新啟動其他工作階段。", "retry-controls": "重試終端機控制"},
+  "provider": {"scan": "Lumora 無法掃描智慧體提供者。", "install": "Lumora 無法安裝此提供者。", "update": "Lumora 無法更新此提供者。", "save-selection": "Lumora 無法儲存提供者選擇。"},
+  "settings": {"save": "Lumora 無法儲存此設定。", "save-notices": "Lumora 無法儲存資訊通知設定。", "background-invalid": "Lumora 無法使用所選影像。請選擇小於 25 MB 的 PNG、JPEG 或 WebP 檔案。", "background-remove": "Lumora 無法移除受管理的影像。"},
+  "remote": {"operation": "Lumora 無法完成遠端操作。", "connect": "Lumora 無法連線至遠端電腦。", "inspect-helper": "SSH 已連線，但 Lumora 無法檢查遠端輔助程式的安裝狀態。", "session-scan": "Lumora 無法掃描遠端工作階段。"},
+  "transfer": {"operation": "Lumora 無法完成工作階段傳輸。", "invalid-archive": "此封存檔不是有效的 Lumora 工作階段傳輸檔案。", "provider-required": "請先安裝 {provider}，再匯入其工作階段。"},
+  "localization": {"load": "Lumora 無法載入語言資源。", "invalid-pack": "一個或多個使用者語言套件已遭拒絕。", "fallback": "Lumora 將以英文顯示缺少的翻譯。", "unavailable": "語言資源無法使用。", "opening": "正在開啟 Lumora", "window-auth-heading": "視窗授權失敗", "window-auth-description": "請關閉此視窗，然後重新開啟 Lumora。"}
 }

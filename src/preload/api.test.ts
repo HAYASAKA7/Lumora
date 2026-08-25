@@ -82,6 +82,36 @@ describe('createLumoraApi', () => {
     expect(() => deliver({ ...snapshot, revision: -1 })).toThrow();
   });
 
+  it('exposes validated Mods directory operations', async () => {
+    const settings = {
+      rootPath: 'D:\\Lumora Mods',
+      localesPath: 'D:\\Lumora Mods\\locales',
+      usesDefault: false
+    };
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === IPC_CHANNELS.modsRootChoose) {
+        return { canceled: false, settings };
+      }
+      if (channel === IPC_CHANNELS.modsRootOpen) return { opened: true };
+      return settings;
+    });
+    const api = createLumoraApi(invoke);
+
+    await expect(api.getModsSettings()).resolves.toEqual(settings);
+    await expect(api.chooseModsRoot()).resolves.toEqual({
+      canceled: false,
+      settings
+    });
+    await expect(api.resetModsRoot()).resolves.toEqual(settings);
+    await expect(api.openModsRoot()).resolves.toBeUndefined();
+    expect(invoke.mock.calls).toEqual([
+      [IPC_CHANNELS.modsSettingsGet],
+      [IPC_CHANNELS.modsRootChoose],
+      [IPC_CHANNELS.modsRootReset],
+      [IPC_CHANNELS.modsRootOpen]
+    ]);
+  });
+
   it('uses narrow About channels and validates their results', async () => {
     const invoke = vi.fn(async (channel: string) => {
       if (channel === IPC_CHANNELS.applicationAboutGet) return {
