@@ -397,6 +397,26 @@ remembered privately and used as the next dialog location. Native directory
 dialogs prevent the renderer from submitting arbitrary paths. There is no
 diagnostic upload or native crash-dump collection.
 
+## Localization and Mods
+
+Lumora packages immutable built-in locale catalogs with the application. On
+first use, the main process resolves a supported operating-system locale and
+falls back to bundled English; a later explicit language choice is global to
+local and Remote Lumora windows and native application surfaces.
+
+User language packs are data-only Mods. The active Mods root defaults to a
+directory under `userData`, while a private preference can point to another
+writable local directory. Changing that preference does not move or delete
+content. The former per-user `locales` directory remains a compatibility
+source. Catalog precedence is the active Mods pack, the legacy user pack, the
+matching bundled locale, and finally immutable bundled English.
+
+The main process owns Mods filesystem access and native folder selection.
+Before activation, catalogs pass bounded schema, ICU placeholder, path, file,
+and size validation. Symbolic links, unsafe keys, unexpected files, and
+executable content are rejected. Reload is atomic, so a rejected update cannot
+replace the last valid active catalog.
+
 ## Privacy and trust
 
 Lumora has no Lumora cloud synchronization. Provider session sources are read

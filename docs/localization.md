@@ -1,11 +1,11 @@
 # Lumora localization
 
 Lumora ships with English, Simplified Chinese, Traditional Chinese, Japanese,
-and Korean. **Settings > General > Language** can follow the operating-system
-language or select one explicitly. System selection uses a supported locale
-when possible and otherwise falls back to English. The choice is global across
-the local window, Remote Lumora windows, tray or menu-bar menus, notifications,
-dialogs, dates, times, and counts.
+and Korean. On first use, Lumora follows the operating-system language when it
+is supported and otherwise falls back to English. **Settings > General >
+Language** lists the explicit language choices using their native names. The
+choice is global across the local window, Remote Lumora windows, tray or
+menu-bar menus, notifications, dialogs, dates, times, and counts.
 
 Lumora translates only application-owned interface text. Provider TUI output,
 commands, prompts, session and workspace names, paths, host data, diagnostic
@@ -15,10 +15,11 @@ logs, and stable error codes stay unchanged.
 
 Open **Settings > Mods** to manage Lumora's data-only customization directory.
 The default location is inside Lumora's per-user application data, but users
-can select another writable directory on any local drive. Language packs live
-under its `locales` folder. Do not modify bundled packs inside the Lumora
-installation. A user pack can add a locale or override part of an existing
-locale without changing application code.
+can select another writable directory on any local drive, including a writable
+folder beside a portable installation. Language packs live under its `locales`
+folder. Do not modify bundled packs inside the Lumora installation. A user pack
+can add a locale or override part of an existing locale without changing
+application code.
 
 Changing the Mods directory does not move or delete files. Lumora continues to
 load packs from the former managed per-user `locales` directory for backward
@@ -62,11 +63,11 @@ bundled English. Copy keys and ICU arguments exactly from
 names, commands, paths, shortcut notation, and placeholders such as `{count}`
 must remain intact.
 
-Use **Reload languages** in **Settings > Mods** after saving changes. Reload is atomic: Lumora
-keeps the last valid catalog if the new files cannot be accepted. Compatibility
-warnings appear when a pack targets another catalog version or contains unknown
-keys. Invalid packs are rejected individually and never replace bundled
-English.
+Use **Reload languages** in **Settings > Mods** after saving changes. Reload is
+atomic: Lumora keeps the last valid catalog if the new files cannot be
+accepted. Compatibility warnings appear when a pack targets another catalog
+version or contains unknown keys. Invalid packs are rejected individually and
+never replace bundled English.
 
 ## Safety limits
 

@@ -24,7 +24,7 @@
 </p>
 
 > [!WARNING]
-> Lumora 0.3 is an unsigned preview release. Review the
+> Lumora 0.4 is an unsigned preview release. Review the
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
@@ -325,17 +325,21 @@ future warning.
 ### Language
 
 Lumora includes English, Simplified Chinese, Traditional Chinese, Japanese,
-and Korean. Choose **System language** or an explicit language in
-**Settings > General > Language**; unsupported system languages fall back to
-English. The selection is global across local and Remote Lumora windows,
-native menus, notifications, dialogs, and formatted dates and counts. Agent
-TUI output, commands, prompts, paths, and user-owned names are never translated.
+and Korean. On first use, Lumora follows a supported operating-system language
+and otherwise falls back to English. Choose an explicit language in
+**Settings > General > Language**; the selection is global across local and
+Remote Lumora windows, native menus, notifications, dialogs, and formatted
+dates and counts. Agent TUI output, commands, prompts, paths, and user-owned
+names are never translated.
 
-Advanced users can open the managed language-pack folder from the same panel,
-add a locale or partially override an existing one, then reload packs without
-restarting Lumora. Invalid packs are isolated and the last valid catalog stays
-active. See [Localization and user language packs](docs/localization.md) for
-the manifest, namespaces, compatibility rules, limits, and recovery steps.
+Advanced users can manage the data-only Mods directory from
+**Settings > Mods**, add a locale or partially override an existing one, then
+reload packs without restarting Lumora. The Mods directory defaults to
+Lumora's per-user data but can be changed to another writable local folder.
+Changing it does not move or delete existing files. Invalid packs are isolated
+and the last valid catalog stays active. See
+[Localization and Mods](docs/localization.md) for the directory layout,
+manifest, namespaces, compatibility rules, limits, and recovery steps.
 
 ### Providers and environment
 
@@ -537,6 +541,7 @@ remote provider files and credentials stay on the selected remote computer.
 ## Technical documentation
 
 - [Troubleshooting guide](docs/TROUBLESHOOTING.md)
+- [Localization and Mods](docs/localization.md)
 - [Cross-device session transfer](docs/SESSION_TRANSFER.md)
 - [Remote computers](docs/REMOTE.md)
 - [Provider support and verification](docs/PROVIDER_SUPPORT.md)

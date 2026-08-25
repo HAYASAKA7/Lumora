@@ -7,21 +7,35 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-25
+
 ### Added
 
 - Add global multilingual UI support with system-language detection and
   explicit English, Simplified Chinese, Traditional Chinese, Japanese, and
   Korean selections across local Lumora, Remote Lumora, native menus,
   notifications, dialogs, and locale-aware dates, times, numbers, and plurals.
-- Add secure per-user language packs with partial overrides, immutable English
-  fallback, atomic reload, compatibility warnings, bounded JSON validation, and
-  a managed folder entrance in General settings.
+- Add secure data-only Mods support with a configurable local directory and a
+  dedicated settings category for opening, reloading, and maintaining custom
+  language packs.
+- Add user language packs with partial overrides, immutable English fallback,
+  atomic reload, compatibility warnings, and bounded JSON validation. Existing
+  per-user language packs remain supported after upgrading.
 
 ### Changed
 
+- Follow a supported operating-system language automatically on first use and
+  fall back to English otherwise. The language selector now lists explicit
+  languages using their native names.
 - Package all built-in locale catalogs on Windows, macOS, and Linux, and add
   verification gates for catalog completeness, ICU placeholders, renderer
   strings, and packaged locale resources.
+
+### Security
+
+- Keep Mods data-only: Lumora does not load executable code from the Mods
+  directory, rejects symbolic links and unsafe paths, and enforces limits for
+  files, packs, messages, and nesting before activating a catalog.
 
 ## [0.3.8] - 2026-08-24
 

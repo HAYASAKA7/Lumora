@@ -170,11 +170,11 @@ change before creating the tag. The tag-triggered workflow runs
 
 ## Create the draft prerelease
 
-Push a tag that exactly matches the package version. For version `0.3.8`:
+Push a tag that exactly matches the package version. For version `0.4.0`:
 
 ```powershell
-git tag v0.3.8
-git push origin v0.3.8
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 The **Lumora unsigned prerelease** workflow then:
