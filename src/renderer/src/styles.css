@@ -520,6 +520,7 @@ button {
   display: grid;
   min-height: 34px;
   flex: 1 1 50%;
+  align-content: start;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   transition: grid-template-rows 240ms ease;
@@ -552,6 +553,7 @@ button {
   display: grid;
   width: 100%;
   min-height: 30px;
+  align-self: start;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;

@@ -54,6 +54,7 @@ describe('sidebar session list styles', () => {
 
   it('smoothly reveals and conceals section contents without unmounting them', () => {
     const section = rule('.sidebar-session-section');
+    expect(section).toContain('align-content: start');
     expect(section).toContain('grid-template-rows: auto minmax(0, 1fr)');
     expect(section).toContain('transition: grid-template-rows 240ms ease');
     const collapsed = rule('.sidebar-session-section[data-expanded="false"]');
@@ -67,6 +68,7 @@ describe('sidebar session list styles', () => {
     const items = rule('.sidebar-session-items');
     expect(items).toContain('opacity 180ms ease');
     expect(items).not.toContain('opacity 160ms ease 60ms');
+    expect(rule('.sidebar-session-toggle')).toContain('align-self: start');
   });
 
   it('uses readable type, ellipsizes titles, and uses semantic color variables', () => {
