@@ -533,7 +533,7 @@ button {
   gap: 7px;
   padding: 5px 8px;
   color: var(--sidebar-muted);
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: left;
@@ -553,7 +553,7 @@ button {
   min-width: 20px;
   padding: 1px 5px;
   color: var(--sidebar-muted);
-  font-size: 0.6rem;
+  font-size: 0.66rem;
   text-align: center;
   background: var(--surface-subtle);
   border-radius: 999px;
@@ -575,28 +575,40 @@ button {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-color: transparent transparent;
-  scrollbar-width: none;
+  scrollbar-width: auto;
 }
 
 .sidebar-session-items:hover,
 .sidebar-session-items.is-scrolling {
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 
 .sidebar-session-items::-webkit-scrollbar {
-  width: 5px;
+  width: 12px;
+  height: 12px;
 }
 
-.sidebar-session-items::-webkit-scrollbar-track,
+.sidebar-session-items::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .sidebar-session-items::-webkit-scrollbar-thumb {
   background: transparent;
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
 }
 
 .sidebar-session-items:hover::-webkit-scrollbar-thumb,
 .sidebar-session-items.is-scrolling::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
+  background: var(--scrollbar);
+  background-clip: padding-box;
+}
+
+.sidebar-session-items:hover::-webkit-scrollbar-thumb:hover,
+.sidebar-session-items.is-scrolling::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+  background-clip: padding-box;
 }
 
 .sidebar-session-item {
@@ -645,7 +657,7 @@ button {
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -655,7 +667,7 @@ button {
   margin-top: 1px;
   overflow: hidden;
   color: var(--sidebar-muted);
-  font-size: 0.61rem;
+  font-size: 0.7rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -663,7 +675,7 @@ button {
 .sidebar-session-empty {
   margin: 4px 8px;
   color: var(--sidebar-muted);
-  font-size: 0.67rem;
+  font-size: 0.72rem;
 }
 
 .nav-label,

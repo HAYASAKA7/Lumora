@@ -1,7 +1,5 @@
 import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
 
-export const SIDEBAR_RECENT_SESSION_LIMIT = 30;
-
 interface SidebarSessionProjectionInput {
   runtimes: readonly RuntimeSummary[];
   sessions: readonly SessionSummary[];
@@ -26,8 +24,7 @@ export function projectSidebarSessions({
   );
   const recent = sessions
     .filter(({ id }) => !runningSessionIds.has(id))
-    .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .slice(0, SIDEBAR_RECENT_SESSION_LIMIT);
+    .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 
   return { running, recent };
 }

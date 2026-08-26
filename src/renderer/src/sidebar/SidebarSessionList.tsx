@@ -8,6 +8,7 @@ import {
 
 import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { useProgressiveList } from '../catalog/progressive-list';
 import { useLocalization } from '../localization/useLocalization';
 import { OverflowTooltip } from '../ui/Tooltip';
 import {
@@ -28,6 +29,10 @@ interface SidebarSessionListProps {
 }
 
 type ScrollingSection = 'running' | 'recent';
+
+const RECENT_INITIAL_COUNT = 30;
+const RECENT_BATCH_SIZE = 30;
+const RECENT_LOAD_AHEAD_PX = 160;
 
 function SectionToggle({
   count,
@@ -77,6 +82,12 @@ export function SidebarSessionList({
   const [scrollingSection, setScrollingSection] =
     useState<ScrollingSection | null>(null);
   const scrollTimer = useRef<number | null>(null);
+  const recentProgress = useProgressiveList({
+    itemCount: recent.length,
+    resetKey: preferenceScope,
+    initialCount: RECENT_INITIAL_COUNT,
+    batchSize: RECENT_BATCH_SIZE
+  });
 
   useEffect(() => () => {
     if (scrollTimer.current !== null) {
@@ -91,7 +102,7 @@ export function SidebarSessionList({
 
   const markScrolling = (
     section: ScrollingSection,
-    _event: UIEvent<HTMLDivElement>
+    event: UIEvent<HTMLDivElement>
   ) => {
     setScrollingSection(section);
     if (scrollTimer.current !== null) {
@@ -101,6 +112,13 @@ export function SidebarSessionList({
       scrollTimer.current = null;
       setScrollingSection(null);
     }, 700);
+
+    if (section === 'recent' && recentProgress.hasMore) {
+      const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+      if (scrollHeight - scrollTop - clientHeight <= RECENT_LOAD_AHEAD_PX) {
+        recentProgress.showMore();
+      }
+    }
   };
 
   const runningLabel = t('shell.sidebar.sessions.running');
@@ -203,7 +221,7 @@ export function SidebarSessionList({
               <p className="sidebar-session-empty">
                 {t('shell.sidebar.sessions.no-recent')}
               </p>
-            ) : recent.map((session) => (
+            ) : recent.slice(0, recentProgress.visibleCount).map((session) => (
               <button
                 className="sidebar-session-item"
                 data-lumora-command

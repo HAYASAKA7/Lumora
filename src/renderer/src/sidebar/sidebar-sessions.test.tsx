@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
-import {
-  SIDEBAR_RECENT_SESSION_LIMIT,
-  projectSidebarSessions
-} from './sidebar-sessions';
+import { projectSidebarSessions } from './sidebar-sessions';
 
 function runtime(
   idSuffix: string,
@@ -65,7 +62,7 @@ describe('projectSidebarSessions', () => {
     ]);
   });
 
-  it('removes linked running sessions, sorts newest first, and bounds recent results', () => {
+  it('removes linked running sessions, sorts newest first, and keeps the full catalog', () => {
     const sessions = Array.from({ length: 35 }, (_, index) => session(index + 1));
     const linked = sessions[17]!;
     const shuffled = [...sessions].reverse().filter((_, index) => index % 2 === 0)
@@ -76,7 +73,7 @@ describe('projectSidebarSessions', () => {
       sessions: shuffled
     });
 
-    expect(result.recent).toHaveLength(SIDEBAR_RECENT_SESSION_LIMIT);
+    expect(result.recent).toHaveLength(sessions.length - 1);
     expect(result.recent.some(({ id }) => id === linked.id)).toBe(false);
     expect(result.recent.map(({ updatedAt }) => updatedAt)).toEqual(
       [...result.recent]

@@ -94,10 +94,12 @@ const snapshot = {
 
 function renderList({
   onActivateRuntime = vi.fn(),
-  onResumeSession = vi.fn()
+  onResumeSession = vi.fn(),
+  recentSessions = recent
 }: {
   onActivateRuntime?: (runtimeId: string) => void;
   onResumeSession?: (session: SessionSummary) => void;
+  recentSessions?: readonly SessionSummary[];
 } = {}) {
   const preferences = new Map<string, string>();
   renderWithLocalization(
@@ -113,7 +115,7 @@ function renderList({
           }
         }}
         preferenceScope="test-target"
-        recent={recent}
+        recent={recentSessions}
         running={running}
       />
     </TooltipProvider>,
@@ -165,5 +167,30 @@ describe('SidebarSessionList', () => {
     const row = screen.getByRole('button', { name: /Kokora lifecycle/ });
     expect(row).not.toHaveAttribute('draggable');
     expect(row).not.toHaveAttribute('aria-grabbed');
+  });
+
+  it('renders recent sessions progressively as its scroll area approaches the end', () => {
+    const recentSessions = Array.from({ length: 65 }, (_, index) => ({
+      ...recent[0]!,
+      id: index.toString(16).padStart(64, '0'),
+      nativeId: `recent-${index}`,
+      title: `Recent session ${index + 1}`,
+      updatedAt: new Date(Date.UTC(2026, 7, 26, 0, index)).toISOString()
+    }));
+    renderList({ recentSessions });
+
+    const region = screen.getByRole('region', { name: 'Recent sessions' });
+    expect(within(region).getAllByRole('button')).toHaveLength(30);
+    Object.defineProperties(region, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1_200 },
+      scrollTop: { configurable: true, value: 780 }
+    });
+
+    fireEvent.scroll(region);
+
+    expect(within(region).getAllByRole('button')).toHaveLength(60);
+    fireEvent.scroll(region);
+    expect(within(region).getAllByRole('button')).toHaveLength(65);
   });
 });
