@@ -511,23 +511,17 @@ button {
   flex: 1 1 auto;
   margin-top: 12px;
   overflow: hidden;
-  contain: paint;
-  clip-path: inset(0);
   visibility: visible;
   border-top: 1px solid var(--line-soft);
   transition: visibility 0s linear;
 }
 
 .sidebar-session-section {
-  display: grid;
+  display: flex;
   min-height: 34px;
   flex: 1 1 50%;
-  align-content: start;
-  grid-template-rows: auto minmax(0, 1fr);
+  flex-direction: column;
   overflow: hidden;
-  contain: paint;
-  clip-path: inset(0);
-  transition: grid-template-rows 240ms ease;
 }
 
 .sidebar-session-section-running {
@@ -550,14 +544,12 @@ button {
   min-height: 34px;
   max-height: none;
   flex: 0 0 auto;
-  grid-template-rows: auto 0fr;
 }
 
 .sidebar-session-toggle {
   display: grid;
   width: 100%;
   min-height: 30px;
-  align-self: start;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
@@ -594,24 +586,8 @@ button {
   padding: 2px 2px 3px;
   overflow-x: hidden;
   overflow-y: auto;
-  overflow-anchor: none;
   scrollbar-color: transparent transparent;
   scrollbar-width: auto;
-  opacity: 1;
-  visibility: visible;
-  transition:
-    opacity 180ms ease,
-    visibility 0s linear;
-}
-
-.sidebar-session-section[data-expanded="false"] .sidebar-session-items {
-  pointer-events: none;
-  overflow-y: hidden;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 120ms ease,
-    visibility 0s linear 240ms;
 }
 
 .sidebar-session-items:hover,
