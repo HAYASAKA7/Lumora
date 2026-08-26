@@ -735,10 +735,10 @@ describe('RemoteTargetWindow', () => {
     expect(await screen.findByRole('heading', {
       name: 'Connecting to Linux build server'
     })).toBeInTheDocument();
-    expect(api.connectRemoteTarget).toHaveBeenCalledWith({
+    await waitFor(() => expect(api.connectRemoteTarget).toHaveBeenCalledWith({
       executionTargetId: TARGET_ID,
       mode: 'automatic'
-    });
+    }));
     expect(screen.queryByLabelText('SSH password')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: 'Remember password' }))
