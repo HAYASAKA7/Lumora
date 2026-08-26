@@ -56,7 +56,8 @@ describe('provider definitions', () => {
       displayName: 'Gemini CLI',
       command: 'gemini',
       npmPackage: '@google/gemini-cli',
-      sessionSupport: 'complete'
+      sessionSupport: 'complete',
+      structuredIntegration: 'gemini_acp'
     });
     expect(providerDefinition('antigravity')).toMatchObject({
       command: 'agy',
@@ -68,6 +69,27 @@ describe('provider definitions', () => {
       npmPackage: '@moonshot-ai/kimi-code',
       sessionSupport: 'complete'
     });
+  });
+
+  it('declares structured integration candidates without overstating verification', () => {
+    expect(PROVIDER_DEFINITIONS.map(({ provider, structuredIntegration }) => ({
+      provider,
+      structuredIntegration
+    }))).toEqual([
+      { provider: 'codex', structuredIntegration: 'codex_app_server' },
+      { provider: 'claude', structuredIntegration: 'claude_agent_sdk' },
+      { provider: 'gemini', structuredIntegration: 'gemini_acp' },
+      { provider: 'antigravity', structuredIntegration: null },
+      { provider: 'opencode', structuredIntegration: null },
+      { provider: 'cursor', structuredIntegration: null },
+      { provider: 'copilot', structuredIntegration: null },
+      { provider: 'qwen', structuredIntegration: null },
+      { provider: 'kimi', structuredIntegration: null },
+      { provider: 'amp', structuredIntegration: null },
+      { provider: 'crush', structuredIntegration: null },
+      { provider: 'goose', structuredIntegration: null },
+      { provider: 'aider', structuredIntegration: null }
+    ]);
   });
 
   it('requires discovery and exact resume for complete session support', () => {

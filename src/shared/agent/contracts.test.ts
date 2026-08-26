@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  StructuredAgentActionSchema,
+  StructuredAgentEventSchema,
+  StructuredAgentHistoryPageSchema,
+  StructuredAgentLaunchRequestSchema
+} from './contracts';
+
+const envelope = {
+  connectionId: 'connection-01',
+  providerId: 'codex',
+  nativeSessionId: 'thread-01',
+  turnId: 'turn-01',
+  eventId: 'event-01',
+  parentEventId: null,
+  sequence: 1,
+  generation: 1,
+  timestamp: '2026-08-26T12:00:00.000Z'
+} as const;
+
+describe('structured agent contracts', () => {
+  it('accepts bounded turn-grouped conversation and activity events', () => {
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'assistant.delta',
+      payload: { text: 'Working on it.' }
+    })).toMatchObject({
+      providerId: 'codex',
+      turnId: 'turn-01',
+      kind: 'assistant.delta'
+    });
+
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      eventId: 'event-02',
+      kind: 'tool.started',
+      payload: {
+        activityId: 'tool-01',
+        title: 'Read file',
+        detail: 'Reading a source file'
+      }
+    }).kind).toBe('tool.started');
+
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      eventId: 'event-03',
+      kind: 'approval.requested',
+      payload: {
+        approvalId: 'approval-01',
+        title: 'Run tests',
+        detail: 'Allow the agent to run the focused test?',
+        choices: ['allow_once', 'deny']
+      }
+    }).kind).toBe('approval.requested');
+  });
+
+  it('allows a pending native identity only while a new provider session starts', () => {
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      nativeSessionId: null,
+      kind: 'runtime.status',
+      payload: { state: 'starting', message: null }
+    }).nativeSessionId).toBeNull();
+
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      nativeSessionId: null,
+      kind: 'assistant.delta',
+      payload: { text: 'invalid before identity' }
+    })).toThrow();
+  });
+
+  it('rejects unknown fields, invalid ordering, and oversized payloads', () => {
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'assistant.delta',
+      payload: { text: 'ok' },
+      rawProviderPayload: { secret: true }
+    })).toThrow();
+
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      sequence: -1,
+      kind: 'assistant.delta',
+      payload: { text: 'ok' }
+    })).toThrow();
+
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'assistant.delta',
+      payload: { text: 'x'.repeat(65_537) }
+    })).toThrow();
+  });
+
+  it('validates renderer actions without exposing provider commands or paths', () => {
+    expect(StructuredAgentActionSchema.parse({
+      kind: 'prompt.submit',
+      connectionId: 'connection-01',
+      text: 'Please inspect this change.',
+      attachmentTokens: ['attachment-01']
+    })).toMatchObject({ kind: 'prompt.submit' });
+
+    expect(StructuredAgentActionSchema.parse({
+      kind: 'approval.respond',
+      connectionId: 'connection-01',
+      approvalId: 'approval-01',
+      decision: 'allow_once'
+    })).toMatchObject({ kind: 'approval.respond' });
+
+    expect(() => StructuredAgentActionSchema.parse({
+      kind: 'prompt.submit',
+      connectionId: 'connection-01',
+      text: 'hello',
+      executablePath: 'C:\\secret\\provider.exe'
+    })).toThrow();
+  });
+
+  it('uses catalog identities for launch and keeps prompt content optional', () => {
+    expect(StructuredAgentLaunchRequestSchema.parse({
+      strategy: 'new',
+      providerId: 'gemini',
+      workspaceId: 'workspace-01',
+      startPrompt: ''
+    })).toEqual({
+      strategy: 'new',
+      providerId: 'gemini',
+      workspaceId: 'workspace-01',
+      startPrompt: ''
+    });
+
+    expect(StructuredAgentLaunchRequestSchema.parse({
+      strategy: 'resume',
+      providerId: 'claude',
+      sessionId: 'session-01',
+      startPrompt: 'Continue the review.'
+    })).toMatchObject({ strategy: 'resume', sessionId: 'session-01' });
+  });
+
+  it('bounds hydrated history and makes incomplete history explicit', () => {
+    const page = StructuredAgentHistoryPageSchema.parse({
+      nativeSessionId: 'thread-01',
+      events: [{
+        ...envelope,
+        kind: 'assistant.message',
+        payload: { text: 'Completed.' }
+      }],
+      nextCursor: null,
+      boundary: {
+        kind: 'provider_limit',
+        message: 'Earlier history is unavailable from this provider.'
+      }
+    });
+
+    expect(page.boundary?.kind).toBe('provider_limit');
+  });
+});

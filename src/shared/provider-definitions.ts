@@ -1,4 +1,5 @@
 import type { ProviderId } from './contracts';
+import type { StructuredIntegration } from './agent/provider-capabilities';
 import { providerProbe } from './provider-probes';
 
 export type SessionSupport = 'complete' | 'launch_only';
@@ -9,6 +10,7 @@ export interface ProviderDefinition {
   command: string;
   versionArgs: readonly string[];
   sessionSupport: SessionSupport;
+  structuredIntegration: StructuredIntegration | null;
   npmPackage: string | null;
   installGuideUrl: string;
 }
@@ -18,42 +20,49 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('codex'),
     displayName: 'Codex',
     sessionSupport: 'complete',
+    structuredIntegration: 'codex_app_server',
     installGuideUrl: 'https://developers.openai.com/codex/cli/'
   },
   {
     ...providerProbe('claude'),
     displayName: 'Claude Code',
     sessionSupport: 'complete',
+    structuredIntegration: 'claude_agent_sdk',
     installGuideUrl: 'https://docs.anthropic.com/en/docs/claude-code/setup'
   },
   {
     ...providerProbe('gemini'),
     displayName: 'Gemini CLI',
     sessionSupport: 'complete',
+    structuredIntegration: 'gemini_acp',
     installGuideUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
     ...providerProbe('antigravity'),
     displayName: 'Antigravity',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://antigravity.google/docs/cli-getting-started'
   },
   {
     ...providerProbe('opencode'),
     displayName: 'OpenCode',
     sessionSupport: 'complete',
+    structuredIntegration: null,
     installGuideUrl: 'https://opencode.ai/docs/'
   },
   {
     ...providerProbe('cursor'),
     displayName: 'Cursor CLI',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://cursor.com/docs/cli/installation'
   },
   {
     ...providerProbe('copilot'),
     displayName: 'GitHub Copilot CLI',
     sessionSupport: 'complete',
+    structuredIntegration: null,
     installGuideUrl:
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli'
   },
@@ -61,36 +70,42 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('qwen'),
     displayName: 'Qwen Code',
     sessionSupport: 'complete',
+    structuredIntegration: null,
     installGuideUrl: 'https://qwenlm.github.io/qwen-code-docs/en/'
   },
   {
     ...providerProbe('kimi'),
     displayName: 'Kimi Code',
     sessionSupport: 'complete',
+    structuredIntegration: null,
     installGuideUrl: 'https://www.kimi.com/help/kimi-code/cli-getting-started'
   },
   {
     ...providerProbe('amp'),
     displayName: 'Amp',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://ampcode.com/manual'
   },
   {
     ...providerProbe('crush'),
     displayName: 'Crush',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://github.com/charmbracelet/crush'
   },
   {
     ...providerProbe('goose'),
     displayName: 'goose',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://block.github.io/goose/docs/getting-started/installation'
   },
   {
     ...providerProbe('aider'),
     displayName: 'Aider',
     sessionSupport: 'launch_only',
+    structuredIntegration: null,
     installGuideUrl: 'https://aider.chat/docs/install.html'
   }
 ] as const satisfies readonly ProviderDefinition[]);
