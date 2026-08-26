@@ -471,6 +471,23 @@ changes, so the running-agent count and recent sessions stay current. Selecting
 a recent session restores the existing renderer and opens the same guarded
 resume-confirmation workflow used inside the app.
 
+## Sidebar session projection
+
+Local and remote renderers derive sidebar sessions from their target-scoped
+catalog and live runtime state. Launching and running runtimes form the
+**Running sessions** list. Catalog sessions linked to those runtimes are
+excluded from **Recent sessions**, which remains ordered by provider update
+time and renders progressively in bounded batches. Selecting a running item
+activates its existing mounted terminal; selecting a recent item enters the
+same guarded resume flow used by session cards.
+
+The expanded sidebar reserves at most 70% of its session region for running
+items and at least 30% for recent items when both lists exist. Each list owns
+its scroll state and stores its expanded preference under a local or
+target-specific key. Runtime exit notifications update both projections. The
+terminal tab strip is presentation-only hidden while the sidebar is expanded;
+terminal components and PTY attachments stay mounted.
+
 ## Appearance and managed backgrounds
 
 General settings schema version 12 stores built-in or data-only Mod theme

@@ -248,10 +248,18 @@ contents, password warning, mixed-provider behavior, workspace mapping, and
 current verification matrix.
 ## Managed terminals
 
+When the sidebar is expanded, Lumora separates **Running sessions** from
+**Recent sessions** in collapsible lists. Select a running session to return to
+its mounted terminal, or select a recent session to open the normal guarded
+resume flow. The recent list loads progressively as it scrolls, and both lists
+refresh when a managed runtime exits. Empty lists stay hidden.
+
 Active terminals stay mounted while you move between Lumora pages. On the
-terminal page, use the tab bar or `Ctrl+Tab` to switch between active sessions.
-The shortcut remains inactive on other pages. When the provider process exits,
-Lumora closes its tab and refreshes the catalog.
+terminal page, use the sidebar or `Ctrl+Tab` to switch between active sessions.
+The terminal tab strip appears when the sidebar is collapsed and stays hidden
+while it is expanded, without unmounting terminal views. The shortcut remains
+inactive on other pages. When the provider process exits, Lumora closes its tab
+and refreshes the catalog and sidebar lists.
 
 Drag terminal tabs to arrange their visible left-to-right order. `Ctrl+Tab`
 continues to use most-recently-used order. When a tab itself has focus,

@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-26
+
 ### Added
 
 - Add separate collapsible **Running sessions** and **Recent sessions** lists
