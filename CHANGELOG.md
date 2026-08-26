@@ -7,7 +7,7 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.4.1] - 2026-08-25
+## [0.4.1] - 2026-08-26
 
 ### Added
 
@@ -28,6 +28,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or background choices.
 - Require new user-visible features to update and validate all five bundled
   language packs in the same change.
+
+### Fixed
+
+- Stabilize Windows release verification for Remote Lumora automatic
+  connection startup by synchronizing the renderer test with its asynchronous
+  connection effect.
 
 ### Security
 
