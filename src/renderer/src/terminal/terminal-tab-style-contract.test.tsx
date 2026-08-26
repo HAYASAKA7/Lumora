@@ -15,6 +15,10 @@ function ruleFor(selector: string): string {
 }
 
 describe('terminal tab style contract', () => {
+  it('removes the tab strip from layout when the sidebar owns session switching', () => {
+    expect(ruleFor('.terminal-tabbar[hidden]')).toContain('display: none');
+  });
+
   it('bounds tabs and truncates long session titles without wrapping', () => {
     expect(ruleFor('.terminal-tab')).toContain('max-width:');
 

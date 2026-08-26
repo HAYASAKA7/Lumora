@@ -160,7 +160,6 @@ export function SidebarSessionList({
                   tabIndex={-1}
                   type="button"
                 >
-                  <span aria-hidden="true" className="sidebar-session-running-dot" />
                   <span className="sidebar-session-copy">
                     <OverflowTooltip content={runtime.displayName}>
                       <span className="sidebar-session-title">
