@@ -22,6 +22,8 @@ describe('sidebar session list styles', () => {
     const container = rule('.sidebar-dynamic-content');
     expect(container).toContain('margin-top: 12px');
     expect(container).toContain('border-top: 1px solid var(--line-soft)');
+    expect(container).toContain('contain: paint');
+    expect(container).toContain('clip-path: inset(0)');
   });
 
   it('bounds the region and reserves at least thirty percent for Recent', () => {
@@ -55,6 +57,8 @@ describe('sidebar session list styles', () => {
   it('smoothly reveals and conceals section contents without unmounting them', () => {
     const section = rule('.sidebar-session-section');
     expect(section).toContain('align-content: start');
+    expect(section).toContain('contain: paint');
+    expect(section).toContain('clip-path: inset(0)');
     expect(section).toContain('grid-template-rows: auto minmax(0, 1fr)');
     expect(section).toContain('transition: grid-template-rows 240ms ease');
     const collapsed = rule('.sidebar-session-section[data-expanded="false"]');

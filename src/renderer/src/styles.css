@@ -511,6 +511,8 @@ button {
   flex: 1 1 auto;
   margin-top: 12px;
   overflow: hidden;
+  contain: paint;
+  clip-path: inset(0);
   visibility: visible;
   border-top: 1px solid var(--line-soft);
   transition: visibility 0s linear;
@@ -523,6 +525,8 @@ button {
   align-content: start;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+  contain: paint;
+  clip-path: inset(0);
   transition: grid-template-rows 240ms ease;
 }
 
