@@ -1225,3 +1225,66 @@ describe('createLumoraApi', () => {
     ]);
   });
 });
+
+describe('createLumoraApi structured agent bridge', () => {
+  it('validates structured operations and event subscriptions', async () => {
+    const summary = {
+      connectionId: 'connection-1', providerId: 'codex' as const,
+      nativeSessionId: 'native-1', catalogSessionId: null, workspaceId: 'workspace-1',
+      title: 'Structured session', state: 'ready' as const, generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z', updatedAt: '2026-08-27T00:00:00.000Z',
+      error: null
+    };
+    const calls: Array<[string, ...unknown[]]> = [];
+    let receiver: ((value: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const api = createLumoraApi(async (channel, ...args) => {
+      calls.push([channel, ...args]);
+      if (channel === IPC_CHANNELS.structuredCapabilityScan) return [];
+      if (channel === IPC_CHANNELS.structuredRuntimeList) return [summary];
+      if (channel === IPC_CHANNELS.structuredRuntimeSnapshot) {
+        return { runtime: summary, events: [], boundary: null };
+      }
+      if (channel === IPC_CHANNELS.structuredRuntimeAction) return { accepted: true };
+      return summary;
+    }, (channel, listener) => {
+      expect(channel).toBe(IPC_CHANNELS.structuredRuntimeEvent);
+      receiver = listener;
+      return unsubscribe;
+    });
+
+    await expect(api.scanStructuredProviderCapabilities(true)).resolves.toEqual([]);
+    await expect(api.launchStructuredRuntime({
+      strategy: 'new', providerId: 'codex', workspaceId: 'workspace-1', startPrompt: ''
+    })).resolves.toEqual(summary);
+    await expect(api.listStructuredRuntimes()).resolves.toEqual([summary]);
+    await expect(api.getStructuredRuntimeSnapshot('connection-1')).resolves.toMatchObject({
+      runtime: summary
+    });
+    await expect(api.dispatchStructuredAgentAction({
+      kind: 'turn.cancel', connectionId: 'connection-1'
+    })).resolves.toBeUndefined();
+    await expect(api.reconnectStructuredRuntime('connection-1')).resolves.toEqual(summary);
+    await expect(api.closeStructuredRuntime('connection-1')).resolves.toEqual(summary);
+
+    const listener = vi.fn();
+    expect(api.onStructuredAgentEvent(listener)).toBe(unsubscribe);
+    const event = {
+      connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+      turnId: 'lifecycle', eventId: 'event-1', parentEventId: null, sequence: 1,
+      generation: 1, timestamp: '2026-08-27T00:00:00.000Z', kind: 'runtime.status',
+      payload: { state: 'ready', message: null }
+    };
+    (receiver as unknown as (value: unknown) => void)(event);
+    expect(listener).toHaveBeenCalledWith(event);
+    expect(calls.map(([channel]) => channel)).toEqual([
+      IPC_CHANNELS.structuredCapabilityScan,
+      IPC_CHANNELS.structuredRuntimeLaunch,
+      IPC_CHANNELS.structuredRuntimeList,
+      IPC_CHANNELS.structuredRuntimeSnapshot,
+      IPC_CHANNELS.structuredRuntimeAction,
+      IPC_CHANNELS.structuredRuntimeReconnect,
+      IPC_CHANNELS.structuredRuntimeClose
+    ]);
+  });
+});

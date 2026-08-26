@@ -25,6 +25,7 @@ import {
   type RuntimeResizeRequest,
   type RuntimeSummary,
   type RuntimeWriteRequest,
+  type StructuredAgentLaunchRequest,
   type SystemInfo,
   type TerminalProfile,
   type WorkspaceTrustDecision
@@ -40,6 +41,9 @@ import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
 import { detectTerminalProfiles } from './profile-detector';
 import { RuntimeHost, type PtySpawnOptions, type PtyProcess } from './runtime-host';
+import type { ResolvedStructuredAgentLaunch } from '../agent/adapters/structured-agent-adapter';
+import { StructuredLaunchResolver } from '../agent/runtime/structured-launch-resolver';
+import type { StructuredSessionGuard } from '../agent/runtime/structured-session-guard';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -103,6 +107,7 @@ interface CreateTerminalRuntimeOptions {
   clock?: () => Date;
   createProfileId?: () => string;
   spawn?: (options: PtySpawnOptions) => PtyProcess;
+  sessionGuard?: StructuredSessionGuard;
 }
 
 export interface TerminalRuntime {
@@ -120,6 +125,9 @@ export interface TerminalRuntime {
   getKeyboardSettings(): KeyboardSettings;
   saveKeyboardSettings(input: KeyboardSettings): KeyboardSettings;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
+  resolveStructuredLaunch(
+    input: StructuredAgentLaunchRequest
+  ): Promise<ResolvedStructuredAgentLaunch>;
   getWorkspaceTrustDecisions(): WorkspaceTrustDecision[];
   trustWorkspaceForLaunch(launchToken: string): WorkspaceTrustDecision;
   revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[];
@@ -149,7 +157,8 @@ export async function createTerminalRuntime({
   onGeneralSettingsSaved,
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
-  spawn = spawnPty
+  spawn = spawnPty,
+  sessionGuard
 }: CreateTerminalRuntimeOptions): Promise<TerminalRuntime> {
   const database = new DatabaseSync(databasePath);
   try {
@@ -214,6 +223,10 @@ export async function createTerminalRuntime({
     },
     clock
   });
+  const structuredLaunchResolver = new StructuredLaunchResolver({
+    repository,
+    scanProviders
+  });
   let host!: RuntimeHost;
   const reconciler = new NewSessionReconciler({
     refreshCatalog: async () => {
@@ -236,7 +249,8 @@ export async function createTerminalRuntime({
       void reconciler.start(request);
     },
     platform,
-    clock
+    clock,
+    ...(sessionGuard === undefined ? {} : { sessionGuard })
   });
   let closed = false;
 
@@ -301,6 +315,9 @@ export async function createTerminalRuntime({
     },
     prepareLaunch(input) {
       return launchService.prepare(input);
+    },
+    resolveStructuredLaunch(input) {
+      return structuredLaunchResolver.resolve(input);
     },
     getWorkspaceTrustDecisions() {
       return WorkspaceTrustDecisionListSchema.parse(

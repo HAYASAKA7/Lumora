@@ -88,6 +88,16 @@ import {
   TransferOperationCancelResultSchema,
   StartupPresentationClaimSchema,
   StartupPresentationCompletionSchema,
+  StructuredAgentActionSchema,
+  StructuredAgentCapabilityScanRequestSchema,
+  StructuredAgentCommandResultSchema,
+  StructuredAgentConnectionRequestSchema,
+  StructuredAgentEventSchema,
+  StructuredAgentLaunchRequestSchema,
+  StructuredAgentRuntimeListSchema,
+  StructuredAgentRuntimeSnapshotSchema,
+  StructuredAgentRuntimeSummarySchema,
+  StructuredProviderCapabilityReportSchema,
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
@@ -588,6 +598,45 @@ export function createLumoraApi(
     onRuntimeEvent(listener) {
       return subscribe(IPC_CHANNELS.runtimeEvent, (value) => {
         listener(RuntimeEventSchema.parse(value));
+      });
+    },
+    async scanStructuredProviderCapabilities(fresh = false) {
+      const request = StructuredAgentCapabilityScanRequestSchema.parse({ fresh });
+      const value = await invoke(IPC_CHANNELS.structuredCapabilityScan, request);
+      return StructuredProviderCapabilityReportSchema.array().max(3).parse(value);
+    },
+    async launchStructuredRuntime(input) {
+      const request = StructuredAgentLaunchRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeLaunch, request);
+      return StructuredAgentRuntimeSummarySchema.parse(value);
+    },
+    async listStructuredRuntimes() {
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeList);
+      return StructuredAgentRuntimeListSchema.parse(value);
+    },
+    async getStructuredRuntimeSnapshot(connectionId) {
+      const request = StructuredAgentConnectionRequestSchema.parse({ connectionId });
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeSnapshot, request);
+      return StructuredAgentRuntimeSnapshotSchema.parse(value);
+    },
+    async dispatchStructuredAgentAction(input) {
+      const action = StructuredAgentActionSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeAction, action);
+      StructuredAgentCommandResultSchema.parse(value);
+    },
+    async reconnectStructuredRuntime(connectionId) {
+      const request = StructuredAgentConnectionRequestSchema.parse({ connectionId });
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeReconnect, request);
+      return StructuredAgentRuntimeSummarySchema.parse(value);
+    },
+    async closeStructuredRuntime(connectionId) {
+      const request = StructuredAgentConnectionRequestSchema.parse({ connectionId });
+      const value = await invoke(IPC_CHANNELS.structuredRuntimeClose, request);
+      return StructuredAgentRuntimeSummarySchema.parse(value);
+    },
+    onStructuredAgentEvent(listener) {
+      return subscribe(IPC_CHANNELS.structuredRuntimeEvent, (value) => {
+        listener(StructuredAgentEventSchema.parse(value));
       });
     },
     async getTransferCapabilities() {

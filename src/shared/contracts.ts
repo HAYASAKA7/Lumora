@@ -20,8 +20,18 @@ import type {
   DiagnosticStorageSettings,
   DiagnosticSummary
 } from './diagnostics';
+import type {
+  StructuredAgentAction,
+  StructuredAgentEvent,
+  StructuredAgentLaunchRequest,
+  StructuredAgentRuntimeSnapshot,
+  StructuredAgentRuntimeSummary
+} from './agent/contracts';
+import type { StructuredProviderCapabilityReport } from './agent/provider-capabilities';
 export * from './session-transfer';
 export * from './diagnostics';
+export * from './agent/contracts';
+export * from './agent/provider-capabilities';
 
 export const PlatformSchema = z.enum(['win32', 'darwin', 'linux']);
 
@@ -2266,6 +2276,14 @@ export const IPC_CHANNELS = {
   runtimeTerminate: 'lumora:terminal:runtime:terminate',
   terminalLinkOpen: 'lumora:terminal:link:open',
   runtimeEvent: 'lumora:terminal:runtime:event',
+  structuredCapabilityScan: 'lumora:agent:capabilities:scan',
+  structuredRuntimeLaunch: 'lumora:agent:runtime:launch',
+  structuredRuntimeList: 'lumora:agent:runtime:list',
+  structuredRuntimeSnapshot: 'lumora:agent:runtime:snapshot',
+  structuredRuntimeAction: 'lumora:agent:runtime:action',
+  structuredRuntimeReconnect: 'lumora:agent:runtime:reconnect',
+  structuredRuntimeClose: 'lumora:agent:runtime:close',
+  structuredRuntimeEvent: 'lumora:agent:runtime:event',
   transferCapabilitiesGet: 'lumora:transfer:capabilities:get',
   transferExportPrepare: 'lumora:transfer:export:prepare',
   transferExportExecute: 'lumora:transfer:export:execute',
@@ -2425,6 +2443,26 @@ export interface LumoraApi {
   terminateRuntime(runtimeId: string): Promise<RuntimeSummary>;
   openTerminalLink(url: string): Promise<void>;
   onRuntimeEvent(listener: (event: RuntimeEvent) => void): () => void;
+  scanStructuredProviderCapabilities(
+    fresh?: boolean
+  ): Promise<StructuredProviderCapabilityReport[]>;
+  launchStructuredRuntime(
+    request: StructuredAgentLaunchRequest
+  ): Promise<StructuredAgentRuntimeSummary>;
+  listStructuredRuntimes(): Promise<StructuredAgentRuntimeSummary[]>;
+  getStructuredRuntimeSnapshot(
+    connectionId: string
+  ): Promise<StructuredAgentRuntimeSnapshot>;
+  dispatchStructuredAgentAction(action: StructuredAgentAction): Promise<void>;
+  reconnectStructuredRuntime(
+    connectionId: string
+  ): Promise<StructuredAgentRuntimeSummary>;
+  closeStructuredRuntime(
+    connectionId: string
+  ): Promise<StructuredAgentRuntimeSummary>;
+  onStructuredAgentEvent(
+    listener: (event: StructuredAgentEvent) => void
+  ): () => void;
   getTransferCapabilities(): Promise<SessionTransferCapability[]>;
   prepareSessionExport(
     input: SessionExportPrepareRequest

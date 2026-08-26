@@ -293,6 +293,22 @@ export const StructuredAgentRuntimeSnapshotSchema = z.strictObject({
   boundary: StructuredAgentHistoryBoundarySchema.nullable()
 });
 
+export const StructuredAgentConnectionRequestSchema = z.strictObject({
+  connectionId: OpaqueIdSchema
+});
+
+export const StructuredAgentCapabilityScanRequestSchema = z.strictObject({
+  fresh: z.boolean().default(false)
+});
+
+export const StructuredAgentRuntimeListSchema = z.array(
+  StructuredAgentRuntimeSummarySchema
+).max(100);
+
+export const StructuredAgentCommandResultSchema = z.strictObject({
+  accepted: z.literal(true)
+});
+
 export type StructuredAgentProviderId = z.infer<
   typeof StructuredAgentProviderIdSchema
 >;
@@ -309,4 +325,10 @@ export type StructuredAgentRuntimeSummary = z.infer<
 >;
 export type StructuredAgentRuntimeSnapshot = z.infer<
   typeof StructuredAgentRuntimeSnapshotSchema
+>;
+export type StructuredAgentConnectionRequest = z.infer<
+  typeof StructuredAgentConnectionRequestSchema
+>;
+export type StructuredAgentCapabilityScanRequest = z.infer<
+  typeof StructuredAgentCapabilityScanRequestSchema
 >;

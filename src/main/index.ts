@@ -29,6 +29,11 @@ import {
   type ProviderId
 } from '../shared/contracts';
 import { configureApplicationMenu } from './application-menu';
+import { createStructuredAgentAdapterFactory } from './agent/adapters/structured-agent-adapter-factory';
+import { createLocalStructuredProviderProbe } from './agent/probes/local-structured-provider-probes';
+import { StructuredProviderProbeCoordinator } from './agent/probes/structured-provider-probe-coordinator';
+import { StructuredAgentRuntimeHost } from './agent/runtime/structured-agent-runtime-host';
+import { StructuredSessionGuard } from './agent/runtime/structured-session-guard';
 import { createApplicationQuitGuard } from './application-quit-guard';
 import { AppearanceBackgroundStore } from './appearance/appearance-background-store';
 import {
@@ -52,6 +57,7 @@ import {
 } from './ipc/ipc-access';
 import { registerCatalogIpc } from './ipc/register-catalog-ipc';
 import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
+import { registerAgentIpc } from './ipc/register-agent-ipc';
 import { registerAboutIpc } from './ipc/register-about-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
 import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
@@ -257,11 +263,13 @@ const startupPresentation = createStartupPresentationController();
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
+let structuredAgentRuntime: StructuredAgentRuntimeHost | null = null;
 let localizationService: LocalizationService | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
 let remoteTargetRuntime: RemoteTargetRuntime | null = null;
 let applicationReleaseRuntime: ApplicationReleaseRuntime | null = null;
 let unsubscribeTerminalEvents: (() => void) | null = null;
+let unsubscribeStructuredAgentEvents: (() => void) | null = null;
 let unsubscribeRemoteTerminalEvents: (() => void) | null = null;
 let unsubscribeRemoteLifecycleEvents: (() => void) | null = null;
 let unsubscribeLocalizationEvents: (() => void) | null = null;
@@ -795,6 +803,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       }).catch(() => undefined);
     }
   });
+  const structuredSessionGuard = new StructuredSessionGuard();
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
@@ -802,12 +811,24 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     platform,
     env: applicationEnvironment,
     scanProviders: scanEnabledProviders,
+    sessionGuard: structuredSessionGuard,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     onGeneralSettingsSaved: (settings) => {
       providerPolicy.replace(settings.enabledProviders);
       localizationService?.setPreference(settings.languagePreference);
     }
+  });
+  const structuredProviderProbe = new StructuredProviderProbeCoordinator({
+    probeReady: createLocalStructuredProviderProbe({
+      platform,
+      env: applicationEnvironment
+    })
+  });
+  structuredAgentRuntime = new StructuredAgentRuntimeHost({
+    resolveLaunch: (request) => terminalRuntime!.resolveStructuredLaunch(request),
+    createAdapter: createStructuredAgentAdapterFactory(),
+    sessionGuard: structuredSessionGuard
   });
   const localePaths = resolveLocalePaths({
     isPackaged: app.isPackaged,
@@ -1270,6 +1291,22 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
   });
+  unsubscribeStructuredAgentEvents = registerAgentIpc({
+    ipc: ipcMain,
+    authorize: authorizeLocalIpc,
+    runtime: structuredAgentRuntime,
+    scanCapabilities: async (fresh) => {
+      const installations = (await scanEnabledProviders()).providers;
+      return fresh
+        ? structuredProviderProbe.scanFresh(installations)
+        : structuredProviderProbe.scan(installations);
+    },
+    sendEvent: (event) => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);
+      }
+    }
+  });
   unsubscribeRemoteTerminalEvents =
     remoteTargetRuntime.service.subscribeSessionRuntimeEvents(
       (executionTargetId, event) => {
@@ -1391,6 +1428,7 @@ app.on('before-quit', (event) => {
       try {
         await Promise.all([
           runtime?.shutdown() ?? Promise.resolve(),
+          structuredAgentRuntime?.shutdown() ?? Promise.resolve(),
           remoteRuntime?.close() ?? Promise.resolve(),
           releaseRuntime?.close() ?? Promise.resolve(),
           flushWindowState(),
@@ -1430,6 +1468,9 @@ app.on('before-quit', (event) => {
       unsubscribeRemoteLifecycleEvents = null;
       unsubscribeTerminalEvents?.();
       unsubscribeTerminalEvents = null;
+      unsubscribeStructuredAgentEvents?.();
+      unsubscribeStructuredAgentEvents = null;
+      structuredAgentRuntime = null;
       unsubscribeLocalizationEvents?.();
       unsubscribeLocalizationEvents = null;
       runtime?.close();
@@ -1459,6 +1500,10 @@ app.on('will-quit', () => {
   trayController = null;
   unsubscribeTerminalEvents?.();
   unsubscribeTerminalEvents = null;
+  unsubscribeStructuredAgentEvents?.();
+  unsubscribeStructuredAgentEvents = null;
+  void structuredAgentRuntime?.shutdown();
+  structuredAgentRuntime = null;
   unsubscribeLocalizationEvents?.();
   unsubscribeLocalizationEvents = null;
   const transfer = transferRuntime;
