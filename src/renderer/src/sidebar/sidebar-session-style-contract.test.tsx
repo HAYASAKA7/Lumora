@@ -21,8 +21,12 @@ describe('sidebar session list styles', () => {
   it('bounds the region and reserves at least thirty percent for Recent', () => {
     expect(rule('.sidebar-session-region')).toContain('min-height: 0');
     expect(rule('.sidebar-session-region')).toContain('overflow: hidden');
-    expect(rule('.sidebar-session-section-running')).toContain('max-height: 70%');
-    expect(rule('.sidebar-session-section-recent')).toContain('min-height: 30%');
+    const running = rule('.sidebar-session-section-running');
+    expect(running).toContain('flex: 0 1 auto');
+    expect(running).toContain('max-height: 70%');
+    const recent = rule('.sidebar-session-section-recent');
+    expect(recent).toContain('min-height: 30%');
+    expect(recent).toContain('flex: 1 1 30%');
     expect(rule('.sidebar-session-section:only-child')).toContain('max-height: none');
   });
 

@@ -523,11 +523,13 @@ button {
 }
 
 .sidebar-session-section-running {
+  flex: 0 1 auto;
   max-height: 70%;
 }
 
 .sidebar-session-section-recent {
   min-height: 30%;
+  flex: 1 1 30%;
 }
 
 .sidebar-session-section:only-child {
