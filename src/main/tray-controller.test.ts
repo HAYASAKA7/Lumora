@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSummary, SessionSummary } from '../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../shared/agent/contracts';
 import { createTrayController } from './tray-controller';
 
 describe('createTrayController', () => {
@@ -23,6 +24,7 @@ describe('createTrayController', () => {
       getState: () => ({
         windowVisible: visible,
         runtimes: [] as RuntimeSummary[],
+        structuredRuntimes: [] as StructuredAgentRuntimeSummary[],
         sessions: [] as SessionSummary[]
       }),
       getTranslator: () => ({

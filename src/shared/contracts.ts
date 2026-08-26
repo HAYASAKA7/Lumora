@@ -20,14 +20,18 @@ import type {
   DiagnosticStorageSettings,
   DiagnosticSummary
 } from './diagnostics';
-import type {
-  StructuredAgentAction,
-  StructuredAgentEvent,
-  StructuredAgentLaunchRequest,
-  StructuredAgentRuntimeSnapshot,
-  StructuredAgentRuntimeSummary
+import {
+  StructuredAgentRuntimeSummarySchema,
+  type StructuredAgentAction,
+  type StructuredAgentEvent,
+  type StructuredAgentLaunchRequest,
+  type StructuredAgentRuntimeSnapshot,
+  type StructuredAgentRuntimeSummary
 } from './agent/contracts';
-import type { StructuredProviderCapabilityReport } from './agent/provider-capabilities';
+import type {
+  StructuredProviderCapabilityReport,
+  StructuredProviderPreference
+} from './agent/provider-capabilities';
 export * from './session-transfer';
 export * from './diagnostics';
 export * from './agent/contracts';
@@ -2064,6 +2068,28 @@ export const RuntimeSummarySchema = z.strictObject({
 });
 
 export const RuntimeListSchema = z.array(RuntimeSummarySchema).max(1_000);
+export const AgentLaunchRouteReasonSchema = z.enum([
+  'verified',
+  'disabled',
+  'unavailable',
+  'incompatible',
+  'failed',
+  'timed_out',
+  'unsupported_launch',
+  'structured_failed'
+]);
+export const AgentRuntimeStartResultSchema = z.discriminatedUnion('mode', [
+  z.strictObject({
+    mode: z.literal('pty'),
+    routeReason: AgentLaunchRouteReasonSchema,
+    runtime: RuntimeSummarySchema
+  }),
+  z.strictObject({
+    mode: z.literal('structured'),
+    routeReason: z.literal('verified'),
+    runtime: StructuredAgentRuntimeSummarySchema
+  })
+]);
 export const RuntimeIdRequestSchema = z.strictObject({
   runtimeId: RuntimeIdSchema
 });
@@ -2108,6 +2134,9 @@ export type RuntimeReconciliationState = z.infer<
 export type RuntimeErrorCode = z.infer<typeof RuntimeErrorCodeSchema>;
 export type RuntimeStrategy = z.infer<typeof RuntimeStrategySchema>;
 export type RuntimeSummary = z.infer<typeof RuntimeSummarySchema>;
+export type AgentRuntimeStartResult = z.infer<
+  typeof AgentRuntimeStartResultSchema
+>;
 export type RuntimeIdRequest = z.infer<typeof RuntimeIdRequestSchema>;
 export type RuntimeStartRequest = z.infer<typeof RuntimeStartRequestSchema>;
 export type RuntimeWriteRequest = z.infer<typeof RuntimeWriteRequestSchema>;
@@ -2276,7 +2305,10 @@ export const IPC_CHANNELS = {
   runtimeTerminate: 'lumora:terminal:runtime:terminate',
   terminalLinkOpen: 'lumora:terminal:link:open',
   runtimeEvent: 'lumora:terminal:runtime:event',
+  agentRuntimeStart: 'lumora:agent:runtime:start-prepared',
   structuredCapabilityScan: 'lumora:agent:capabilities:scan',
+  structuredPreferencesGet: 'lumora:agent:preferences:get',
+  structuredPreferenceSave: 'lumora:agent:preferences:save',
   structuredRuntimeLaunch: 'lumora:agent:runtime:launch',
   structuredRuntimeList: 'lumora:agent:runtime:list',
   structuredRuntimeSnapshot: 'lumora:agent:runtime:snapshot',
@@ -2436,6 +2468,7 @@ export interface LumoraApi {
   ): Promise<WorkspaceTrustDecision>;
   revokeWorkspaceTrust(workspaceId: string): Promise<WorkspaceTrustDecision[]>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
+  startAgentRuntime(launchToken: string): Promise<AgentRuntimeStartResult>;
   listRuntimes(): Promise<RuntimeSummary[]>;
   attachRuntime(runtimeId: string): Promise<RuntimeAttachment>;
   writeRuntime(input: RuntimeWriteRequest): Promise<void>;
@@ -2446,6 +2479,10 @@ export interface LumoraApi {
   scanStructuredProviderCapabilities(
     fresh?: boolean
   ): Promise<StructuredProviderCapabilityReport[]>;
+  getStructuredProviderPreferences(): Promise<StructuredProviderPreference[]>;
+  saveStructuredProviderPreference(
+    input: StructuredProviderPreference
+  ): Promise<StructuredProviderPreference[]>;
   launchStructuredRuntime(
     request: StructuredAgentLaunchRequest
   ): Promise<StructuredAgentRuntimeSummary>;

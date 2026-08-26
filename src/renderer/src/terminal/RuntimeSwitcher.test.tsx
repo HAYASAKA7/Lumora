@@ -102,7 +102,12 @@ describe('runtime switcher', () => {
     previouslyFocused.focus();
     const { unmount } = render(
       <RuntimeSwitcher
-        runtimes={[first, second]}
+        entries={[first, second].map((runtime) => ({
+          id: runtime.id,
+          provider: runtime.provider,
+          title: runtime.displayName,
+          workspaceId: runtime.workspaceId
+        }))}
         selectedRuntimeId={second.id}
         workspaces={[workspace]}
       />
@@ -126,5 +131,25 @@ describe('runtime switcher', () => {
     unmount();
     expect(previouslyFocused).toHaveFocus();
     previouslyFocused.remove();
+  });
+
+  it('renders provider-neutral structured terminal entries', () => {
+    render(
+      <RuntimeSwitcher
+        entries={[{
+          id: 'structured-gemini',
+          provider: 'gemini',
+          title: 'Gemini architecture review',
+          workspaceId: workspace.id
+        }]}
+        selectedRuntimeId="structured-gemini"
+        workspaces={[workspace]}
+      />
+    );
+
+    const option = screen.getByRole('option');
+    expect(option).toHaveTextContent('Gemini architecture review');
+    expect(option).toHaveTextContent('Gemini CLI');
+    expect(option).toHaveAttribute('aria-selected', 'true');
   });
 });

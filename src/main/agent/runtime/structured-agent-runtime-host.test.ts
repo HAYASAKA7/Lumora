@@ -120,6 +120,76 @@ describe('StructuredAgentRuntimeHost', () => {
     expect(activate).toHaveBeenCalledOnce();
   });
 
+  it('keeps the native session open when only its optional start prompt fails', async () => {
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => ({ nativeSessionId: 'native-prompt-failure' }),
+        activate: async () => { throw new Error('prompt rejected'); },
+        dispatch: async () => undefined,
+        close: async () => undefined
+      }),
+      createConnectionId: () => 'connection-prompt-failure',
+      createEventId: (() => {
+        let value = 0;
+        return () => `event-prompt-${++value}`;
+      })()
+    });
+
+    await expect(host.launch({
+      ...newRequest,
+      startPrompt: 'Begin the task.'
+    })).resolves.toMatchObject({
+      connectionId: 'connection-prompt-failure',
+      nativeSessionId: 'native-prompt-failure',
+      state: 'ready'
+    });
+    expect(host.snapshot('connection-prompt-failure').events.at(-1)).toMatchObject({
+      kind: 'runtime.error',
+      payload: {
+        code: 'STRUCTURED_START_PROMPT_FAILED',
+        retryable: true
+      }
+    });
+  });
+
+  it('reconciles an exact provider-native catalog identity and provider title', async () => {
+    const { host } = harness();
+    const observed: unknown[] = [];
+    host.subscribe((event) => observed.push(event));
+    await host.launch(newRequest);
+
+    expect(host.synchronizeCatalogSessions([{
+      id: 'catalog-session-1',
+      provider: 'codex',
+      nativeId: 'native-1',
+      title: 'Provider-owned title'
+    }])).toEqual([expect.objectContaining({
+      connectionId: 'connection-1',
+      catalogSessionId: 'catalog-session-1',
+      title: 'Provider-owned title'
+    })]);
+    expect(host.snapshot('connection-1').runtime).toMatchObject({
+      catalogSessionId: 'catalog-session-1',
+      title: 'Provider-owned title'
+    });
+    expect(observed.at(-1)).toMatchObject({
+      kind: 'runtime.metadata',
+      nativeSessionId: 'native-1',
+      payload: {
+        catalogSessionId: 'catalog-session-1',
+        title: 'Provider-owned title'
+      }
+    });
+
+    expect(host.synchronizeCatalogSessions([{
+      id: 'wrong-provider',
+      provider: 'claude',
+      nativeId: 'native-1',
+      title: 'Wrong provider'
+    }])).toEqual([]);
+  });
+
   it('routes actions to the owning adapter and preserves provider events', async () => {
     const { host, contexts, dispatch } = harness();
     await host.launch(newRequest);
@@ -189,6 +259,26 @@ describe('StructuredAgentRuntimeHost', () => {
     expect(createAdapter).toHaveBeenCalledOnce();
   });
 
+  it('removes an unpublished runtime when provider startup fails', async () => {
+    const guard = new StructuredSessionGuard();
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => { throw new Error('provider startup failed'); },
+        dispatch: async () => undefined,
+        close: async () => undefined
+      }),
+      sessionGuard: guard,
+      createConnectionId: () => 'failed-connection'
+    });
+
+    await expect(host.launch(newRequest)).rejects.toBeInstanceOf(
+      StructuredAgentRuntimeHostError
+    );
+    expect(host.list()).toEqual([]);
+    expect(guard.claimOf('failed-connection')).toBeNull();
+  });
+
   it('changes generation on reconnect and ignores callbacks from the old adapter', async () => {
     const { host, contexts } = harness();
     await host.launch(newRequest);
@@ -216,6 +306,24 @@ describe('StructuredAgentRuntimeHost', () => {
       kind: 'assistant.delta',
       payload: { text: 'current' }
     });
+  });
+
+  it('reconnects a failed provider runtime and reclaims native ownership', async () => {
+    const { host, contexts } = harness();
+    await host.launch(newRequest);
+    contexts[0]!.callbacks.exited(new Error('provider stopped'));
+
+    expect(host.snapshot('connection-1').runtime.state).toBe('failed');
+
+    const runtime = await host.reconnect('connection-1');
+
+    expect(runtime).toMatchObject({
+      connectionId: 'connection-1',
+      nativeSessionId: 'native-1',
+      state: 'ready',
+      generation: 2
+    });
+    expect(contexts).toHaveLength(2);
   });
 
   it('retains only the configured normalized event tail', async () => {

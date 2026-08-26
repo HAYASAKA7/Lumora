@@ -1,4 +1,5 @@
 import type { RuntimeSummary, SessionSummary } from '../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../shared/agent/contracts';
 import { providerDefinition } from '../shared/provider-definitions';
 
 const RECENT_SESSION_LIMIT = 5;
@@ -15,6 +16,7 @@ export interface TrayMenuItem {
 interface TrayMenuState {
   windowVisible: boolean;
   runtimes: readonly RuntimeSummary[];
+  structuredRuntimes: readonly StructuredAgentRuntimeSummary[];
   sessions: readonly SessionSummary[];
   translate(key: string, values?: Record<string, string | number>): string;
   onToggleWindow(): void;
@@ -56,6 +58,7 @@ function recentSessionItems(
 export function buildTrayMenuTemplate({
   windowVisible,
   runtimes,
+  structuredRuntimes,
   sessions,
   translate,
   onToggleWindow,
@@ -65,10 +68,22 @@ export function buildTrayMenuTemplate({
   const runningAgents = runtimes.filter(
     ({ state }) => state === 'launching' || state === 'running'
   );
+  const runningStructuredAgents = structuredRuntimes.filter(
+    ({ state }) =>
+      state === 'starting' ||
+      state === 'ready' ||
+      state === 'reconnecting' ||
+      state === 'closing'
+  );
   const runningSessionIds = new Set(
-    runningAgents.flatMap((runtime) =>
-      runtime.sessionId === null ? [] : [runtime.sessionId]
-    )
+    [
+      ...runningAgents.flatMap((runtime) =>
+        runtime.sessionId === null ? [] : [runtime.sessionId]
+      ),
+      ...runningStructuredAgents.flatMap((runtime) =>
+        runtime.catalogSessionId === null ? [] : [runtime.catalogSessionId]
+      )
+    ]
   );
 
   return [
@@ -78,7 +93,9 @@ export function buildTrayMenuTemplate({
     },
     { type: 'separator' },
     {
-      label: translate('shell.tray.running-agents', { count: runningAgents.length }),
+      label: translate('shell.tray.running-agents', {
+        count: runningAgents.length + runningStructuredAgents.length
+      }),
       enabled: false
     },
     {

@@ -26,6 +26,7 @@ import {
   type RuntimeSummary,
   type RuntimeWriteRequest,
   type StructuredAgentLaunchRequest,
+  type StructuredProviderPreference,
   type SystemInfo,
   type TerminalProfile,
   type WorkspaceTrustDecision
@@ -34,9 +35,10 @@ import { findExecutable, isExecutableFile } from '../platform/executable-locator
 import { HandoffService } from '../handoff/handoff-service';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
+import { StructuredProviderPreferenceRepository } from '../storage/structured-provider-preference-repository';
 import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
 import { providerDefinition } from '../../shared/provider-definitions';
-import { LaunchService } from './launch-service';
+import { LaunchService, type LaunchSpec } from './launch-service';
 import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
 import { detectTerminalProfiles } from './profile-detector';
@@ -125,9 +127,15 @@ export interface TerminalRuntime {
   getKeyboardSettings(): KeyboardSettings;
   saveKeyboardSettings(input: KeyboardSettings): KeyboardSettings;
   prepareLaunch(input: LaunchPrepareRequest): Promise<LaunchPreview>;
+  consumePreparedLaunch(launchToken: string): Promise<LaunchSpec>;
+  startPreparedRuntime(spec: LaunchSpec): Promise<RuntimeSummary>;
   resolveStructuredLaunch(
     input: StructuredAgentLaunchRequest
   ): Promise<ResolvedStructuredAgentLaunch>;
+  getStructuredProviderPreferences(): StructuredProviderPreference[];
+  saveStructuredProviderPreference(
+    input: StructuredProviderPreference
+  ): StructuredProviderPreference[];
   getWorkspaceTrustDecisions(): WorkspaceTrustDecision[];
   trustWorkspaceForLaunch(launchToken: string): WorkspaceTrustDecision;
   revokeWorkspaceTrust(workspaceId: string): WorkspaceTrustDecision[];
@@ -168,6 +176,10 @@ export async function createTerminalRuntime({
     throw error;
   }
   const repository = new TerminalRepository(database, executionTargetId);
+  const structuredPreferences = new StructuredProviderPreferenceRepository(
+    database,
+    executionTargetId
+  );
   repository.markLiveRuntimesLost(clock().toISOString());
   if (
     providedHandoffService === undefined &&
@@ -225,7 +237,17 @@ export async function createTerminalRuntime({
   });
   const structuredLaunchResolver = new StructuredLaunchResolver({
     repository,
-    scanProviders
+    resolveProviderExecutable: async (providerId) => {
+      const override = structuredPreferences.get(providerId).executablePathOverride;
+      if (override !== null) return override;
+      const scan = await scanProviders();
+      const installation = scan.providers.find(
+        (candidate) => candidate.provider === providerId
+      );
+      return installation?.state === 'ready'
+        ? installation.executablePath
+        : null;
+    }
   });
   let host!: RuntimeHost;
   const reconciler = new NewSessionReconciler({
@@ -316,8 +338,20 @@ export async function createTerminalRuntime({
     prepareLaunch(input) {
       return launchService.prepare(input);
     },
+    consumePreparedLaunch(launchToken) {
+      return launchService.consume(launchToken);
+    },
+    startPreparedRuntime(spec) {
+      return host.startPrepared(spec);
+    },
     resolveStructuredLaunch(input) {
       return structuredLaunchResolver.resolve(input);
+    },
+    getStructuredProviderPreferences() {
+      return structuredPreferences.list();
+    },
+    saveStructuredProviderPreference(input) {
+      return structuredPreferences.save(input, clock().toISOString());
     },
     getWorkspaceTrustDecisions() {
       return WorkspaceTrustDecisionListSchema.parse(

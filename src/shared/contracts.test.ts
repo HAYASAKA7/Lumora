@@ -46,6 +46,7 @@ import {
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
+  AgentRuntimeStartResultSchema,
   RuntimeEventSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
@@ -85,6 +86,41 @@ const missingClaude = {
     retryable: true
   }
 } as const;
+
+describe('automatic agent launch contracts', () => {
+  it('accepts either a PTY fallback or a verified structured runtime', () => {
+    const ptyRuntime = RuntimeSummarySchema.parse({
+      id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      displayName: 'Repository cleanup',
+      strategy: 'resume',
+      sessionId: 'a'.repeat(64),
+      nativeSessionId: 'native-1',
+      reconciliationState: 'not_required',
+      provider: 'codex',
+      workspaceId: 'b'.repeat(64),
+      terminalProfileId: 'c'.repeat(64),
+      launchHash: 'd'.repeat(64),
+      state: 'running',
+      pid: 123,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      startedAt: '2026-08-27T00:00:00.000Z',
+      endedAt: null,
+      exitCode: null,
+      errorCode: null
+    });
+
+    expect(AgentRuntimeStartResultSchema.parse({
+      mode: 'pty',
+      routeReason: 'structured_failed',
+      runtime: ptyRuntime
+    }).mode).toBe('pty');
+    expect(AgentRuntimeStartResultSchema.safeParse({
+      mode: 'structured',
+      routeReason: 'disabled',
+      runtime: {}
+    }).success).toBe(false);
+  });
+});
 
 describe('application About contracts', () => {
   it('accepts static application information and a stable available release', () => {

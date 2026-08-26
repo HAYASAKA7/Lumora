@@ -114,6 +114,56 @@ function deferred<T>() {
 }
 
 describe('NewSessionDialog', () => {
+  it('uses the automatic agent route when the local app requests it', async () => {
+    const result = {
+      mode: 'structured' as const,
+      routeReason: 'verified' as const,
+      runtime: {
+        connectionId: 'structured-connection',
+        providerId: 'codex' as const,
+        nativeSessionId: null,
+        catalogSessionId: null,
+        workspaceId: workspace.id,
+        title: 'New Codex session',
+        state: 'ready' as const,
+        generation: 1,
+        createdAt: preview.createdAt,
+        updatedAt: preview.createdAt,
+        error: null
+      }
+    };
+    const startAgentRuntime = vi.fn().mockResolvedValue(result);
+    const onAgentStarted = vi.fn();
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch: vi.fn().mockResolvedValue(preview),
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn(),
+        startAgentRuntime
+      }
+    });
+
+    render(
+      <NewSessionDialog
+        onAgentStarted={onAgentStarted}
+        onClose={vi.fn()}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace]}
+      />
+    );
+
+    await screen.findByText('codexp');
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+
+    await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledWith(
+      preview.launchToken
+    ));
+    expect(onAgentStarted).toHaveBeenCalledWith(result, preview);
+  });
+
   it('selects a valid initial workspace for launch preflight', async () => {
     const prepareLaunch = vi.fn(
       () => new Promise<LaunchPreview>(() => undefined)

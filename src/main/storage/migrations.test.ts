@@ -434,4 +434,28 @@ describe('provider lifecycle migration', () => {
       ) VALUES ('local', ?, 'delete', ?)`
     ).run(workspaceId, timestamp)).toThrow();
   });
+
+  it('adds target-scoped structured provider preferences to an existing catalog', () => {
+    database = new DatabaseSync(':memory:');
+    runMigrations(
+      database,
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 19)
+    );
+    const timestamp = '2026-08-27T00:00:00.000Z';
+
+    runMigrations(database, CATALOG_MIGRATIONS);
+
+    expect(() => database!.prepare(
+      `INSERT INTO structured_provider_preference (
+        execution_target_id, provider_id, use_unified_when_available,
+        executable_path_override, updated_at
+      ) VALUES ('local', 'codex', 1, NULL, ?)`
+    ).run(timestamp)).not.toThrow();
+    expect(() => database!.prepare(
+      `INSERT INTO structured_provider_preference (
+        execution_target_id, provider_id, use_unified_when_available,
+        executable_path_override, updated_at
+      ) VALUES ('local', 'opencode', 1, NULL, ?)`
+    ).run(timestamp)).toThrow();
+  });
 });

@@ -15,6 +15,7 @@ import {
   DEFAULT_KEYBOARD_SETTINGS
 } from '../../shared/contracts';
 import type {
+  AgentRuntimeStartResult,
   AppearanceBackgroundState,
   ApplicationQuitRequest,
   CatalogQuery,
@@ -25,6 +26,9 @@ import type {
   RemoteLifecycleSnapshot,
   RuntimeSummary,
   SessionSummary,
+  StructuredAgentEvent,
+  StructuredAgentRuntimeSnapshot,
+  StructuredAgentRuntimeSummary,
   SystemInfo,
   ThemePresetList,
   WorkspaceVisibilityMode,
@@ -38,6 +42,7 @@ import {
   type CatalogViewStatus
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
+import { StructuredAgentWorkspace } from './agent/StructuredAgentWorkspace';
 import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from './catalog/HideWorkspaceDialog';
 import { projectCatalogVisibility } from './catalog/catalog-visibility';
@@ -374,6 +379,11 @@ function AppContent(): ReactNode {
   const [runtimes, setRuntimes] = useState<RuntimeSummary[]>([]);
   const [openRuntimeIds, setOpenRuntimeIds] = useState<string[]>([]);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+  const [structuredSnapshots, setStructuredSnapshots] = useState<
+    StructuredAgentRuntimeSnapshot[]
+  >([]);
+  const [activeStructuredConnectionId, setActiveStructuredConnectionId] =
+    useState<string | null>(null);
   const [launchPreviews, setLaunchPreviews] = useState(
     () => new Map<string, LaunchPreview>()
   );
@@ -442,6 +452,7 @@ function AppContent(): ReactNode {
   const mainContentRef = useRef<HTMLElement | null>(null);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
+  const lastActiveStructuredConnectionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     writeSidebarExpanded(window, sidebarExpanded);
@@ -792,22 +803,125 @@ function AppContent(): ReactNode {
     });
   }, []);
 
+  const updateStructuredSnapshot = useCallback((
+    snapshot: StructuredAgentRuntimeSnapshot
+  ) => {
+    setStructuredSnapshots((current) => {
+      const existing = current.findIndex((candidate) =>
+        candidate.runtime.connectionId === snapshot.runtime.connectionId
+      );
+      if (existing === -1) return [snapshot, ...current];
+      const next = [...current];
+      next[existing] = snapshot;
+      return next;
+    });
+  }, []);
+
+  const appendStructuredEvent = useCallback((event: StructuredAgentEvent) => {
+    setStructuredSnapshots((current) => current.map((snapshot) => {
+      if (snapshot.runtime.connectionId !== event.connectionId) return snapshot;
+      const latest = snapshot.events[snapshot.events.length - 1];
+      if (
+        latest !== undefined &&
+        (event.generation < latest.generation ||
+          (event.generation === latest.generation &&
+            event.sequence <= latest.sequence))
+      ) return snapshot;
+      const runtime = event.kind === 'runtime.status'
+        ? {
+            ...snapshot.runtime,
+            state: event.payload.state,
+            nativeSessionId: event.nativeSessionId,
+            generation: event.generation,
+            updatedAt: event.timestamp,
+            error: event.payload.state === 'failed'
+              ? snapshot.runtime.error
+              : null
+          }
+        : event.kind === 'runtime.metadata'
+          ? {
+              ...snapshot.runtime,
+              nativeSessionId: event.nativeSessionId,
+              catalogSessionId: event.payload.catalogSessionId,
+              title: event.payload.title,
+              generation: event.generation,
+              updatedAt: event.timestamp
+            }
+        : {
+            ...snapshot.runtime,
+            nativeSessionId: event.nativeSessionId,
+            generation: event.generation,
+            updatedAt: event.timestamp
+          };
+      return {
+        ...snapshot,
+        runtime,
+        events: [...snapshot.events, event].slice(-500)
+      };
+    }));
+  }, []);
+
+  const closeStructuredTab = useCallback((connectionId: string) => {
+    setRuntimeMru((current) => current.filter((id) => id !== connectionId));
+    setStructuredSnapshots((current) => {
+      const next = current.filter(
+        (snapshot) => snapshot.runtime.connectionId !== connectionId
+      );
+      setActiveStructuredConnectionId((active) =>
+        active === connectionId
+          ? (next.find(({ runtime }) =>
+              runtime.state !== 'closed'
+            )?.runtime.connectionId ?? null)
+          : active
+      );
+      return next;
+    });
+  }, []);
+
   const activateRuntime = useCallback((runtimeId: string) => {
     lastActiveRuntimeIdRef.current = runtimeId;
     setOpenRuntimeIds((current) =>
       current.includes(runtimeId) ? current : [...current, runtimeId]
     );
     setRuntimeMru((current) => touchRuntimeMru(current, runtimeId));
+    setActiveStructuredConnectionId(null);
     setActiveRuntimeId(runtimeId);
+  }, []);
+
+  const activateStructuredRuntime = useCallback((connectionId: string) => {
+    lastActiveStructuredConnectionIdRef.current = connectionId;
+    setRuntimeMru((current) => touchRuntimeMru(current, connectionId));
+    setActiveRuntimeId(null);
+    setActiveStructuredConnectionId(connectionId);
   }, []);
 
   const liveRuntimeBySessionId = useMemo(
     () => indexLiveSessionRuntimes(runtimes),
     [runtimes]
   );
+  const liveStructuredSnapshots = useMemo(
+    () => structuredSnapshots.filter(({ runtime }) =>
+      runtime.state === 'starting' ||
+      runtime.state === 'ready' ||
+      runtime.state === 'reconnecting' ||
+      runtime.state === 'closing'
+    ),
+    [structuredSnapshots]
+  );
+  const liveStructuredBySessionId = useMemo(
+    () => new Map(liveStructuredSnapshots.flatMap((snapshot) =>
+      snapshot.runtime.catalogSessionId === null
+        ? []
+        : [[snapshot.runtime.catalogSessionId, snapshot] as const]
+    )),
+    [liveStructuredSnapshots]
+  );
   const runningSessionIds = useMemo(
-    () => new Set(liveRuntimeBySessionId.keys()),
-    [liveRuntimeBySessionId]
+    () => new Set([
+      ...liveRuntimeBySessionId.keys(),
+      ...liveStructuredBySessionId.keys()
+    ]),
+    [liveRuntimeBySessionId, liveStructuredBySessionId]
   );
 
   const openCatalogSession = useCallback((
@@ -823,8 +937,19 @@ function AppContent(): ReactNode {
       setTerminalFocusRequestKey((current) => current + 1);
       return;
     }
+    const structuredRuntime = liveStructuredBySessionId.get(session.id);
+    if (structuredRuntime !== undefined) {
+      setResumeIntent(null);
+      activateStructuredRuntime(structuredRuntime.runtime.connectionId);
+      return;
+    }
     setResumeIntent({ session, workspace });
-  }, [activateRuntime, liveRuntimeBySessionId]);
+  }, [
+    activateRuntime,
+    activateStructuredRuntime,
+    liveRuntimeBySessionId,
+    liveStructuredBySessionId
+  ]);
 
   const reorderRuntimeTab = useCallback(
     (runtimeId: string, destinationIndex: number) => {
@@ -914,6 +1039,37 @@ function AppContent(): ReactNode {
       unsubscribe();
     };
   }, [closeRuntimeTab, scheduleAfterExit, settleStartupTask, updateRuntime]);
+
+  useEffect(() => {
+    let current = true;
+    void window.lumora.listStructuredRuntimes().then(
+      async (runtimes) => {
+        const settled = await Promise.allSettled(runtimes.map((runtime) =>
+          window.lumora.getStructuredRuntimeSnapshot(runtime.connectionId)
+        ));
+        const snapshots = settled.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : []
+        );
+        if (current) setStructuredSnapshots(snapshots);
+      },
+      () => undefined
+    );
+    const unsubscribe = window.lumora.onStructuredAgentEvent((event) => {
+      if (!current) return;
+      appendStructuredEvent(event);
+      if (
+        event.kind === 'runtime.status' &&
+        event.payload.state === 'closed'
+      ) {
+        closeStructuredTab(event.connectionId);
+        scheduleAfterExit();
+      }
+    });
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, [appendStructuredEvent, closeStructuredTab, scheduleAfterExit]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1167,6 +1323,36 @@ function AppContent(): ReactNode {
     [activateRuntime, updateRuntime]
   );
 
+  const handleAgentRuntimeStarted = useCallback((
+    result: AgentRuntimeStartResult,
+    preview: LaunchPreview
+  ) => {
+    if (result.mode === 'pty') {
+      handleRuntimeStarted(result.runtime, preview);
+      return;
+    }
+    void window.lumora.getStructuredRuntimeSnapshot(
+      result.runtime.connectionId
+    ).then(
+      (snapshot) => updateStructuredSnapshot(snapshot),
+      () => updateStructuredSnapshot({
+        runtime: result.runtime,
+        events: [],
+        boundary: null
+      })
+    );
+    void backgroundRefreshCatalog().catch(() => undefined);
+    activateStructuredRuntime(result.runtime.connectionId);
+    setNewSessionIntent(null);
+    setResumeIntent(null);
+    setRecoveryRuntime(null);
+  }, [
+    activateStructuredRuntime,
+    backgroundRefreshCatalog,
+    handleRuntimeStarted,
+    updateStructuredSnapshot
+  ]);
+
   const resumeCatalogSession = useCallback(
     (session: SessionSummary) => {
       if (catalogStatus.state !== 'ready') {
@@ -1251,32 +1437,98 @@ function AppContent(): ReactNode {
     ),
     [runtimes]
   );
-  const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
+  const allOpenRuntimeIds = useMemo(() => [
+    ...openRuntimeIds,
+    ...liveStructuredSnapshots.map(({ runtime }) => runtime.connectionId)
+  ], [liveStructuredSnapshots, openRuntimeIds]);
+  const activeTerminalRuntimeId =
+    activeRuntimeId ?? activeStructuredConnectionId;
+  const structuredTerminalActive =
+    activeStructuredConnectionId !== null &&
+    structuredSnapshots.some(({ runtime }) =>
+      runtime.connectionId === activeStructuredConnectionId
+    );
+  const terminalActive =
+    (activeRuntimeId !== null && openRuntimes.length > 0) ||
+    structuredTerminalActive;
   const liveRuntimesRef = useRef(liveRuntimes);
   liveRuntimesRef.current = liveRuntimes;
-  const runtimeSwitcherRuntimes = runtimeSwitcher === null
+  const liveStructuredSnapshotsRef = useRef(liveStructuredSnapshots);
+  liveStructuredSnapshotsRef.current = liveStructuredSnapshots;
+  const runtimeSwitcherEntries = runtimeSwitcher === null
     ? []
     : runtimeSwitcher.order
-        .map((id) => openRuntimes.find((runtime) => runtime.id === id))
-        .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
+        .flatMap((id) => {
+          const runtime = openRuntimes.find((candidate) => candidate.id === id);
+          if (runtime !== undefined) {
+            return [{
+              id: runtime.id,
+              provider: runtime.provider,
+              title: runtime.displayName,
+              workspaceId: runtime.workspaceId
+            }];
+          }
+          const structured = liveStructuredSnapshots.find(
+            ({ runtime: candidate }) => candidate.connectionId === id
+          )?.runtime;
+          return structured === undefined
+            ? []
+            : [{
+                id: structured.connectionId,
+                provider: structured.providerId,
+                title: structured.title,
+                workspaceId: structured.workspaceId
+              }];
+        });
+  const activateTerminalRuntime = useCallback((runtimeId: string) => {
+    if (liveStructuredSnapshotsRef.current.some(
+      ({ runtime }) => runtime.connectionId === runtimeId
+    )) {
+      activateStructuredRuntime(runtimeId);
+      return;
+    }
+    activateRuntime(runtimeId);
+  }, [activateRuntime, activateStructuredRuntime]);
   const openLiveTerminals = useCallback(() => {
     const liveIds = liveRuntimesRef.current.map((runtime) => runtime.id);
+    const structuredIds = liveStructuredSnapshotsRef.current.map(
+      ({ runtime }) => runtime.connectionId
+    );
     setOpenRuntimeIds((current) => [
       ...current,
       ...liveIds.filter((id) => !current.includes(id))
     ]);
-    const rememberedRuntimeId = lastActiveRuntimeIdRef.current;
-    const nextActive =
-      rememberedRuntimeId !== null && liveIds.includes(rememberedRuntimeId)
-        ? rememberedRuntimeId
-        : (liveIds[0] ?? null);
+    const live = new Set([...liveIds, ...structuredIds]);
+    const nextActive = runtimeMru.find((id) => live.has(id))
+      ?? liveIds[0]
+      ?? structuredIds[0]
+      ?? null;
     if (nextActive === null) {
       setActiveRuntimeId(null);
-    } else {
-      activateRuntime(nextActive);
-      setTerminalFocusRequestKey((current) => current + 1);
+      setActiveStructuredConnectionId(null);
+      return;
     }
-  }, [activateRuntime]);
+    activateTerminalRuntime(nextActive);
+    setTerminalFocusRequestKey((current) => current + 1);
+  }, [activateTerminalRuntime, runtimeMru]);
+  const closeStructuredRuntime = useCallback(async (connectionId: string) => {
+    try {
+      await window.lumora.closeStructuredRuntime(connectionId);
+    } finally {
+      closeStructuredTab(connectionId);
+      scheduleAfterExit();
+    }
+  }, [closeStructuredTab, scheduleAfterExit]);
+  const reconnectStructuredRuntime = useCallback(async (
+    connectionId: string
+  ) => {
+    const runtime = await window.lumora.reconnectStructuredRuntime(connectionId);
+    const snapshot = await window.lumora.getStructuredRuntimeSnapshot(
+      runtime.connectionId
+    );
+    updateStructuredSnapshot(snapshot);
+    activateStructuredRuntime(runtime.connectionId);
+  }, [activateStructuredRuntime, updateStructuredSnapshot]);
   const navigateToRoute = useCallback(
     (routeId: RouteId) => {
       closeWorkspaceDetail();
@@ -1285,6 +1537,7 @@ function AppContent(): ReactNode {
       }
       setActiveRouteId(routeId);
       setActiveRuntimeId(null);
+      setActiveStructuredConnectionId(null);
       if (
         (generalSettings ?? DEFAULT_GENERAL_SETTINGS).autoExpandSidebar
       ) {
@@ -1296,13 +1549,13 @@ function AppContent(): ReactNode {
 
   useEffect(() => {
     setRuntimeMru((current) =>
-      buildRuntimeMru(openRuntimeIds, current, activeRuntimeId)
+      buildRuntimeMru(allOpenRuntimeIds, current, activeTerminalRuntimeId)
     );
     setRuntimeSwitcher((current) => {
       if (current === null) return null;
-      return reconcileRuntimeSwitch(current, openRuntimeIds);
+      return reconcileRuntimeSwitch(current, allOpenRuntimeIds);
     });
-  }, [activeRuntimeId, openRuntimeIds]);
+  }, [activeTerminalRuntimeId, allOpenRuntimeIds]);
 
   useEffect(() => {
     const switcherChord = keyboardSettings.terminalSwitcher;
@@ -1320,13 +1573,13 @@ function AppContent(): ReactNode {
         return;
       }
       if (keyboardEventMatchesChord(event, switcherChord)) {
-        if (!terminalActive || openRuntimeIds.length === 0) return;
+        if (!terminalActive || allOpenRuntimeIds.length === 0) return;
 
         event.preventDefault();
         event.stopPropagation();
         if (event.repeat) return;
-        if (openRuntimeIds.length === 1) {
-          activateRuntime(openRuntimeIds[0]!);
+        if (allOpenRuntimeIds.length === 1) {
+          activateTerminalRuntime(allOpenRuntimeIds[0]!);
           setRuntimeSwitcher(null);
           return;
         }
@@ -1341,12 +1594,12 @@ function AppContent(): ReactNode {
             };
           }
           const order = buildRuntimeMru(
-            openRuntimeIds,
+            allOpenRuntimeIds,
             runtimeMru,
-            activeRuntimeId
+            activeTerminalRuntimeId
           );
           const selectedRuntimeId =
-            nextRuntimeInOrder(order, activeRuntimeId) ?? order[0];
+            nextRuntimeInOrder(order, activeTerminalRuntimeId) ?? order[0];
           return selectedRuntimeId === undefined
             ? null
             : { order, selectedRuntimeId };
@@ -1366,7 +1619,8 @@ function AppContent(): ReactNode {
 
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
-        liveRuntimesRef.current.length > 0
+        (liveRuntimesRef.current.length > 0 ||
+          liveStructuredSnapshotsRef.current.length > 0)
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -1401,8 +1655,8 @@ function AppContent(): ReactNode {
       event.stopPropagation();
       const selectedRuntimeId = runtimeSwitcher.selectedRuntimeId;
       setRuntimeSwitcher(null);
-      if (openRuntimeIds.includes(selectedRuntimeId)) {
-        activateRuntime(selectedRuntimeId);
+      if (allOpenRuntimeIds.includes(selectedRuntimeId)) {
+        activateTerminalRuntime(selectedRuntimeId);
       }
     };
 
@@ -1413,13 +1667,14 @@ function AppContent(): ReactNode {
       window.removeEventListener('keyup', keyup, true);
     };
   }, [
-    activeRuntimeId,
-    activateRuntime,
+    activeTerminalRuntimeId,
+    activateTerminalRuntime,
+    allOpenRuntimeIds,
     keyboardSettings,
     liveRuntimes.length,
+    liveStructuredSnapshots.length,
     navigateToRoute,
     openLiveTerminals,
-    openRuntimeIds,
     runtimeMru,
     runtimeSwitcher,
     terminalActive
@@ -1730,11 +1985,16 @@ function AppContent(): ReactNode {
         sidebarContent={(
           <SidebarSessionList
             activeRuntimeId={activeRuntimeId}
+            activeStructuredConnectionId={activeStructuredConnectionId}
             onActivateRuntime={activateRuntime}
+            onActivateStructuredRuntime={activateStructuredRuntime}
             onResumeSession={resumeCatalogSession}
             preferenceScope="local"
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
+            structuredRunning={liveStructuredSnapshots.map(
+              ({ runtime }) => runtime
+            )}
           />
         )}
         sidebarExpanded={sidebarExpanded}
@@ -1744,7 +2004,9 @@ function AppContent(): ReactNode {
           kicker: t('shell.topbar.local-control-plane'),
           actions: (
             <>
-            {activeRuntimeId === null && liveRuntimes.length > 0 ? (
+            {activeRuntimeId === null &&
+            activeStructuredConnectionId === null &&
+            (liveRuntimes.length > 0 || liveStructuredSnapshots.length > 0) ? (
               <button className="secondary-button" data-lumora-command onClick={openLiveTerminals} tabIndex={-1} type="button">
                 {t('shell.runtime.open-terminals')}
               </button>
@@ -1979,11 +2241,40 @@ function AppContent(): ReactNode {
               </RegionErrorBoundary>
             </div>
           ) : null}
+          {structuredSnapshots.length > 0 ? (
+            <div className="terminal-surface" hidden={!structuredTerminalActive}>
+              <RegionErrorBoundary
+                description={t('errors.terminal.controls-description')}
+                heading={t('errors.terminal.controls-heading')}
+                resetKey={activeStructuredConnectionId}
+                retryLabel={t('errors.terminal.retry-controls')}
+              >
+                <StructuredAgentWorkspace
+                  activeConnectionId={
+                    activeStructuredConnectionId ??
+                    structuredSnapshots[0]!.runtime.connectionId
+                  }
+                  focusRequestKey={terminalFocusRequestKey}
+                  onActivate={activateStructuredRuntime}
+                  onClose={(connectionId) => {
+                    void closeStructuredRuntime(connectionId);
+                  }}
+                  onReconnect={(connectionId) => {
+                    void reconnectStructuredRuntime(connectionId);
+                  }}
+                  showTabBar={!sidebarExpanded}
+                  snapshots={structuredSnapshots}
+                />
+              </RegionErrorBoundary>
+            </div>
+          ) : null}
           </>
         }
         statusBar={(
           <SystemStatusBar
-            activeAgentCount={liveRuntimes.length}
+            activeAgentCount={
+              liveRuntimes.length + liveStructuredSnapshots.length
+            }
             status={systemStatus}
           />
         )}
@@ -2008,9 +2299,9 @@ function AppContent(): ReactNode {
               }}
             />
           )}
-          {runtimeSwitcher !== null && runtimeSwitcherRuntimes.length > 0 ? (
+          {runtimeSwitcher !== null && runtimeSwitcherEntries.length > 0 ? (
         <RuntimeSwitcher
-          runtimes={runtimeSwitcherRuntimes}
+          entries={runtimeSwitcherEntries}
           selectedRuntimeId={runtimeSwitcher.selectedRuntimeId}
           workspaces={
             catalogPresentation === null
@@ -2053,6 +2344,7 @@ function AppContent(): ReactNode {
         <NewSessionDialog
           initialWorkspaceId={newSessionIntent.initialWorkspaceId}
           onClose={() => setNewSessionIntent(null)}
+          onAgentStarted={handleAgentRuntimeStarted}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}
           providerScan={providerStatus.state === 'ready' ? providerStatus.scan : null}
@@ -2063,6 +2355,7 @@ function AppContent(): ReactNode {
         <ResumeSessionDialog
           generalSettings={generalSettings ?? DEFAULT_GENERAL_SETTINGS}
           onClose={() => setResumeIntent(null)}
+          onAgentStarted={handleAgentRuntimeStarted}
           onStarted={handleRuntimeStarted}
           profiles={terminalProfiles}
           providerScan={

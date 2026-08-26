@@ -71,6 +71,19 @@ export const ProviderInteractionRouteSchema = z.strictObject({
   ])
 });
 
+export const StructuredProviderPreferenceSchema = z.strictObject({
+  providerId: StructuredAgentProviderIdSchema,
+  useUnifiedWhenAvailable: z.boolean(),
+  executablePathOverride: z.string().trim().min(1).max(32_768).nullable()
+});
+
+export const StructuredProviderPreferenceListSchema = z.array(
+  StructuredProviderPreferenceSchema
+).length(3);
+
+export const StructuredProviderPreferenceInputSchema =
+  StructuredProviderPreferenceSchema;
+
 export interface SelectProviderInteractionRouteOptions {
   preferenceEnabled: boolean;
   report: StructuredProviderCapabilityReport;
@@ -98,4 +111,7 @@ export type StructuredProviderCapabilityReport = z.infer<
 >;
 export type ProviderInteractionRoute = z.infer<
   typeof ProviderInteractionRouteSchema
+>;
+export type StructuredProviderPreference = z.infer<
+  typeof StructuredProviderPreferenceSchema
 >;

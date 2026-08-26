@@ -442,7 +442,11 @@ export function createCodexStructuredAdapter(
         if (!closed) context.callbacks.exited(error);
       });
       await transport.request('initialize', {
-        clientInfo: { name: 'lumora', title: 'Lumora', version: '0.4.2' },
+        clientInfo: {
+          name: 'lumora',
+          title: 'Lumora',
+          version: context.clientVersion ?? 'unknown'
+        },
         capabilities: null
       });
       await transport.notify('initialized');

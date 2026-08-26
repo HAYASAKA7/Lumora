@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSummary, SessionSummary } from '../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../shared/agent/contracts';
 import { buildTrayMenuTemplate } from './tray-menu';
 
 const session = (index: number): SessionSummary => ({
@@ -38,6 +39,23 @@ const runtime = (state: RuntimeSummary['state']): RuntimeSummary => ({
   errorCode: state === 'failed' ? 'PTY_RUNTIME_FAILED' : null
 });
 
+const structuredRuntime = (
+  state: StructuredAgentRuntimeSummary['state'],
+  catalogSessionId: string | null = null
+): StructuredAgentRuntimeSummary => ({
+  connectionId: crypto.randomUUID(),
+  providerId: 'codex',
+  nativeSessionId: catalogSessionId === null ? null : 'native-structured',
+  catalogSessionId,
+  workspaceId: 'b'.repeat(64),
+  title: 'Structured task',
+  state,
+  generation: 1,
+  createdAt: '2026-07-30T01:00:00.000Z',
+  updatedAt: '2026-07-30T01:00:01.000Z',
+  error: null
+});
+
 const englishTrayText: Record<string, string> = {
   'shell.tray.show': 'Show Lumora',
   'shell.tray.hide': 'Hide Lumora',
@@ -62,6 +80,7 @@ describe('buildTrayMenuTemplate', () => {
     const menu = buildTrayMenuTemplate({
       windowVisible: false,
       runtimes: [],
+      structuredRuntimes: [],
       sessions: [],
       translate: (key) => translations[key] ?? key,
       onToggleWindow: vi.fn(),
@@ -79,6 +98,7 @@ describe('buildTrayMenuTemplate', () => {
     const menu = buildTrayMenuTemplate({
       windowVisible: false,
       runtimes: [runtime('launching'), runtime('running'), runtime('completed')],
+      structuredRuntimes: [],
       sessions: [],
       translate,
       onToggleWindow,
@@ -101,6 +121,7 @@ describe('buildTrayMenuTemplate', () => {
     const menu = buildTrayMenuTemplate({
       windowVisible: true,
       runtimes: [],
+      structuredRuntimes: [],
       sessions: [1, 2, 3, 4, 5, 6].map(session),
       translate,
       onToggleWindow: vi.fn(),
@@ -133,6 +154,7 @@ describe('buildTrayMenuTemplate', () => {
     const menu = buildTrayMenuTemplate({
       windowVisible: true,
       runtimes: [running],
+      structuredRuntimes: [],
       sessions: [session(1), session(2)],
       translate,
       onToggleWindow: vi.fn(),
@@ -146,11 +168,36 @@ describe('buildTrayMenuTemplate', () => {
     ]);
   });
 
+  it('counts structured runtimes and marks their linked catalog sessions running', () => {
+    const menu = buildTrayMenuTemplate({
+      windowVisible: true,
+      runtimes: [runtime('running')],
+      structuredRuntimes: [
+        structuredRuntime('starting'),
+        structuredRuntime('ready', session(2).id),
+        structuredRuntime('reconnecting'),
+        structuredRuntime('failed')
+      ],
+      sessions: [session(1), session(2)],
+      translate,
+      onToggleWindow: vi.fn(),
+      onResumeSession: vi.fn(),
+      onExit: vi.fn()
+    });
+
+    expect(menu[2]).toMatchObject({ label: 'Running agents: 4', enabled: false });
+    expect(menu[3]!.submenu!.map((item) => item.label)).toEqual([
+      'Session 2 · Codex · Running',
+      'Session 1 · Claude Code'
+    ]);
+  });
+
   it('provides an explicit exit action', () => {
     const onExit = vi.fn();
     const menu = buildTrayMenuTemplate({
       windowVisible: true,
       runtimes: [],
+      structuredRuntimes: [],
       sessions: [],
       translate,
       onToggleWindow: vi.fn(),

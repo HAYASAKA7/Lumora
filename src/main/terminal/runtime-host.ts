@@ -187,8 +187,23 @@ export class RuntimeHost {
     return pending;
   }
 
+  startPrepared(spec: LaunchSpec): Promise<RuntimeSummary> {
+    if (this.lifecycleState !== 'active') {
+      return Promise.reject(new TerminalRuntimeError('RUNTIME_SHUTTING_DOWN'));
+    }
+    const pending = this.startOwnedSpec(spec);
+    this.pendingStarts.add(pending);
+    const removePending = () => this.pendingStarts.delete(pending);
+    void pending.then(removePending, removePending);
+    return pending;
+  }
+
   private async startOwned(token: string): Promise<RuntimeSummary> {
     const spec = await this.dependencies.consumeLaunch(token);
+    return this.startOwnedSpec(spec);
+  }
+
+  private async startOwnedSpec(spec: LaunchSpec): Promise<RuntimeSummary> {
     if (spec.strategy === 'resume' && spec.sessionId !== null) {
       const pending = this.pendingSessionStarts.get(spec.sessionId);
       if (pending !== undefined) return pending;

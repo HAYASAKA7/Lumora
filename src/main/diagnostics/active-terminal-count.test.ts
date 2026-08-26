@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { countActiveTerminalRuntimes } from './active-terminal-count';
+import {
+  countActiveStructuredRuntimes,
+  countActiveTerminalRuntimes
+} from './active-terminal-count';
 
 describe('countActiveTerminalRuntimes', () => {
   it('counts only launching and running local runtimes', () => {
@@ -12,5 +15,16 @@ describe('countActiveTerminalRuntimes', () => {
       { state: 'runtime_lost' },
       { state: 'launch_failed' }
     ])).toBe(2);
+  });
+
+  it('counts structured runtimes that still own a live provider connection', () => {
+    expect(countActiveStructuredRuntimes([
+      { state: 'starting' },
+      { state: 'ready' },
+      { state: 'reconnecting' },
+      { state: 'closing' },
+      { state: 'closed' },
+      { state: 'failed' }
+    ])).toBe(4);
   });
 });

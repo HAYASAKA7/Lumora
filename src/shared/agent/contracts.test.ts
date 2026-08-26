@@ -68,8 +68,38 @@ describe('structured agent contracts', () => {
     expect(() => StructuredAgentEventSchema.parse({
       ...envelope,
       nativeSessionId: null,
+      kind: 'runtime.status',
+      payload: { state: 'ready', message: null }
+    })).toThrow();
+
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      nativeSessionId: null,
       kind: 'assistant.delta',
       payload: { text: 'invalid before identity' }
+    })).toThrow();
+  });
+
+  it('accepts only bounded catalog metadata from native identity reconciliation', () => {
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'runtime.metadata',
+      payload: {
+        catalogSessionId: 'catalog-session-01',
+        title: 'Provider-owned title'
+      }
+    })).toMatchObject({
+      kind: 'runtime.metadata',
+      payload: { catalogSessionId: 'catalog-session-01' }
+    });
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'runtime.metadata',
+      payload: {
+        catalogSessionId: 'catalog-session-01',
+        title: 'Provider-owned title',
+        transcriptPath: 'C:\\secret\\session.jsonl'
+      }
     })).toThrow();
   });
 

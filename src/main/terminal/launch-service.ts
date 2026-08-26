@@ -75,6 +75,7 @@ interface LaunchServiceDependencies {
 export interface LaunchSpec {
   displayName: string;
   strategy: 'new' | 'resume' | 'fork';
+  startPrompt: string;
   sessionId: string | null;
   nativeSessionId: string | null;
   reconciliationBaselineNativeIds: string[] | null;
@@ -441,6 +442,7 @@ export class LaunchService {
     const partial = {
       displayName,
       strategy: handoff === null ? request.strategy : 'new' as const,
+      startPrompt: request.startPrompt,
       sessionId,
       nativeSessionId,
       reconciliationBaselineNativeIds,

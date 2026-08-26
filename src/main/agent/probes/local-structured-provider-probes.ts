@@ -20,6 +20,7 @@ type ProbeClaude = typeof probeClaudeStructuredProvider;
 interface CreateLocalStructuredProviderProbeOptions {
   platform: SystemInfo['platform'];
   env: Environment;
+  clientVersion?: string;
   createTransport?: CreateTransport;
   probeClaude?: ProbeClaude;
 }
@@ -27,6 +28,7 @@ interface CreateLocalStructuredProviderProbeOptions {
 export function createLocalStructuredProviderProbe({
   platform,
   env,
+  clientVersion = 'unknown',
   createTransport = (executablePath, args, requestTimeoutMs) =>
     spawnStructuredLineTransport(executablePath, args, {
       platform,
@@ -44,6 +46,7 @@ export function createLocalStructuredProviderProbe({
       return probeCodexStructuredProvider({
         executablePath: installation.executablePath,
         version: installation.version,
+        clientVersion,
         createTransport: async (executablePath) =>
           createTransport(executablePath, ['app-server', '--stdio'], 10_000)
       });
@@ -52,6 +55,7 @@ export function createLocalStructuredProviderProbe({
       return probeGeminiStructuredProvider({
         executablePath: installation.executablePath,
         version: installation.version,
+        clientVersion,
         createTransport: async (executablePath) =>
           createTransport(executablePath, ['--acp'], 30_000)
       });

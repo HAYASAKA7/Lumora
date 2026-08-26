@@ -29,10 +29,16 @@ function harness() {
       displayName: 'Codex', issue: null
     }]
   }));
+  const resolveProviderExecutable = vi.fn(async () => {
+    const scan = await scanProviders();
+    const installation = scan.providers.find(({ provider }) => provider === 'codex');
+    return installation?.state === 'ready' ? installation.executablePath : null;
+  });
   return {
     repository,
     scanProviders,
-    resolver: new StructuredLaunchResolver({ repository, scanProviders })
+    resolveProviderExecutable,
+    resolver: new StructuredLaunchResolver({ repository, resolveProviderExecutable })
   };
 }
 
@@ -66,6 +72,17 @@ describe('StructuredLaunchResolver', () => {
     expect(current.repository.getWorkspace).toHaveBeenCalledWith(workspaceId);
   });
 
+  it('uses the independently resolved structured executable override', async () => {
+    const current = harness();
+    current.resolveProviderExecutable.mockResolvedValueOnce('C:\\tools\\codex-app-server.cmd');
+
+    await expect(current.resolver.resolve({
+      strategy: 'new', providerId: 'codex', workspaceId, startPrompt: ''
+    })).resolves.toMatchObject({
+      executablePath: 'C:\\tools\\codex-app-server.cmd'
+    });
+  });
+
   it('rejects mismatched, stale, unavailable, or missing installations', async () => {
     const current = harness();
     current.repository.getSession.mockReturnValueOnce({
@@ -76,9 +93,7 @@ describe('StructuredLaunchResolver', () => {
       strategy: 'resume', providerId: 'codex', sessionId, startPrompt: ''
     })).rejects.toMatchObject({ code: 'STRUCTURED_SESSION_UNAVAILABLE' });
 
-    current.scanProviders.mockResolvedValueOnce({
-      scannedAt: '2026-08-27T00:00:00.000Z', providers: []
-    });
+    current.resolveProviderExecutable.mockResolvedValueOnce(null);
     await expect(current.resolver.resolve({
       strategy: 'new', providerId: 'codex', workspaceId, startPrompt: ''
     })).rejects.toMatchObject({ code: 'STRUCTURED_PROVIDER_UNAVAILABLE' });

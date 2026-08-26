@@ -39,6 +39,15 @@ const RuntimeStatusEventSchema = z.strictObject({
   })
 });
 
+const RuntimeMetadataEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('runtime.metadata'),
+  payload: z.strictObject({
+    catalogSessionId: OpaqueIdSchema,
+    title: DisplayTextSchema
+  })
+});
+
 const UserMessageEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.literal('user.message'),
@@ -180,6 +189,7 @@ const RuntimeErrorEventSchema = z.strictObject({
 
 export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
   RuntimeStatusEventSchema,
+  RuntimeMetadataEventSchema,
   UserMessageEventSchema,
   AssistantDeltaEventSchema,
   AssistantMessageEventSchema,
@@ -196,7 +206,10 @@ export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
   TurnStatusEventSchema,
   RuntimeErrorEventSchema
 ]).superRefine((event, context) => {
-  if (event.nativeSessionId === null && event.kind !== 'runtime.status') {
+  if (
+    event.nativeSessionId === null &&
+    (event.kind !== 'runtime.status' || event.payload.state !== 'starting')
+  ) {
     context.addIssue({
       code: 'custom',
       path: ['nativeSessionId'],
@@ -311,6 +324,9 @@ export const StructuredAgentCommandResultSchema = z.strictObject({
 
 export type StructuredAgentProviderId = z.infer<
   typeof StructuredAgentProviderIdSchema
+>;
+export type StructuredAgentApprovalDecision = z.infer<
+  typeof StructuredAgentApprovalDecisionSchema
 >;
 export type StructuredAgentEvent = z.infer<typeof StructuredAgentEventSchema>;
 export type StructuredAgentAction = z.infer<typeof StructuredAgentActionSchema>;

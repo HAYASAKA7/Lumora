@@ -375,7 +375,11 @@ export function createGeminiStructuredAdapter(
       });
       const initialized = InitializeSchema.parse(await transport.request('initialize', {
         protocolVersion: 1,
-        clientInfo: { name: 'lumora', title: 'Lumora', version: '0.4.2' },
+        clientInfo: {
+          name: 'lumora',
+          title: 'Lumora',
+          version: context.clientVersion ?? 'unknown'
+        },
         clientCapabilities: {
           auth: { terminal: false },
           fs: { readTextFile: true, writeTextFile: true },

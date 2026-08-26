@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type {
+  AgentRuntimeStartResult,
   LaunchPrepareRequest,
   LaunchPreview,
   LumoraApi,
@@ -24,6 +25,10 @@ interface NewSessionDialogProps {
   providerScan: ProviderScanResult | null;
   onClose(): void;
   onStarted(runtime: RuntimeSummary, preview: LaunchPreview): void;
+  onAgentStarted?(
+    result: AgentRuntimeStartResult,
+    preview: LaunchPreview
+  ): void;
 }
 
 export function NewSessionDialog({
@@ -33,7 +38,8 @@ export function NewSessionDialog({
   profiles,
   providerScan,
   onClose,
-  onStarted
+  onStarted,
+  onAgentStarted
 }: NewSessionDialogProps): ReactNode {
   const { t } = useLocalization();
   const availableWorkspaces = useMemo(
@@ -171,6 +177,12 @@ export function NewSessionDialog({
         }
       }
       try {
+        if (onAgentStarted !== undefined) {
+          const result = await api.startAgentRuntime(preview.launchToken);
+          finishLaunchOperation(operation);
+          onAgentStarted(result, confirmedPreview);
+          return;
+        }
         const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);

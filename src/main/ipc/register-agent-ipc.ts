@@ -1,6 +1,8 @@
 import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
+  AgentRuntimeStartResultSchema,
+  RuntimeStartRequestSchema,
   StructuredAgentActionSchema,
   StructuredAgentCapabilityScanRequestSchema,
   StructuredAgentCommandResultSchema,
@@ -11,8 +13,11 @@ import {
   StructuredAgentRuntimeSnapshotSchema,
   StructuredAgentRuntimeSummarySchema,
   StructuredProviderCapabilityReportSchema,
+  StructuredProviderPreferenceInputSchema,
+  StructuredProviderPreferenceListSchema,
   type StructuredAgentEvent,
-  type StructuredProviderCapabilityReport
+  type StructuredProviderCapabilityReport,
+  type StructuredProviderPreference
 } from '../../shared/contracts';
 import type { StructuredAgentRuntimeHost } from '../agent/runtime/structured-agent-runtime-host';
 import {
@@ -43,6 +48,13 @@ interface RegisterAgentIpcOptions {
   scanCapabilities(
     fresh: boolean
   ): Promise<readonly StructuredProviderCapabilityReport[]>;
+  preferences: {
+    list(): readonly StructuredProviderPreference[];
+    save(
+      input: StructuredProviderPreference
+    ): Promise<readonly StructuredProviderPreference[]> | readonly StructuredProviderPreference[];
+  };
+  startPrepared(launchToken: string): Promise<unknown>;
   sendEvent(event: StructuredAgentEvent): void;
 }
 
@@ -81,14 +93,40 @@ export function registerAgentIpc({
   authorize,
   runtime,
   scanCapabilities,
+  preferences,
+  startPrepared,
   sendEvent
 }: RegisterAgentIpcOptions): () => void {
+  ipc.handle(IPC_CHANNELS.agentRuntimeStart, async (event, input) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(async () => {
+      const request = RuntimeStartRequestSchema.parse(input);
+      return AgentRuntimeStartResultSchema.parse(
+        await startPrepared(request.launchToken)
+      );
+    });
+  });
   ipc.handle(IPC_CHANNELS.structuredCapabilityScan, async (event, input) => {
     authorizeLocal(event, authorize);
     return protectedOperation(async () => {
       const request = StructuredAgentCapabilityScanRequestSchema.parse(input);
       return StructuredProviderCapabilityReportSchema.array().length(3).parse(
         await scanCapabilities(request.fresh)
+      );
+    });
+  });
+  ipc.handle(IPC_CHANNELS.structuredPreferencesGet, async (event) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(() =>
+      StructuredProviderPreferenceListSchema.parse(preferences.list())
+    );
+  });
+  ipc.handle(IPC_CHANNELS.structuredPreferenceSave, async (event, input) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(async () => {
+      const request = StructuredProviderPreferenceInputSchema.parse(input);
+      return StructuredProviderPreferenceListSchema.parse(
+        await preferences.save(request)
       );
     });
   });

@@ -552,6 +552,21 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       `CREATE INDEX workspace_visibility_policy_updated_idx
        ON workspace_visibility_policy (execution_target_id, updated_at DESC)`
     ]
+  },
+  {
+    version: 20,
+    statements: [
+      `CREATE TABLE structured_provider_preference (
+        execution_target_id TEXT NOT NULL
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        provider_id TEXT NOT NULL CHECK (provider_id IN ('codex', 'claude', 'gemini')),
+        use_unified_when_available INTEGER NOT NULL DEFAULT 1
+          CHECK (use_unified_when_available IN (0, 1)),
+        executable_path_override TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (execution_target_id, provider_id)
+      ) STRICT`
+    ]
   }
 ];
 

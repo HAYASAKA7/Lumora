@@ -7,6 +7,7 @@ import {
 } from 'react';
 
 import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { useProgressiveList } from '../catalog/progressive-list';
 import { useLocalization } from '../localization/useLocalization';
@@ -20,12 +21,15 @@ import {
 
 interface SidebarSessionListProps {
   activeRuntimeId: string | null;
+  activeStructuredConnectionId?: string | null;
   onActivateRuntime(runtimeId: string): void;
+  onActivateStructuredRuntime?(connectionId: string): void;
   onResumeSession(session: SessionSummary): void;
   preferenceHost?: SidebarSessionPreferenceHost;
   preferenceScope: string;
   recent: readonly SessionSummary[];
   running: readonly RuntimeSummary[];
+  structuredRunning?: readonly StructuredAgentRuntimeSummary[];
 }
 
 type ScrollingSection = 'running' | 'recent';
@@ -65,12 +69,15 @@ function SectionToggle({
 
 export function SidebarSessionList({
   activeRuntimeId,
+  activeStructuredConnectionId = null,
   onActivateRuntime,
+  onActivateStructuredRuntime,
   onResumeSession,
   preferenceHost = window,
   preferenceScope,
   recent,
-  running
+  running,
+  structuredRunning = []
 }: SidebarSessionListProps): ReactNode {
   const { t } = useLocalization();
   const [sections, setSections] = useState<SidebarSessionSections>(() =>
@@ -123,7 +130,7 @@ export function SidebarSessionList({
 
   return (
     <div className="sidebar-session-region">
-      {running.length === 0 ? null : (
+      {running.length + structuredRunning.length === 0 ? null : (
         <section
           className="sidebar-session-section sidebar-session-section-running"
           data-expanded={sections.runningExpanded}
@@ -167,6 +174,34 @@ export function SidebarSessionList({
                       </span>
                     </OverflowTooltip>
                     <small>{providerDefinition(runtime.provider).displayName}</small>
+                  </span>
+                </button>
+              ))}
+              {structuredRunning.map((runtime) => (
+                <button
+                  aria-current={
+                    runtime.connectionId === activeStructuredConnectionId
+                      ? 'true'
+                      : undefined
+                  }
+                  className="sidebar-session-item"
+                  data-lumora-command
+                  key={runtime.connectionId}
+                  onClick={() => onActivateStructuredRuntime?.(
+                    runtime.connectionId
+                  )}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  <span className="sidebar-session-copy">
+                    <OverflowTooltip content={runtime.title}>
+                      <span className="sidebar-session-title">
+                        {runtime.title}
+                      </span>
+                    </OverflowTooltip>
+                    <small>
+                      {providerDefinition(runtime.providerId).displayName}
+                    </small>
                   </span>
                 </button>
               ))}

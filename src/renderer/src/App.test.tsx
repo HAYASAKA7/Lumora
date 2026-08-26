@@ -21,6 +21,9 @@ import type {
   ProviderScanResult,
   RuntimeEvent,
   RuntimeSummary,
+  StructuredAgentEvent,
+  StructuredAgentRuntimeSnapshot,
+  StructuredAgentRuntimeSummary,
   SystemInfo,
   TerminalProfile
 } from '../../shared/contracts';
@@ -279,6 +282,14 @@ interface CatalogApiOverrides {
   writeClipboardText?: ReturnType<typeof vi.fn>;
   prepareLaunch?: ReturnType<typeof vi.fn>;
   startRuntime?: ReturnType<typeof vi.fn>;
+  startAgentRuntime?: ReturnType<typeof vi.fn>;
+  listStructuredRuntimes?: ReturnType<typeof vi.fn>;
+  getStructuredRuntimeSnapshot?: ReturnType<typeof vi.fn>;
+  closeStructuredRuntime?: ReturnType<typeof vi.fn>;
+  reconnectStructuredRuntime?: ReturnType<typeof vi.fn>;
+  onStructuredAgentEvent?: (
+    listener: (event: StructuredAgentEvent) => void
+  ) => () => void;
   attachRuntime?: ReturnType<typeof vi.fn>;
   listRuntimes?: ReturnType<typeof vi.fn>;
   onRuntimeEvent?: (
@@ -311,6 +322,16 @@ function setSystemInfoResult(
     .mockResolvedValue(readyProviderScan),
   catalogApi: CatalogApiOverrides = {}
 ): void {
+  const startRuntime = catalogApi.startRuntime ?? vi.fn();
+  const startAgentRuntime = catalogApi.startAgentRuntime ?? vi.fn(
+    async (launchToken: string) => ({
+      mode: 'pty' as const,
+      routeReason: 'unavailable' as const,
+      runtime: await (startRuntime as unknown as (
+        token: string
+      ) => Promise<RuntimeSummary>)(launchToken)
+    })
+  );
   Object.defineProperty(window, 'lumora', {
     configurable: true,
     value: {
@@ -396,7 +417,19 @@ function setSystemInfoResult(
       trustWorkspaceForLaunch: vi.fn(),
       revokeWorkspaceTrust: vi.fn().mockResolvedValue([]),
       prepareLaunch: catalogApi.prepareLaunch ?? vi.fn(),
-      startRuntime: catalogApi.startRuntime ?? vi.fn(),
+      startRuntime,
+      startAgentRuntime,
+      listStructuredRuntimes:
+        catalogApi.listStructuredRuntimes ?? vi.fn().mockResolvedValue([]),
+      getStructuredRuntimeSnapshot:
+        catalogApi.getStructuredRuntimeSnapshot ?? vi.fn(),
+      closeStructuredRuntime:
+        catalogApi.closeStructuredRuntime ?? vi.fn(),
+      reconnectStructuredRuntime:
+        catalogApi.reconnectStructuredRuntime ?? vi.fn(),
+      dispatchStructuredAgentAction: vi.fn().mockResolvedValue(undefined),
+      onStructuredAgentEvent:
+        catalogApi.onStructuredAgentEvent ?? vi.fn(() => () => undefined),
       listRuntimes: catalogApi.listRuntimes ?? vi.fn().mockResolvedValue([]),
       attachRuntime: catalogApi.attachRuntime ?? vi.fn(),
       writeRuntime: vi.fn().mockResolvedValue(undefined),
@@ -449,6 +482,114 @@ describe('App', () => {
       value: createLocalStorage()
     });
     setSystemInfoResult();
+  });
+
+  it('restores a structured provider session into the persistent agent workspace', async () => {
+    const runtime: StructuredAgentRuntimeSummary = {
+      connectionId: 'structured-codex-1',
+      providerId: 'codex',
+      nativeSessionId: 'native-codex-1',
+      catalogSessionId: readyCatalog.sessions[0]!.id,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Catalog implementation',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:01.000Z',
+      error: null
+    };
+    const snapshot: StructuredAgentRuntimeSnapshot = {
+      runtime,
+      boundary: null,
+      events: [{
+        kind: 'assistant.message',
+        connectionId: runtime.connectionId,
+        providerId: 'codex',
+        nativeSessionId: runtime.nativeSessionId,
+        generation: 1,
+        sequence: 1,
+        eventId: 'event-1',
+        parentEventId: null,
+        timestamp: runtime.updatedAt,
+        turnId: 'turn-1',
+        payload: { text: 'The catalog is ready.' }
+      }]
+    };
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([runtime]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue(snapshot)
+    });
+
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open terminals'
+    }));
+    expect(await screen.findByRole('region', {
+      name: 'Unified agent sessions'
+    })).toBeInTheDocument();
+    expect(screen.getByText('The catalog is ready.')).toBeVisible();
+    expect(screen.getByText('1 active agent')).toBeInTheDocument();
+  });
+
+  it('keeps the next structured session visible when the active one closes', async () => {
+    const first: StructuredAgentRuntimeSummary = {
+      connectionId: 'structured-first',
+      providerId: 'codex',
+      nativeSessionId: 'native-first',
+      catalogSessionId: readyCatalog.sessions[0]!.id,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'First structured session',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:01.000Z',
+      error: null
+    };
+    const second: StructuredAgentRuntimeSummary = {
+      ...first,
+      connectionId: 'structured-second',
+      nativeSessionId: 'native-second',
+      catalogSessionId: null,
+      title: 'Second structured session'
+    };
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([first, second]),
+      getStructuredRuntimeSnapshot: vi.fn(async (connectionId: string) => ({
+        runtime: connectionId === first.connectionId ? first : second,
+        boundary: null,
+        events: []
+      })),
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    expect(await screen.findByRole('heading', {
+      name: 'First structured session'
+    })).toBeVisible();
+
+    act(() => eventListener?.({
+      kind: 'runtime.status',
+      connectionId: first.connectionId,
+      providerId: first.providerId,
+      nativeSessionId: first.nativeSessionId,
+      generation: 1,
+      sequence: 1,
+      eventId: 'closed-event',
+      parentEventId: null,
+      timestamp: '2026-08-27T00:01:00.000Z',
+      turnId: 'lifecycle',
+      payload: { state: 'closed', message: null }
+    }));
+
+    expect(await screen.findByRole('heading', {
+      name: 'Second structured session'
+    })).toBeVisible();
   });
 
   it('warns before exiting with active local or remote agents', async () => {
@@ -1741,6 +1882,52 @@ describe('App', () => {
     expect(
       screen.getByRole('tab', { hidden: true, name: /Claude working session/ })
     ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('cycles from a PTY terminal into a structured provider session', async () => {
+    const pty = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ad2'
+    );
+    const structured: StructuredAgentRuntimeSummary = {
+      connectionId: 'structured-gemini-switcher',
+      providerId: 'gemini',
+      nativeSessionId: 'gemini-native-switcher',
+      catalogSessionId: null,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Gemini structured session',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:01.000Z',
+      error: null
+    };
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([pty]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime: pty,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      listStructuredRuntimes: vi.fn().mockResolvedValue([structured]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue({
+        runtime: structured,
+        boundary: null,
+        events: []
+      })
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(screen.getByRole('option', {
+      name: /Gemini structured session/
+    })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyUp(window, { code: 'ControlLeft', key: 'Control' });
+
+    expect(await screen.findByRole('heading', {
+      name: 'Gemini structured session'
+    })).toBeVisible();
   });
 
   it('keeps dragged visual tab order independent from the MRU switcher', async () => {

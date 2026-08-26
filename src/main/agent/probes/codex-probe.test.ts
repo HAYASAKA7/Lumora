@@ -41,7 +41,8 @@ describe('Codex structured capability probe', () => {
       providerId: 'codex',
       integration: 'codex_app_server',
       state: 'verified',
-      version: 'codex-cli 0.149.1'
+      version: 'codex-cli 0.149.1',
+      capabilities: { attachments: false }
     });
     expect(transport.calls.map(({ method }) => method)).toEqual([
       'initialize',

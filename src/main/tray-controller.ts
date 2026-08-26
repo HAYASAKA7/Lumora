@@ -1,4 +1,5 @@
 import type { RuntimeSummary, SessionSummary } from '../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../shared/agent/contracts';
 import { buildTrayMenuTemplate, type TrayMenuItem } from './tray-menu';
 
 interface TrayPort {
@@ -11,6 +12,7 @@ interface TrayPort {
 interface TrayState {
   windowVisible: boolean;
   runtimes: readonly RuntimeSummary[];
+  structuredRuntimes: readonly StructuredAgentRuntimeSummary[];
   sessions: readonly SessionSummary[];
 }
 

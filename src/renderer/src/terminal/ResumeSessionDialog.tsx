@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type {
+  AgentRuntimeStartResult,
   LaunchPrepareRequest,
   LaunchPreview,
   GeneralSettings,
@@ -34,6 +35,10 @@ interface ResumeSessionDialogProps {
   sourceSessionActive?: boolean;
   onClose(): void;
   onStarted(runtime: RuntimeSummary, preview: LaunchPreview): void;
+  onAgentStarted?(
+    result: AgentRuntimeStartResult,
+    preview: LaunchPreview
+  ): void;
 }
 
 export function ResumeSessionDialog({
@@ -45,7 +50,8 @@ export function ResumeSessionDialog({
   providerScan,
   sourceSessionActive = false,
   onClose,
-  onStarted
+  onStarted,
+  onAgentStarted
 }: ResumeSessionDialogProps): ReactNode {
   const { t } = useLocalization();
   const availableProfiles = useMemo(
@@ -245,6 +251,12 @@ export function ResumeSessionDialog({
         }
       }
       try {
+        if (onAgentStarted !== undefined) {
+          const result = await api.startAgentRuntime(preview.launchToken);
+          finishLaunchOperation(operation);
+          onAgentStarted(result, confirmedPreview);
+          return;
+        }
         const runtime = await api.startRuntime(preview.launchToken);
         finishLaunchOperation(operation);
         onStarted(runtime, confirmedPreview);

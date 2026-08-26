@@ -2,6 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
+import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import {
   renderWithLocalization,
   TEST_LOCALIZATION_SNAPSHOT
@@ -77,6 +78,22 @@ const recent: SessionSummary[] = [
   }
 ];
 
+const structuredRunning: StructuredAgentRuntimeSummary[] = [
+  {
+    connectionId: 'structured-codex',
+    providerId: 'codex',
+    nativeSessionId: 'native-structured-codex',
+    catalogSessionId: '1'.repeat(64),
+    workspaceId: 'a'.repeat(64),
+    title: 'Structured review session',
+    state: 'ready',
+    generation: 1,
+    createdAt: '2026-08-26T01:10:00.000Z',
+    updatedAt: '2026-08-26T01:11:00.000Z',
+    error: null
+  }
+];
+
 const snapshot = {
   ...TEST_LOCALIZATION_SNAPSHOT,
   messages: {
@@ -94,21 +111,27 @@ const snapshot = {
 
 function renderList({
   onActivateRuntime = vi.fn(),
+  onActivateStructuredRuntime = vi.fn(),
   onResumeSession = vi.fn(),
   recentSessions = recent,
-  runningSessions = running
+  runningSessions = running,
+  structuredRunningSessions = []
 }: {
   onActivateRuntime?: (runtimeId: string) => void;
+  onActivateStructuredRuntime?: (connectionId: string) => void;
   onResumeSession?: (session: SessionSummary) => void;
   recentSessions?: readonly SessionSummary[];
   runningSessions?: readonly RuntimeSummary[];
+  structuredRunningSessions?: readonly StructuredAgentRuntimeSummary[];
 } = {}) {
   const preferences = new Map<string, string>();
   renderWithLocalization(
     <TooltipProvider>
       <SidebarSessionList
         activeRuntimeId={running[0]!.id}
+        activeStructuredConnectionId={null}
         onActivateRuntime={onActivateRuntime}
+        onActivateStructuredRuntime={onActivateStructuredRuntime}
         onResumeSession={onResumeSession}
         preferenceHost={{
           localStorage: {
@@ -119,6 +142,7 @@ function renderList({
         preferenceScope="test-target"
         recent={recentSessions}
         running={runningSessions}
+        structuredRunning={structuredRunningSessions}
       />
     </TooltipProvider>,
     snapshot
@@ -177,6 +201,23 @@ describe('SidebarSessionList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Theme mod support/ }));
     expect(onResumeSession).toHaveBeenCalledWith(recent[0]);
+  });
+
+  it('renders and activates structured runtimes in the running section', () => {
+    const onActivateStructuredRuntime = vi.fn();
+    renderList({
+      onActivateStructuredRuntime,
+      structuredRunningSessions: structuredRunning
+    });
+
+    const runningRegion = screen.getByRole('region', { name: 'Running sessions' });
+    fireEvent.click(within(runningRegion).getByRole('button', {
+      name: /Structured review session/
+    }));
+
+    expect(onActivateStructuredRuntime).toHaveBeenCalledWith(
+      structuredRunning[0]!.connectionId
+    );
   });
 
   it('collapses each section independently and persists the choice', () => {

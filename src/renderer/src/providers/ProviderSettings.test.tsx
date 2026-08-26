@@ -6,6 +6,7 @@ import type {
   GeneralSettings,
   ProviderLaunchConfig,
   ProviderScanResult,
+  StructuredProviderPreference,
   ProviderUpdateCheckResult
 } from '../../../shared/contracts';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
@@ -102,6 +103,147 @@ function ProviderSettings(
 }
 
 describe('ProviderSettings', () => {
+  it('shows verified unified UI routing and lets local users opt out per provider', async () => {
+    const saveStructuredProviderPreference = vi.fn(async (
+      input: StructuredProviderPreference
+    ) => [
+      {
+        providerId: 'codex',
+        useUnifiedWhenAvailable: input.useUnifiedWhenAvailable,
+        executablePathOverride: input.executablePathOverride
+      },
+      {
+        providerId: 'claude',
+        useUnifiedWhenAvailable: true,
+        executablePathOverride: null
+      },
+      {
+        providerId: 'gemini',
+        useUnifiedWhenAvailable: true,
+        executablePathOverride: null
+      }
+    ]);
+    const scanStructuredProviderCapabilities = vi.fn().mockResolvedValue([
+      {
+        providerId: 'codex',
+        integration: 'codex_app_server',
+        checkedAt: '2026-08-27T00:00:00.000Z',
+        version: '1.0.0',
+        state: 'verified',
+        capabilities: {
+          newSession: true,
+          resumeSession: true,
+          history: true,
+          streaming: true,
+          toolActivity: true,
+          approvals: true,
+          cancellation: true,
+          usage: true,
+          attachments: true
+        },
+        issue: null
+      },
+      {
+        providerId: 'claude',
+        integration: 'claude_agent_sdk',
+        checkedAt: '2026-08-27T00:00:00.000Z',
+        version: null,
+        state: 'unavailable',
+        capabilities: null,
+        issue: {
+          code: 'STRUCTURED_ROUTE_UNAVAILABLE',
+          message: 'The SDK is unavailable.',
+          recovery: 'Lumora will use the native terminal.',
+          retryable: true
+        }
+      },
+      {
+        providerId: 'gemini',
+        integration: 'gemini_acp',
+        checkedAt: '2026-08-27T00:00:00.000Z',
+        version: null,
+        state: 'unavailable',
+        capabilities: null,
+        issue: {
+          code: 'STRUCTURED_ROUTE_UNAVAILABLE',
+          message: 'ACP is unavailable.',
+          recovery: 'Lumora will use the native terminal.',
+          retryable: true
+        }
+      }
+    ]);
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'claude', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ]),
+      scanStructuredProviderCapabilities,
+      saveStructuredProviderPreference
+    });
+
+    render(<ProviderSettings />);
+
+    expect(await screen.findByRole('heading', {
+      name: 'Unified agent interface'
+    })).toBeInTheDocument();
+    const codexSwitch = screen.getByRole('checkbox', {
+      name: 'Use unified interface for Codex when verified'
+    });
+    expect(codexSwitch).toBeChecked();
+    expect(screen.getByText('Verified · Codex app-server')).toBeVisible();
+    expect(screen.getAllByText('Unavailable · Native terminal fallback')).toHaveLength(2);
+    expect(screen.getByText('The SDK is unavailable.')).toBeVisible();
+    expect(screen.getAllByText('Lumora will use the native terminal.')).toHaveLength(2);
+
+    fireEvent.click(codexSwitch);
+    await waitFor(() => expect(saveStructuredProviderPreference).toHaveBeenCalledWith({
+      providerId: 'codex',
+      useUnifiedWhenAvailable: false,
+      executablePathOverride: null
+    }));
+
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Codex structured executable path'
+    }), { target: { value: 'D:\\apps\\codex.cmd' } });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Verify and save Codex structured executable'
+    }));
+    await waitFor(() => expect(saveStructuredProviderPreference).toHaveBeenCalledWith({
+      providerId: 'codex',
+      useUnifiedWhenAvailable: false,
+      executablePathOverride: 'D:\\apps\\codex.cmd'
+    }));
+    await waitFor(() => expect(scanStructuredProviderCapabilities).toHaveBeenLastCalledWith(true));
+  });
+
+  it('shows structured settings only for providers enabled in Lumora', async () => {
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'claude', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ]),
+      scanStructuredProviderCapabilities: vi.fn().mockResolvedValue([]),
+      saveStructuredProviderPreference: vi.fn()
+    });
+
+    render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex']
+    }} />);
+
+    expect(await screen.findByRole('checkbox', {
+      name: 'Use unified interface for Codex when verified'
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', {
+      name: 'Use unified interface for Claude Code when verified'
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', {
+      name: 'Use unified interface for Gemini CLI when verified'
+    })).not.toBeInTheDocument();
+  });
+
   it('stages enabled providers, prevents an empty selection, and saves explicitly', async () => {
     setLumora();
     const onSaveEnabledProviders = vi.fn().mockResolvedValue(true);

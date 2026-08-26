@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
-  type StructuredAgentEvent
+  type StructuredAgentEvent,
+  type StructuredProviderPreference
 } from '../../shared/contracts';
 import { registerAgentIpc } from './register-agent-ipc';
 
@@ -55,12 +56,30 @@ function harness() {
     return unsubscribe;
   });
   const scanCapabilities = vi.fn(async () => []);
+  const preferenceValues: StructuredProviderPreference[] = [
+      { providerId: 'codex' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'claude' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'gemini' as const, useUnifiedWhenAvailable: true, executablePathOverride: null }
+  ];
+  const preferences = {
+    list: vi.fn(() => preferenceValues),
+    save: vi.fn(async (input: StructuredProviderPreference) =>
+      preferenceValues.map((value) => value.providerId === input.providerId ? input : value)
+    )
+  };
   const sendEvent = vi.fn();
+  const startPrepared = vi.fn(async () => ({
+    mode: 'structured' as const,
+    routeReason: 'verified' as const,
+    runtime: summary
+  }));
   const dispose = registerAgentIpc({
     ipc: { handle: (channel, handler) => handlers.set(channel, handler as Handler) },
     authorize,
     runtime,
     scanCapabilities,
+    preferences,
+    startPrepared,
     sendEvent
   });
   return {
@@ -68,6 +87,8 @@ function harness() {
     authorize,
     runtime,
     scanCapabilities,
+    preferences,
+    startPrepared,
     sendEvent,
     dispose,
     unsubscribe,
@@ -76,6 +97,18 @@ function harness() {
 }
 
 describe('registerAgentIpc', () => {
+  it('starts a prepared launch through the automatic local agent router', async () => {
+    const current = harness();
+    const start = current.handlers.get(IPC_CHANNELS.agentRuntimeStart)!;
+
+    await expect(start(event(), {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    })).resolves.toMatchObject({ mode: 'structured', routeReason: 'verified' });
+    expect(current.startPrepared).toHaveBeenCalledWith(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+  });
+
   it('authorizes before parsing and delegates validated local runtime operations', async () => {
     const current = harness();
     const launch = current.handlers.get(IPC_CHANNELS.structuredRuntimeLaunch)!;
@@ -102,6 +135,18 @@ describe('registerAgentIpc', () => {
     await expect(close(event(), { connectionId: 'connection-1' })).rejects.not.toThrow(
       'secret path and token'
     );
+  });
+
+  it('reads and saves validated per-provider routing preferences', async () => {
+    const current = harness();
+    const get = current.handlers.get(IPC_CHANNELS.structuredPreferencesGet)!;
+    await expect(get(event())).resolves.toHaveLength(3);
+    const save = current.handlers.get(IPC_CHANNELS.structuredPreferenceSave)!;
+    await expect(save(event(), {
+      providerId: 'claude', useUnifiedWhenAvailable: false, executablePathOverride: null
+    })).resolves.toContainEqual({
+      providerId: 'claude', useUnifiedWhenAvailable: false, executablePathOverride: null
+    });
   });
 
   it('rejects a remote window even when a broad authorizer is injected', async () => {

@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type {
   JsonRpcNotification,
@@ -164,8 +165,8 @@ describe('Gemini structured adapter', () => {
   });
 
   it('contains ACP filesystem access to the selected workspace and resolves permissions', async () => {
-    const workspace = join(process.cwd(), '.tmp', 'gemini-adapter-workspace');
-    await mkdir(workspace, { recursive: true });
+    const workspace = await mkdtemp(join(tmpdir(), 'lumora-gemini-adapter-'));
+    onTestFinished(() => rm(workspace, { recursive: true, force: true }));
     await writeFile(join(workspace, 'inside.txt'), 'inside', 'utf8');
     const transport = new FakeTransport();
     let handleRequest: ((request: JsonRpcProviderRequest) => Promise<unknown>) | undefined;
@@ -226,5 +227,6 @@ describe('Gemini structured adapter', () => {
     await expect(permission).resolves.toEqual({
       outcome: { outcome: 'selected', optionId: 'once' }
     });
+    await adapter.close();
   });
 });

@@ -75,7 +75,7 @@ export async function probeClaudeStructuredProvider({
       approvals: true,
       cancellation: true,
       usage: true,
-      attachments: true
+      attachments: false
     });
   } catch {
     return failedReport(identity);

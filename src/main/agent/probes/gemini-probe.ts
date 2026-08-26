@@ -44,6 +44,7 @@ const GeminiInitializeResultSchema = z.object({
 export interface ProbeGeminiStructuredProviderOptions {
   executablePath: string;
   version: string;
+  clientVersion?: string;
   createTransport(executablePath: string): Promise<LineJsonRpcTransport>;
   now?: ProbeClock;
 }
@@ -51,6 +52,7 @@ export interface ProbeGeminiStructuredProviderOptions {
 export async function probeGeminiStructuredProvider({
   executablePath,
   version,
+  clientVersion = 'unknown',
   createTransport,
   now
 }: ProbeGeminiStructuredProviderOptions): Promise<StructuredProviderCapabilityReport> {
@@ -69,7 +71,7 @@ export async function probeGeminiStructuredProvider({
         clientInfo: {
           name: 'lumora',
           title: 'Lumora',
-          version: '0.4.2'
+          version: clientVersion
         },
         clientCapabilities: {
           auth: { terminal: false },
@@ -81,7 +83,6 @@ export async function probeGeminiStructuredProvider({
     if (!parsed.success) return failedReport(identity);
     if (parsed.data.protocolVersion !== 1) return incompatibleReport(identity);
 
-    const prompt = parsed.data.agentCapabilities.promptCapabilities;
     return verifiedReport(identity, {
       newSession: true,
       resumeSession: parsed.data.agentCapabilities.loadSession,
@@ -91,7 +92,7 @@ export async function probeGeminiStructuredProvider({
       approvals: true,
       cancellation: true,
       usage: false,
-      attachments: prompt.image || prompt.audio || prompt.embeddedContext
+      attachments: false
     });
   } catch {
     return failedReport(identity);

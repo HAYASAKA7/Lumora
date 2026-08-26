@@ -31,8 +31,10 @@ import {
 import { configureApplicationMenu } from './application-menu';
 import { createStructuredAgentAdapterFactory } from './agent/adapters/structured-agent-adapter-factory';
 import { createLocalStructuredProviderProbe } from './agent/probes/local-structured-provider-probes';
+import { resolveStructuredProviderInstallations } from './agent/probes/structured-provider-installations';
 import { StructuredProviderProbeCoordinator } from './agent/probes/structured-provider-probe-coordinator';
 import { StructuredAgentRuntimeHost } from './agent/runtime/structured-agent-runtime-host';
+import { AgentLaunchRouter } from './agent/runtime/agent-launch-router';
 import { StructuredSessionGuard } from './agent/runtime/structured-session-guard';
 import { createApplicationQuitGuard } from './application-quit-guard';
 import { AppearanceBackgroundStore } from './appearance/appearance-background-store';
@@ -42,7 +44,10 @@ import {
 } from './catalog/catalog-runtime';
 import { configureDevelopmentDataPaths } from './development-data-paths';
 import { createDeveloperEnvironmentScanner } from './environment/developer-environment';
-import { countActiveTerminalRuntimes } from './diagnostics/active-terminal-count';
+import {
+  countActiveStructuredRuntimes,
+  countActiveTerminalRuntimes
+} from './diagnostics/active-terminal-count';
 import { DiagnosticJournal } from './diagnostics/diagnostic-journal';
 import { resolveDiagnosticJournalStorage } from './diagnostics/diagnostic-journal-migration';
 import { DiagnosticPreferencesStore } from './diagnostics/diagnostic-preferences-store';
@@ -639,6 +644,7 @@ function createApplicationTray(): void {
     getState: () => ({
       windowVisible: mainWindow?.isVisible() ?? false,
       runtimes: terminalRuntime?.listRuntimes() ?? [],
+      structuredRuntimes: structuredAgentRuntime?.list() ?? [],
       sessions: catalogRuntime?.service.getCatalog().sessions ?? []
     }),
     getTranslator: () => {
@@ -822,13 +828,36 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   const structuredProviderProbe = new StructuredProviderProbeCoordinator({
     probeReady: createLocalStructuredProviderProbe({
       platform,
-      env: applicationEnvironment
+      env: applicationEnvironment,
+      clientVersion: app.getVersion()
     })
   });
+  const scanStructuredCapabilities = async (
+    fresh: boolean,
+    preferences = terminalRuntime!.getStructuredProviderPreferences()
+  ) => {
+    const scan = await scanEnabledProviders();
+    const installations = await resolveStructuredProviderInstallations({
+      scan,
+      preferences,
+      probeVersion: providerDependencies.probeVersion
+    });
+    return fresh
+      ? structuredProviderProbe.scanFresh(installations)
+      : structuredProviderProbe.scan(installations);
+  };
   structuredAgentRuntime = new StructuredAgentRuntimeHost({
     resolveLaunch: (request) => terminalRuntime!.resolveStructuredLaunch(request),
     createAdapter: createStructuredAgentAdapterFactory(),
-    sessionGuard: structuredSessionGuard
+    sessionGuard: structuredSessionGuard,
+    clientVersion: app.getVersion()
+  });
+  const agentLaunchRouter = new AgentLaunchRouter({
+    consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
+    startPty: (spec) => terminalRuntime!.startPreparedRuntime(spec),
+    launchStructured: (request) => structuredAgentRuntime!.launch(request),
+    scanCapabilities: () => scanStructuredCapabilities(false),
+    listPreferences: () => terminalRuntime!.getStructuredProviderPreferences()
   });
   const localePaths = resolveLocalePaths({
     isPackaged: app.isPackaged,
@@ -896,6 +925,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       refreshCatalog: async () => {
         await catalogRuntime!.service.refreshCatalog();
         terminalRuntime!.synchronizeCatalogSessions();
+        structuredAgentRuntime?.synchronizeCatalogSessions(
+          catalogRuntime!.service.getCatalog().sessions
+        );
         trayController?.refresh();
       },
       freeDiskBytes: async (path) => {
@@ -1066,6 +1098,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     showOpenDialog: (options) => dialog.showOpenDialog(options),
     onCatalogRefreshed: () => {
       terminalRuntime!.synchronizeCatalogSessions();
+      structuredAgentRuntime!.synchronizeCatalogSessions(
+        catalogRuntime!.service.getCatalog().sessions
+      );
       trayController?.refresh();
     },
     ...(developmentOrigin === undefined ? {} : { developmentOrigin })
@@ -1295,16 +1330,37 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
     runtime: structuredAgentRuntime,
-    scanCapabilities: async (fresh) => {
-      const installations = (await scanEnabledProviders()).providers;
-      return fresh
-        ? structuredProviderProbe.scanFresh(installations)
-        : structuredProviderProbe.scan(installations);
+    scanCapabilities: scanStructuredCapabilities,
+    preferences: {
+      list: () => terminalRuntime!.getStructuredProviderPreferences(),
+      save: async (input) => {
+        const current = terminalRuntime!.getStructuredProviderPreferences();
+        const previous = current.find(
+          ({ providerId }) => providerId === input.providerId
+        );
+        if (
+          input.executablePathOverride !== null &&
+          input.executablePathOverride !== previous?.executablePathOverride
+        ) {
+          const candidate = current.map((preference) =>
+            preference.providerId === input.providerId ? input : preference
+          );
+          const reports = await scanStructuredCapabilities(true, candidate);
+          if (reports.find(
+            ({ providerId }) => providerId === input.providerId
+          )?.state !== 'verified') {
+            throw new Error('STRUCTURED_EXECUTABLE_OVERRIDE_NOT_VERIFIED');
+          }
+        }
+        return terminalRuntime!.saveStructuredProviderPreference(input);
+      }
     },
+    startPrepared: (launchToken) => agentLaunchRouter.start(launchToken),
     sendEvent: (event) => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);
       }
+      trayController?.refresh();
     }
   });
   unsubscribeRemoteTerminalEvents =
@@ -1388,6 +1444,8 @@ app.on('before-quit', (event) => {
     try {
       localActiveAgentCount = countActiveTerminalRuntimes(
         terminalRuntime?.listRuntimes() ?? []
+      ) + countActiveStructuredRuntimes(
+        structuredAgentRuntime?.list() ?? []
       );
       remoteActiveAgentCount = remoteTargetRuntime?.service
         .listLifecycleSnapshots()

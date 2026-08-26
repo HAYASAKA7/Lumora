@@ -1241,11 +1241,22 @@ describe('createLumoraApi structured agent bridge', () => {
     const api = createLumoraApi(async (channel, ...args) => {
       calls.push([channel, ...args]);
       if (channel === IPC_CHANNELS.structuredCapabilityScan) return [];
+      if (
+        channel === IPC_CHANNELS.structuredPreferencesGet ||
+        channel === IPC_CHANNELS.structuredPreferenceSave
+      ) return [
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'claude', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ];
       if (channel === IPC_CHANNELS.structuredRuntimeList) return [summary];
       if (channel === IPC_CHANNELS.structuredRuntimeSnapshot) {
         return { runtime: summary, events: [], boundary: null };
       }
       if (channel === IPC_CHANNELS.structuredRuntimeAction) return { accepted: true };
+      if (channel === IPC_CHANNELS.agentRuntimeStart) {
+        return { mode: 'structured', routeReason: 'verified', runtime: summary };
+      }
       return summary;
     }, (channel, listener) => {
       expect(channel).toBe(IPC_CHANNELS.structuredRuntimeEvent);
@@ -1253,7 +1264,14 @@ describe('createLumoraApi structured agent bridge', () => {
       return unsubscribe;
     });
 
+    await expect(api.startAgentRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    )).resolves.toMatchObject({ mode: 'structured', routeReason: 'verified' });
     await expect(api.scanStructuredProviderCapabilities(true)).resolves.toEqual([]);
+    await expect(api.getStructuredProviderPreferences()).resolves.toHaveLength(3);
+    await expect(api.saveStructuredProviderPreference({
+      providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null
+    })).resolves.toHaveLength(3);
     await expect(api.launchStructuredRuntime({
       strategy: 'new', providerId: 'codex', workspaceId: 'workspace-1', startPrompt: ''
     })).resolves.toEqual(summary);
@@ -1278,7 +1296,10 @@ describe('createLumoraApi structured agent bridge', () => {
     (receiver as unknown as (value: unknown) => void)(event);
     expect(listener).toHaveBeenCalledWith(event);
     expect(calls.map(([channel]) => channel)).toEqual([
+      IPC_CHANNELS.agentRuntimeStart,
       IPC_CHANNELS.structuredCapabilityScan,
+      IPC_CHANNELS.structuredPreferencesGet,
+      IPC_CHANNELS.structuredPreferenceSave,
       IPC_CHANNELS.structuredRuntimeLaunch,
       IPC_CHANNELS.structuredRuntimeList,
       IPC_CHANNELS.structuredRuntimeSnapshot,

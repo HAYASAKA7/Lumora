@@ -24,6 +24,7 @@ export interface StructuredAgentAdapterContext {
   connectionId: string;
   providerId: StructuredAgentProviderId;
   generation: number;
+  clientVersion?: string;
   launch: ResolvedStructuredAgentLaunch;
   callbacks: StructuredAgentAdapterCallbacks;
 }

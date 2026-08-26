@@ -4,6 +4,7 @@ import {
   ApplicationQuitRequestSchema,
   ApplicationQuitResolutionSchema,
   ApplicationQuitResultSchema,
+  AgentRuntimeStartResultSchema,
   AppearanceBackgroundStateSchema,
   AppearancePresentationSchema,
   CatalogQuerySchema,
@@ -98,6 +99,8 @@ import {
   StructuredAgentRuntimeSnapshotSchema,
   StructuredAgentRuntimeSummarySchema,
   StructuredProviderCapabilityReportSchema,
+  StructuredProviderPreferenceInputSchema,
+  StructuredProviderPreferenceListSchema,
   SystemInfoSchema,
   TerminalProfileIdSchema,
   TerminalProfileListSchema,
@@ -566,6 +569,11 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.runtimeStart, request);
       return RuntimeSummarySchema.parse(value);
     },
+    async startAgentRuntime(launchToken) {
+      const request = RuntimeStartRequestSchema.parse({ launchToken });
+      const value = await invoke(IPC_CHANNELS.agentRuntimeStart, request);
+      return AgentRuntimeStartResultSchema.parse(value);
+    },
     async listRuntimes() {
       const value = await invoke(IPC_CHANNELS.runtimeList);
       return RuntimeListSchema.parse(value);
@@ -604,6 +612,15 @@ export function createLumoraApi(
       const request = StructuredAgentCapabilityScanRequestSchema.parse({ fresh });
       const value = await invoke(IPC_CHANNELS.structuredCapabilityScan, request);
       return StructuredProviderCapabilityReportSchema.array().max(3).parse(value);
+    },
+    async getStructuredProviderPreferences() {
+      const value = await invoke(IPC_CHANNELS.structuredPreferencesGet);
+      return StructuredProviderPreferenceListSchema.parse(value);
+    },
+    async saveStructuredProviderPreference(input) {
+      const request = StructuredProviderPreferenceInputSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.structuredPreferenceSave, request);
+      return StructuredProviderPreferenceListSchema.parse(value);
     },
     async launchStructuredRuntime(input) {
       const request = StructuredAgentLaunchRequestSchema.parse(input);

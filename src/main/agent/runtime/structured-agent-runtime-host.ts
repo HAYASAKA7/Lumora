@@ -17,6 +17,7 @@ import type {
   StructuredAgentAdapter,
   StructuredAgentAdapterContext
 } from '../adapters/structured-agent-adapter';
+import type { ProviderId } from '../../../shared/contracts';
 import {
   StructuredAgentEventSequencer,
   type StructuredAgentEventDraft
@@ -39,6 +40,14 @@ interface StructuredAgentRuntimeHostOptions {
   createEventId?: () => string;
   maxTailEvents?: number;
   maxTailBytes?: number;
+  clientVersion?: string;
+}
+
+export interface StructuredCatalogSessionIdentity {
+  id: string;
+  provider: ProviderId;
+  nativeId: string;
+  title: string;
 }
 
 interface LiveStructuredRuntime {
@@ -184,11 +193,25 @@ export class StructuredAgentRuntimeHost {
         this.acceptAdapterEvent(runtime, 1, event);
       }
       this.emitStatus(runtime, 1, 'ready', null);
-      await adapter.activate?.();
+      try {
+        await adapter.activate?.();
+      } catch {
+        this.acceptAdapterEvent(runtime, 1, {
+          turnId: 'lifecycle',
+          parentEventId: null,
+          kind: 'runtime.error',
+          payload: {
+            code: 'STRUCTURED_START_PROMPT_FAILED',
+            message: 'The provider session opened, but the start prompt was not sent.',
+            retryable: true
+          }
+        });
+      }
       return runtime.summary;
     } catch (error) {
       await runtime.adapter?.close().catch(() => undefined);
       this.failRuntime(runtime, 1);
+      this.live.delete(connectionId);
       if (error instanceof StructuredSessionGuardError) {
         throw new StructuredAgentRuntimeHostError(
           'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
@@ -203,6 +226,48 @@ export class StructuredAgentRuntimeHost {
     return [...this.live.values()].map(({ summary }) =>
       StructuredAgentRuntimeSummarySchema.parse(summary)
     );
+  }
+
+  synchronizeCatalogSessions(
+    sessions: readonly StructuredCatalogSessionIdentity[]
+  ): readonly StructuredAgentRuntimeSummary[] {
+    const byIdentity = new Map(
+      sessions.map((session) => [
+        `${session.provider}\u0000${session.nativeId}`,
+        session
+      ] as const)
+    );
+    const updated: StructuredAgentRuntimeSummary[] = [];
+    for (const runtime of this.live.values()) {
+      if (runtime.summary.nativeSessionId === null) continue;
+      const session = byIdentity.get(
+        `${runtime.summary.providerId}\u0000${runtime.summary.nativeSessionId}`
+      );
+      if (
+        session === undefined ||
+        (runtime.summary.catalogSessionId === session.id &&
+          runtime.summary.title === session.title)
+      ) continue;
+      this.updateSummary(runtime, {
+        catalogSessionId: session.id,
+        title: session.title
+      });
+      const event = runtime.sequencer.next(
+        runtime.sequencer.currentGeneration(),
+        {
+          turnId: 'lifecycle',
+          parentEventId: null,
+          kind: 'runtime.metadata',
+          payload: {
+            catalogSessionId: session.id,
+            title: session.title
+          }
+        }
+      );
+      if (event !== null) this.recordEvent(runtime, event);
+      updated.push(runtime.summary);
+    }
+    return updated;
   }
 
   snapshot(connectionId: string): StructuredAgentRuntimeSnapshot {
@@ -232,20 +297,53 @@ export class StructuredAgentRuntimeHost {
 
   async reconnect(connectionId: string): Promise<StructuredAgentRuntimeSummary> {
     const runtime = this.requireRuntime(connectionId);
-    if (runtime.summary.state !== 'ready' || runtime.adapter === null) {
+    if (
+      runtime.summary.state !== 'ready' &&
+      runtime.summary.state !== 'failed'
+    ) {
       throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_NOT_READY');
     }
     const oldAdapter = runtime.adapter;
+    if (runtime.summary.state === 'failed') {
+      try {
+        this.guard.claim({
+          ownerId: runtime.summary.connectionId,
+          runtimeKind: 'structured',
+          providerId: runtime.summary.providerId,
+          nativeSessionId: runtime.summary.nativeSessionId
+        });
+      } catch (error) {
+        if (error instanceof StructuredSessionGuardError) {
+          throw new StructuredAgentRuntimeHostError(
+            'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
+          );
+        }
+        throw error;
+      }
+    }
     const generation = runtime.sequencer.bumpGeneration();
     this.updateSummary(runtime, { state: 'reconnecting', generation, error: null });
     this.emitStatus(runtime, generation, 'reconnecting', null);
-    await oldAdapter.close().catch(() => undefined);
+    await oldAdapter?.close().catch(() => undefined);
 
     try {
       const adapter = await this.createAdapter(runtime, generation);
       runtime.adapter = adapter;
       const opened = await adapter.open();
-      if (opened.nativeSessionId !== runtime.summary.nativeSessionId) {
+      if (runtime.summary.nativeSessionId === null) {
+        this.guard.assignNativeSessionId(
+          runtime.summary.connectionId,
+          opened.nativeSessionId
+        );
+        runtime.sequencer.assignNativeSessionId(opened.nativeSessionId);
+        runtime.launch = {
+          ...runtime.launch,
+          nativeSessionId: opened.nativeSessionId
+        };
+        this.updateSummary(runtime, {
+          nativeSessionId: opened.nativeSessionId
+        });
+      } else if (opened.nativeSessionId !== runtime.summary.nativeSessionId) {
         await adapter.close().catch(() => undefined);
         throw new Error('The provider returned a different native session.');
       }
@@ -291,6 +389,9 @@ export class StructuredAgentRuntimeHost {
       connectionId: runtime.summary.connectionId,
       providerId: runtime.summary.providerId,
       generation,
+      ...(this.options.clientVersion === undefined
+        ? {}
+        : { clientVersion: this.options.clientVersion }),
       launch: runtime.launch,
       callbacks: {
         emit: (event) => this.acceptAdapterEvent(runtime, generation, event),
@@ -366,7 +467,12 @@ export class StructuredAgentRuntimeHost {
     runtime: LiveStructuredRuntime,
     changes: Partial<Pick<
       StructuredAgentRuntimeSummary,
-      'nativeSessionId' | 'state' | 'generation' | 'error'
+      | 'nativeSessionId'
+      | 'catalogSessionId'
+      | 'title'
+      | 'state'
+      | 'generation'
+      | 'error'
     >>
   ): void {
     runtime.summary = StructuredAgentRuntimeSummarySchema.parse({
@@ -387,12 +493,14 @@ export class StructuredAgentRuntimeHost {
         retryable: true
       }
     });
-    this.emitStatus(
-      runtime,
-      generation,
-      'failed',
-      'The structured provider connection stopped unexpectedly.'
-    );
+    if (runtime.summary.nativeSessionId !== null) {
+      this.emitStatus(
+        runtime,
+        generation,
+        'failed',
+        'The structured provider connection stopped unexpectedly.'
+      );
+    }
     this.guard.release(runtime.summary.connectionId);
   }
 

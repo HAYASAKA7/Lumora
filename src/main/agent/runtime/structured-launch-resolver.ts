@@ -1,7 +1,7 @@
 import {
   StructuredAgentLaunchRequestSchema,
-  type ProviderScanResult,
-  type StructuredAgentLaunchRequest
+  type StructuredAgentLaunchRequest,
+  type StructuredAgentProviderId
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import type {
@@ -16,7 +16,9 @@ type LaunchRepository = Pick<
 
 interface StructuredLaunchResolverOptions {
   repository: LaunchRepository;
-  scanProviders(): Promise<ProviderScanResult>;
+  resolveProviderExecutable(
+    providerId: StructuredAgentProviderId
+  ): Promise<string | null>;
 }
 
 export type StructuredLaunchErrorCode =
@@ -63,11 +65,10 @@ export class StructuredLaunchResolver {
     if (!this.options.repository.isWorkspaceTrusted(workspace.id, workspace.canonicalPath)) {
       throw new StructuredLaunchError('STRUCTURED_WORKSPACE_NOT_TRUSTED');
     }
-    const scan = await this.options.scanProviders();
-    const installation = scan.providers.find(
-      (candidate) => candidate.provider === request.providerId
+    const executablePath = await this.options.resolveProviderExecutable(
+      request.providerId
     );
-    if (installation?.state !== 'ready') {
+    if (executablePath === null) {
       throw new StructuredLaunchError('STRUCTURED_PROVIDER_UNAVAILABLE');
     }
     return {
@@ -77,7 +78,7 @@ export class StructuredLaunchResolver {
       nativeSessionId: session?.nativeId ?? null,
       title: session?.title ?? `New ${providerDefinition(request.providerId).displayName} session`,
       workingDirectory: workspace.canonicalPath,
-      executablePath: installation.executablePath
+      executablePath
     };
   }
 }

@@ -13,6 +13,7 @@ import {
 const launchSpec: LaunchSpec = {
   displayName: 'New Codex session',
   strategy: 'new',
+  startPrompt: '',
   sessionId: null,
   nativeSessionId: null,
   reconciliationBaselineNativeIds: ['known-native'],
@@ -235,6 +236,15 @@ function harness(options: {
 }
 
 describe('RuntimeHost', () => {
+  it('starts an already-consumed launch specification without consuming another token', async () => {
+    const { host, spawn } = harness();
+
+    const runtime = await host.startPrepared(launchSpec);
+
+    expect(runtime.state).toBe('running');
+    expect(spawn).toHaveBeenCalledOnce();
+  });
+
   it('shares native-session ownership with structured runtimes', async () => {
     const sessionGuard = new StructuredSessionGuard();
     sessionGuard.claim({

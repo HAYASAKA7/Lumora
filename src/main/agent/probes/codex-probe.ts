@@ -17,6 +17,7 @@ const CodexInitializeResultSchema = z.object({
 export interface ProbeCodexStructuredProviderOptions {
   executablePath: string;
   version: string;
+  clientVersion?: string;
   createTransport(executablePath: string): Promise<LineJsonRpcTransport>;
   now?: ProbeClock;
 }
@@ -24,6 +25,7 @@ export interface ProbeCodexStructuredProviderOptions {
 export async function probeCodexStructuredProvider({
   executablePath,
   version,
+  clientVersion = 'unknown',
   createTransport,
   now
 }: ProbeCodexStructuredProviderOptions): Promise<StructuredProviderCapabilityReport> {
@@ -41,7 +43,7 @@ export async function probeCodexStructuredProvider({
         clientInfo: {
           name: 'lumora',
           title: 'Lumora',
-          version: '0.4.2'
+          version: clientVersion
         },
         capabilities: null
       })
@@ -57,7 +59,7 @@ export async function probeCodexStructuredProvider({
       approvals: true,
       cancellation: true,
       usage: true,
-      attachments: true
+      attachments: false
     });
   } catch {
     return failedReport(identity);

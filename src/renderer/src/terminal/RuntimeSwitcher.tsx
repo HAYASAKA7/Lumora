@@ -1,12 +1,19 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
+import type { ProviderId, WorkspaceSummary } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { useLocalization } from '../localization/useLocalization';
 
 export interface RuntimeSwitcherState {
   order: string[];
   selectedRuntimeId: string;
+}
+
+export interface RuntimeSwitcherEntry {
+  id: string;
+  provider: ProviderId;
+  title: string;
+  workspaceId: string;
 }
 
 export function touchRuntimeMru(
@@ -78,11 +85,11 @@ export function reconcileRuntimeSwitch(
 }
 
 export function RuntimeSwitcher({
-  runtimes,
+  entries,
   selectedRuntimeId,
   workspaces
 }: {
-  runtimes: readonly RuntimeSummary[];
+  entries: readonly RuntimeSwitcherEntry[];
   selectedRuntimeId: string;
   workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
@@ -117,26 +124,30 @@ export function RuntimeSwitcher({
           role="listbox"
           tabIndex={-1}
         >
-          {runtimes.map((runtime) => {
-            const selected = runtime.id === selectedRuntimeId;
+          {entries.map((entry) => {
+            const selected = entry.id === selectedRuntimeId;
             const workspace = workspaces.find(
-              (item) => item.id === runtime.workspaceId
+              (item) => item.id === entry.workspaceId
             );
             return (
               <div
                 aria-selected={selected}
                 className={`runtime-switcher-option${selected ? ' is-selected' : ''}`}
-                id={`runtime-switcher-option-${runtime.id}`}
-                key={runtime.id}
+                id={`runtime-switcher-option-${entry.id}`}
+                key={entry.id}
                 role="option"
               >
                 <span className="runtime-switcher-provider" aria-hidden="true">
-                  {runtime.provider === 'codex' ? 'C' : 'A'}
+                  {entry.provider === 'codex'
+                    ? 'C'
+                    : entry.provider === 'claude'
+                      ? 'A'
+                      : providerDefinition(entry.provider).displayName[0]}
                 </span>
                 <span>
-                  <strong>{runtime.displayName}</strong>
+                  <strong>{entry.title}</strong>
                   <small>
-                    {providerDefinition(runtime.provider).displayName} · {workspace?.displayName ?? t('terminal.runtime.workspace-fallback')}
+                    {providerDefinition(entry.provider).displayName} · {workspace?.displayName ?? t('terminal.runtime.workspace-fallback')}
                   </small>
                 </span>
               </div>
