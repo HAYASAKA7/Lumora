@@ -20,6 +20,10 @@ import type {
 import type { LaunchSpec } from './launch-service';
 import type { ReconciliationRequest } from './new-session-reconciler';
 import { TerminalOutputBuffer } from './output-buffer';
+import {
+  StructuredSessionGuard,
+  StructuredSessionGuardError
+} from '../agent/runtime/structured-session-guard';
 
 const MAX_EVENT_CHARS = 65_536;
 const MAX_SNAPSHOT_CHARS = 1_048_576;
@@ -76,6 +80,7 @@ interface RuntimeHostDependencies {
   createRuntimeId?: () => string;
   wait?: (milliseconds: number) => Promise<void>;
   scheduleOutputFlush?: (callback: () => void) => void;
+  sessionGuard?: StructuredSessionGuard;
 }
 
 interface LiveRuntime {
@@ -99,12 +104,14 @@ export type TerminalRuntimeErrorCode =
   | 'PTY_SPAWN_FAILED'
   | 'RUNTIME_NOT_LIVE'
   | 'RUNTIME_NOT_FOUND'
+  | 'RUNTIME_ALREADY_ACTIVE'
   | 'RUNTIME_SHUTTING_DOWN';
 
 const RUNTIME_ERROR_MESSAGES: Record<TerminalRuntimeErrorCode, string> = {
   PTY_SPAWN_FAILED: 'The provider terminal could not be started.',
   RUNTIME_NOT_LIVE: 'The terminal runtime is no longer live.',
   RUNTIME_NOT_FOUND: 'The terminal runtime was not found.',
+  RUNTIME_ALREADY_ACTIVE: 'This provider session is already active in Lumora.',
   RUNTIME_SHUTTING_DOWN: 'The terminal runtime is shutting down.'
 };
 
@@ -142,6 +149,7 @@ export class RuntimeHost {
   private readonly resolveInvocation: NonNullable<
     RuntimeHostDependencies['resolveInvocation']
   >;
+  private readonly sessionGuard: StructuredSessionGuard;
   private lifecycleState: 'active' | 'shutting_down' | 'shut_down' = 'active';
   private shutdownPromise: Promise<void> | null = null;
 
@@ -160,6 +168,7 @@ export class RuntimeHost {
         env: spec.environment,
         terminalProfile: spec.terminalProfile
       }));
+    this.sessionGuard = dependencies.sessionGuard ?? new StructuredSessionGuard();
   }
 
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
@@ -202,6 +211,19 @@ export class RuntimeHost {
 
   private async startSpec(spec: LaunchSpec): Promise<RuntimeSummary> {
     const runtimeId = this.createRuntimeId();
+    try {
+      this.sessionGuard.claim({
+        ownerId: runtimeId,
+        runtimeKind: 'pty',
+        providerId: spec.provider,
+        nativeSessionId: spec.nativeSessionId
+      });
+    } catch (error) {
+      if (error instanceof StructuredSessionGuardError) {
+        throw new TerminalRuntimeError('RUNTIME_ALREADY_ACTIVE');
+      }
+      throw error;
+    }
     const launching = RuntimeSummarySchema.parse({
       id: runtimeId,
       displayName: spec.displayName,
@@ -257,6 +279,7 @@ export class RuntimeHost {
         errorCode: 'PTY_SPAWN_FAILED'
       });
       this.persistAndEmit(failed);
+      this.sessionGuard.release(runtimeId);
       throw new TerminalRuntimeError('PTY_SPAWN_FAILED');
     }
 
@@ -312,16 +335,66 @@ export class RuntimeHost {
     runtimeId: string,
     result: RuntimeReconciliationResult
   ): RuntimeSummary | null {
-    const updated = this.dependencies.repository.applyRuntimeReconciliation(
-      runtimeId,
-      result
-    );
+    const liveBefore = this.live.get(runtimeId);
+    let claimedNativeIdentity = false;
+    if (liveBefore !== undefined && result.state === 'linked') {
+      try {
+        this.sessionGuard.assignNativeSessionId(
+          runtimeId,
+          result.nativeSessionId
+        );
+        claimedNativeIdentity = liveBefore.runtime.nativeSessionId === null;
+      } catch (error) {
+        if (error instanceof StructuredSessionGuardError) {
+          const unresolved = this.dependencies.repository.applyRuntimeReconciliation(
+            runtimeId,
+            { state: 'unresolved' }
+          );
+          if (unresolved !== null) {
+            liveBefore.runtime = unresolved;
+            this.emit({ type: 'state', runtimeId, runtime: unresolved });
+          }
+          void this.terminate(runtimeId).catch(() => undefined);
+          return unresolved;
+        }
+        throw error;
+      }
+    }
+
+    let updated: RuntimeSummary | null;
+    try {
+      updated = this.dependencies.repository.applyRuntimeReconciliation(
+        runtimeId,
+        result
+      );
+    } catch (error) {
+      if (claimedNativeIdentity && liveBefore !== undefined) {
+        this.restoreProvisionalClaim(runtimeId, liveBefore.runtime);
+      }
+      throw error;
+    }
+    if (updated === null && claimedNativeIdentity && liveBefore !== undefined) {
+      this.restoreProvisionalClaim(runtimeId, liveBefore.runtime);
+    }
     if (updated === null) return null;
     const live = this.live.get(runtimeId);
     if (live !== undefined) live.runtime = updated;
     this.updateLiveSessionIndex(updated);
     this.emit({ type: 'state', runtimeId, runtime: updated });
     return updated;
+  }
+
+  private restoreProvisionalClaim(
+    runtimeId: string,
+    runtime: RuntimeSummary
+  ): void {
+    this.sessionGuard.release(runtimeId);
+    this.sessionGuard.claim({
+      ownerId: runtimeId,
+      runtimeKind: 'pty',
+      providerId: runtime.provider,
+      nativeSessionId: runtime.nativeSessionId
+    });
   }
 
   synchronizeCatalogSessions(): RuntimeSummary[] {
@@ -551,6 +624,7 @@ export class RuntimeHost {
       subscription.dispose();
     }
     this.live.delete(runtimeId);
+    this.sessionGuard.release(runtimeId);
     const runtime = RuntimeSummarySchema.parse({
       ...live.runtime,
       state: outcome.state,

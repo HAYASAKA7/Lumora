@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeEvent, RuntimeSummary } from '../../shared/contracts';
 import type { LaunchSpec } from './launch-service';
+import { StructuredSessionGuard } from '../agent/runtime/structured-session-guard';
 import {
   PtyProcessExitedError,
   RuntimeHost,
@@ -146,6 +147,7 @@ function harness(options: {
   remote?: boolean;
   spawnGate?: Promise<PtyProcess>;
   persistedRuntimes?: readonly RuntimeSummary[];
+  sessionGuard?: StructuredSessionGuard;
 } = {}) {
   const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
@@ -201,6 +203,9 @@ function harness(options: {
     spawn,
     startReconciliation,
     platform: options.platform ?? 'linux',
+    ...(options.sessionGuard === undefined
+      ? {}
+      : { sessionGuard: options.sessionGuard }),
     ...(options.remote ? { resolveInvocation } : {}),
     clock: () => new Date('2026-07-11T04:00:01.000Z'),
     createRuntimeId: () => {
@@ -230,6 +235,59 @@ function harness(options: {
 }
 
 describe('RuntimeHost', () => {
+  it('shares native-session ownership with structured runtimes', async () => {
+    const sessionGuard = new StructuredSessionGuard();
+    sessionGuard.claim({
+      ownerId: 'structured-connection',
+      runtimeKind: 'structured',
+      providerId: 'codex',
+      nativeSessionId: 'native-thread-1'
+    });
+    const resumeLaunch: LaunchSpec = {
+      ...launchSpec,
+      displayName: 'Resume Codex session',
+      strategy: 'resume',
+      sessionId: 'd'.repeat(64),
+      nativeSessionId: 'native-thread-1',
+      reconciliationBaselineNativeIds: null
+    };
+    const { host, spawn } = harness({
+      launch: resumeLaunch,
+      sessionGuard
+    });
+
+    await expect(host.start('resume-token')).rejects.toMatchObject({
+      code: 'RUNTIME_ALREADY_ACTIVE'
+    });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('claims a new PTY native identity when reconciliation discovers it', async () => {
+    const sessionGuard = new StructuredSessionGuard();
+    const { host, pty } = harness({ sessionGuard });
+    const runtime = await host.start('new-token');
+
+    host.applyReconciliation(runtime.id, {
+      state: 'linked',
+      sessionId: 'e'.repeat(64),
+      nativeSessionId: 'new-native-session'
+    });
+
+    expect(sessionGuard.ownerOf('codex', 'new-native-session')).toEqual({
+      ownerId: runtime.id,
+      runtimeKind: 'pty'
+    });
+    expect(() => sessionGuard.claim({
+      ownerId: 'structured-duplicate',
+      runtimeKind: 'structured',
+      providerId: 'codex',
+      nativeSessionId: 'new-native-session'
+    })).toThrow('already active');
+
+    pty.emitExit(0);
+    expect(sessionGuard.ownerOf('codex', 'new-native-session')).toBeNull();
+  });
+
   it('coalesces concurrent resume starts for the same linked session', async () => {
     const sessionId = 'd'.repeat(64);
     const spawnGate = deferred<PtyProcess>();

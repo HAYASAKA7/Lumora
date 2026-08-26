@@ -262,6 +262,37 @@ export const StructuredAgentHistoryPageSchema = z.strictObject({
   boundary: StructuredAgentHistoryBoundarySchema.nullable().default(null)
 });
 
+export const StructuredAgentRuntimeSummarySchema = z.strictObject({
+  connectionId: OpaqueIdSchema,
+  providerId: StructuredAgentProviderIdSchema,
+  nativeSessionId: OpaqueIdSchema.nullable(),
+  catalogSessionId: OpaqueIdSchema.nullable(),
+  workspaceId: OpaqueIdSchema,
+  title: DisplayTextSchema,
+  state: z.enum([
+    'starting',
+    'ready',
+    'reconnecting',
+    'closing',
+    'closed',
+    'failed'
+  ]),
+  generation: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  error: z.strictObject({
+    code: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+    message: z.string().trim().min(1).max(512),
+    retryable: z.boolean()
+  }).nullable()
+});
+
+export const StructuredAgentRuntimeSnapshotSchema = z.strictObject({
+  runtime: StructuredAgentRuntimeSummarySchema,
+  events: z.array(StructuredAgentEventSchema).max(500),
+  boundary: StructuredAgentHistoryBoundarySchema.nullable()
+});
+
 export type StructuredAgentProviderId = z.infer<
   typeof StructuredAgentProviderIdSchema
 >;
@@ -272,4 +303,10 @@ export type StructuredAgentLaunchRequest = z.infer<
 >;
 export type StructuredAgentHistoryPage = z.infer<
   typeof StructuredAgentHistoryPageSchema
+>;
+export type StructuredAgentRuntimeSummary = z.infer<
+  typeof StructuredAgentRuntimeSummarySchema
+>;
+export type StructuredAgentRuntimeSnapshot = z.infer<
+  typeof StructuredAgentRuntimeSnapshotSchema
 >;

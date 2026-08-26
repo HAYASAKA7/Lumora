@@ -4,7 +4,9 @@ import {
   StructuredAgentActionSchema,
   StructuredAgentEventSchema,
   StructuredAgentHistoryPageSchema,
-  StructuredAgentLaunchRequestSchema
+  StructuredAgentLaunchRequestSchema,
+  StructuredAgentRuntimeSnapshotSchema,
+  StructuredAgentRuntimeSummarySchema
 } from './contracts';
 
 const envelope = {
@@ -153,5 +155,40 @@ describe('structured agent contracts', () => {
     });
 
     expect(page.boundary?.kind).toBe('provider_limit');
+  });
+
+  it('exposes bounded runtime state without provider paths or raw payloads', () => {
+    const runtime = StructuredAgentRuntimeSummarySchema.parse({
+      connectionId: 'connection-01',
+      providerId: 'codex',
+      nativeSessionId: 'thread-01',
+      catalogSessionId: 'session-01',
+      workspaceId: 'workspace-01',
+      title: 'Review Lumora',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-26T12:00:00.000Z',
+      updatedAt: '2026-08-26T12:00:01.000Z',
+      error: null
+    });
+    const snapshot = StructuredAgentRuntimeSnapshotSchema.parse({
+      runtime,
+      events: [{
+        ...envelope,
+        kind: 'assistant.message',
+        payload: { text: 'Ready.' }
+      }],
+      boundary: {
+        kind: 'connection_start',
+        message: 'This view starts when Lumora connected.'
+      }
+    });
+
+    expect(snapshot.runtime.state).toBe('ready');
+    expect(JSON.stringify(snapshot)).not.toContain('executablePath');
+    expect(() => StructuredAgentRuntimeSnapshotSchema.parse({
+      ...snapshot,
+      events: Array.from({ length: 501 }, () => snapshot.events[0])
+    })).toThrow();
   });
 });

@@ -1,0 +1,421 @@
+import { randomUUID } from 'node:crypto';
+
+import {
+  StructuredAgentActionSchema,
+  StructuredAgentLaunchRequestSchema,
+  StructuredAgentRuntimeSnapshotSchema,
+  StructuredAgentRuntimeSummarySchema,
+  type StructuredAgentAction,
+  type StructuredAgentEvent,
+  type StructuredAgentLaunchRequest,
+  type StructuredAgentRuntimeSnapshot,
+  type StructuredAgentRuntimeSummary
+} from '../../../shared/agent/contracts';
+import type {
+  CreateStructuredAgentAdapter,
+  ResolvedStructuredAgentLaunch,
+  StructuredAgentAdapter,
+  StructuredAgentAdapterContext
+} from '../adapters/structured-agent-adapter';
+import {
+  StructuredAgentEventSequencer,
+  type StructuredAgentEventDraft
+} from './event-sequencer';
+import {
+  StructuredSessionGuard,
+  StructuredSessionGuardError
+} from './structured-session-guard';
+
+type ResolveLaunch = (
+  request: StructuredAgentLaunchRequest
+) => Promise<ResolvedStructuredAgentLaunch>;
+
+interface StructuredAgentRuntimeHostOptions {
+  resolveLaunch: ResolveLaunch;
+  createAdapter: CreateStructuredAgentAdapter;
+  sessionGuard?: StructuredSessionGuard;
+  clock?: () => Date;
+  createConnectionId?: () => string;
+  createEventId?: () => string;
+  maxTailEvents?: number;
+  maxTailBytes?: number;
+}
+
+interface LiveStructuredRuntime {
+  summary: StructuredAgentRuntimeSummary;
+  launch: ResolvedStructuredAgentLaunch;
+  sequencer: StructuredAgentEventSequencer;
+  adapter: StructuredAgentAdapter | null;
+  events: StructuredAgentEvent[];
+  eventBytes: number;
+  closePromise: Promise<StructuredAgentRuntimeSummary> | null;
+}
+
+export type StructuredAgentRuntimeHostErrorCode =
+  | 'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
+  | 'STRUCTURED_RUNTIME_FAILED'
+  | 'STRUCTURED_RUNTIME_NOT_FOUND'
+  | 'STRUCTURED_RUNTIME_NOT_READY'
+  | 'STRUCTURED_RUNTIME_SHUTTING_DOWN';
+
+const ERROR_MESSAGES: Readonly<Record<
+  StructuredAgentRuntimeHostErrorCode,
+  string
+>> = Object.freeze({
+  STRUCTURED_RUNTIME_ALREADY_ACTIVE: 'This provider session is already active in Lumora.',
+  STRUCTURED_RUNTIME_FAILED: 'Lumora could not start the structured provider session.',
+  STRUCTURED_RUNTIME_NOT_FOUND: 'The structured provider session was not found.',
+  STRUCTURED_RUNTIME_NOT_READY: 'The structured provider session is not ready.',
+  STRUCTURED_RUNTIME_SHUTTING_DOWN: 'Lumora is shutting down structured provider sessions.'
+});
+
+export class StructuredAgentRuntimeHostError extends Error {
+  constructor(readonly code: StructuredAgentRuntimeHostErrorCode) {
+    super(ERROR_MESSAGES[code]);
+    this.name = 'StructuredAgentRuntimeHostError';
+  }
+}
+
+export class StructuredAgentRuntimeHost {
+  private readonly live = new Map<string, LiveStructuredRuntime>();
+  private readonly listeners = new Set<(event: StructuredAgentEvent) => void>();
+  private readonly guard: StructuredSessionGuard;
+  private readonly clock: () => Date;
+  private readonly createConnectionId: () => string;
+  private readonly createEventId: () => string;
+  private readonly maxTailEvents: number;
+  private readonly maxTailBytes: number;
+  private lifecycle: 'active' | 'shutting_down' | 'shut_down' = 'active';
+  private shutdownPromise: Promise<void> | null = null;
+
+  constructor(private readonly options: StructuredAgentRuntimeHostOptions) {
+    this.guard = options.sessionGuard ?? new StructuredSessionGuard();
+    this.clock = options.clock ?? (() => new Date());
+    this.createConnectionId = options.createConnectionId ?? randomUUID;
+    this.createEventId = options.createEventId ?? randomUUID;
+    this.maxTailEvents = Math.max(1, Math.min(500, options.maxTailEvents ?? 500));
+    this.maxTailBytes = Math.max(
+      65_536,
+      Math.min(4 * 1024 * 1024, options.maxTailBytes ?? 1024 * 1024)
+    );
+  }
+
+  subscribe(listener: (event: StructuredAgentEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  async launch(value: StructuredAgentLaunchRequest): Promise<StructuredAgentRuntimeSummary> {
+    if (this.lifecycle !== 'active') {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_SHUTTING_DOWN');
+    }
+    const request = StructuredAgentLaunchRequestSchema.parse(value);
+    const launch = await this.options.resolveLaunch(request);
+    if (launch.request.providerId !== request.providerId) {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+    }
+    const connectionId = this.createConnectionId();
+    try {
+      this.guard.claim({
+        ownerId: connectionId,
+        runtimeKind: 'structured',
+        providerId: request.providerId,
+        nativeSessionId: launch.nativeSessionId
+      });
+    } catch (error) {
+      if (error instanceof StructuredSessionGuardError) {
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
+        );
+      }
+      throw error;
+    }
+
+    const timestamp = this.clock().toISOString();
+    const sequencer = new StructuredAgentEventSequencer({
+      connectionId,
+      providerId: request.providerId,
+      generation: 1,
+      nativeSessionId: launch.nativeSessionId,
+      clock: this.clock,
+      createEventId: this.createEventId
+    });
+    const runtime: LiveStructuredRuntime = {
+      summary: StructuredAgentRuntimeSummarySchema.parse({
+        connectionId,
+        providerId: request.providerId,
+        nativeSessionId: launch.nativeSessionId,
+        catalogSessionId: launch.catalogSessionId,
+        workspaceId: launch.workspaceId,
+        title: launch.title,
+        state: 'starting',
+        generation: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        error: null
+      }),
+      launch,
+      sequencer,
+      adapter: null,
+      events: [],
+      eventBytes: 0,
+      closePromise: null
+    };
+    this.live.set(connectionId, runtime);
+    this.emitStatus(runtime, 1, 'starting', null);
+
+    try {
+      const adapter = await this.createAdapter(runtime, 1);
+      runtime.adapter = adapter;
+      const opened = await adapter.open();
+      if (runtime.summary.state !== 'starting') {
+        await adapter.close().catch(() => undefined);
+        throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+      }
+      this.guard.assignNativeSessionId(connectionId, opened.nativeSessionId);
+      runtime.sequencer.assignNativeSessionId(opened.nativeSessionId);
+      runtime.launch = { ...runtime.launch, nativeSessionId: opened.nativeSessionId };
+      this.updateSummary(runtime, {
+        nativeSessionId: opened.nativeSessionId,
+        state: 'ready',
+        error: null
+      });
+      this.emitStatus(runtime, 1, 'ready', null);
+      return runtime.summary;
+    } catch (error) {
+      await runtime.adapter?.close().catch(() => undefined);
+      this.failRuntime(runtime, 1);
+      if (error instanceof StructuredSessionGuardError) {
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
+        );
+      }
+      if (error instanceof StructuredAgentRuntimeHostError) throw error;
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+    }
+  }
+
+  list(): readonly StructuredAgentRuntimeSummary[] {
+    return [...this.live.values()].map(({ summary }) =>
+      StructuredAgentRuntimeSummarySchema.parse(summary)
+    );
+  }
+
+  snapshot(connectionId: string): StructuredAgentRuntimeSnapshot {
+    const runtime = this.requireRuntime(connectionId);
+    return StructuredAgentRuntimeSnapshotSchema.parse({
+      runtime: runtime.summary,
+      events: runtime.events,
+      boundary: {
+        kind: 'connection_start',
+        message: 'This event view starts when Lumora connected to the provider.'
+      }
+    });
+  }
+
+  async dispatch(value: StructuredAgentAction): Promise<void> {
+    const action = StructuredAgentActionSchema.parse(value);
+    const runtime = this.requireRuntime(action.connectionId);
+    if (runtime.summary.state !== 'ready' || runtime.adapter === null) {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_NOT_READY');
+    }
+    try {
+      await runtime.adapter.dispatch(action);
+    } catch {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+    }
+  }
+
+  async reconnect(connectionId: string): Promise<StructuredAgentRuntimeSummary> {
+    const runtime = this.requireRuntime(connectionId);
+    if (runtime.summary.state !== 'ready' || runtime.adapter === null) {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_NOT_READY');
+    }
+    const oldAdapter = runtime.adapter;
+    const generation = runtime.sequencer.bumpGeneration();
+    this.updateSummary(runtime, { state: 'reconnecting', generation, error: null });
+    this.emitStatus(runtime, generation, 'reconnecting', null);
+    await oldAdapter.close().catch(() => undefined);
+
+    try {
+      const adapter = await this.createAdapter(runtime, generation);
+      runtime.adapter = adapter;
+      const opened = await adapter.open();
+      if (opened.nativeSessionId !== runtime.summary.nativeSessionId) {
+        await adapter.close().catch(() => undefined);
+        throw new Error('The provider returned a different native session.');
+      }
+      this.updateSummary(runtime, { state: 'ready', error: null });
+      this.emitStatus(runtime, generation, 'ready', null);
+      return runtime.summary;
+    } catch {
+      this.failRuntime(runtime, generation);
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+    }
+  }
+
+  close(connectionId: string): Promise<StructuredAgentRuntimeSummary> {
+    const runtime = this.requireRuntime(connectionId);
+    if (runtime.closePromise !== null) return runtime.closePromise;
+    if (runtime.summary.state === 'closed' || runtime.summary.state === 'failed') {
+      return Promise.resolve(runtime.summary);
+    }
+    const closing = this.closeOwned(runtime);
+    runtime.closePromise = closing;
+    return closing;
+  }
+
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise !== null) return this.shutdownPromise;
+    this.lifecycle = 'shutting_down';
+    this.shutdownPromise = Promise.all(
+      [...this.live.values()].map((runtime) =>
+        this.close(runtime.summary.connectionId).catch(() => runtime.summary)
+      )
+    ).then(() => {
+      this.lifecycle = 'shut_down';
+      this.listeners.clear();
+    });
+    return this.shutdownPromise;
+  }
+
+  private async createAdapter(
+    runtime: LiveStructuredRuntime,
+    generation: number
+  ): Promise<StructuredAgentAdapter> {
+    const context: StructuredAgentAdapterContext = {
+      connectionId: runtime.summary.connectionId,
+      providerId: runtime.summary.providerId,
+      generation,
+      launch: runtime.launch,
+      callbacks: {
+        emit: (event) => this.acceptAdapterEvent(runtime, generation, event),
+        exited: (error) => this.acceptAdapterExit(runtime, generation, error)
+      }
+    };
+    return this.options.createAdapter(context);
+  }
+
+  private acceptAdapterEvent(
+    runtime: LiveStructuredRuntime,
+    generation: number,
+    draft: StructuredAgentEventDraft
+  ): void {
+    if (runtime.summary.state === 'closed' || runtime.summary.state === 'failed') return;
+    try {
+      const event = runtime.sequencer.next(generation, draft);
+      if (event !== null) this.recordEvent(runtime, event);
+    } catch {
+      this.failRuntime(runtime, generation);
+      void runtime.adapter?.close().catch(() => undefined);
+    }
+  }
+
+  private acceptAdapterExit(
+    runtime: LiveStructuredRuntime,
+    generation: number,
+    error: Error | null
+  ): void {
+    if (generation !== runtime.sequencer.currentGeneration()) return;
+    if (runtime.summary.state === 'closed' || runtime.summary.state === 'failed') return;
+    if (runtime.summary.state === 'closing' && error === null) {
+      this.finalizeClosed(runtime, generation);
+      return;
+    }
+    this.failRuntime(runtime, generation);
+  }
+
+  private emitStatus(
+    runtime: LiveStructuredRuntime,
+    generation: number,
+    state: 'starting' | 'ready' | 'reconnecting' | 'closed' | 'failed',
+    message: string | null
+  ): void {
+    const event = runtime.sequencer.next(generation, {
+      turnId: 'lifecycle',
+      parentEventId: null,
+      kind: 'runtime.status',
+      payload: { state, message }
+    });
+    if (event !== null) this.recordEvent(runtime, event);
+  }
+
+  private recordEvent(
+    runtime: LiveStructuredRuntime,
+    event: StructuredAgentEvent
+  ): void {
+    const bytes = Buffer.byteLength(JSON.stringify(event));
+    runtime.events.push(event);
+    runtime.eventBytes += bytes;
+    while (
+      runtime.events.length > this.maxTailEvents ||
+      runtime.eventBytes > this.maxTailBytes
+    ) {
+      const removed = runtime.events.shift();
+      if (removed === undefined) break;
+      runtime.eventBytes -= Buffer.byteLength(JSON.stringify(removed));
+    }
+    for (const listener of this.listeners) listener(event);
+  }
+
+  private updateSummary(
+    runtime: LiveStructuredRuntime,
+    changes: Partial<Pick<
+      StructuredAgentRuntimeSummary,
+      'nativeSessionId' | 'state' | 'generation' | 'error'
+    >>
+  ): void {
+    runtime.summary = StructuredAgentRuntimeSummarySchema.parse({
+      ...runtime.summary,
+      ...changes,
+      updatedAt: this.clock().toISOString()
+    });
+  }
+
+  private failRuntime(runtime: LiveStructuredRuntime, generation: number): void {
+    if (generation !== runtime.sequencer.currentGeneration()) return;
+    if (runtime.summary.state === 'failed' || runtime.summary.state === 'closed') return;
+    this.updateSummary(runtime, {
+      state: 'failed',
+      error: {
+        code: 'STRUCTURED_RUNTIME_FAILED',
+        message: 'The structured provider connection stopped unexpectedly.',
+        retryable: true
+      }
+    });
+    this.emitStatus(
+      runtime,
+      generation,
+      'failed',
+      'The structured provider connection stopped unexpectedly.'
+    );
+    this.guard.release(runtime.summary.connectionId);
+  }
+
+  private async closeOwned(
+    runtime: LiveStructuredRuntime
+  ): Promise<StructuredAgentRuntimeSummary> {
+    this.updateSummary(runtime, { state: 'closing' });
+    await runtime.adapter?.close().catch(() => undefined);
+    this.finalizeClosed(runtime, runtime.sequencer.currentGeneration());
+    return runtime.summary;
+  }
+
+  private finalizeClosed(
+    runtime: LiveStructuredRuntime,
+    generation: number
+  ): void {
+    if (runtime.summary.state === 'closed') return;
+    this.updateSummary(runtime, { state: 'closed', error: null });
+    this.emitStatus(runtime, generation, 'closed', null);
+    this.guard.release(runtime.summary.connectionId);
+  }
+
+  private requireRuntime(connectionId: string): LiveStructuredRuntime {
+    const runtime = this.live.get(connectionId);
+    if (runtime === undefined) {
+      throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_NOT_FOUND');
+    }
+    return runtime;
+  }
+}
