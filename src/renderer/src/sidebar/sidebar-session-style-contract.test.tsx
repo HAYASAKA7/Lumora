@@ -18,6 +18,12 @@ function rule(selector: string): string {
 }
 
 describe('sidebar session list styles', () => {
+  it('separates session access from the primary navigation', () => {
+    const container = rule('.sidebar-dynamic-content');
+    expect(container).toContain('margin-top: 12px');
+    expect(container).toContain('border-top: 1px solid var(--line-soft)');
+  });
+
   it('bounds the region and reserves at least thirty percent for Recent', () => {
     expect(rule('.sidebar-session-region')).toContain('min-height: 0');
     expect(rule('.sidebar-session-region')).toContain('overflow: hidden');
