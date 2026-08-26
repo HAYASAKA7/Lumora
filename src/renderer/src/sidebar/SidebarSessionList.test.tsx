@@ -95,11 +95,13 @@ const snapshot = {
 function renderList({
   onActivateRuntime = vi.fn(),
   onResumeSession = vi.fn(),
-  recentSessions = recent
+  recentSessions = recent,
+  runningSessions = running
 }: {
   onActivateRuntime?: (runtimeId: string) => void;
   onResumeSession?: (session: SessionSummary) => void;
   recentSessions?: readonly SessionSummary[];
+  runningSessions?: readonly RuntimeSummary[];
 } = {}) {
   const preferences = new Map<string, string>();
   renderWithLocalization(
@@ -116,7 +118,7 @@ function renderList({
         }}
         preferenceScope="test-target"
         recent={recentSessions}
-        running={running}
+        running={runningSessions}
       />
     </TooltipProvider>,
     snapshot
@@ -134,6 +136,32 @@ describe('SidebarSessionList', () => {
     expect(within(runningRegion).getByRole('button', {
       name: /Kokora lifecycle/
     })).toHaveAttribute('aria-current', 'true');
+    expect(document.querySelector('.sidebar-session-count')).toBeNull();
+  });
+
+  it('hides a section toggle when that session list is empty', () => {
+    renderList({ recentSessions: [] });
+
+    expect(screen.getByRole('button', {
+      name: 'Collapse running sessions'
+    })).toBeVisible();
+    expect(screen.queryByRole('button', {
+      name: 'Collapse recent sessions'
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', {
+      name: 'Recent sessions'
+    })).not.toBeInTheDocument();
+  });
+
+  it('hides the running toggle when there are no running sessions', () => {
+    renderList({ runningSessions: [] });
+
+    expect(screen.queryByRole('button', {
+      name: 'Collapse running sessions'
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Collapse recent sessions'
+    })).toBeVisible();
   });
 
   it('activates running terminals and opens recent sessions through callbacks', () => {

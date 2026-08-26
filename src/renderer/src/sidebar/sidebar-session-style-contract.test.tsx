@@ -23,6 +23,7 @@ describe('sidebar session list styles', () => {
     expect(rule('.sidebar-session-region')).toContain('overflow: hidden');
     expect(rule('.sidebar-session-section-running')).toContain('max-height: 70%');
     expect(rule('.sidebar-session-section-recent')).toContain('min-height: 30%');
+    expect(rule('.sidebar-session-section:only-child')).toContain('max-height: none');
   });
 
   it('uses independent autohiding Lumora scroll areas without layout growth', () => {

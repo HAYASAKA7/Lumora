@@ -517,8 +517,13 @@ button {
   min-height: 30%;
 }
 
-.sidebar-session-section[data-expanded="false"],
-.sidebar-session-section-empty {
+.sidebar-session-section:only-child {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+.sidebar-session-section[data-expanded="false"] {
   min-height: 34px;
   max-height: none;
   flex: 0 0 auto;
@@ -528,7 +533,7 @@ button {
   display: grid;
   width: 100%;
   min-height: 30px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   padding: 5px 8px;
@@ -547,16 +552,6 @@ button {
 .sidebar-session-toggle:hover {
   color: var(--sidebar-heading);
   background: var(--sidebar-hover);
-}
-
-.sidebar-session-count {
-  min-width: 20px;
-  padding: 1px 5px;
-  color: var(--sidebar-muted);
-  font-size: 0.66rem;
-  text-align: center;
-  background: var(--surface-subtle);
-  border-radius: 999px;
 }
 
 .sidebar-session-chevron {
@@ -670,12 +665,6 @@ button {
   font-size: 0.7rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.sidebar-session-empty {
-  margin: 4px 8px;
-  color: var(--sidebar-muted);
-  font-size: 0.72rem;
 }
 
 .nav-label,
