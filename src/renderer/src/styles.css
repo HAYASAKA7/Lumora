@@ -590,6 +590,7 @@ button {
   padding: 2px 2px 3px;
   overflow-x: hidden;
   overflow-y: auto;
+  overflow-anchor: none;
   scrollbar-color: transparent transparent;
   scrollbar-width: auto;
   opacity: 1;
@@ -601,6 +602,7 @@ button {
 
 .sidebar-session-section[data-expanded="false"] .sidebar-session-items {
   pointer-events: none;
+  overflow-y: hidden;
   opacity: 0;
   visibility: hidden;
   transition:
