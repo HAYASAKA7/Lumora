@@ -15,6 +15,7 @@ function fakeTransport(result: unknown): LineJsonRpcTransport & {
     }),
     notify: vi.fn(async () => undefined),
     onNotification: () => () => undefined,
+    onExit: () => () => undefined,
     close: vi.fn(async () => undefined)
   };
 }

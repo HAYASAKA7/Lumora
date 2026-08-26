@@ -26,7 +26,9 @@ function resolved(
     workspaceId: 'workspace-1',
     catalogSessionId: null,
     nativeSessionId,
-    title: 'New Codex session'
+    title: 'New Codex session',
+    workingDirectory: 'C:\\workspace',
+    executablePath: 'C:\\tools\\codex.exe'
   };
 }
 
@@ -78,6 +80,44 @@ describe('StructuredAgentRuntimeHost', () => {
       { kind: 'runtime.status', sequence: 1, nativeSessionId: 'native-1' }
     ]);
     expect(host.snapshot('connection-1').events).toHaveLength(2);
+  });
+
+  it('records hydrated provider history only after native identity is assigned', async () => {
+    let connectionNumber = 0;
+    let eventNumber = 0;
+    const activate = vi.fn(async () => undefined);
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => ({
+          nativeSessionId: 'native-1',
+          initialEvents: [{
+            turnId: 'turn-history',
+            parentEventId: null,
+            kind: 'assistant.message',
+            payload: { text: 'Earlier answer' }
+          }]
+        }),
+        activate,
+        dispatch: async () => undefined,
+        close: async () => undefined
+      }),
+      createConnectionId: () => `connection-${++connectionNumber}`,
+      createEventId: () => `event-${++eventNumber}`
+    });
+
+    await host.launch(newRequest);
+
+    expect(host.snapshot('connection-1').events).toMatchObject([
+      { kind: 'runtime.status', nativeSessionId: null },
+      {
+        kind: 'assistant.message',
+        nativeSessionId: 'native-1',
+        turnId: 'turn-history'
+      },
+      { kind: 'runtime.status', nativeSessionId: 'native-1' }
+    ]);
+    expect(activate).toHaveBeenCalledOnce();
   });
 
   it('routes actions to the owning adapter and preserves provider events', async () => {

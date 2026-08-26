@@ -179,11 +179,16 @@ describe('line JSON-RPC transport', () => {
     const process = new FakeLineProcess();
     const transport = createLineJsonRpcTransport(process);
     const pending = transport.request('thread/read', { threadId: 'native-01' });
+    const exits: unknown[] = [];
+    transport.onExit((error) => exits.push(error));
 
     process.emit('exit', 1, null);
 
     await expect(pending).rejects.toMatchObject({
       code: 'STRUCTURED_TRANSPORT_EXITED'
     });
+    expect(exits).toMatchObject([{
+      code: 'STRUCTURED_TRANSPORT_EXITED'
+    }]);
   });
 });

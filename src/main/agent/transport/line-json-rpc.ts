@@ -48,6 +48,7 @@ export interface LineJsonRpcTransport {
   request(method: string, params: unknown): Promise<unknown>;
   notify(method: string, params?: unknown): Promise<void>;
   onNotification(listener: (notification: JsonRpcNotification) => void): () => void;
+  onExit(listener: (error: LineJsonRpcError) => void): () => void;
   close(): Promise<void>;
 }
 
@@ -79,6 +80,7 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
   private readonly notificationListeners = new Set<
     (notification: JsonRpcNotification) => void
   >();
+  private readonly exitListeners = new Set<(error: LineJsonRpcError) => void>();
   private nextRequestId = 1;
   private buffer = '';
   private terminalError: LineJsonRpcError | null = null;
@@ -157,6 +159,11 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
     return () => this.notificationListeners.delete(listener);
   }
 
+  onExit(listener: (error: LineJsonRpcError) => void): () => void {
+    this.exitListeners.add(listener);
+    return () => this.exitListeners.delete(listener);
+  }
+
   close(): Promise<void> {
     if (this.closePromise !== null) return this.closePromise;
     this.closing = true;
@@ -165,6 +172,7 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
       'The structured provider connection was closed.'
     ));
     this.notificationListeners.clear();
+    this.exitListeners.clear();
 
     if (this.exited) {
       this.closePromise = Promise.resolve();
@@ -363,6 +371,9 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
     this.terminalError = error;
     this.rejectPending(error);
     this.notificationListeners.clear();
+    const listeners = [...this.exitListeners];
+    this.exitListeners.clear();
+    for (const listener of listeners) listener(error);
     if (!this.exited && !this.closing) this.process.kill();
   }
 }

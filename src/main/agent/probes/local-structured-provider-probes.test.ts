@@ -27,6 +27,7 @@ function transportFor(provider: 'codex' | 'gemini'): LineJsonRpcTransport {
       }),
     notify: vi.fn(async () => undefined),
     onNotification: () => () => undefined,
+    onExit: () => () => undefined,
     close: vi.fn(async () => undefined)
   };
 }

@@ -11,6 +11,8 @@ export interface ResolvedStructuredAgentLaunch {
   catalogSessionId: string | null;
   nativeSessionId: string | null;
   title: string;
+  workingDirectory: string;
+  executablePath: string;
 }
 
 export interface StructuredAgentAdapterCallbacks {
@@ -27,7 +29,11 @@ export interface StructuredAgentAdapterContext {
 }
 
 export interface StructuredAgentAdapter {
-  open(): Promise<{ nativeSessionId: string }>;
+  open(): Promise<{
+    nativeSessionId: string;
+    initialEvents?: readonly StructuredAgentEventDraft[];
+  }>;
+  activate?(): Promise<void>;
   dispatch(action: StructuredAgentAction): Promise<void>;
   close(): Promise<void>;
 }

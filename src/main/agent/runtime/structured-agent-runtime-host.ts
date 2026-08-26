@@ -180,7 +180,11 @@ export class StructuredAgentRuntimeHost {
         state: 'ready',
         error: null
       });
+      for (const event of opened.initialEvents ?? []) {
+        this.acceptAdapterEvent(runtime, 1, event);
+      }
       this.emitStatus(runtime, 1, 'ready', null);
+      await adapter.activate?.();
       return runtime.summary;
     } catch (error) {
       await runtime.adapter?.close().catch(() => undefined);
