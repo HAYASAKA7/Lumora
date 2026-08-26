@@ -43,6 +43,7 @@ interface TerminalWorkspaceProps {
   theme?: 'light' | 'dark';
   visible: boolean;
   previews: ReadonlyMap<string, LaunchPreview>;
+  showTabBar?: boolean;
   workspaces: readonly WorkspaceSummary[];
   onActivate(runtimeId: string): void;
   onReorder?(runtimeId: string, destinationIndex: number): void;
@@ -71,6 +72,7 @@ export function TerminalWorkspace({
   theme = 'dark',
   visible,
   previews,
+  showTabBar = true,
   workspaces,
   onActivate,
   onReorder,
@@ -248,6 +250,7 @@ export function TerminalWorkspace({
     <section className="terminal-workspace" aria-label={t('terminal.runtime.managed-label')}>
       <div
         className="terminal-tabbar"
+        hidden={!showTabBar}
         role="tablist"
         aria-label={t('terminal.runtime.tabs-label')}
         onPointerCancel={(event) => handleTabPointerEnd(event, false)}

@@ -7,6 +7,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add separate collapsible **Running sessions** and **Recent sessions** lists
+  to the expanded sidebar in local and Remote Lumora. Running sessions open
+  their existing terminal, while recent sessions use the normal resume flow.
+
+### Changed
+
+- Keep running sessions prioritized within up to 70% of the sidebar and reserve
+  at least 30% for recent sessions. Both lists scroll independently with
+  low-distraction scrollbars, refresh when a runtime exits, and preserve their
+  expanded state separately for local Lumora and each remote computer.
+- Hide the terminal tab strip while the sidebar is expanded and restore it when
+  the sidebar is collapsed, without unmounting or re-rendering terminal views.
+
 ## [0.4.1] - 2026-08-26
 
 ### Added

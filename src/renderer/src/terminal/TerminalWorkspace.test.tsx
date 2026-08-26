@@ -116,6 +116,44 @@ const preview: LaunchPreview = {
 };
 
 describe('TerminalWorkspace', () => {
+  it('hides the tab strip without unmounting retained terminal panels', () => {
+    const view = render(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime]}
+        showTabBar={false}
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(document.querySelector('.terminal-tabbar')).toHaveAttribute('hidden');
+    expect(screen.getByTestId(`managed-terminal-${runtime.id}`))
+      .toBeInTheDocument();
+
+    view.rerender(
+      <TerminalWorkspace
+        activeRuntimeId={runtime.id}
+        onActivate={vi.fn()}
+        onRuntimeChange={vi.fn()}
+        platform="win32"
+        previews={new Map()}
+        runtimes={[runtime]}
+        showTabBar
+        visible
+        workspaces={[workspace]}
+      />
+    );
+
+    expect(document.querySelector('.terminal-tabbar')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId(`managed-terminal-${runtime.id}`))
+      .toBeInTheDocument();
+  });
+
   it('forwards the configured terminal font to every retained terminal', () => {
     const secondRuntime: RuntimeSummary = {
       ...runtime,

@@ -5,7 +5,8 @@ import {
   DEFAULT_GENERAL_SETTINGS,
   DEFAULT_KEYBOARD_SETTINGS,
   type LumoraApi,
-  type RemoteLifecycleEvent
+  type RemoteLifecycleEvent,
+  type RuntimeSummary
 } from '../../../shared/contracts';
 import { RemoteTargetWindow } from './RemoteTargetWindow';
 import {
@@ -1277,7 +1278,9 @@ describe('RemoteTargetWindow', () => {
     await waitFor(() => expect(api.scanRemoteSessions).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
 
-    expect(await screen.findByText('Repair release workflow')).toBeInTheDocument();
+    expect(
+      await within(screen.getByRole('main')).findByText('Repair release workflow')
+    ).toBeInTheDocument();
     expect(screen.getByText('lumora')).toBeInTheDocument();
     expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.getByText(/Codex remote catalog support is pending/i)).toBeInTheDocument();
@@ -1478,11 +1481,11 @@ describe('RemoteTargetWindow', () => {
     }));
   });
 
-  it('opens an existing remote terminal instead of resuming its linked session', async () => {
+  it('switches running remote sessions from the sidebar and reconciles them after exit', async () => {
     let runtimeListener!: (event: {
       type: 'state';
       runtimeId: string;
-      runtime: typeof runtime;
+      runtime: RuntimeSummary;
     }) => void;
     const readySummary = {
       ...summary,
@@ -1590,13 +1593,37 @@ describe('RemoteTargetWindow', () => {
       runtimeId: runtime.id,
       runtime
     }));
-    fireEvent.click(await screen.findByRole('button', {
-      name: `Open running terminal ${session.title}`
+    const runningRegion = await screen.findByRole('region', {
+      name: 'Running sessions'
+    });
+    const recentRegion = screen.getByRole('region', { name: 'Recent sessions' });
+    expect(within(recentRegion).queryByText(session.title)).toBeNull();
+    fireEvent.click(within(runningRegion).getByRole('button', {
+      name: new RegExp(session.title)
     }));
 
     expect(screen.queryByRole('dialog', { name: 'Resume session' }))
       .not.toBeInTheDocument();
     expect(await screen.findByLabelText(`${session.title} terminal content`))
+      .toBeInTheDocument();
+
+    act(() => runtimeListener({
+      type: 'state',
+      runtimeId: runtime.id,
+      runtime: {
+        ...runtime,
+        state: 'completed',
+        endedAt: '2026-08-05T04:20:00.000Z',
+        exitCode: 0
+      }
+    }));
+
+    expect(within(runningRegion).queryByText(session.title)).toBeNull();
+    expect(await within(recentRegion).findByText(session.title)).toBeVisible();
+    fireEvent.click(within(recentRegion).getByRole('button', {
+      name: new RegExp(session.title)
+    }));
+    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
       .toBeInTheDocument();
   });
 

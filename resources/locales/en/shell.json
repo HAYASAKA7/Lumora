@@ -46,7 +46,17 @@
     "workspace-section": "Workspace",
     "active-terminals": "Active terminals",
     "skip-main": "Skip to main content",
-    "route-status": "{route} · {status}"
+    "route-status": "{route} · {status}",
+    "sessions": {
+      "running": "Running sessions",
+      "recent": "Recent sessions",
+      "collapse-running": "Collapse running sessions",
+      "expand-running": "Expand running sessions",
+      "collapse-recent": "Collapse recent sessions",
+      "expand-recent": "Expand recent sessions",
+      "no-running": "No running sessions",
+      "no-recent": "No recent sessions"
+    }
   },
   "tray": {
     "show": "Show Lumora",

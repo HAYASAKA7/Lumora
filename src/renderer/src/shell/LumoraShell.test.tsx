@@ -45,6 +45,7 @@ describe('LumoraShell', () => {
               status: '1 computer online'
             }]
           }}
+          sidebarContent={<section data-testid="sidebar-content">Session access</section>}
           sidebarExpanded
           statusBar={<footer role="status">Remote target ready</footer>}
           topbar={{ context: 'work@server', kicker: 'Remote Lumora' }}
@@ -59,12 +60,47 @@ describe('LumoraShell', () => {
     expect(screen.getByText('Remote data is stale')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Remote target ready');
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
+    const primary = document.querySelector('.primary-nav');
+    const sidebarContent = screen.getByTestId('sidebar-content');
+    const secondary = document.querySelector('.sidebar-remote-nav');
+    expect(primary?.compareDocumentPosition(sidebarContent))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(sidebarContent.compareDocumentPosition(secondary!))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByRole('button', {
       name: 'Settings · 1 computer online'
     }).querySelector('.nav-status-dot')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(navigate).toHaveBeenCalledWith('sessions');
+  });
+
+  it('does not render expanded-only sidebar content while collapsed', () => {
+    renderWithLocalization(
+      <TooltipProvider>
+        <LumoraShell
+          activeRouteId="home"
+          appearance={{
+            backgroundActive: false,
+            backgroundStyle: undefined,
+            hasSurfaceMosaic: false,
+            shellStyle: undefined,
+            theme: 'lumora'
+          }}
+          main={<div />}
+          onNavigate={vi.fn()}
+          onToggleSidebar={vi.fn()}
+          pageHeader={{ description: '', eyebrow: '', label: 'Home' }}
+          primaryNavigation={{ label: 'Workspace', routes: [] }}
+          sidebarContent={<section>Session access</section>}
+          sidebarExpanded={false}
+          statusBar={<footer />}
+          topbar={{ context: '', kicker: '' }}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.queryByText('Session access')).not.toBeInTheDocument();
   });
 
   it('translates shell-owned accessibility and brand text', () => {

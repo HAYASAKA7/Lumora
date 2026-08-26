@@ -68,6 +68,8 @@ import {
   readSidebarExpanded,
   writeSidebarExpanded
 } from './sidebar/sidebar-preference';
+import { SidebarSessionList } from './sidebar/SidebarSessionList';
+import { projectSidebarSessions } from './sidebar/sidebar-sessions';
 import {
   LumoraShell,
   NavigationIcon as Icon,
@@ -1237,11 +1239,17 @@ function AppContent(): ReactNode {
     };
   }, [openCatalogSession]);
 
-  const openRuntimes = openRuntimeIds
-    .map((id) => runtimes.find((runtime) => runtime.id === id))
-    .filter((runtime): runtime is RuntimeSummary => runtime !== undefined);
-  const liveRuntimes = runtimes.filter(
-    (runtime) => runtime.state === 'launching' || runtime.state === 'running'
+  const openRuntimes = useMemo(
+    () => openRuntimeIds
+      .map((id) => runtimes.find((runtime) => runtime.id === id))
+      .filter((runtime): runtime is RuntimeSummary => runtime !== undefined),
+    [openRuntimeIds, runtimes]
+  );
+  const liveRuntimes = useMemo(
+    () => runtimes.filter(
+      (runtime) => runtime.state === 'launching' || runtime.state === 'running'
+    ),
+    [runtimes]
   );
   const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
   const liveRuntimesRef = useRef(liveRuntimes);
@@ -1582,6 +1590,30 @@ function AppContent(): ReactNode {
     terminalProfiles,
     workspaceVisibilityPolicies
   ]);
+  const sidebarCatalogPresentation = useMemo(() =>
+    startupCatalogStatus.state === 'ready' &&
+    workspaceVisibilityPolicies !== undefined
+      ? projectCatalogVisibility({
+          snapshot: startupCatalogStatus.snapshot,
+          policies: workspaceVisibilityPolicies,
+          settings: generalSettings ?? DEFAULT_GENERAL_SETTINGS,
+          providerScan:
+            providerStatus.state === 'ready' ? providerStatus.scan : null,
+          profiles: terminalProfiles,
+          query: EMPTY_CATALOG_QUERY
+        })
+      : null,
+  [
+    generalSettings,
+    providerStatus,
+    startupCatalogStatus,
+    terminalProfiles,
+    workspaceVisibilityPolicies
+  ]);
+  const sidebarSessions = useMemo(() => projectSidebarSessions({
+    runtimes: liveRuntimes,
+    sessions: sidebarCatalogPresentation?.snapshot.sessions ?? []
+  }), [liveRuntimes, sidebarCatalogPresentation]);
   const visibilityCatalogStatus: CatalogViewStatus =
     startupCatalogStatus.state === 'ready' &&
     workspaceVisibilityPolicies === undefined
@@ -1695,6 +1727,16 @@ function AppContent(): ReactNode {
             }
           ]
         }}
+        sidebarContent={(
+          <SidebarSessionList
+            activeRuntimeId={activeRuntimeId}
+            onActivateRuntime={activateRuntime}
+            onResumeSession={resumeCatalogSession}
+            preferenceScope="local"
+            recent={sidebarSessions.recent}
+            running={sidebarSessions.running}
+          />
+        )}
         sidebarExpanded={sidebarExpanded}
         sidebarToggleShortcut={sidebarToggleShortcut}
         topbar={{
@@ -1922,6 +1964,7 @@ function AppContent(): ReactNode {
                 }
                 previews={launchPreviews}
                 runtimes={openRuntimes}
+                showTabBar={!sidebarExpanded}
                 backgroundOpacity={
                   appearanceBackgroundActive ? appearance.terminalOpacity : 1
                 }

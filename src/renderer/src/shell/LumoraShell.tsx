@@ -64,6 +64,7 @@ interface LumoraShellProps<RouteId extends string = string> {
   };
   primaryNavigation: ShellNavigationGroup<RouteId>;
   secondaryNavigation?: ShellNavigationGroup<RouteId> | undefined;
+  sidebarContent?: ReactNode;
   sidebarExpanded: boolean;
   sidebarToggleShortcut?: string | undefined;
   statusBar: ReactNode;
@@ -188,6 +189,7 @@ export function LumoraShell<RouteId extends string>({
   pageHeader,
   primaryNavigation,
   secondaryNavigation,
+  sidebarContent,
   sidebarExpanded,
   sidebarToggleShortcut,
   statusBar,
@@ -252,6 +254,7 @@ export function LumoraShell<RouteId extends string>({
           onNavigate={onNavigate}
           primary
         />
+        {sidebarExpanded ? sidebarContent : null}
         {secondaryNavigation === undefined ? null : (
           <NavigationGroup
             activeRouteId={navigationActive ? activeRouteId : null}

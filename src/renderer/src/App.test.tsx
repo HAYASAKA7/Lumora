@@ -811,7 +811,7 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    await screen.findByText('Catalog implementation');
+    await within(screen.getByRole('main')).findByText('Catalog implementation');
     expect(
       screen.queryByRole('button', { name: 'Select sessions to export' })
     ).not.toBeInTheDocument();
@@ -952,7 +952,7 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    await screen.findByText('Catalog implementation');
+    await within(screen.getByRole('main')).findByText('Catalog implementation');
     expect(screen.queryByText('A saved-preference warning.')).toBeNull();
   });
 
@@ -1275,6 +1275,105 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
   });
 
+  it('uses the expanded sidebar to switch running sessions and resume recent sessions', async () => {
+    const linkedSession = readyCatalog.sessions[0]!;
+    const otherSession = {
+      ...linkedSession,
+      id: '9'.repeat(64),
+      nativeId: 'codex-sidebar-recent',
+      title: 'Sidebar recent work',
+      updatedAt: '2026-07-11T03:30:00.000Z'
+    };
+    const catalog = {
+      ...readyCatalog,
+      sessions: [linkedSession, otherSession]
+    };
+    const runtime: RuntimeSummary = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789af0'),
+      displayName: linkedSession.title,
+      strategy: 'resume',
+      sessionId: linkedSession.id,
+      nativeSessionId: linkedSession.nativeId,
+      reconciliationState: 'not_required'
+    };
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    setSystemInfoResult(undefined, undefined, {
+      getCatalog: vi.fn().mockResolvedValue(catalog),
+      refreshCatalog: vi.fn().mockResolvedValue(catalog),
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({
+        runtime,
+        snapshot: '',
+        outputSequence: 0
+      }),
+      onRuntimeEvent: vi.fn((listener) => {
+        emitRuntime = listener;
+        return () => undefined;
+      }),
+      prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined))
+    });
+    renderWithLocalization(<App />);
+
+    const runningRegion = await screen.findByRole('region', {
+      name: 'Running sessions'
+    });
+    const recentRegion = await screen.findByRole('region', {
+      name: 'Recent sessions'
+    });
+    expect(within(recentRegion).queryByText(linkedSession.title))
+      .not.toBeInTheDocument();
+    expect(within(recentRegion).getByText(otherSession.title)).toBeVisible();
+
+    fireEvent.click(within(runningRegion).getByRole('button', {
+      name: new RegExp(linkedSession.title)
+    }));
+    expect(await screen.findByRole('heading', { name: linkedSession.title }))
+      .toBeInTheDocument();
+    expect(document.querySelector('.terminal-tabbar')).toHaveAttribute('hidden');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(screen.queryByRole('region', { name: 'Running sessions' }))
+      .not.toBeInTheDocument();
+    expect(document.querySelector('.terminal-tabbar')).not.toHaveAttribute('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+
+    act(() => {
+      emitRuntime({
+        type: 'state',
+        runtimeId: runtime.id,
+        runtime: {
+          ...runtime,
+          state: 'completed',
+          endedAt: '2026-08-26T02:00:00.000Z',
+          exitCode: 0
+        }
+      });
+    });
+    expect(within(screen.getByRole('region', { name: 'Running sessions' }))
+      .queryByRole('button', {
+        name: new RegExp(linkedSession.title)
+      })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Recent sessions' }))
+      .getByText(linkedSession.title)).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: new RegExp(otherSession.title)
+    }));
+    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+      .toBeInTheDocument();
+  });
+
   it('quietly refreshes the current catalog after a runtime exits', async () => {
     vi.useFakeTimers();
     try {
@@ -1518,7 +1617,7 @@ describe('App', () => {
     });
 
     expect(
-      screen.getByRole('tab', { name: /Renamed provider session/ })
+      screen.getByRole('tab', { hidden: true, name: /Renamed provider session/ })
     ).toHaveAttribute('aria-selected', 'true');
     expect(
       screen.getByRole('heading', { name: 'Renamed provider session' })
@@ -1610,7 +1709,7 @@ describe('App', () => {
       await screen.findByRole('button', { name: 'Open terminals' })
     );
     expect(
-      await screen.findByRole('tab', { name: /Codex working session/ })
+      await screen.findByRole('tab', { hidden: true, name: /Codex working session/ })
     ).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
@@ -1642,7 +1741,7 @@ describe('App', () => {
       screen.queryByRole('dialog', { name: 'Open terminals' })
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: /Claude working session/ })
+      screen.getByRole('tab', { hidden: true, name: /Claude working session/ })
     ).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -1676,9 +1775,9 @@ describe('App', () => {
       await screen.findByRole('button', { name: 'Open terminals' })
     );
     fireEvent.click(
-      await screen.findByRole('tab', { name: /Third session/ })
+      await screen.findByRole('tab', { hidden: true, name: /Third session/ })
     );
-    const firstTab = screen.getByRole('tab', { name: /First session/ });
+    const firstTab = screen.getByRole('tab', { hidden: true, name: /First session/ });
     fireEvent.keyDown(firstTab, {
       altKey: true,
       code: 'ArrowRight',
@@ -1687,7 +1786,7 @@ describe('App', () => {
     });
 
     expect(
-      screen.getAllByRole('tab').map((tab) => tab.textContent)
+      screen.getAllByRole('tab', { hidden: true }).map((tab) => tab.textContent)
     ).toEqual([
       expect.stringContaining('Second session'),
       expect.stringContaining('First session'),
@@ -1754,7 +1853,7 @@ describe('App', () => {
     expect(screen.getByRole('option', { name: /Third session/ }))
       .toHaveAttribute('aria-selected', 'true');
     fireEvent.keyUp(window, { code: 'ControlLeft', key: 'Control' });
-    expect(screen.getByRole('tab', { name: /Third session/ }))
+    expect(screen.getByRole('tab', { hidden: true, name: /Third session/ }))
       .toHaveAttribute('aria-selected', 'true');
   });
 
@@ -1802,7 +1901,7 @@ describe('App', () => {
     expect(screen.queryByRole('dialog', { name: 'Open terminals' }))
       .not.toBeInTheDocument();
     expect(
-      screen.getByRole('tab', { name: /Codex working session/ })
+      screen.getByRole('tab', { hidden: true, name: /Codex working session/ })
     ).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -1849,7 +1948,7 @@ describe('App', () => {
     const terminalInput = await screen.findByRole('button', {
       name: 'Codex working session terminal input'
     });
-    expect(screen.getByRole('tab', { name: /Codex working session/ }))
+    expect(screen.getByRole('tab', { hidden: true, name: /Codex working session/ }))
       .toHaveAttribute('aria-selected', 'true');
     expect(terminalInput).toHaveFocus();
 
@@ -1977,7 +2076,7 @@ describe('App', () => {
       shiftKey: true
     });
     fireEvent.click(
-      await screen.findByRole('tab', { name: /Claude working session/ })
+      await screen.findByRole('tab', { hidden: true, name: /Claude working session/ })
     );
     const secondInput = screen.getByRole('button', {
       name: 'Claude working session terminal input'
@@ -1991,7 +2090,7 @@ describe('App', () => {
       shiftKey: true
     });
 
-    expect(screen.getByRole('tab', { name: /Claude working session/ }))
+    expect(screen.getByRole('tab', { hidden: true, name: /Claude working session/ }))
       .toHaveAttribute('aria-selected', 'true');
     expect(secondInput).toHaveFocus();
   });
@@ -2022,7 +2121,7 @@ describe('App', () => {
       shiftKey: true
     });
     fireEvent.click(
-      await screen.findByRole('tab', { name: /Claude working session/ })
+      await screen.findByRole('tab', { hidden: true, name: /Claude working session/ })
     );
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(screen.getByRole('heading', { name: 'All sessions' }))
@@ -2035,7 +2134,7 @@ describe('App', () => {
       shiftKey: true
     });
 
-    expect(screen.getByRole('tab', { name: /Claude working session/ }))
+    expect(screen.getByRole('tab', { hidden: true, name: /Claude working session/ }))
       .toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', {
       name: 'Claude working session terminal input'
@@ -3132,7 +3231,7 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 workspace')).toBeInTheDocument();
-    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getByText('Catalog implementation')).toBeInTheDocument();
     expect(getCatalog).toHaveBeenCalledWith({ text: '', provider: null });
     expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null });
   });
@@ -3257,7 +3356,7 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'hidden' }
     });
@@ -3277,7 +3376,7 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: 'Lumora sessions' })
     ).toBeInTheDocument();
-    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getByText('Catalog implementation')).toBeInTheDocument();
 
     refreshCatalog.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh sessions' }));
@@ -3379,7 +3478,7 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'catalog' }
     });
@@ -3407,7 +3506,7 @@ describe('App', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Catalog refresh failed. Last saved data is still shown.'
     );
-    expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getByText('Catalog implementation')).toBeInTheDocument();
   });
 
   it('recovers from an initial catalog read failure through Try again', async () => {
@@ -3432,7 +3531,7 @@ describe('App', () => {
     setSystemInfoResult(undefined, undefined, { getCatalog });
     renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
 
     const search = screen.getByRole('searchbox', { name: 'Search sessions' });
     fireEvent.change(search, { target: { value: 'first' } });
@@ -3453,7 +3552,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Refreshing catalog' })
     ).toBeDisabled();
@@ -3505,7 +3604,7 @@ describe('App', () => {
     expect(screen.getByText('0 workspaces')).toBeInTheDocument();
 
     await act(async () => refreshed.resolve(readyCatalog));
-    expect(await screen.findByText('Catalog implementation')).toBeInTheDocument();
+    expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
   });
 
   it('does not hold startup on background provider scans in StrictMode', async () => {

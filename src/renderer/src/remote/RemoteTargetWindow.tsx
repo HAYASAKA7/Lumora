@@ -58,6 +58,8 @@ import {
   readSidebarExpanded,
   writeSidebarExpanded
 } from '../sidebar/sidebar-preference';
+import { SidebarSessionList } from '../sidebar/SidebarSessionList';
+import { projectSidebarSessions } from '../sidebar/sidebar-sessions';
 import {
   readRemoteTargetErrorCode,
   type RemoteTargetErrorCode
@@ -1555,6 +1557,10 @@ export function RemoteTargetWindow({
     const liveRuntimes = runtimes.filter((runtime) =>
       runtime.state === 'launching' || runtime.state === 'running'
     );
+    const sidebarSessions = projectSidebarSessions({
+      runtimes: liveRuntimes,
+      sessions: workspaceCatalogPresentation?.snapshot.sessions ?? []
+    });
     const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
     const main = page === 'home' ? (
       <CatalogHomeSummary
@@ -1685,6 +1691,7 @@ export function RemoteTargetWindow({
                   }
                   previews={launchPreviews}
                   runtimes={openRuntimes}
+                  showTabBar={!sidebarExpanded}
                   theme={terminalThemeFor(
                     appearance.theme,
                     generalSettings.appearance.lightTerminalInLightMode
@@ -1728,6 +1735,16 @@ export function RemoteTargetWindow({
             }
           ]
         }}
+        sidebarContent={(
+          <SidebarSessionList
+            activeRuntimeId={activeRuntimeId}
+            onActivateRuntime={activateRuntime}
+            onResumeSession={resumeSession}
+            preferenceScope={`remote:${summary.target.id}`}
+            recent={sidebarSessions.recent}
+            running={sidebarSessions.running}
+          />
+        )}
         sidebarExpanded={sidebarExpanded}
         statusBar={
           <footer className="status-bar" role="status" aria-live="polite">
