@@ -1596,8 +1596,7 @@ describe('RemoteTargetWindow', () => {
     const runningRegion = await screen.findByRole('region', {
       name: 'Running sessions'
     });
-    const recentRegion = screen.getByRole('region', { name: 'Recent sessions' });
-    expect(within(recentRegion).queryByText(session.title)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Recent sessions' })).toBeNull();
     fireEvent.click(within(runningRegion).getByRole('button', {
       name: new RegExp(session.title)
     }));
@@ -1618,7 +1617,10 @@ describe('RemoteTargetWindow', () => {
       }
     }));
 
-    expect(within(runningRegion).queryByText(session.title)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Running sessions' })).toBeNull();
+    const recentRegion = await screen.findByRole('region', {
+      name: 'Recent sessions'
+    });
     expect(await within(recentRegion).findByText(session.title)).toBeVisible();
     fireEvent.click(within(recentRegion).getByRole('button', {
       name: new RegExp(session.title)

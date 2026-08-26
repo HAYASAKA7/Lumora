@@ -75,7 +75,7 @@ describe('LumoraShell', () => {
     expect(navigate).toHaveBeenCalledWith('sessions');
   });
 
-  it('does not render expanded-only sidebar content while collapsed', () => {
+  it('keeps sidebar content mounted but hidden while collapsed for exit animation', () => {
     renderWithLocalization(
       <TooltipProvider>
         <LumoraShell
@@ -92,7 +92,7 @@ describe('LumoraShell', () => {
           onToggleSidebar={vi.fn()}
           pageHeader={{ description: '', eyebrow: '', label: 'Home' }}
           primaryNavigation={{ label: 'Workspace', routes: [] }}
-          sidebarContent={<section>Session access</section>}
+          sidebarContent={<section data-testid="sidebar-content">Session access</section>}
           sidebarExpanded={false}
           statusBar={<footer />}
           topbar={{ context: '', kicker: '' }}
@@ -100,7 +100,10 @@ describe('LumoraShell', () => {
       </TooltipProvider>
     );
 
-    expect(screen.queryByText('Session access')).not.toBeInTheDocument();
+    const sidebarContent = screen.getByTestId('sidebar-content');
+    expect(sidebarContent).toBeInTheDocument();
+    expect(sidebarContent.parentElement).toHaveClass('sidebar-dynamic-content');
+    expect(sidebarContent.parentElement).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('translates shell-owned accessibility and brand text', () => {

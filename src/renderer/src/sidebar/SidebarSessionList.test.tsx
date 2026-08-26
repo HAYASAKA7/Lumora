@@ -137,6 +137,8 @@ describe('SidebarSessionList', () => {
       name: /Kokora lifecycle/
     })).toHaveAttribute('aria-current', 'true');
     expect(document.querySelector('.sidebar-session-count')).toBeNull();
+    expect(document.querySelectorAll('.sidebar-session-toggle-label'))
+      .toHaveLength(2);
   });
 
   it('hides a section toggle when that session list is empty', () => {

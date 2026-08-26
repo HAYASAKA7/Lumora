@@ -451,7 +451,8 @@ button {
 
 .brand-copy,
 .nav-label-text,
-.nav-item-label {
+.nav-item-label,
+.sidebar-session-toggle-label {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -499,6 +500,18 @@ button {
   gap: 6px;
   padding: 12px 0 10px;
   overflow: hidden;
+}
+
+.sidebar-dynamic-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  visibility: visible;
+  transition: visibility 0s linear;
 }
 
 .sidebar-session-section {
@@ -734,12 +747,19 @@ button {
 
 .sidebar-collapsed .brand-copy,
 .sidebar-collapsed .nav-label-text,
-.sidebar-collapsed .nav-item-label {
+.sidebar-collapsed .nav-item-label,
+.sidebar-collapsed .sidebar-session-toggle-label {
   opacity: 0;
   clip-path: inset(0 100% 0 0);
   transition:
     clip-path 260ms steps(10, end),
     opacity 30ms linear 230ms;
+}
+
+.sidebar-collapsed .sidebar-dynamic-content {
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s linear 260ms;
 }
 
 .sidebar-collapsed .nav-label-divider {

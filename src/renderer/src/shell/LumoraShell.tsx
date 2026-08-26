@@ -254,7 +254,14 @@ export function LumoraShell<RouteId extends string>({
           onNavigate={onNavigate}
           primary
         />
-        {sidebarExpanded ? sidebarContent : null}
+        {sidebarContent === undefined ? null : (
+          <div
+            aria-hidden={!sidebarExpanded}
+            className="sidebar-dynamic-content"
+          >
+            {sidebarContent}
+          </div>
+        )}
         {secondaryNavigation === undefined ? null : (
           <NavigationGroup
             activeRouteId={navigationActive ? activeRouteId : null}

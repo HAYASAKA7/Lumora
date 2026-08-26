@@ -153,12 +153,14 @@ describe('sidebar text transition styles', () => {
   const expandedSelectors = [
     '.brand-copy',
     '.nav-label-text',
-    '.nav-item-label'
+    '.nav-item-label',
+    '.sidebar-session-toggle-label'
   ] as const;
   const collapsedSelectors = [
     '.sidebar-collapsed .brand-copy',
     '.sidebar-collapsed .nav-label-text',
-    '.sidebar-collapsed .nav-item-label'
+    '.sidebar-collapsed .nav-item-label',
+    '.sidebar-collapsed .sidebar-session-toggle-label'
   ] as const;
 
   it('reveals every sidebar text group with coordinated typewriter steps', () => {

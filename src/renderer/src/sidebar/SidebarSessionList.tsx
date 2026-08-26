@@ -55,7 +55,7 @@ function SectionToggle({
       tabIndex={-1}
       type="button"
     >
-      <span>{label}</span>
+      <span className="sidebar-session-toggle-label">{label}</span>
       <span aria-hidden="true" className="sidebar-session-chevron">
         {expanded ? '⌄' : '›'}
       </span>

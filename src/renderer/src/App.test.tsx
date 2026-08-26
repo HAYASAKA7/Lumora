@@ -1360,10 +1360,8 @@ describe('App', () => {
         }
       });
     });
-    expect(within(screen.getByRole('region', { name: 'Running sessions' }))
-      .queryByRole('button', {
-        name: new RegExp(linkedSession.title)
-      })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Running sessions' }))
+      .not.toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Recent sessions' }))
       .getByText(linkedSession.title)).toBeVisible();
 
