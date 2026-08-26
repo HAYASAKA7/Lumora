@@ -141,37 +141,36 @@ export function SidebarSessionList({
                 : 'shell.sidebar.sessions.expand-running'
             )}
           />
-          {!sections.runningExpanded ? null : (
-            <div
-              aria-label={runningLabel}
-              className={`sidebar-session-items${
-                scrollingSection === 'running' ? ' is-scrolling' : ''
-              }`}
-              onScroll={(event) => markScrolling('running', event)}
-              role="region"
-            >
-              {running.map((runtime) => (
-                <button
-                  aria-current={runtime.id === activeRuntimeId ? 'true' : undefined}
-                  className="sidebar-session-item"
-                  data-lumora-command
-                  key={runtime.id}
-                  onClick={() => onActivateRuntime(runtime.id)}
-                  tabIndex={-1}
-                  type="button"
-                >
-                  <span className="sidebar-session-copy">
-                    <OverflowTooltip content={runtime.displayName}>
-                      <span className="sidebar-session-title">
-                        {runtime.displayName}
-                      </span>
-                    </OverflowTooltip>
-                    <small>{providerDefinition(runtime.provider).displayName}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div
+            aria-hidden={!sections.runningExpanded}
+            aria-label={runningLabel}
+            className={`sidebar-session-items${
+              scrollingSection === 'running' ? ' is-scrolling' : ''
+            }`}
+            onScroll={(event) => markScrolling('running', event)}
+            role="region"
+          >
+            {running.map((runtime) => (
+              <button
+                aria-current={runtime.id === activeRuntimeId ? 'true' : undefined}
+                className="sidebar-session-item"
+                data-lumora-command
+                key={runtime.id}
+                onClick={() => onActivateRuntime(runtime.id)}
+                tabIndex={-1}
+                type="button"
+              >
+                <span className="sidebar-session-copy">
+                  <OverflowTooltip content={runtime.displayName}>
+                    <span className="sidebar-session-title">
+                      {runtime.displayName}
+                    </span>
+                  </OverflowTooltip>
+                  <small>{providerDefinition(runtime.provider).displayName}</small>
+                </span>
+              </button>
+            ))}
+          </div>
         </section>
       )}
 
@@ -193,36 +192,35 @@ export function SidebarSessionList({
                 : 'shell.sidebar.sessions.expand-recent'
             )}
           />
-          {!sections.recentExpanded ? null : (
-            <div
-              aria-label={recentLabel}
-              className={`sidebar-session-items${
-                scrollingSection === 'recent' ? ' is-scrolling' : ''
-              }`}
-              onScroll={(event) => markScrolling('recent', event)}
-              role="region"
-            >
-              {recent.slice(0, recentProgress.visibleCount).map((session) => (
-                <button
-                  className="sidebar-session-item"
-                  data-lumora-command
-                  key={session.id}
-                  onClick={() => onResumeSession(session)}
-                  tabIndex={-1}
-                  type="button"
-                >
-                  <span className="sidebar-session-copy">
-                    <OverflowTooltip content={session.title}>
-                      <span className="sidebar-session-title">
-                        {session.title}
-                      </span>
-                    </OverflowTooltip>
-                    <small>{providerDefinition(session.provider).displayName}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div
+            aria-hidden={!sections.recentExpanded}
+            aria-label={recentLabel}
+            className={`sidebar-session-items${
+              scrollingSection === 'recent' ? ' is-scrolling' : ''
+            }`}
+            onScroll={(event) => markScrolling('recent', event)}
+            role="region"
+          >
+            {recent.slice(0, recentProgress.visibleCount).map((session) => (
+              <button
+                className="sidebar-session-item"
+                data-lumora-command
+                key={session.id}
+                onClick={() => onResumeSession(session)}
+                tabIndex={-1}
+                type="button"
+              >
+                <span className="sidebar-session-copy">
+                  <OverflowTooltip content={session.title}>
+                    <span className="sidebar-session-title">
+                      {session.title}
+                    </span>
+                  </OverflowTooltip>
+                  <small>{providerDefinition(session.provider).displayName}</small>
+                </span>
+              </button>
+            ))}
+          </div>
         </section>
       )}
     </div>

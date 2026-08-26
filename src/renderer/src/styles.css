@@ -517,11 +517,12 @@ button {
 }
 
 .sidebar-session-section {
-  display: flex;
+  display: grid;
   min-height: 34px;
   flex: 1 1 50%;
-  flex-direction: column;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+  transition: grid-template-rows 240ms ease;
 }
 
 .sidebar-session-section-running {
@@ -544,6 +545,7 @@ button {
   min-height: 34px;
   max-height: none;
   flex: 0 0 auto;
+  grid-template-rows: auto 0fr;
 }
 
 .sidebar-session-toggle {
@@ -588,6 +590,20 @@ button {
   overflow-y: auto;
   scrollbar-color: transparent transparent;
   scrollbar-width: auto;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 160ms ease 60ms,
+    visibility 0s linear;
+}
+
+.sidebar-session-section[data-expanded="false"] .sidebar-session-items {
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear 240ms;
 }
 
 .sidebar-session-items:hover,

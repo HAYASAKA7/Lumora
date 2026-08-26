@@ -187,6 +187,11 @@ describe('SidebarSessionList', () => {
     }));
     expect(screen.queryByRole('region', { name: 'Running sessions' }))
       .not.toBeInTheDocument();
+    const collapsedRegion = document.querySelector(
+      '.sidebar-session-section-running .sidebar-session-items'
+    );
+    expect(collapsedRegion).toBeInTheDocument();
+    expect(collapsedRegion).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByRole('region', { name: 'Recent sessions' })).toBeVisible();
     expect(screen.getByRole('button', {
       name: 'Expand running sessions'

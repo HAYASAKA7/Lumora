@@ -52,6 +52,20 @@ describe('sidebar session list styles', () => {
     expect(styles).toContain('border: 3px solid transparent');
   });
 
+  it('smoothly reveals and conceals section contents without unmounting them', () => {
+    const section = rule('.sidebar-session-section');
+    expect(section).toContain('grid-template-rows: auto minmax(0, 1fr)');
+    expect(section).toContain('transition: grid-template-rows 240ms ease');
+    const collapsed = rule('.sidebar-session-section[data-expanded="false"]');
+    expect(collapsed).toContain('grid-template-rows: auto 0fr');
+    const collapsedItems = rule(
+      '.sidebar-session-section[data-expanded="false"] .sidebar-session-items'
+    );
+    expect(collapsedItems).toContain('opacity: 0');
+    expect(collapsedItems).toContain('visibility: hidden');
+    expect(collapsedItems).toContain('pointer-events: none');
+  });
+
   it('uses readable type, ellipsizes titles, and uses semantic color variables', () => {
     const title = rule('.sidebar-session-title');
     const metadata = rule('.sidebar-session-copy small');
