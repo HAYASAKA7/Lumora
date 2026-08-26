@@ -64,6 +64,9 @@ describe('sidebar session list styles', () => {
     expect(collapsedItems).toContain('opacity: 0');
     expect(collapsedItems).toContain('visibility: hidden');
     expect(collapsedItems).toContain('pointer-events: none');
+    const items = rule('.sidebar-session-items');
+    expect(items).toContain('opacity 180ms ease');
+    expect(items).not.toContain('opacity 160ms ease 60ms');
   });
 
   it('uses readable type, ellipsizes titles, and uses semantic color variables', () => {

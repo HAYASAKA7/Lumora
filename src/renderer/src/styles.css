@@ -593,7 +593,7 @@ button {
   opacity: 1;
   visibility: visible;
   transition:
-    opacity 160ms ease 60ms,
+    opacity 180ms ease,
     visibility 0s linear;
 }
 
