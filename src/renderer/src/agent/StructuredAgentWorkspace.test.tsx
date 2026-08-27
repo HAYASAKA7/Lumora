@@ -59,7 +59,6 @@ function renderWorkspace() {
       activeConnectionId="connection-1"
       api={api}
       onActivate={vi.fn()}
-      onClose={vi.fn()}
       onReconnect={vi.fn()}
       snapshots={[snapshot]}
     />
@@ -68,6 +67,12 @@ function renderWorkspace() {
 }
 
 describe('StructuredAgentWorkspace', () => {
+  it('does not expose an exit control in the conversation header', () => {
+    renderWorkspace();
+
+    expect(screen.queryByRole('button', { name: 'Close session' })).not.toBeInTheDocument();
+  });
+
   it('renders provider-owned conversation history and dispatches approval actions', () => {
     const { dispatchStructuredAgentAction } = renderWorkspace();
 
@@ -108,6 +113,125 @@ describe('StructuredAgentWorkspace', () => {
     expect(composer).not.toHaveAttribute('style');
   });
 
+  it('follows new conversation events until the user scrolls away', () => {
+    const props = {
+      api: {
+        dispatchStructuredAgentAction: vi.fn(async () => undefined)
+      } as unknown as LumoraApi,
+      activeConnectionId: 'connection-1',
+      onActivate: vi.fn(),
+      onReconnect: vi.fn()
+    };
+    const view = renderWithLocalization(
+      <StructuredAgentWorkspace {...props} snapshots={[snapshot]} />
+    );
+    const body = document.querySelector('.structured-agent-body') as HTMLDivElement;
+    let scrollHeight = 500;
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 100 });
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    });
+    body.scrollTop = 400;
+    fireEvent.scroll(body);
+
+    scrollHeight = 700;
+    const firstUpdate: StructuredAgentRuntimeSnapshot = {
+      ...snapshot,
+      events: [
+        ...snapshot.events,
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-2', eventId: 'event-4', parentEventId: null, sequence: 4,
+          generation: 1, timestamp: '2026-08-27T00:00:04.000Z', kind: 'turn.started',
+          payload: { state: 'running', message: null }
+        }
+      ]
+    };
+    view.rerender(<StructuredAgentWorkspace {...props} snapshots={[firstUpdate]} />);
+    expect(body.scrollTop).toBe(700);
+
+    body.scrollTop = 240;
+    fireEvent.scroll(body);
+    scrollHeight = 900;
+    const secondUpdate: StructuredAgentRuntimeSnapshot = {
+      ...firstUpdate,
+      events: [
+        ...firstUpdate.events,
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-2', eventId: 'event-5', parentEventId: null, sequence: 5,
+          generation: 1, timestamp: '2026-08-27T00:00:05.000Z', kind: 'assistant.delta',
+          payload: { text: 'New output' }
+        }
+      ]
+    };
+    view.rerender(<StructuredAgentWorkspace {...props} snapshots={[secondUpdate]} />);
+    expect(body.scrollTop).toBe(240);
+
+    body.scrollTop = 800;
+    fireEvent.scroll(body);
+    scrollHeight = 1_000;
+    const thirdUpdate: StructuredAgentRuntimeSnapshot = {
+      ...secondUpdate,
+      events: [
+        ...secondUpdate.events,
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-2', eventId: 'event-6', parentEventId: null, sequence: 6,
+          generation: 1, timestamp: '2026-08-27T00:00:06.000Z', kind: 'assistant.delta',
+          payload: { text: ' after returning to the latest output' }
+        }
+      ]
+    };
+    view.rerender(<StructuredAgentWorkspace {...props} snapshots={[thirdUpdate]} />);
+    expect(body.scrollTop).toBe(1_000);
+  });
+
+  it('keeps command output compact and collapsed until the user expands it', () => {
+    const commandSnapshot: StructuredAgentRuntimeSnapshot = {
+      ...snapshot,
+      events: [
+        ...snapshot.events,
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-1', eventId: 'event-4', parentEventId: null, sequence: 4,
+          generation: 1, timestamp: '2026-08-27T00:00:04.000Z', kind: 'command.started',
+          payload: {
+            activityId: 'command-1',
+            title: 'npm run verify',
+            detail: 'D:\\workspace'
+          }
+        },
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-1', eventId: 'event-5', parentEventId: null, sequence: 5,
+          generation: 1, timestamp: '2026-08-27T00:00:05.000Z', kind: 'command.updated',
+          payload: {
+            activityId: 'command-1',
+            status: 'completed',
+            detail: 'All tests passed.'
+          }
+        }
+      ]
+    };
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[commandSnapshot]}
+      />
+    );
+
+    const command = screen.getByText('npm run verify').closest('details');
+    expect(command).toHaveClass('structured-activity-command');
+    expect(command).not.toHaveAttribute('open');
+    fireEvent.click(command!.querySelector('summary')!);
+    expect(command).toHaveAttribute('open');
+  });
+
   it('keeps unsent composer drafts isolated by provider connection', () => {
     const secondSnapshot: StructuredAgentRuntimeSnapshot = {
       ...snapshot,
@@ -124,7 +248,6 @@ describe('StructuredAgentWorkspace', () => {
         dispatchStructuredAgentAction: vi.fn(async () => undefined)
       } as unknown as LumoraApi,
       onActivate: vi.fn(),
-      onClose: vi.fn(),
       onReconnect: vi.fn(),
       snapshots: [snapshot, secondSnapshot]
     };
@@ -167,7 +290,6 @@ describe('StructuredAgentWorkspace', () => {
         activeConnectionId="connection-1"
         api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onReconnect={vi.fn()}
         snapshots={[runningSnapshot]}
       />
@@ -213,7 +335,6 @@ describe('StructuredAgentWorkspace', () => {
         activeConnectionId="connection-1"
         api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
         onActivate={vi.fn()}
-        onClose={vi.fn()}
         onReconnect={vi.fn()}
         snapshots={[completedSnapshot]}
       />
@@ -234,7 +355,6 @@ describe('StructuredAgentWorkspace', () => {
       } as unknown as LumoraApi,
       activeConnectionId: 'connection-1',
       onActivate: vi.fn(),
-      onClose: vi.fn(),
       onReconnect: vi.fn(),
       snapshots: [snapshot]
     };

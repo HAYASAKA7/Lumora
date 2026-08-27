@@ -1511,14 +1511,6 @@ function AppContent(): ReactNode {
     activateTerminalRuntime(nextActive);
     setTerminalFocusRequestKey((current) => current + 1);
   }, [activateTerminalRuntime, runtimeMru]);
-  const closeStructuredRuntime = useCallback(async (connectionId: string) => {
-    try {
-      await window.lumora.closeStructuredRuntime(connectionId);
-    } finally {
-      closeStructuredTab(connectionId);
-      scheduleAfterExit();
-    }
-  }, [closeStructuredTab, scheduleAfterExit]);
   const reconnectStructuredRuntime = useCallback(async (
     connectionId: string
   ) => {
@@ -2256,9 +2248,6 @@ function AppContent(): ReactNode {
                   }
                   focusRequestKey={terminalFocusRequestKey}
                   onActivate={activateStructuredRuntime}
-                  onClose={(connectionId) => {
-                    void closeStructuredRuntime(connectionId);
-                  }}
                   onReconnect={(connectionId) => {
                     void reconnectStructuredRuntime(connectionId);
                   }}

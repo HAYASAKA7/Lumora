@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -28,7 +29,6 @@ interface StructuredAgentWorkspaceProps {
   snapshots: readonly StructuredAgentRuntimeSnapshot[];
   showTabBar?: boolean;
   onActivate(connectionId: string): void;
-  onClose(connectionId: string): void;
   onReconnect(connectionId: string): void;
 }
 
@@ -45,7 +45,6 @@ export function StructuredAgentWorkspace({
   snapshots,
   showTabBar = true,
   onActivate,
-  onClose,
   onReconnect
 }: StructuredAgentWorkspaceProps): ReactNode {
   const { t } = useLocalization();
@@ -54,6 +53,9 @@ export function StructuredAgentWorkspace({
   const [actionError, setActionError] = useState(false);
   const composing = useRef(false);
   const composer = useRef<HTMLTextAreaElement | null>(null);
+  const conversationScroller = useRef<HTMLDivElement | null>(null);
+  const followLatest = useRef(true);
+  const followedConnection = useRef<string | null>(null);
   const snapshot = snapshots.find(
     (candidate) => candidate.runtime.connectionId === activeConnectionId
   ) ?? snapshots[0];
@@ -65,6 +67,15 @@ export function StructuredAgentWorkspace({
   useEffect(() => {
     if (runtime?.state === 'ready') composer.current?.focus();
   }, [focusRequestKey, runtime?.connectionId, runtime?.state]);
+  useLayoutEffect(() => {
+    const scroller = conversationScroller.current;
+    if (scroller === null || runtime === undefined) return;
+    if (followedConnection.current !== runtime.connectionId) {
+      followedConnection.current = runtime.connectionId;
+      followLatest.current = true;
+    }
+    if (followLatest.current) scroller.scrollTop = scroller.scrollHeight;
+  }, [runtime?.connectionId, state.generation, state.sequence]);
   if (snapshot === undefined || runtime === undefined) return null;
 
   const draft = drafts[runtime.connectionId] ?? '';
@@ -167,13 +178,18 @@ export function StructuredAgentWorkspace({
               {t('terminal.unified.reconnect')}
             </button>
           ) : null}
-          <button className="secondary-button" data-lumora-command onClick={() => onClose(runtime.connectionId)} type="button">
-            {t('terminal.unified.close')}
-          </button>
         </div>
       </header>
 
-      <div className="structured-agent-body">
+      <div
+        className="structured-agent-body"
+        onScroll={(event) => {
+          const scroller = event.currentTarget;
+          const distanceFromBottom = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+          followLatest.current = distanceFromBottom <= 32;
+        }}
+        ref={conversationScroller}
+      >
         {snapshot.boundary === null ? null : (
           <p className="structured-history-boundary">
             {t('terminal.unified.history-boundary')}
@@ -194,7 +210,23 @@ export function StructuredAgentWorkspace({
                   <p>{reasoning}</p>
                 </details>
               ))}
-              {turn.activities.map((activity) => (
+              {turn.activities.map((activity) => activity.kind === 'command' ? (
+                <details
+                  className={`structured-activity structured-activity-command structured-activity-${activity.status}`}
+                  key={activity.id}
+                >
+                  <summary>
+                    <span className="card-label">
+                      {t('terminal.unified.activity-command')}
+                    </span>
+                    <strong>{activity.title}</strong>
+                  </summary>
+                  {activity.pathLabel === null ? null : <code>{activity.pathLabel}</code>}
+                  {activity.detail === null ? null : (
+                    <pre className="structured-activity-detail">{activity.detail}</pre>
+                  )}
+                </details>
+              ) : (
                 <section className={`structured-activity structured-activity-${activity.status}`} key={activity.id}>
                   <span className="card-label">
                     {t(`terminal.unified.activity-${activity.kind}`)}

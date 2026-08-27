@@ -36,4 +36,11 @@ describe('structured agent workspace style contract', () => {
     expect(rule('.structured-message-assistant')).toContain('justify-self: start');
     expect(rule('.structured-composer textarea')).toContain('min-height: 72px');
   });
+
+  it('uses a compact disclosure for command content', () => {
+    const command = rule('.structured-activity-command');
+    expect(command).toContain('width: fit-content');
+    expect(command).toContain('max-width: 100%');
+    expect(rule('.structured-activity-command summary')).toContain('cursor: pointer');
+  });
 });
