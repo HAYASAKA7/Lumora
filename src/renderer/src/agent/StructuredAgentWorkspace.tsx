@@ -73,7 +73,7 @@ export function StructuredAgentWorkspace({
     [runtime.connectionId]: value
   }));
   const providerName = providerDefinition(runtime.providerId).displayName;
-  const runningTurn = state.turns.some((turn) => turn.status === 'running');
+  const runningTurn = state.turns.at(-1)?.status === 'running';
   const dispatch = async (action: Parameters<LumoraApi['dispatchStructuredAgentAction']>[0]) => {
     setActionError(false);
     try {

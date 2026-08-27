@@ -176,6 +176,50 @@ describe('StructuredAgentWorkspace', () => {
     );
   });
 
+  it('uses the latest turn state instead of a stale historical running turn', () => {
+    const completedSnapshot: StructuredAgentRuntimeSnapshot = {
+      ...snapshot,
+      events: [
+        ...snapshot.events,
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-stale', eventId: 'event-4', parentEventId: null, sequence: 4,
+          generation: 1, timestamp: '2026-08-27T00:00:04.000Z', kind: 'turn.started',
+          payload: { state: 'running', message: null }
+        },
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-current', eventId: 'event-5', parentEventId: null, sequence: 5,
+          generation: 1, timestamp: '2026-08-27T00:00:05.000Z', kind: 'turn.started',
+          payload: { state: 'running', message: null }
+        },
+        {
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: 'turn-current', eventId: 'event-6', parentEventId: null, sequence: 6,
+          generation: 1, timestamp: '2026-08-27T00:00:06.000Z', kind: 'turn.completed',
+          payload: { state: 'completed', message: null }
+        }
+      ]
+    };
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[completedSnapshot]}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Codex' }), {
+      target: { value: 'Continue with the next task' }
+    });
+
+    expect(screen.queryByRole('button', { name: 'Cancel turn' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  });
+
   it('focuses its composer when Lumora requests terminal input focus', () => {
     const props = {
       api: {

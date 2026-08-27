@@ -4595,6 +4595,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+  border-bottom: 0;
 }
 
 .structured-agent-header h2 {
@@ -4611,8 +4612,8 @@ button {
 
 .structured-conversation {
   display: grid;
-  width: min(900px, 100%);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   gap: 20px;
 }
 
@@ -4706,7 +4707,7 @@ button {
   padding: 14px 18px;
   gap: 12px;
   background: var(--surface-raised);
-  border-top: 1px solid var(--line);
+  border-top: 0;
 }
 
 .structured-composer textarea {
