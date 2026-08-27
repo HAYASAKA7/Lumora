@@ -101,6 +101,26 @@ describe('StructuredAgentWorkspace', () => {
     });
   });
 
+  it('grows the message composer with its content and caps long prompts', () => {
+    renderWorkspace();
+    const composer = screen.getByRole('textbox', { name: 'Message Codex' });
+    expect(composer).toHaveAttribute('rows', '1');
+
+    Object.defineProperty(composer, 'scrollHeight', {
+      configurable: true,
+      value: 112
+    });
+    fireEvent.change(composer, { target: { value: 'First line\nSecond line\nThird line' } });
+    expect(composer).toHaveStyle({ height: '112px', overflowY: 'hidden' });
+
+    Object.defineProperty(composer, 'scrollHeight', {
+      configurable: true,
+      value: 240
+    });
+    fireEvent.change(composer, { target: { value: 'A much longer prompt' } });
+    expect(composer).toHaveStyle({ height: '180px', overflowY: 'auto' });
+  });
+
   it('keeps unsent composer drafts isolated by provider connection', () => {
     const secondSnapshot: StructuredAgentRuntimeSnapshot = {
       ...snapshot,

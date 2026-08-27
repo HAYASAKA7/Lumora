@@ -393,7 +393,12 @@ export function createCodexStructuredAdapter(
         turnId,
         parentEventId: null,
         kind: 'usage.updated',
-        payload: usage.data.total
+        payload: {
+          inputTokens: usage.data.total.inputTokens,
+          cachedInputTokens: usage.data.total.cachedInputTokens,
+          outputTokens: usage.data.total.outputTokens,
+          totalTokens: usage.data.total.totalTokens
+        }
       });
       return;
     }

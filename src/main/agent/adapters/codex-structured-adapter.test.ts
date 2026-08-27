@@ -142,7 +142,23 @@ describe('Codex structured adapter', () => {
     transport.emit('thread/tokenUsage/updated', {
       threadId: '019c-native-thread',
       turnId: 'turn-live',
-      tokenUsage: { total: { inputTokens: 10, cachedInputTokens: 2, outputTokens: 4, totalTokens: 14 } }
+      tokenUsage: { total: {
+        inputTokens: 10,
+        cachedInputTokens: 2,
+        outputTokens: 4,
+        totalTokens: 14,
+        reasoningOutputTokens: 3
+      } }
+    });
+    transport.emit('turn/completed', {
+      threadId: '019c-native-thread',
+      turn: { id: 'turn-live', status: 'completed', items: [] }
+    });
+    await adapter.dispatch({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: 'Continue',
+      attachmentTokens: []
     });
     await adapter.dispatch({
       kind: 'turn.cancel', connectionId: 'connection-1'
@@ -159,6 +175,20 @@ describe('Codex structured adapter', () => {
       kind: 'assistant.delta', payload: { text: 'Working' }
     }));
     expect(current.events).toContainEqual(expect.objectContaining({
+      kind: 'turn.completed',
+      payload: { state: 'completed', message: null }
+    }));
+    expect(transport.request).toHaveBeenCalledWith('turn/start', {
+      threadId: '019c-native-thread',
+      input: [{ type: 'text', text: 'Continue', text_elements: [] }]
+    });
+    const usage = current.events.find((event) => (
+      typeof event === 'object' &&
+      event !== null &&
+      'kind' in event &&
+      event.kind === 'usage.updated'
+    ));
+    expect(usage).toEqual(expect.objectContaining({
       kind: 'usage.updated',
       payload: { inputTokens: 10, cachedInputTokens: 2, outputTokens: 4, totalTokens: 14 }
     }));
