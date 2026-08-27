@@ -27,4 +27,13 @@ describe('structured agent workspace style contract', () => {
     expect(conversation).toContain('width: 100%');
     expect(conversation).not.toContain('900px');
   });
+
+  it('sizes message bubbles from their own content without changing the composer', () => {
+    const message = rule('.structured-message');
+    expect(message).toContain('width: fit-content');
+    expect(message).toContain('max-width: 100%');
+    expect(rule('.structured-message-user')).toContain('justify-self: end');
+    expect(rule('.structured-message-assistant')).toContain('justify-self: start');
+    expect(rule('.structured-composer textarea')).toContain('min-height: 72px');
+  });
 });

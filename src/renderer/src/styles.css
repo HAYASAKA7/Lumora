@@ -4634,6 +4634,13 @@ button {
   border-radius: 10px;
 }
 
+.structured-message {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .structured-message p,
 .structured-reasoning p,
 .structured-activity p,
@@ -4643,12 +4650,14 @@ button {
 }
 
 .structured-message-user {
-  margin-left: min(12%, 96px);
+  justify-self: end;
+  margin-left: 0;
   background: var(--surface-subtle);
 }
 
 .structured-message-assistant {
-  margin-right: min(12%, 96px);
+  justify-self: start;
+  margin-right: 0;
 }
 
 .structured-reasoning summary {
@@ -4711,14 +4720,13 @@ button {
 }
 
 .structured-composer textarea {
-  min-height: 44px;
+  min-height: 72px;
   max-height: 180px;
   padding: 12px 14px;
   color: var(--text);
   font: inherit;
   line-height: 1.45;
-  overflow-y: hidden;
-  resize: none;
+  resize: vertical;
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 9px;

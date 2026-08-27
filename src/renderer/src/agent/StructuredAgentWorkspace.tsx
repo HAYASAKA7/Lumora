@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -39,18 +38,6 @@ const approvalKeys: Record<StructuredAgentApprovalDecision, string> = {
   deny: 'terminal.unified.deny'
 };
 
-const MAX_COMPOSER_HEIGHT = 180;
-
-function resizeComposer(element: HTMLTextAreaElement | null): void {
-  if (element === null) return;
-  element.style.height = 'auto';
-  const contentHeight = element.scrollHeight;
-  if (contentHeight > 0) {
-    element.style.height = `${Math.min(contentHeight, MAX_COMPOSER_HEIGHT)}px`;
-  }
-  element.style.overflowY = contentHeight > MAX_COMPOSER_HEIGHT ? 'auto' : 'hidden';
-}
-
 export function StructuredAgentWorkspace({
   api = window.lumora,
   activeConnectionId,
@@ -75,15 +62,12 @@ export function StructuredAgentWorkspace({
     createStructuredAgentViewState()
   ) ?? createStructuredAgentViewState(), [snapshot]);
   const runtime = snapshot?.runtime;
-  const draft = runtime === undefined ? '' : drafts[runtime.connectionId] ?? '';
   useEffect(() => {
     if (runtime?.state === 'ready') composer.current?.focus();
   }, [focusRequestKey, runtime?.connectionId, runtime?.state]);
-  useLayoutEffect(() => {
-    resizeComposer(composer.current);
-  }, [draft, runtime?.connectionId]);
   if (snapshot === undefined || runtime === undefined) return null;
 
+  const draft = drafts[runtime.connectionId] ?? '';
   const setDraft = (value: string) => setDrafts((current) => ({
     ...current,
     [runtime.connectionId]: value
@@ -277,16 +261,13 @@ export function StructuredAgentWorkspace({
         <textarea
           aria-label={t('terminal.unified.message-label', { provider: providerName })}
           disabled={runtime.state !== 'ready' || sending}
-          onChange={(event) => {
-            resizeComposer(event.currentTarget);
-            setDraft(event.currentTarget.value);
-          }}
+          onChange={(event) => setDraft(event.currentTarget.value)}
           onCompositionEnd={onComposition}
           onCompositionStart={onComposition}
           onKeyDown={onComposerKeyDown}
           placeholder={t('terminal.unified.message-placeholder', { provider: providerName })}
           ref={composer}
-          rows={1}
+          rows={3}
           value={draft}
         />
         <div className="catalog-actions">
