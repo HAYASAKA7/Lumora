@@ -4639,19 +4639,33 @@ button {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
+.structured-agent-workspace > .terminal-tabbar {
+  grid-row: 1;
+}
+
 .structured-agent-header {
-  display: flex;
+  display: grid;
+  grid-row: 2;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   border-bottom: 0;
 }
 
+.structured-agent-header > div:first-child {
+  min-width: 0;
+}
+
 .structured-agent-header h2 {
+  max-width: 100%;
   margin: 3px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .structured-agent-body {
+  grid-row: 3;
   min-height: 0;
   padding: 20px;
   overflow: auto;
@@ -4812,6 +4826,7 @@ button {
 
 .structured-composer {
   display: grid;
+  grid-row: 4;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   padding: 14px 18px;
@@ -4885,7 +4900,6 @@ button {
 
   .structured-agent-header {
     align-items: flex-start;
-    flex-direction: column;
   }
 
   .structured-message-user,

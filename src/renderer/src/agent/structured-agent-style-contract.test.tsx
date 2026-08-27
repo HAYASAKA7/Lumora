@@ -22,6 +22,23 @@ describe('structured agent workspace style contract', () => {
     expect(rule('.structured-composer')).toContain('border-top: 0');
   });
 
+  it('keeps every workspace section in its intended row when the tab bar is hidden', () => {
+    expect(rule('.structured-agent-workspace > .terminal-tabbar')).toContain('grid-row: 1');
+    expect(rule('.structured-agent-header')).toContain('grid-row: 2');
+    expect(rule('.structured-agent-body')).toContain('grid-row: 3');
+    expect(rule('.structured-composer')).toContain('grid-row: 4');
+    expect(rule('.structured-agent-body')).toContain('overflow: auto');
+  });
+
+  it('reserves header space for session actions without letting a long title hide them', () => {
+    const header = rule('.structured-agent-header');
+    expect(header).toContain('display: grid');
+    expect(header).toContain('grid-template-columns: minmax(0, 1fr) auto');
+    const title = rule('.structured-agent-header h2');
+    expect(title).toContain('overflow: hidden');
+    expect(title).toContain('text-overflow: ellipsis');
+  });
+
   it('uses the available chat width instead of a narrow centered column', () => {
     const conversation = rule('.structured-conversation');
     expect(conversation).toContain('width: 100%');
