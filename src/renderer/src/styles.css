@@ -111,6 +111,10 @@
   --tooltip-text: var(--text);
   --tooltip-shortcut: var(--text-muted);
   --tooltip-shadow: var(--shadow);
+  --raw-structured-user-message-surface: #e9f0ff;
+  --raw-structured-agent-message-surface: #ffffff;
+  --structured-user-message-surface: var(--raw-structured-user-message-surface);
+  --structured-agent-message-surface: var(--raw-structured-agent-message-surface);
   --startup-band-a: #040c15;
   --startup-band-b: #01040b;
   --startup-gradient-1: #040c15;
@@ -150,6 +154,8 @@
   --terminal-tab-selected-text: #ffffff;
   --raw-terminal-tab-selected-surface: #07111f;
   --sidebar-grid-line: rgba(255, 255, 255, 0.017);
+  --raw-structured-user-message-surface: #e9f0ff;
+  --raw-structured-agent-message-surface: #ffffff;
 }
 
 :root[data-theme='dark'] {
@@ -205,6 +211,8 @@
   --switch-thumb-shadow: 0 2px 6px rgba(0, 0, 0, 0.42);
   --provider-codex-text: #8db1ff;
   --sidebar-grid-line: rgba(255, 255, 255, 0.017);
+  --raw-structured-user-message-surface: #172d50;
+  --raw-structured-agent-message-surface: #122033;
 }
 
 * {
@@ -306,6 +314,8 @@ button {
   --runtime-switcher-selected-surface: color-mix(in srgb, var(--raw-runtime-switcher-selected-surface) var(--appearance-opacity-popup-raised), transparent);
   --runtime-switcher-index-surface: color-mix(in srgb, var(--raw-runtime-switcher-index-surface) var(--appearance-opacity-popup-raised), transparent);
   --tooltip-surface: color-mix(in srgb, var(--raw-tooltip-surface) var(--appearance-opacity-popup), transparent);
+  --structured-user-message-surface: color-mix(in srgb, var(--raw-structured-user-message-surface) var(--appearance-opacity-normal), transparent);
+  --structured-agent-message-surface: color-mix(in srgb, var(--raw-structured-agent-message-surface) var(--appearance-opacity-normal), transparent);
 }
 
 .startup-overlay {
@@ -4586,6 +4596,45 @@ button {
   display: grid;
 }
 
+.appearance-color-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.appearance-color-control label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  color: var(--text);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.appearance-color-control label > span {
+  display: grid;
+  gap: 5px;
+}
+
+.appearance-color-control small {
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.appearance-color-control input[type='color'] {
+  width: 48px;
+  height: 38px;
+  padding: 3px;
+  cursor: pointer;
+  background: var(--control-surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
 .structured-agent-workspace {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
@@ -4653,17 +4702,45 @@ button {
 .structured-message-user {
   justify-self: end;
   margin-left: 0;
-  background: var(--surface-subtle);
+  background: var(--structured-user-message-surface);
 }
 
 .structured-message-assistant {
   justify-self: start;
   margin-right: 0;
+  background: var(--structured-agent-message-surface);
 }
 
-.structured-reasoning summary {
+.structured-message-user p {
+  margin-top: 0;
+}
+
+.structured-process {
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  justify-self: start;
+  padding: 10px 12px;
   color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.structured-process > summary {
   cursor: pointer;
+  font-weight: 700;
+}
+
+.structured-process-content {
+  display: grid;
+  min-width: min(560px, calc(100vw - 360px));
+  margin-top: 10px;
+  gap: 10px;
+}
+
+.structured-reasoning > strong {
+  color: var(--text-muted);
 }
 
 .structured-activity {
@@ -4673,10 +4750,8 @@ button {
 }
 
 .structured-activity-command {
-  width: fit-content;
-  max-width: 100%;
   min-width: 0;
-  justify-self: start;
+  background: var(--surface-subtle);
 }
 
 .structured-activity-command summary {
@@ -4764,6 +4839,44 @@ button {
   outline-offset: 1px;
 }
 
+.structured-composer-action {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  color: var(--on-accent);
+  cursor: pointer;
+  background: var(--blue);
+  border-radius: 999px;
+}
+
+.structured-composer-action:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.structured-composer-action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.structured-composer-action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.structured-stop-icon {
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
 @media (max-width: 760px) {
   .structured-agent-header,
   .structured-composer {
@@ -4779,6 +4892,14 @@ button {
   .structured-message-assistant {
     margin-right: 0;
     margin-left: 0;
+  }
+
+  .appearance-color-control {
+    grid-template-columns: 1fr;
+  }
+
+  .structured-process-content {
+    min-width: 0;
   }
 }
 

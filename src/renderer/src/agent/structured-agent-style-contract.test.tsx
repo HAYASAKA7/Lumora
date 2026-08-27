@@ -33,14 +33,19 @@ describe('structured agent workspace style contract', () => {
     expect(message).toContain('width: fit-content');
     expect(message).toContain('max-width: 100%');
     expect(rule('.structured-message-user')).toContain('justify-self: end');
+    expect(rule('.structured-message-user')).toContain('var(--structured-user-message-surface)');
     expect(rule('.structured-message-assistant')).toContain('justify-self: start');
+    expect(rule('.structured-message-assistant')).toContain('var(--structured-agent-message-surface)');
     expect(rule('.structured-composer textarea')).toContain('min-height: 72px');
   });
 
-  it('uses a compact disclosure for command content', () => {
+  it('groups provider operations behind one compact process disclosure', () => {
+    const process = rule('.structured-process');
+    expect(process).toContain('width: fit-content');
+    expect(process).toContain('max-width: 100%');
+    expect(rule('.structured-process > summary')).toContain('cursor: pointer');
     const command = rule('.structured-activity-command');
-    expect(command).toContain('width: fit-content');
-    expect(command).toContain('max-width: 100%');
+    expect(command).toContain('background: var(--surface-subtle)');
     expect(rule('.structured-activity-command summary')).toContain('cursor: pointer');
   });
 });

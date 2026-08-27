@@ -1757,6 +1757,7 @@ describe('managed terminal contracts', () => {
         lightTerminalInLightMode: false,
         interfaceFontFamily: null,
         terminalFontFamily: null,
+        userMessageColor: null,
         backgroundEnabled: false,
         backgroundOpacity: 0.55,
         backgroundBrightness: 1,
@@ -1771,6 +1772,27 @@ describe('managed terminal contracts', () => {
     expect(FontFamilyNameSchema.parse(' JetBrains Mono ')).toBe('JetBrains Mono');
     expect(FontFamilyNameSchema.safeParse('Bad\nFont').success).toBe(false);
     expect(FontFamilyNameSchema.safeParse('x'.repeat(129)).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        userMessageColor: '#8B5CF6'
+      }
+    }).success).toBe(true);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        userMessageColor: 'purple'
+      }
+    }).success).toBe(false);
+    const formerCurrentSettings = structuredClone(DEFAULT_GENERAL_SETTINGS) as
+      Record<string, unknown>;
+    delete (formerCurrentSettings.appearance as Record<string, unknown>)
+      .userMessageColor;
+    expect(parseStoredGeneralSettings(formerCurrentSettings)).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
     expect(GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       appearance: {

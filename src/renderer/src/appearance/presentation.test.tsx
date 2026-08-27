@@ -35,6 +35,22 @@ describe('buildAppearancePresentation', () => {
     });
   });
 
+  it('applies a custom structured user-message color without changing agent messages', () => {
+    const presentation = buildAppearancePresentation(
+      {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        userMessageColor: '#8B5CF6'
+      },
+      { available: false, revision: null }
+    );
+
+    expect(presentation.shellStyle).toMatchObject({
+      '--raw-structured-user-message-surface': '#8B5CF6'
+    });
+    expect(presentation.shellStyle['--raw-structured-agent-message-surface'])
+      .toBeUndefined();
+  });
+
   it('builds the complete shared presentation for local and remote windows', () => {
     const presentation = buildAppearancePresentation(
       {

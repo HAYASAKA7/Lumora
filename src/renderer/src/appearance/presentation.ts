@@ -49,7 +49,12 @@ export function buildAppearancePresentation(
   const fontStyle: AppearanceShellStyle = {
     ...buildThemePresetStyle(themePreset),
     '--font-ui': resolveInterfaceFontFamily(appearance.interfaceFontFamily),
-    '--font-mono': resolveTerminalFontFamily(appearance.terminalFontFamily)
+    '--font-mono': resolveTerminalFontFamily(appearance.terminalFontFamily),
+    ...(appearance.userMessageColor === null
+      ? {}
+      : {
+          '--raw-structured-user-message-surface': appearance.userMessageColor
+        })
   };
   if (!backgroundActive) {
     return {

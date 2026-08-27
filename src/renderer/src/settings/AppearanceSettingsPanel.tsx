@@ -52,6 +52,10 @@ const EMPTY_THEME_PRESETS: ThemePresetList = {
   rejectedCount: 0
 };
 
+function defaultUserMessageColor(theme: AppearanceSettings['theme']): string {
+  return theme === 'dark' ? '#172D50' : '#E9F0FF';
+}
+
 export function AppearanceSettingsPanel({
   active = true,
   api = window.lumora,
@@ -333,6 +337,48 @@ export function AppearanceSettingsPanel({
           </span>
         </span>
       </label>
+
+      <section
+        aria-labelledby="appearance-conversation-title"
+        className="appearance-background-section appearance-conversation-section"
+      >
+        <div className="appearance-section-heading">
+          <div>
+            <p className="card-label">{t('settings.appearance.conversation')}</p>
+            <h3 id="appearance-conversation-title">
+              {t('settings.appearance.conversation-title')}
+            </h3>
+            <p>{t('settings.appearance.conversation-description')}</p>
+          </div>
+        </div>
+        <div className="appearance-color-control">
+          <label>
+            <span>
+              <strong>{t('settings.appearance.user-message-color')}</strong>
+              <small>{t('settings.appearance.user-message-color-description')}</small>
+            </span>
+            <input
+              aria-label={t('settings.appearance.user-message-color')}
+              disabled={saving}
+              onChange={(event) => updateAppearance({
+                userMessageColor: event.currentTarget.value.toUpperCase()
+              })}
+              type="color"
+              value={settings.appearance.userMessageColor ??
+                defaultUserMessageColor(settings.appearance.theme)}
+            />
+          </label>
+          <button
+            className="secondary-button"
+            data-lumora-command
+            disabled={saving || settings.appearance.userMessageColor === null}
+            onClick={() => updateAppearance({ userMessageColor: null })}
+            type="button"
+          >
+            {t('settings.appearance.use-theme-message-color')}
+          </button>
+        </div>
+      </section>
 
       <section aria-labelledby="appearance-typography-title" className="appearance-background-section appearance-typography-section">
         <div className="appearance-section-heading">

@@ -203,6 +203,62 @@ describe('AppearanceSettingsPanel', () => {
     }));
   });
 
+  it('customizes and resets the structured user message color', () => {
+    const onChange = vi.fn();
+    const view = render(
+      <AppearanceSettingsPanel
+        background={{ available: false, revision: null }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('User message color'), {
+      target: { value: '#8B5CF6' }
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        userMessageColor: '#8B5CF6'
+      }
+    });
+
+    view.rerender(
+      <AppearanceSettingsPanel
+        background={{ available: false, revision: null }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={{
+          ...DEFAULT_GENERAL_SETTINGS,
+          appearance: {
+            ...DEFAULT_GENERAL_SETTINGS.appearance,
+            userMessageColor: '#8B5CF6'
+          }
+        }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Use theme color' }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        userMessageColor: null
+      }
+    });
+  });
+
   it('offers managed image actions without exposing a local path', () => {
     const onChooseBackground = vi.fn();
     const onRemoveBackground = vi.fn();

@@ -1048,6 +1048,8 @@ export const FontFamilyNameSchema = z.string()
     'Font family names must not contain control characters.'
   );
 
+export const AppearanceColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/u);
+
 export const AppearanceSettingsSchema = z.strictObject({
   theme: AppearanceThemeSchema,
   themePresetId: z.string()
@@ -1058,6 +1060,7 @@ export const AppearanceSettingsSchema = z.strictObject({
   lightTerminalInLightMode: z.boolean(),
   interfaceFontFamily: FontFamilyNameSchema.nullable(),
   terminalFontFamily: FontFamilyNameSchema.nullable(),
+  userMessageColor: AppearanceColorSchema.nullable().default(null),
   backgroundEnabled: z.boolean(),
   backgroundOpacity: z.number().min(0).max(1),
   backgroundBrightness: z.number().min(0.5).max(1.5),
@@ -1077,6 +1080,7 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
   lightTerminalInLightMode: false,
   interfaceFontFamily: null,
   terminalFontFamily: null,
+  userMessageColor: null,
   backgroundEnabled: false,
   backgroundOpacity: 0.55,
   backgroundBrightness: 1,
@@ -1212,7 +1216,7 @@ export const ThemePresetIdSchema = z.string()
   .max(64)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 
-export const ThemeColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/u);
+export const ThemeColorSchema = AppearanceColorSchema;
 
 export const ThemePaletteSchema = z.strictObject({
   accent: ThemeColorSchema,

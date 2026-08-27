@@ -33,7 +33,9 @@ const managedSurfaceTokens = [
   'terminal-error-surface',
   'terminal-overlay',
   'runtime-switcher-selected-surface',
-  'runtime-switcher-index-surface'
+  'runtime-switcher-index-surface',
+  'structured-user-message-surface',
+  'structured-agent-message-surface'
 ] as const;
 
 describe('appearance style contract', () => {

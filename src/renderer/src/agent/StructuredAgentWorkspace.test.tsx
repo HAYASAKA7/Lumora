@@ -53,24 +53,27 @@ const snapshot: StructuredAgentRuntimeSnapshot = {
 
 function renderWorkspace() {
   const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+  const onClose = vi.fn();
   const api = { dispatchStructuredAgentAction } as unknown as LumoraApi;
   renderWithLocalization(
     <StructuredAgentWorkspace
       activeConnectionId="connection-1"
       api={api}
       onActivate={vi.fn()}
+      onClose={onClose}
       onReconnect={vi.fn()}
       snapshots={[snapshot]}
     />
   );
-  return { dispatchStructuredAgentAction };
+  return { dispatchStructuredAgentAction, onClose };
 }
 
 describe('StructuredAgentWorkspace', () => {
-  it('does not expose an exit control in the conversation header', () => {
-    renderWorkspace();
+  it('exposes a close control for the active structured session', () => {
+    const { onClose } = renderWorkspace();
 
-    expect(screen.queryByRole('button', { name: 'Close session' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close session' }));
+    expect(onClose).toHaveBeenCalledWith('connection-1');
   });
 
   it('renders provider-owned conversation history and dispatches approval actions', () => {
@@ -78,6 +81,7 @@ describe('StructuredAgentWorkspace', () => {
 
     expect(screen.getByText('Fix the tests.')).toBeInTheDocument();
     expect(screen.getByText('The tests are fixed.')).toBeInTheDocument();
+    expect(screen.queryByText('You')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Allow once' }));
     expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
       kind: 'approval.respond',
@@ -120,6 +124,7 @@ describe('StructuredAgentWorkspace', () => {
       } as unknown as LumoraApi,
       activeConnectionId: 'connection-1',
       onActivate: vi.fn(),
+      onClose: vi.fn(),
       onReconnect: vi.fn()
     };
     const view = renderWithLocalization(
@@ -220,10 +225,18 @@ describe('StructuredAgentWorkspace', () => {
         activeConnectionId="connection-1"
         api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
         onActivate={vi.fn()}
+        onClose={vi.fn()}
         onReconnect={vi.fn()}
         snapshots={[commandSnapshot]}
       />
     );
+
+    const process = screen.getByText('Process').closest('details');
+    expect(process).toHaveClass('structured-process');
+    expect(process).not.toHaveAttribute('open');
+    expect(screen.getByText('The tests are fixed.').closest('.structured-process')).toBeNull();
+    fireEvent.click(process!.querySelector(':scope > summary')!);
+    expect(process).toHaveAttribute('open');
 
     const command = screen.getByText('npm run verify').closest('details');
     expect(command).toHaveClass('structured-activity-command');
@@ -248,6 +261,7 @@ describe('StructuredAgentWorkspace', () => {
         dispatchStructuredAgentAction: vi.fn(async () => undefined)
       } as unknown as LumoraApi,
       onActivate: vi.fn(),
+      onClose: vi.fn(),
       onReconnect: vi.fn(),
       snapshots: [snapshot, secondSnapshot]
     };
@@ -271,7 +285,7 @@ describe('StructuredAgentWorkspace', () => {
       .toHaveValue('Draft for the first session');
   });
 
-  it('keeps a draft editable but prevents a second prompt while a turn is running', () => {
+  it('replaces Send with one stop-turn action while a turn is running', () => {
     const runningSnapshot: StructuredAgentRuntimeSnapshot = {
       ...snapshot,
       events: [
@@ -290,6 +304,7 @@ describe('StructuredAgentWorkspace', () => {
         activeConnectionId="connection-1"
         api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
         onActivate={vi.fn()}
+        onClose={vi.fn()}
         onReconnect={vi.fn()}
         snapshots={[runningSnapshot]}
       />
@@ -298,7 +313,12 @@ describe('StructuredAgentWorkspace', () => {
     const composer = screen.getByRole('textbox', { name: 'Message Codex' });
     fireEvent.change(composer, { target: { value: 'Wait for the current turn' } });
     expect(composer).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel turn' }));
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'turn.cancel',
+      connectionId: 'connection-1'
+    });
     fireEvent.keyDown(composer, { key: 'Enter' });
     expect(dispatchStructuredAgentAction).not.toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'prompt.submit' })
@@ -335,6 +355,7 @@ describe('StructuredAgentWorkspace', () => {
         activeConnectionId="connection-1"
         api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
         onActivate={vi.fn()}
+        onClose={vi.fn()}
         onReconnect={vi.fn()}
         snapshots={[completedSnapshot]}
       />
@@ -355,6 +376,7 @@ describe('StructuredAgentWorkspace', () => {
       } as unknown as LumoraApi,
       activeConnectionId: 'connection-1',
       onActivate: vi.fn(),
+      onClose: vi.fn(),
       onReconnect: vi.fn(),
       snapshots: [snapshot]
     };

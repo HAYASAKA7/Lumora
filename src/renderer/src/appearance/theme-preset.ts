@@ -88,6 +88,12 @@ export function buildThemePresetStyle(
     '--raw-tooltip-surface': color.surfaceRaised,
     '--tooltip-border': color.border,
     '--tooltip-text': color.text,
-    '--tooltip-shortcut': color.textMuted
+    '--tooltip-shortcut': color.textMuted,
+    '--raw-structured-user-message-surface': mix(
+      color.accent,
+      18,
+      color.surfaceRaised
+    ),
+    '--raw-structured-agent-message-surface': color.surfaceRaised
   };
 }

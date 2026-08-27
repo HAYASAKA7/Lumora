@@ -194,6 +194,7 @@
     "history-boundary": "Earlier provider history may not be available in this view.",
     "user-label": "You",
     "assistant-label": "{provider}",
+    "process-label": "Process",
     "reasoning-label": "Reasoning summary",
     "activity-tool": "Tool",
     "activity-command": "Command",

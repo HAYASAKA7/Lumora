@@ -29,6 +29,7 @@ interface StructuredAgentWorkspaceProps {
   snapshots: readonly StructuredAgentRuntimeSnapshot[];
   showTabBar?: boolean;
   onActivate(connectionId: string): void;
+  onClose(connectionId: string): void;
   onReconnect(connectionId: string): void;
 }
 
@@ -45,6 +46,7 @@ export function StructuredAgentWorkspace({
   snapshots,
   showTabBar = true,
   onActivate,
+  onClose,
   onReconnect
 }: StructuredAgentWorkspaceProps): ReactNode {
   const { t } = useLocalization();
@@ -178,6 +180,9 @@ export function StructuredAgentWorkspace({
               {t('terminal.unified.reconnect')}
             </button>
           ) : null}
+          <button className="secondary-button" data-lumora-command onClick={() => onClose(runtime.connectionId)} type="button">
+            {t('terminal.unified.close')}
+          </button>
         </div>
       </header>
 
@@ -200,47 +205,55 @@ export function StructuredAgentWorkspace({
             <article className="structured-turn" key={turn.id}>
               {turn.userText === '' ? null : (
                 <section className="structured-message structured-message-user">
-                  <strong>{t('terminal.unified.user-label')}</strong>
                   <p>{turn.userText}</p>
                 </section>
               )}
-              {turn.reasoning.map((reasoning, index) => (
-                <details className="structured-reasoning" key={`${turn.id}-reasoning-${index}`}>
-                  <summary>{t('terminal.unified.reasoning-label')}</summary>
-                  <p>{reasoning}</p>
+              {turn.reasoning.length === 0 &&
+              turn.activities.length === 0 &&
+              turn.plan.length === 0 ? null : (
+                <details className="structured-process">
+                  <summary>{t('terminal.unified.process-label')}</summary>
+                  <div className="structured-process-content">
+                    {turn.reasoning.map((reasoning, index) => (
+                      <section className="structured-reasoning" key={`${turn.id}-reasoning-${index}`}>
+                        <strong>{t('terminal.unified.reasoning-label')}</strong>
+                        <p>{reasoning}</p>
+                      </section>
+                    ))}
+                    {turn.activities.map((activity) => activity.kind === 'command' ? (
+                      <details
+                        className={`structured-activity structured-activity-command structured-activity-${activity.status}`}
+                        key={activity.id}
+                      >
+                        <summary>
+                          <span className="card-label">
+                            {t('terminal.unified.activity-command')}
+                          </span>
+                          <strong>{activity.title}</strong>
+                        </summary>
+                        {activity.pathLabel === null ? null : <code>{activity.pathLabel}</code>}
+                        {activity.detail === null ? null : (
+                          <pre className="structured-activity-detail">{activity.detail}</pre>
+                        )}
+                      </details>
+                    ) : (
+                      <section className={`structured-activity structured-activity-${activity.status}`} key={activity.id}>
+                        <span className="card-label">
+                          {t(`terminal.unified.activity-${activity.kind}`)}
+                        </span>
+                        <strong>{activity.title}</strong>
+                        {activity.pathLabel === null ? null : <code>{activity.pathLabel}</code>}
+                        {activity.detail === null ? null : <p>{activity.detail}</p>}
+                      </section>
+                    ))}
+                    {turn.plan.length === 0 ? null : (
+                      <section className="structured-plan">
+                        <strong>{t('terminal.unified.plan-label')}</strong>
+                        <ol>{turn.plan.map((item) => <li data-state={item.status} key={item.id}>{item.text}</li>)}</ol>
+                      </section>
+                    )}
+                  </div>
                 </details>
-              ))}
-              {turn.activities.map((activity) => activity.kind === 'command' ? (
-                <details
-                  className={`structured-activity structured-activity-command structured-activity-${activity.status}`}
-                  key={activity.id}
-                >
-                  <summary>
-                    <span className="card-label">
-                      {t('terminal.unified.activity-command')}
-                    </span>
-                    <strong>{activity.title}</strong>
-                  </summary>
-                  {activity.pathLabel === null ? null : <code>{activity.pathLabel}</code>}
-                  {activity.detail === null ? null : (
-                    <pre className="structured-activity-detail">{activity.detail}</pre>
-                  )}
-                </details>
-              ) : (
-                <section className={`structured-activity structured-activity-${activity.status}`} key={activity.id}>
-                  <span className="card-label">
-                    {t(`terminal.unified.activity-${activity.kind}`)}
-                  </span>
-                  <strong>{activity.title}</strong>
-                  {activity.pathLabel === null ? null : <code>{activity.pathLabel}</code>}
-                  {activity.detail === null ? null : <p>{activity.detail}</p>}
-                </section>
-              ))}
-              {turn.plan.length === 0 ? null : (
-                <section className="structured-plan">
-                  <strong>{t('terminal.unified.plan-label')}</strong>
-                  <ol>{turn.plan.map((item) => <li data-state={item.status} key={item.id}>{item.text}</li>)}</ol>
-                </section>
               )}
               {turn.approvals.map((approval) => (
                 <section className="structured-approval" key={approval.id}>
@@ -302,21 +315,30 @@ export function StructuredAgentWorkspace({
           rows={3}
           value={draft}
         />
-        <div className="catalog-actions">
-          {runningTurn ? (
-            <button
-              className="secondary-button"
-              data-lumora-command
-              onClick={() => void dispatch({ kind: 'turn.cancel', connectionId: runtime.connectionId }).catch(() => undefined)}
-              type="button"
-            >
-              {t('terminal.unified.cancel')}
-            </button>
-          ) : null}
-          <button className="primary-button" data-lumora-command disabled={draft.trim() === '' || sending || runningTurn} onClick={submit} type="button">
-            {t('terminal.unified.send')}
+        {runningTurn ? (
+          <button
+            aria-label={t('terminal.unified.cancel')}
+            className="structured-composer-action structured-composer-action-stop"
+            data-lumora-command
+            onClick={() => void dispatch({ kind: 'turn.cancel', connectionId: runtime.connectionId }).catch(() => undefined)}
+            type="button"
+          >
+            <span aria-hidden="true" className="structured-stop-icon" />
           </button>
-        </div>
+        ) : (
+          <button
+            aria-label={t('terminal.unified.send')}
+            className="structured-composer-action structured-composer-action-send"
+            data-lumora-command
+            disabled={draft.trim() === '' || sending}
+            onClick={submit}
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20">
+              <path d="M10 15V5m0 0L6 9m4-4 4 4" />
+            </svg>
+          </button>
+        )}
       </footer>
     </section>
   );
