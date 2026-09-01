@@ -262,6 +262,13 @@ session token usage, and account limits when the provider exposes them. Long
 sessions initially render only a bounded recent window; scroll upward to load
 earlier turns progressively.
 
+Lumora 0.5 also makes session startup feel substantially faster. Selecting a
+session begins the direct resume flow immediately, keeps its preparation and
+loading inside the terminal workspace, and leaves the rest of Lumora responsive
+while the provider connects. For long sessions, the bounded recent-history
+window avoids waiting for the complete conversation to render before the
+session becomes useful.
+
 Select a saved session normally to resume it directly. Lumora returns to an
 existing runtime when the session is already active, uses the verified Unified
 UI when supported, and otherwise resumes through the native PTY without an

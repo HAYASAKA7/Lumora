@@ -33,8 +33,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Keep direct session preparation and loading inside the terminal workspace so
-  navigation and other Lumora pages remain usable while a provider connects.
+- Improve direct session launch responsiveness by beginning the normal resume
+  flow immediately and keeping preparation and loading inside the terminal
+  workspace. Navigation and other Lumora pages remain usable while a provider
+  connects, and bounded history loading avoids rendering an entire long session
+  before its recent conversation becomes useful.
 - Route Unified UI availability through provider capability probes and
   per-provider settings. Disabled, unavailable, incompatible, timed-out, or
   failed integrations fall back to the existing native terminal automatically.
