@@ -1360,7 +1360,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);
       }
-      trayController?.refresh();
+      if (
+        event.kind === 'runtime.status' ||
+        event.kind === 'runtime.metadata'
+      ) {
+        trayController?.refresh();
+      }
     }
   });
   unsubscribeRemoteTerminalEvents =

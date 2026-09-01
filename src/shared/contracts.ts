@@ -1307,11 +1307,12 @@ export type ThemePreset = z.infer<typeof ThemePresetSchema>;
 export type ThemePresetList = z.infer<typeof ThemePresetListSchema>;
 
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(12),
+  version: z.literal(13),
   languagePreference: LanguagePreferenceSchema,
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
   showUnusableSessions: z.boolean(),
+  autoTrustWorkspaces: z.boolean(),
   startMaximized: z.boolean(),
   checkProviderUpdatesAutomatically: z.boolean(),
   autoExpandSidebar: z.boolean(),
@@ -1478,11 +1479,12 @@ export type ApplicationQuitResolution = z.infer<
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 12,
+  version: 13,
   languagePreference: 'system',
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
   showUnusableSessions: true,
+  autoTrustWorkspaces: false,
   startMaximized: true,
   checkProviderUpdatesAutomatically: true,
   autoExpandSidebar: true,
@@ -1500,7 +1502,14 @@ const VersionElevenAppearanceSettingsSchema = AppearanceSettingsSchema.omit({
   themePresetId: true
 });
 
-const VersionElevenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+const VersionTwelveGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  autoTrustWorkspaces: true
+}).extend({
+  version: z.literal(12)
+});
+
+const VersionElevenGeneralSettingsSchema = VersionTwelveGeneralSettingsSchema.omit({
   version: true,
   appearance: true
 }).extend({
@@ -1513,7 +1522,7 @@ const VersionTenAppearanceSettingsSchema = VersionElevenAppearanceSettingsSchema
   terminalFontFamily: true
 });
 
-const VersionTenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+const VersionTenGeneralSettingsSchema = VersionTwelveGeneralSettingsSchema.omit({
   version: true,
   appearance: true
 }).extend({
@@ -1617,11 +1626,21 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
+  const versionTwelve = VersionTwelveGeneralSettingsSchema.safeParse(value);
+  if (versionTwelve.success) {
+    return GeneralSettingsSchema.parse({
+      ...versionTwelve.data,
+      version: 13,
+      autoTrustWorkspaces: false
+    });
+  }
+
   const versionEleven = VersionElevenGeneralSettingsSchema.safeParse(value);
   if (versionEleven.success) {
     return GeneralSettingsSchema.parse({
       ...versionEleven.data,
-      version: 12,
+      version: 13,
+      autoTrustWorkspaces: false,
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionEleven.data.appearance
@@ -1633,7 +1652,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionTen.success) {
     return GeneralSettingsSchema.parse({
       ...versionTen.data,
-      version: 12,
+      version: 13,
+      autoTrustWorkspaces: false,
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionTen.data.appearance
@@ -1645,7 +1665,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionNine.success) {
     return GeneralSettingsSchema.parse({
       ...versionNine.data,
-      version: 12,
+      version: 13,
+      autoTrustWorkspaces: false,
       languagePreference: 'system',
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
@@ -1658,7 +1679,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   if (versionEight.success) {
     return GeneralSettingsSchema.parse({
       ...versionEight.data,
-      version: 12,
+      version: 13,
+      autoTrustWorkspaces: false,
       languagePreference: 'system',
       warnBeforeApplicationQuit: true,
       warnBeforeRemoteDisconnect: true,
@@ -1674,7 +1696,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSeven.data,
-      version: 12,
+      version: 13,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
       appearance: {
@@ -1689,7 +1711,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionSix.data,
-      version: 12,
+      version: 13,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1705,7 +1727,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFive.data,
-      version: 12,
+      version: 13,
       remoteWindowCloseBehavior: 'keep_connected',
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
@@ -1725,7 +1747,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionFour.data,
-      version: 12
+      version: 13
     });
   }
 
@@ -1734,7 +1756,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionThree.data,
-      version: 12
+      version: 13
     });
   }
 
@@ -1743,7 +1765,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...DEFAULT_GENERAL_SETTINGS,
       ...versionTwo.data,
-      version: 12
+      version: 13
     });
   }
 

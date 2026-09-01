@@ -190,6 +190,22 @@ describe('ProviderSettings', () => {
     const codexSwitch = screen.getByRole('checkbox', {
       name: 'Use unified interface for Codex when verified'
     });
+    const codexCard = codexSwitch.closest('article');
+    const codexToggle = codexSwitch.closest('label');
+    expect(codexCard).not.toBeNull();
+    expect(codexToggle).not.toBeNull();
+    expect(within(codexCard!).getByText('Codex').parentElement).toHaveClass(
+      'structured-provider-option-header'
+    );
+    expect(codexToggle).toHaveClass('structured-provider-toggle');
+    expect(
+      codexCard!.querySelector('.structured-provider-option-header')
+    ).toContainElement(codexToggle);
+    expect(
+      within(codexCard!).getByText('Verified · Codex app-server').closest(
+        '.structured-provider-copy'
+      )
+    ).not.toBeNull();
     expect(codexSwitch).toBeChecked();
     expect(screen.getByText('Verified · Codex app-server')).toBeVisible();
     expect(screen.getAllByText('Unavailable · Native terminal fallback')).toHaveLength(2);

@@ -17,8 +17,9 @@ function rule(selector: string): string {
 }
 
 describe('structured agent workspace style contract', () => {
-  it('keeps the conversation open without a terminal-style header divider', () => {
-    expect(rule('.structured-agent-header')).toContain('border-bottom: 0');
+  it('separates the session title surface from the conversation', () => {
+    expect(rule('.structured-agent-header')).toContain('border-bottom: 1px solid var(--line)');
+    expect(rule('.structured-agent-header')).toContain('background: var(--surface-subtle)');
     expect(rule('.structured-composer')).toContain('border-top: 0');
   });
 
@@ -56,6 +57,24 @@ describe('structured agent workspace style contract', () => {
     expect(rule('.structured-composer textarea')).toContain('min-height: 72px');
   });
 
+  it('places the model selector immediately left of the send or pause action', () => {
+    const actions = rule('.structured-composer-actions');
+    expect(actions).toContain('right: 10px');
+    expect(actions).toContain('display: flex');
+    expect(rule('.structured-model-select')).not.toContain('position: absolute');
+    expect(rule('.structured-composer-action')).toContain('position: static');
+  });
+
+  it('uses the unified Lumora selection highlight for command options', () => {
+    expect(styles).toContain([
+      '.structured-command-option:hover,',
+      '.structured-command-option[aria-selected="true"] {',
+      '  color: var(--blue);',
+      '  background: var(--blue-soft);',
+      '}'
+    ].join('\n'));
+  });
+
   it('groups provider operations behind one compact process disclosure', () => {
     const process = rule('.structured-process');
     expect(process).toContain('width: fit-content');
@@ -64,5 +83,19 @@ describe('structured agent workspace style contract', () => {
     const command = rule('.structured-activity-command');
     expect(command).toContain('background: var(--surface-subtle)');
     expect(rule('.structured-activity-command summary')).toContain('cursor: pointer');
+  });
+
+  it('aligns the agent status with the title baseline instead of centering it', () => {
+    expect(rule('.structured-assistant-title')).toContain('align-items: baseline');
+    expect(rule('.structured-assistant-title')).not.toContain('align-items: center');
+    expect(rule('.structured-assistant-title .runtime-state')).toContain('align-self: baseline');
+  });
+
+  it('keeps provisional launch content in the normal chat flow', () => {
+    const body = rule('.direct-session-launch-body');
+    expect(body).toContain('grid-row: 2');
+    expect(body).not.toContain('align-content: center');
+    expect(body).not.toContain('justify-items: center');
+    expect(body).not.toContain('clamp(24px, 6vw, 72px)');
   });
 });

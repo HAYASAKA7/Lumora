@@ -164,6 +164,55 @@ File-backed providers copy the selected source before parsing it; OpenCode uses
 its structured export command. This operation is separate from catalog scans
 and runs only for a user-confirmed cross-agent launch.
 
+## Structured agent runtime
+
+Lumora's local Unified UI is an additional provider interaction route, not a
+replacement session model. Codex app-server, Claude Agent SDK, and Gemini ACP
+adapters translate provider events into strict shared contracts while the
+provider continues to own authentication, sessions, tools, permissions, and
+model behavior.
+
+```text
+catalog session or new launch
+          |
+ expiring prepared-launch token + workspace trust
+          |
+ provider capability report + user preference
+        /   \
+ verified   unavailable / disabled / failed
+    |                    |
+structured runtime   native PTY runtime
+    |
+sequenced, bounded normalized events
+    |
+sandboxed Unified UI
+```
+
+The launch router consumes each prepared launch once and selects the structured
+route only for an advertised new or resume capability. Native forks,
+cross-agent handoffs, unsupported providers, and unhealthy routes use the PTY.
+If structured startup fails before the runtime owns the session, Lumora uses
+the already validated PTY specification. An ownership collision is never
+converted into a fallback because doing so would bypass the one-writer guard.
+
+The main-process runtime host owns provider processes, cancellation, cleanup,
+reconnection, event sequencing, and session reconciliation. The renderer sees
+only validated summaries and bounded normalized events. It never receives a
+provider SDK, process handle, raw filesystem capability, or general-purpose RPC
+transport. Runtime identity is indexed with PTY identity so direct resume
+activates an existing owner instead of launching a duplicate.
+
+Conversation state is bounded for presentation. The renderer initially shows
+at most five recent turns within a render budget and loads older pages on
+upward scroll. This limits initial DOM and Markdown work without deleting or
+rewriting provider history. Process details are collapsed by default, file
+changes use display-only normalized diffs, and session/account usage is loaded
+through a separate details surface.
+
+Remote Lumora remains PTY-routed in 0.5. Remote session discovery, trust,
+launch settings, and SSH runtime isolation keep their existing target-scoped
+boundaries; local structured capability reports are not reused remotely.
+
 ## Catalog flow
 
 ```text

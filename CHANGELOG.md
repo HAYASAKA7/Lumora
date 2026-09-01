@@ -7,6 +7,57 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-01
+
+### Added
+
+- Add a local Unified UI for verified Codex app-server, Claude Agent SDK, and
+  Gemini ACP integrations. The conversation view supports streamed Markdown,
+  provider commands and models, cancellation, approvals, process and tool
+  activity, file diffs, session usage details, and provider account limits when
+  the integration exposes them.
+- Add bounded, progressively loaded conversation history. Lumora initially
+  renders a small recent window and loads earlier turns as the user scrolls,
+  reducing resume-time renderer work for long sessions.
+- Resume sessions directly from their normal primary action. Lumora activates
+  an already-running session, uses a verified local Unified UI when available,
+  and otherwise starts the native PTY path. Right-click keeps the advanced
+  resume dialog available; Remote Lumora continues to use direct PTY resume.
+- Add an explicitly confirmed **Automatically trust workspaces** security
+  preference for users who choose to bypass per-workspace launch confirmation.
+- Add an Appearance preference for the Unified UI user-message color while
+  preserving the active theme color as the default.
+
+### Changed
+
+- Keep direct session preparation and loading inside the terminal workspace so
+  navigation and other Lumora pages remain usable while a provider connects.
+- Route Unified UI availability through provider capability probes and
+  per-provider settings. Disabled, unavailable, incompatible, timed-out, or
+  failed integrations fall back to the existing native terminal automatically.
+- Keep provider settings controls, conversation actions, dialogs, context
+  menus, message-color actions, and loading states aligned with Lumora's shared
+  UI components and spacing rules.
+
+### Fixed
+
+- Stabilize structured provider lifecycle handling across first responses,
+  subsequent turns, commands, cancellation, reconnection, and clean exit.
+- Keep the composer focused after sending, follow new output only while the
+  user has not scrolled away, preserve earlier history after a turn completes,
+  and keep long conversations visible without unbounded initial rendering.
+- Prevent a Unified UI session and a PTY session from concurrently owning the
+  same provider session; selecting a running session returns to its existing
+  runtime instead of creating a duplicate.
+
+### Security
+
+- Keep structured provider processes and session data in the Electron main
+  process behind schema-validated IPC, bounded transports, expiring launch
+  tokens, provider capability checks, workspace trust, and one-writer session
+  ownership. The sandboxed renderer receives normalized events rather than
+  direct filesystem or process access.
+
 ## [0.4.2] - 2026-08-26
 
 ### Added

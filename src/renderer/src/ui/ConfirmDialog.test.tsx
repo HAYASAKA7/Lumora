@@ -65,4 +65,33 @@ describe('ConfirmDialog', () => {
     fireEvent.click(checkbox);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+
+  it('supports a required acknowledgement before confirmation', () => {
+    const onChange = vi.fn();
+    const onConfirm = vi.fn();
+    renderWithLocalization(
+      <ConfirmDialog
+        acknowledgement={{
+          checked: false,
+          label: 'I understand the risk',
+          onChange
+        }}
+        confirmDisabled
+        confirmLabel="Enable auto-trust"
+        description="Agents can change files."
+        heading="Enable automatic workspace trust?"
+        onCancel={vi.fn()}
+        onConfirm={onConfirm}
+      />
+    );
+
+    const confirm = screen.getByRole('button', { name: 'Enable auto-trust' });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I understand the risk'
+    }));
+    expect(onChange).toHaveBeenCalledWith(true);
+    fireEvent.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });

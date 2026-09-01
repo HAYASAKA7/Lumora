@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type {
   AgentRuntimeStartResult,
+  GeneralSettings,
   LaunchPrepareRequest,
   LaunchPreview,
   LumoraApi,
@@ -11,6 +12,7 @@ import type {
   TerminalProfile,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { hasVerifiedStartPromptSupport } from '../../../shared/provider-definitions';
 import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
@@ -19,6 +21,7 @@ import { useLocalization } from '../localization/useLocalization';
 
 interface NewSessionDialogProps {
   api?: LumoraApi;
+  generalSettings?: GeneralSettings;
   initialWorkspaceId?: string | null;
   workspaces: readonly WorkspaceSummary[];
   profiles: readonly TerminalProfile[];
@@ -33,6 +36,7 @@ interface NewSessionDialogProps {
 
 export function NewSessionDialog({
   api = window.lumora,
+  generalSettings = DEFAULT_GENERAL_SETTINGS,
   initialWorkspaceId = null,
   workspaces,
   profiles,
@@ -131,6 +135,8 @@ export function NewSessionDialog({
   );
   const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
+  const trustApproved =
+    generalSettings.autoTrustWorkspaces || trustConfirmed;
 
   useEffect(() => {
     if (preflight.status !== 'ready') setTrustConfirmed(false);
@@ -150,7 +156,7 @@ export function NewSessionDialog({
       preview === null ||
       preflight.status !== 'ready' ||
       !preflight.isCurrentLaunchToken(preview.launchToken) ||
-      (!preview.workspaceTrusted && !trustConfirmed)
+      (!preview.workspaceTrusted && !trustApproved)
     ) return;
     const operation = launchOperation.current + 1;
     launchOperation.current = operation;
@@ -283,6 +289,7 @@ export function NewSessionDialog({
           preview={preview}
           status={preflight.status}
           trustConfirmed={trustConfirmed}
+          trustImplicit={generalSettings.autoTrustWorkspaces}
           workspace={selectedWorkspace}
         />
         </div>
@@ -294,7 +301,7 @@ export function NewSessionDialog({
               preview === null ||
               preflight.status !== 'ready' ||
               starting ||
-              (!preview.workspaceTrusted && !trustConfirmed)
+              (!preview.workspaceTrusted && !trustApproved)
             }
             onClick={start}
             type="button"

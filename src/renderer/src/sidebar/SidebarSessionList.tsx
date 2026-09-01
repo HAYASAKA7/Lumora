@@ -10,6 +10,7 @@ import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
 import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { useProgressiveList } from '../catalog/progressive-list';
+import { useSessionResumeContextMenu } from '../catalog/useSessionResumeContextMenu';
 import { useLocalization } from '../localization/useLocalization';
 import { OverflowTooltip } from '../ui/Tooltip';
 import {
@@ -25,6 +26,7 @@ interface SidebarSessionListProps {
   onActivateRuntime(runtimeId: string): void;
   onActivateStructuredRuntime?(connectionId: string): void;
   onResumeSession(session: SessionSummary): void;
+  onResumeSessionOptions?(session: SessionSummary): void;
   preferenceHost?: SidebarSessionPreferenceHost;
   preferenceScope: string;
   recent: readonly SessionSummary[];
@@ -73,6 +75,7 @@ export function SidebarSessionList({
   onActivateRuntime,
   onActivateStructuredRuntime,
   onResumeSession,
+  onResumeSessionOptions,
   preferenceHost = window,
   preferenceScope,
   recent,
@@ -80,6 +83,10 @@ export function SidebarSessionList({
   structuredRunning = []
 }: SidebarSessionListProps): ReactNode {
   const { t } = useLocalization();
+  const resumeMenu = useSessionResumeContextMenu({
+    onResume: onResumeSession,
+    onResumeOptions: onResumeSessionOptions
+  });
   const [sections, setSections] = useState<SidebarSessionSections>(() =>
     readSidebarSessionSections(preferenceHost, preferenceScope)
   );
@@ -242,7 +249,19 @@ export function SidebarSessionList({
                   className="sidebar-session-item"
                   data-lumora-command
                   key={session.id}
+                  onContextMenu={(event) => resumeMenu.openFromPointer(
+                    event,
+                    session,
+                    false,
+                    null
+                  )}
                   onClick={() => onResumeSession(session)}
+                  onKeyDown={(event) => resumeMenu.openFromKeyboard(
+                    event,
+                    session,
+                    false,
+                    null
+                  )}
                   tabIndex={-1}
                   type="button"
                 >
@@ -260,6 +279,7 @@ export function SidebarSessionList({
           )}
         </section>
       )}
+      {resumeMenu.menu}
     </div>
   );
 }

@@ -1,14 +1,31 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
 import type {
+  GeneralSettings,
+  LumoraApi,
   WorkspaceSummary,
   WorkspaceTrustDecision
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+
+type WorkspaceTrustApi = Pick<
+  LumoraApi,
+  | 'getWorkspaceTrustDecisions'
+  | 'revokeWorkspaceTrust'
+>;
 
 export function WorkspaceTrustPanel({
+  api = window.lumora,
+  onSettingsChange,
+  saving,
+  settings,
   workspaces
 }: {
+  api?: WorkspaceTrustApi;
+  onSettingsChange(settings: GeneralSettings): void;
+  saving: boolean;
+  settings: GeneralSettings;
   workspaces: readonly WorkspaceSummary[];
 }): ReactNode {
   const { t } = useLocalization();
@@ -16,10 +33,19 @@ export function WorkspaceTrustPanel({
   const [loading, setLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingAutoTrust, setConfirmingAutoTrust] = useState(false);
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
 
   useEffect(() => {
     let active = true;
-    void window.lumora.getWorkspaceTrustDecisions().then(
+    if (typeof api.getWorkspaceTrustDecisions !== 'function') {
+      setDecisions([]);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    void api.getWorkspaceTrustDecisions().then(
       (values) => {
         if (!active) return;
         setDecisions(values);
@@ -34,12 +60,13 @@ export function WorkspaceTrustPanel({
     return () => {
       active = false;
     };
-  }, []);
+  }, [api, t]);
 
   const revoke = (workspaceId: string) => {
+    if (typeof api.revokeWorkspaceTrust !== 'function') return;
     setRevokingId(workspaceId);
     setError(null);
-    void window.lumora.revokeWorkspaceTrust(workspaceId).then(
+    void api.revokeWorkspaceTrust(workspaceId).then(
       (values) => {
         setDecisions(values);
         setRevokingId(null);
@@ -63,6 +90,50 @@ export function WorkspaceTrustPanel({
           <p>{t('settings.security.description')}</p>
         </div>
       </header>
+
+      <section
+        aria-labelledby="workspace-auto-trust-title"
+        className="general-setting-group workspace-auto-trust"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="workspace-auto-trust-title">
+          {t('settings.security.auto-trust-group')}
+        </h3>
+        <div className="general-setting-group-rows">
+          <label className="general-setting-row">
+            <span className="general-setting-copy">
+              <strong>{t('settings.security.auto-trust-label')}</strong>
+              <span id="workspace-auto-trust-description">
+                {t('settings.security.auto-trust-description')}
+              </span>
+            </span>
+            <span className="settings-switch">
+              <input
+                aria-describedby="workspace-auto-trust-description"
+                aria-label={t('settings.security.auto-trust-label')}
+                checked={settings.autoTrustWorkspaces}
+                disabled={saving}
+                onChange={(event) => {
+                  if (!event.currentTarget.checked) {
+                    onSettingsChange({
+                      ...settings,
+                      autoTrustWorkspaces: false
+                    });
+                    return;
+                  }
+                  setRiskAcknowledged(false);
+                  setConfirmingAutoTrust(true);
+                }}
+                role="switch"
+                type="checkbox"
+              />
+              <span aria-hidden="true" className="settings-switch-track">
+                <span className="settings-switch-thumb" />
+              </span>
+            </span>
+          </label>
+        </div>
+      </section>
 
       {loading ? (
         <div className="catalog-state" role="status">
@@ -103,6 +174,33 @@ export function WorkspaceTrustPanel({
         <p className="catalog-operation-error" role="alert">
           {error}
         </p>
+      )}
+
+      {!confirmingAutoTrust ? null : (
+        <ConfirmDialog
+          acknowledgement={{
+            checked: riskAcknowledged,
+            label: t('settings.security.auto-trust-acknowledgement'),
+            onChange: setRiskAcknowledged
+          }}
+          confirmDisabled={!riskAcknowledged || saving}
+          confirmLabel={t('settings.security.auto-trust-confirm')}
+          description={t('settings.security.auto-trust-warning')}
+          heading={t('settings.security.auto-trust-heading')}
+          onCancel={() => {
+            setRiskAcknowledged(false);
+            setConfirmingAutoTrust(false);
+          }}
+          onConfirm={() => {
+            if (!riskAcknowledged || saving) return;
+            onSettingsChange({
+              ...settings,
+              autoTrustWorkspaces: true
+            });
+            setRiskAcknowledged(false);
+            setConfirmingAutoTrust(false);
+          }}
+        />
       )}
     </section>
   );

@@ -319,7 +319,14 @@
     "revoking": "Revoking",
     "revoke-label": "Revoke trust for {workspace}",
     "load-error": "Workspace trust decisions could not be loaded.",
-    "revoke-error": "Workspace trust could not be revoked."
+    "revoke-error": "Workspace trust could not be revoked.",
+    "auto-trust-group": "Launch trust policy",
+    "auto-trust-label": "Automatically trust workspaces when launching",
+    "auto-trust-description": "Skip the per-workspace trust step after Lumora resolves the exact local or remote workspace path.",
+    "auto-trust-heading": "Enable automatic workspace trust?",
+    "auto-trust-warning": "Agents launched by Lumora may read, change, execute, or delete files in a workspace using your permissions. This preference applies to local and remote Lumora, while each trust grant remains isolated to its computer.",
+    "auto-trust-acknowledgement": "I understand that agents can change or delete workspace files",
+    "auto-trust-confirm": "Enable auto-trust"
   },
   "about": {
     "title": "About Lumora",

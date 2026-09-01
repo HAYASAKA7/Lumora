@@ -24,7 +24,7 @@
 </p>
 
 > [!WARNING]
-> Lumora 0.4 is an unsigned preview release. Review the
+> Lumora 0.5 is an unsigned preview release. Review the
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
@@ -48,7 +48,7 @@ session files, authentication, permissions, and usage limits.
 
 | 1. Check your providers | 2. Find your work | 3. Run the native CLI |
 | --- | --- | --- |
-| Detect installed agents, review their versions, or install a supported npm package. | Browse provider-owned sessions by workspace, provider, title, or recent activity. | Start or resume the real provider process in a terminal that stays active while you navigate. |
+| Detect installed agents, review their versions, or install a supported npm package. | Browse provider-owned sessions by workspace, provider, title, or recent activity. | Use a verified local Unified UI when available, with automatic native-terminal fallback. |
 
 ## Get Lumora
 
@@ -115,7 +115,8 @@ healthy providers from working.
 5. Select **New session**, then choose a workspace, provider, and terminal
    profile.
 6. Review the effective launch command and confirm workspace trust.
-7. Start the session. Lumora opens the provider in a managed terminal.
+7. Start the session. Lumora opens a verified local Unified UI when available,
+   or the provider's native TUI in a managed terminal.
 
 Provider authentication and approval prompts remain inside the terminal and
 continue to be controlled by the provider.
@@ -246,6 +247,34 @@ keeping target data, terminals, trust, and provider choices isolated. See
 See [Move sessions between devices](docs/SESSION_TRANSFER.md) for the archive
 contents, password warning, mixed-provider behavior, workspace mapping, and
 current verification matrix.
+
+## Unified agent interface
+
+Lumora 0.5 adds a local chat-style interface for Codex, Claude Code, and Gemini
+CLI. Each route uses the provider's structured integration—Codex app-server,
+Claude Agent SDK, or Gemini ACP—and is enabled only after Lumora completes a
+capability check. Open **Settings > Providers** to review each result or turn
+the Unified UI off for an individual provider.
+
+The Unified UI can show streamed Markdown responses, provider commands and
+models, cancellation, approvals, process and tool activity, changed-file diffs,
+session token usage, and account limits when the provider exposes them. Long
+sessions initially render only a bounded recent window; scroll upward to load
+earlier turns progressively.
+
+Select a saved session normally to resume it directly. Lumora returns to an
+existing runtime when the session is already active, uses the verified Unified
+UI when supported, and otherwise resumes through the native PTY without an
+extra dialog. Right-click a session and choose the advanced resume action when
+you need provider selection, handoff, fork, launch overrides, or other detailed
+options. Workspace trust confirmation still appears unless you explicitly
+enable and confirm **Settings > Security > Automatically trust workspaces**.
+
+Remote Lumora remains PTY-based in 0.5. Structured-interface settings and local
+capability results do not claim remote support. A failed or incompatible local
+structured integration also falls back to the provider's existing native TUI,
+so the Unified UI does not remove the terminal workflow.
+
 ## Managed terminals
 
 When the sidebar is expanded, Lumora separates **Running sessions** from

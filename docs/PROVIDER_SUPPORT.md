@@ -24,6 +24,26 @@ session metadata (`id`, workspace, title, and timestamps). Lumora does not open
 the SQLite file directly or query messages. Older OpenCode versions without the
 database command fall back to the structured `session list` command.
 
+## Local Unified UI
+
+Lumora 0.5 can route local new-session and exact-resume launches through a
+provider-owned structured interface. This capability is separate from full
+session support: catalog discovery still reads provider-owned metadata, and
+providers without a verified structured route continue through the native PTY.
+
+| Provider | Structured integration | Local routing | Remote routing |
+| --- | --- | --- | --- |
+| Codex | App-server protocol | Capability checked; PTY fallback | PTY |
+| Claude Code | Claude Agent SDK | Capability checked; PTY fallback | PTY |
+| Gemini CLI | ACP | Capability checked; PTY fallback | PTY |
+
+Lumora probes the configured executable and version before offering the route.
+Users can disable the Unified UI independently for each provider. An
+unavailable, incompatible, failed, or timed-out probe—and a structured launch
+failure before ownership is established—falls back to the already validated
+PTY launch. Native forks, cross-agent handoffs, unsupported structured actions,
+and all other providers remain PTY-based.
+
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
 columns below record hands-on testing with the real provider executable. Leave a

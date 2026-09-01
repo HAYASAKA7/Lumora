@@ -725,8 +725,27 @@ export function ProviderSettings({
               );
               return (
                 <article className="structured-provider-option" key={preference.providerId}>
-                  <div>
+                  <div className="structured-provider-option-header">
                     <strong>{definition.displayName}</strong>
+                    <label className="settings-switch structured-provider-toggle">
+                      <input
+                        aria-label={t('providers.settings.use-unified', {
+                          provider: definition.displayName
+                        })}
+                        checked={preference.useUnifiedWhenAvailable}
+                        disabled={structuredBusy}
+                        onChange={(event) => saveStructuredPreference(
+                          preference,
+                          { useUnifiedWhenAvailable: event.currentTarget.checked }
+                        )}
+                        type="checkbox"
+                      />
+                      <span aria-hidden="true" className="settings-switch-track">
+                        <span className="settings-switch-thumb" />
+                      </span>
+                    </label>
+                  </div>
+                  <div className="structured-provider-copy">
                     <p>
                       {report?.state === 'verified'
                         ? t('providers.settings.unified-verified', {
@@ -743,28 +762,6 @@ export function ProviderSettings({
                       </div>
                     )}
                   </div>
-                  <label className="settings-switch">
-                    <span>
-                      {t('providers.settings.use-unified', {
-                        provider: definition.displayName
-                      })}
-                    </span>
-                    <input
-                      aria-label={t('providers.settings.use-unified', {
-                        provider: definition.displayName
-                      })}
-                      checked={preference.useUnifiedWhenAvailable}
-                      disabled={structuredBusy}
-                      onChange={(event) => saveStructuredPreference(
-                        preference,
-                        { useUnifiedWhenAvailable: event.currentTarget.checked }
-                      )}
-                      type="checkbox"
-                    />
-                    <span aria-hidden="true" className="settings-switch-track">
-                      <span className="settings-switch-thumb" />
-                    </span>
-                  </label>
                   <details className="structured-provider-advanced">
                     <summary>{t('providers.settings.unified-advanced')}</summary>
                     <label>

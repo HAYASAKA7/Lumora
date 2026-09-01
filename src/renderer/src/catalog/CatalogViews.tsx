@@ -23,6 +23,7 @@ import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
 import { ActionMenu } from '../ui/ActionMenu';
 import { useLocalization } from '../localization/useLocalization';
+import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
@@ -287,6 +288,7 @@ interface SessionsViewProps {
   onDismissDiagnostic(identity: string): void;
   onRefresh(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
+  onResumeOptions?: ((session: SessionSummary) => void) | undefined;
 }
 
 function diagnosticIdentity(
@@ -301,7 +303,8 @@ const SessionRow = memo(function SessionRow({
   workspace,
   providerScan,
   profiles,
-  onResume
+  onResume,
+  onResumeOptions
 }: {
   session: SessionSummary;
   running: boolean;
@@ -309,6 +312,7 @@ const SessionRow = memo(function SessionRow({
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
+  onResumeOptions?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
@@ -322,7 +326,9 @@ const SessionRow = memo(function SessionRow({
   const actionDescription = running
     ? t('catalog.sessions.open-running')
     : t('catalog.sessions.resume');
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
   return (
+    <>
     <Tooltip content={disabledReason} multiline>
       <tr
         aria-description={disabledReason ?? undefined}
@@ -331,6 +337,12 @@ const SessionRow = memo(function SessionRow({
             ? ''
             : ' session-row-unavailable'
         }`}
+        onContextMenu={(event) => resumeMenu.openFromPointer(
+          event,
+          session,
+          running,
+          disabledReason
+        )}
       >
       <td>
         {onResume === undefined ? null : (
@@ -345,6 +357,12 @@ const SessionRow = memo(function SessionRow({
               className="session-row-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
+              onKeyDown={(event) => resumeMenu.openFromKeyboard(
+                event,
+                session,
+                running,
+                disabledReason
+              )}
               data-lumora-command
               tabIndex={-1}
               type="button"
@@ -392,6 +410,8 @@ const SessionRow = memo(function SessionRow({
       </td>
       </tr>
     </Tooltip>
+    {resumeMenu.menu}
+    </>
   );
 });
 
@@ -410,7 +430,8 @@ export function SessionsView({
   onProviderChange,
   onDismissDiagnostic,
   onRefresh,
-  onResume
+  onResume,
+  onResumeOptions
 }: SessionsViewProps): ReactNode {
   const { t } = useLocalization();
   const sessionCount =
@@ -571,6 +592,7 @@ export function SessionsView({
                     <SessionRow
                       key={session.id}
                       onResume={onResume}
+                      onResumeOptions={onResumeOptions}
                       profiles={profiles}
                       providerScan={providerScan}
                       running={runningSessionIds.has(session.id)}
@@ -603,7 +625,8 @@ export function CatalogHomeSummary({
   workspaceById,
   onRecover,
   onOpenProviderUpdates,
-  onResume
+  onResume,
+  onResumeOptions
 }: {
   status: CatalogViewStatus;
   availableProviderUpdates?: readonly ProviderId[];
@@ -616,8 +639,10 @@ export function CatalogHomeSummary({
   onRecover?(runtime: RuntimeSummary): void;
   onOpenProviderUpdates?(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
+  onResumeOptions?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatNumber, t } = useLocalization();
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
   if (status.state === 'loading') {
     return (
       <div className="catalog-state" role="status">
@@ -739,7 +764,15 @@ export function CatalogHomeSummary({
                     profiles
                   });
               return (
-                <li key={session.id}>
+                <li
+                  key={session.id}
+                  onContextMenu={(event) => resumeMenu.openFromPointer(
+                    event,
+                    session,
+                    running,
+                    disabledReason
+                  )}
+                >
                   <span className="recent-session-copy">
                     <OverflowTooltip content={session.title}>
                       <strong>{session.title}</strong>
@@ -786,6 +819,12 @@ export function CatalogHomeSummary({
                         className="text-button recent-session-resume"
                         disabled={disabledReason !== null}
                         onClick={() => onResume(session)}
+                        onKeyDown={(event) => resumeMenu.openFromKeyboard(
+                          event,
+                          session,
+                          running,
+                          disabledReason
+                        )}
                         data-lumora-command
                         tabIndex={-1}
                         type="button"
@@ -799,6 +838,7 @@ export function CatalogHomeSummary({
             })}
           </ul>
         )}
+        {resumeMenu.menu}
       </article>
 
       <article className="dashboard-card catalog-metric-card">

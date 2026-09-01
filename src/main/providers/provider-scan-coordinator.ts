@@ -29,16 +29,31 @@ interface ProviderScanMeasurement {
 interface ProviderScanCoordinatorOptions {
   monotonicClock?: () => number;
   onSettled?: (measurement: ProviderScanMeasurement) => void;
+  cacheTtlMs?: number;
+}
+
+interface CachedScan {
+  result: ProviderScanResult;
+  expiresAt: number;
 }
 
 export class ProviderScanCoordinator {
   private readonly active = new Map<string, ActiveScan>();
   private readonly pendingFresh = new Map<string, PendingFreshScan>();
+  private readonly cache = new Map<string, CachedScan>();
+  private readonly monotonicClock: () => number;
+  private readonly cacheTtlMs: number;
 
   constructor(
     private readonly scanProviders: ScanProviders,
     private readonly options: ProviderScanCoordinatorOptions = {}
-  ) {}
+  ) {
+    this.monotonicClock = options.monotonicClock ?? (() => performance.now());
+    this.cacheTtlMs = Math.max(
+      0,
+      Math.min(5 * 60_000, options.cacheTtlMs ?? 5 * 60_000)
+    );
+  }
 
   scan(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
     const key = this.keyOf(providers);
@@ -52,12 +67,20 @@ export class ProviderScanCoordinator {
       current.cacheHits += 1;
       return current.promise;
     }
+    const cached = this.cache.get(key);
+    if (cached !== undefined) {
+      if (cached.expiresAt >= this.monotonicClock()) {
+        return Promise.resolve(cached.result);
+      }
+      this.cache.delete(key);
+    }
     return this.startScan(key, providers);
   }
 
   scanFresh(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
     const key = this.keyOf(providers);
     const current = this.active.get(key);
+    this.cache.delete(key);
     if (current === undefined) return this.startScan(key, providers);
 
     const existing = this.pendingFresh.get(key);
@@ -85,6 +108,7 @@ export class ProviderScanCoordinator {
       .finally(() => {
         if (this.pendingFresh.get(key) !== pending) return;
         this.pendingFresh.delete(key);
+        this.cache.delete(key);
         void this.startScan(
           key,
           pending.providers,
@@ -107,13 +131,19 @@ export class ProviderScanCoordinator {
     queued = 0
   ): Promise<ProviderScanResult> {
     const selectedProviders = [...providers];
-    const monotonicClock = this.options.monotonicClock ?? (() => performance.now());
-    const startedAt = monotonicClock();
+    const startedAt = this.monotonicClock();
     let entry!: ActiveScan;
     const promise = (async () => {
       let outcome: ProviderScanMeasurement['outcome'] = 'succeeded';
       try {
-        return await this.scanProviders(selectedProviders);
+        const result = await this.scanProviders(selectedProviders);
+        if (this.cacheTtlMs > 0) {
+          this.cache.set(key, {
+            result,
+            expiresAt: this.monotonicClock() + this.cacheTtlMs
+          });
+        }
+        return result;
       } catch (error) {
         outcome = 'failed';
         throw error;
@@ -123,7 +153,10 @@ export class ProviderScanCoordinator {
             outcome,
             durationMs: Math.max(
               0,
-              Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
+              Math.min(
+                86_400_000,
+                Math.round(this.monotonicClock() - startedAt)
+              )
             ),
             cacheHits: entry.cacheHits,
             queued: entry.queued

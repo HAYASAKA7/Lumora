@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import type {
+  AgentRuntimeStartResult,
   DeveloperToolStatus,
   GeneralSettings,
   KeyboardSettings,
@@ -67,6 +68,8 @@ import {
 import { NewSessionDialog } from '../terminal/NewSessionDialog';
 import { ResumeSessionDialog } from '../terminal/ResumeSessionDialog';
 import { TerminalWorkspace } from '../terminal/TerminalWorkspace';
+import { DirectSessionLaunchWorkspace } from '../terminal/DirectSessionLaunchWorkspace';
+import { useDirectSessionLaunch } from '../terminal/useDirectSessionLaunch';
 import { indexLiveSessionRuntimes } from '../terminal/live-session-runtime';
 import {
   formatShortcutChord,
@@ -77,6 +80,7 @@ import { useProviderUpdates } from '../providers/useProviderUpdates';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { GeneralSettingsPanel } from '../settings/GeneralSettingsPanel';
 import { AboutPanel } from '../settings/AboutPanel';
+import { WorkspaceTrustPanel } from '../settings/WorkspaceTrustPanel';
 import { useLocalization } from '../localization/useLocalization';
 
 interface RemoteTargetWindowProps {
@@ -816,6 +820,39 @@ export function RemoteTargetWindow({
     setTerminalFocusRequestKey((current) => current + 1);
   }, [activateRuntime, updateRuntime]);
 
+  const handleDirectSessionStarted = useCallback((
+    result: AgentRuntimeStartResult | RuntimeSummary,
+    preview: LaunchPreview,
+    activate: boolean
+  ) => {
+    if ('mode' in result && result.mode !== 'pty') return;
+    const runtime = 'mode' in result ? result.runtime : result;
+    updateRuntime(runtime);
+    setOpenRuntimeIds((current) =>
+      current.includes(runtime.id) ? current : [...current, runtime.id]
+    );
+    setLaunchPreviews((current) => {
+      const next = new Map(current);
+      next.set(runtime.id, preview);
+      return next;
+    });
+    if (activate) {
+      activateRuntime(runtime.id);
+      setTerminalFocusRequestKey((current) => current + 1);
+    }
+  }, [activateRuntime, updateRuntime]);
+
+  const directSessionLaunch = useDirectSessionLaunch({
+    api,
+    autoTrustWorkspaces: generalSettings.autoTrustWorkspaces,
+    mode: 'pty',
+    onStarted: handleDirectSessionStarted
+  });
+
+  useEffect(() => {
+    directSessionLaunch.hide();
+  }, [directSessionLaunch.hide, page, selectedWorkspaceId]);
+
   const reorderRuntimeTab = useCallback((
     runtimeId: string,
     destinationIndex: number
@@ -1516,7 +1553,21 @@ export function RemoteTargetWindow({
                     }}
                   />
                 )
-                : renderOverview()}
+                : settingsCategory === 'security'
+                  ? (
+                    <WorkspaceTrustPanel
+                      api={api}
+                      onSettingsChange={(next) => void updateGeneralSettings(next)}
+                      saving={generalSettingsSaving}
+                      settings={generalSettings}
+                      workspaces={
+                        sessionCatalog.state === 'ready'
+                          ? sessionCatalog.catalog.snapshot.workspaces
+                          : []
+                      }
+                    />
+                  )
+                  : renderOverview()}
         </section>
       </div>
     );
@@ -1542,13 +1593,23 @@ export function RemoteTargetWindow({
       );
       if (workspace === undefined) return;
       setNewSessionIntent(null);
+      setResumeIntent(null);
       const runningRuntime = liveRuntimeBySessionId.get(session.id);
       if (runningRuntime !== undefined) {
-        setResumeIntent(null);
+        directSessionLaunch.hide();
         activateRuntime(runningRuntime.id);
         setTerminalFocusRequestKey((current) => current + 1);
         return;
       }
+      directSessionLaunch.open(session, workspace);
+    };
+    const resumeSessionOptions = (session: SessionSummary) => {
+      const workspace = catalogSnapshot?.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace === undefined || liveRuntimeBySessionId.has(session.id)) return;
+      directSessionLaunch.hide();
+      setNewSessionIntent(null);
       setResumeIntent({ session, workspace });
     };
     const openRuntimes = openRuntimeIds
@@ -1561,7 +1622,10 @@ export function RemoteTargetWindow({
       runtimes: liveRuntimes,
       sessions: workspaceCatalogPresentation?.snapshot.sessions ?? []
     });
-    const terminalActive = activeRuntimeId !== null && openRuntimes.length > 0;
+    const directSessionLaunchActive = directSessionLaunch.launch !== null;
+    const terminalActive = directSessionLaunchActive || (
+      activeRuntimeId !== null && openRuntimes.length > 0
+    );
     const main = page === 'home' ? (
       <CatalogHomeSummary
         availableProviderUpdates={availableProviderUpdates}
@@ -1570,6 +1634,7 @@ export function RemoteTargetWindow({
           setSettingsCategory('providers');
         }}
         onResume={resumeSession}
+        onResumeOptions={resumeSessionOptions}
         profiles={terminalProfiles}
         providerScan={providerScan}
         providerSummary={
@@ -1609,6 +1674,7 @@ export function RemoteTargetWindow({
           onBack={() => setSelectedWorkspaceId(null)}
           onRefresh={() => void refreshSessions()}
           onResume={resumeSession}
+          onResumeOptions={resumeSessionOptions}
           onRetry={() => void refreshSessions()}
           operationError={null}
           profiles={terminalProfiles}
@@ -1630,6 +1696,7 @@ export function RemoteTargetWindow({
         onProviderChange={setSessionProvider}
         onRefresh={() => void refreshSessions()}
         onResume={resumeSession}
+        onResumeOptions={resumeSessionOptions}
         onSearchChange={setSessionSearch}
         profiles={terminalProfiles}
         provider={sessionProvider}
@@ -1667,7 +1734,23 @@ export function RemoteTargetWindow({
         main={(
           <>
             <div className="route-surface" hidden={terminalActive}>{main}</div>
-            {openRuntimes.length > 0 ? (
+            {directSessionLaunch.launch === null ? null : (
+              <div className="terminal-surface">
+                <DirectSessionLaunchWorkspace
+                  launch={directSessionLaunch.launch}
+                  onClose={directSessionLaunch.hide}
+                  onOpenOptions={() => {
+                    const currentLaunch = directSessionLaunch.launch;
+                    if (currentLaunch === null) return;
+                    const { session } = currentLaunch;
+                    resumeSessionOptions(session);
+                  }}
+                  onRetry={directSessionLaunch.retry}
+                  onTrustAndContinue={directSessionLaunch.trustAndContinue}
+                />
+              </div>
+            )}
+            {openRuntimes.length > 0 && !directSessionLaunchActive ? (
               <div className="terminal-surface" hidden={!terminalActive}>
                 <TerminalWorkspace
                   activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
@@ -1740,6 +1823,7 @@ export function RemoteTargetWindow({
             activeRuntimeId={activeRuntimeId}
             onActivateRuntime={activateRuntime}
             onResumeSession={resumeSession}
+            onResumeSessionOptions={resumeSessionOptions}
             preferenceScope={`remote:${summary.target.id}`}
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
@@ -1855,6 +1939,7 @@ export function RemoteTargetWindow({
             {newSessionIntent !== null && workspaceCatalogPresentation !== null ? (
               <NewSessionDialog
                 api={api}
+                generalSettings={generalSettings}
                 initialWorkspaceId={newSessionIntent.initialWorkspaceId}
                 onClose={() => setNewSessionIntent(null)}
                 onStarted={handleRuntimeStarted}

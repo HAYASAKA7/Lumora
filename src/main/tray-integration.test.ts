@@ -48,4 +48,17 @@ describe('tray main-process integration', () => {
       eventForwarder.indexOf('trayController?.refresh()')
     );
   });
+
+  it('does not rebuild the native tray menu for structured output fragments', () => {
+    const eventForwarder = source.slice(
+      source.indexOf('sendEvent: (event) => {'),
+      source.indexOf('\n    }\n  });', source.indexOf('sendEvent: (event) => {'))
+    );
+
+    expect(eventForwarder).toContain("event.kind === 'runtime.status'");
+    expect(eventForwarder).toContain("event.kind === 'runtime.metadata'");
+    expect(eventForwarder.indexOf("event.kind === 'runtime.status'")).toBeLessThan(
+      eventForwarder.indexOf('trayController?.refresh()')
+    );
+  });
 });

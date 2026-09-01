@@ -1,5 +1,6 @@
 import type {
   StructuredAgentAction,
+  StructuredAgentCommand,
   StructuredAgentLaunchRequest,
   StructuredAgentProviderId
 } from '../../../shared/agent/contracts';
@@ -17,6 +18,7 @@ export interface ResolvedStructuredAgentLaunch {
 
 export interface StructuredAgentAdapterCallbacks {
   emit(event: StructuredAgentEventDraft): void;
+  commandsChanged?(commands: readonly StructuredAgentCommand[]): void;
   exited(error: Error | null): void;
 }
 
@@ -33,6 +35,7 @@ export interface StructuredAgentAdapter {
   open(): Promise<{
     nativeSessionId: string;
     initialEvents?: readonly StructuredAgentEventDraft[];
+    commands?: readonly StructuredAgentCommand[];
   }>;
   activate?(): Promise<void>;
   dispatch(action: StructuredAgentAction): Promise<void>;

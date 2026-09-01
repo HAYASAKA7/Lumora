@@ -205,6 +205,8 @@ export function ResumeSessionDialog({
   );
   const preflight = useLaunchPreflight(request, api);
   const preview = preflight.preview;
+  const trustApproved =
+    generalSettings.autoTrustWorkspaces || trustConfirmed;
 
   useEffect(() => {
     if (preflight.status !== 'ready') setTrustConfirmed(false);
@@ -224,7 +226,7 @@ export function ResumeSessionDialog({
       preview === null ||
       preflight.status !== 'ready' ||
       !preflight.isCurrentLaunchToken(preview.launchToken) ||
-      (!preview.workspaceTrusted && !trustConfirmed)
+      (!preview.workspaceTrusted && !trustApproved)
     ) return;
     const operation = launchOperation.current + 1;
     launchOperation.current = operation;
@@ -460,6 +462,7 @@ export function ResumeSessionDialog({
           preview={preview}
           status={preflight.status}
           trustConfirmed={trustConfirmed}
+          trustImplicit={generalSettings.autoTrustWorkspaces}
           workspace={workspace}
         />
         </section>
@@ -486,7 +489,7 @@ export function ResumeSessionDialog({
               preview === null ||
               preflight.status !== 'ready' ||
               starting ||
-              (!preview.workspaceTrusted && !trustConfirmed)
+              (!preview.workspaceTrusted && !trustApproved)
             }
             onClick={start}
             type="button"

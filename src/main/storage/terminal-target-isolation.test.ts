@@ -146,6 +146,7 @@ describe('TerminalRepository execution-target isolation', () => {
       showInformationalNotices: false,
       showUnavailableWorkspaces: false,
       showUnusableSessions: false,
+      autoTrustWorkspaces: true,
       checkProviderUpdatesAutomatically: false,
       autoExpandSidebar: false,
       crossAgentWorkflowEnabled: true,
@@ -158,6 +159,7 @@ describe('TerminalRepository execution-target isolation', () => {
       showInformationalNotices: false,
       showUnavailableWorkspaces: false,
       showUnusableSessions: false,
+      autoTrustWorkspaces: true,
       checkProviderUpdatesAutomatically: false,
       autoExpandSidebar: false,
       crossAgentWorkflowEnabled: true,
@@ -168,6 +170,7 @@ describe('TerminalRepository execution-target isolation', () => {
       ...remote.getGeneralSettings(),
       startMaximized: false,
       showUnusableSessions: true,
+      autoTrustWorkspaces: false,
       crossAgentHandoffRetentionDays: 60,
       enabledProviders: ['claude']
     }, '2026-08-04T11:00:00.000Z');
@@ -176,6 +179,7 @@ describe('TerminalRepository execution-target isolation', () => {
       showInformationalNotices: false,
       showUnavailableWorkspaces: false,
       showUnusableSessions: true,
+      autoTrustWorkspaces: false,
       startMaximized: false,
       checkProviderUpdatesAutomatically: false,
       autoExpandSidebar: false,

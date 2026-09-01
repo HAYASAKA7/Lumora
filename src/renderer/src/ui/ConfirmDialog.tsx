@@ -3,7 +3,13 @@ import { createPortal } from 'react-dom';
 import { useLocalization } from '../localization/useLocalization';
 
 interface ConfirmDialogProps {
+  acknowledgement?: {
+    checked: boolean;
+    label: string;
+    onChange(checked: boolean): void;
+  };
   cancelLabel?: string;
+  confirmDisabled?: boolean;
   confirmLabel: string;
   description: ReactNode;
   heading: string;
@@ -17,7 +23,9 @@ interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({
+  acknowledgement,
   cancelLabel,
+  confirmDisabled = false,
   confirmLabel,
   description,
   heading,
@@ -58,6 +66,18 @@ export function ConfirmDialog({
         </header>
         <div className="dialog-body">
           <p className="card-description confirm-dialog-description">{description}</p>
+          {acknowledgement === undefined ? null : (
+            <label className="confirm-dialog-suppression">
+              <input
+                checked={acknowledgement.checked}
+                onChange={(event) => acknowledgement.onChange(
+                  event.currentTarget.checked
+                )}
+                type="checkbox"
+              />
+              <span>{acknowledgement.label}</span>
+            </label>
+          )}
           {suppression === undefined ? null : (
             <div className="confirm-dialog-suppression">
               <input
@@ -79,7 +99,12 @@ export function ConfirmDialog({
           >
             {resolvedCancelLabel}
           </button>
-          <button className="refresh-button" onClick={onConfirm} type="button">
+          <button
+            className="refresh-button"
+            disabled={confirmDisabled}
+            onClick={onConfirm}
+            type="button"
+          >
             {confirmLabel}
           </button>
         </footer>

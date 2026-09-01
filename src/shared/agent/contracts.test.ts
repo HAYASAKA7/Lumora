@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   StructuredAgentActionSchema,
+  StructuredAgentCommandSchema,
   StructuredAgentEventSchema,
   StructuredAgentHistoryPageSchema,
   StructuredAgentLaunchRequestSchema,
@@ -55,6 +56,22 @@ describe('structured agent contracts', () => {
         choices: ['allow_once', 'deny']
       }
     }).kind).toBe('approval.requested');
+
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      eventId: 'event-04',
+      kind: 'diff.updated',
+      payload: {
+        diffId: 'turn-01:workspace',
+        files: [{
+          pathLabel: 'src/app.ts',
+          oldPathLabel: null,
+          additions: 1,
+          deletions: 1,
+          patch: '@@ -1 +1 @@\n-old value\n+new value'
+        }]
+      }
+    }).kind).toBe('diff.updated');
   });
 
   it('allows a pending native identity only while a new provider session starts', () => {
@@ -123,6 +140,21 @@ describe('structured agent contracts', () => {
       kind: 'assistant.delta',
       payload: { text: 'x'.repeat(65_537) }
     })).toThrow();
+
+    expect(() => StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'diff.updated',
+      payload: {
+        diffId: 'turn-01:workspace',
+        files: [{
+          pathLabel: 'src/app.ts',
+          oldPathLabel: null,
+          additions: 1,
+          deletions: 0,
+          patch: 'x'.repeat(262_145)
+        }]
+      }
+    })).toThrow();
   });
 
   it('validates renderer actions without exposing provider commands or paths', () => {
@@ -139,6 +171,11 @@ describe('structured agent contracts', () => {
       approvalId: 'approval-01',
       decision: 'allow_once'
     })).toMatchObject({ kind: 'approval.respond' });
+
+    expect(StructuredAgentActionSchema.parse({
+      kind: 'session.details.refresh',
+      connectionId: 'connection-01'
+    })).toMatchObject({ kind: 'session.details.refresh' });
 
     expect(() => StructuredAgentActionSchema.parse({
       kind: 'prompt.submit',
@@ -185,6 +222,54 @@ describe('structured agent contracts', () => {
     });
 
     expect(page.boundary?.kind).toBe('provider_limit');
+  });
+
+  it('validates provider command choices without exposing native authority', () => {
+    expect(StructuredAgentCommandSchema.parse({
+      id: 'model',
+      name: '/model',
+      description: 'Choose a model.',
+      descriptionKey: 'terminal.unified.commands.model',
+      inputHint: '<model>',
+      choices: [{
+        value: 'gpt-5.6-sol',
+        label: 'GPT-5.6 Sol',
+        description: 'Frontier coding model'
+      }],
+      selectedValue: 'gpt-5.6-sol',
+      selectionBehavior: 'execute'
+    })).toMatchObject({
+      id: 'model',
+      selectedValue: 'gpt-5.6-sol',
+      choices: [{ value: 'gpt-5.6-sol' }]
+    });
+    expect(() => StructuredAgentCommandSchema.parse({
+      id: 'unsafe',
+      name: '/unsafe',
+      description: 'Unsafe command.',
+      inputHint: null,
+      choices: [{
+        value: '',
+        label: 'Invalid',
+        description: null
+      }]
+    })).toThrow();
+    expect(() => StructuredAgentCommandSchema.parse({
+      id: 'model',
+      name: '/model',
+      description: 'Choose a model.',
+      inputHint: '<model>',
+      choices: [{ value: 'available', label: 'Available', description: null }],
+      selectedValue: 'missing'
+    })).toThrow();
+  });
+
+  it('signals live command metadata changes without carrying provider authority', () => {
+    expect(StructuredAgentEventSchema.parse({
+      ...envelope,
+      kind: 'runtime.commands',
+      payload: { count: 2 }
+    })).toMatchObject({ kind: 'runtime.commands', payload: { count: 2 } });
   });
 
   it('exposes bounded runtime state without provider paths or raw payloads', () => {

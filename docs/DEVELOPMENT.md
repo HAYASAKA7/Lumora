@@ -250,7 +250,12 @@ Before release, test at least:
 4. terminal switching while navigating application pages;
 5. automatic tab close and catalog refresh after process exit;
 6. workspace trust grant and revocation;
-7. restart behavior and lost-runtime reporting.
+7. direct primary-click resume, advanced right-click resume, and activation of
+   an already-running session without a duplicate runtime;
+8. verified Codex, Claude Code, and Gemini Unified UI launch, multiple turns,
+   Markdown, commands, cancellation, activity, diffs, history paging, clean
+   exit, and automatic PTY fallback; and
+9. restart behavior and lost-runtime reporting.
 
 ## Continuous integration
 

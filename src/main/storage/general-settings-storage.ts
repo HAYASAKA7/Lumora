@@ -20,6 +20,7 @@ type GlobalGeneralSettings = Pick<
   | 'showInformationalNotices'
   | 'showUnavailableWorkspaces'
   | 'showUnusableSessions'
+  | 'autoTrustWorkspaces'
   | 'startMaximized'
   | 'checkProviderUpdatesAutomatically'
   | 'autoExpandSidebar'
@@ -56,6 +57,7 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
     showInformationalNotices: settings.showInformationalNotices,
     showUnavailableWorkspaces: settings.showUnavailableWorkspaces,
     showUnusableSessions: settings.showUnusableSessions,
+    autoTrustWorkspaces: settings.autoTrustWorkspaces,
     startMaximized: settings.startMaximized,
     checkProviderUpdatesAutomatically: settings.checkProviderUpdatesAutomatically,
     autoExpandSidebar: settings.autoExpandSidebar,
@@ -109,7 +111,7 @@ function mergeStoredSettings(
   return {
     ...fallback,
     ...stored,
-    version: 12,
+    version: 13,
     appearance: {
       ...fallback.appearance,
       ...objectValue(stored.appearance)
@@ -131,7 +133,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 12,
+      version: 13,
       ...globalProjection(global),
       ...targetProjection(target)
     });

@@ -13,13 +13,15 @@ import type {
 import type { StructuredAgentAdapterContext } from './structured-agent-adapter';
 import {
   createGeminiStructuredAdapter,
+  resolveGeminiAuthenticationMethod,
   type GeminiStructuredTransportFactory
 } from './gemini-structured-adapter';
 
 class FakeTransport implements LineJsonRpcTransport {
   private promptRelease: (() => void) | null = null;
   private promptGate: Promise<void> | null = null;
-  readonly request = vi.fn(async (method: string) => {
+  sessionConfigOptions: unknown[] = [];
+  readonly request = vi.fn(async (method: string, params?: unknown) => {
     if (method === 'initialize') {
       return {
         protocolVersion: 1,
@@ -27,8 +29,19 @@ class FakeTransport implements LineJsonRpcTransport {
         authMethods: [{ id: 'oauth-personal', name: 'Log in with Google' }]
       };
     }
-    if (method === 'session/new') return { sessionId: 'gemini-native-1' };
-    if (method === 'session/load') return {};
+    if (method === 'session/new') {
+      return { sessionId: 'gemini-native-1', configOptions: this.sessionConfigOptions };
+    }
+    if (method === 'session/load') return { configOptions: this.sessionConfigOptions };
+    if (method === 'session/set_config_option') {
+      const value = (params as { value?: string } | undefined)?.value;
+      this.sessionConfigOptions = this.sessionConfigOptions.map((entry) => (
+        typeof entry === 'object' && entry !== null && 'category' in entry && entry.category === 'model'
+          ? { ...entry, currentValue: value }
+          : entry
+      ));
+      return { configOptions: this.sessionConfigOptions };
+    }
     if (method === 'session/prompt') {
       await this.promptGate;
       return {
@@ -99,11 +112,38 @@ function context(workspace: string, strategy: 'new' | 'resume' = 'new') {
 }
 
 describe('Gemini structured adapter', () => {
+  it('reads the existing Gemini authentication method without exposing credentials', async () => {
+    await expect(resolveGeminiAuthenticationMethod({
+      GEMINI_CLI_HOME: 'C:\\Users\\dev'
+    }, async (path) => {
+      expect(path).toBe('C:\\Users\\dev\\.gemini\\settings.json');
+      return JSON.stringify({
+        security: { auth: { selectedType: 'gemini-api-key' } },
+        apiKey: 'must-not-be-read'
+      });
+    }, 'win32')).resolves.toBe('gemini-api-key');
+  });
+
+  it('uses the cross-platform Gemini settings location and explicit environment fallback', async () => {
+    const missingSettings = vi.fn(async (path: string) => {
+      expect(path).toBe('/home/dev/.gemini/settings.json');
+      throw new Error('missing');
+    });
+
+    await expect(resolveGeminiAuthenticationMethod({
+      GEMINI_CLI_HOME: '/home/dev',
+      GEMINI_API_KEY: 'configured-outside-lumora'
+    }, missingSettings, 'linux')).resolves.toBe('gemini-api-key');
+  });
+
   it('creates and loads exact ACP sessions without mutating existing authentication', async () => {
     const transport = new FakeTransport();
     const createTransport: GeminiStructuredTransportFactory = vi.fn(async () => transport);
     const fresh = context('C:\\workspace');
-    const adapter = createGeminiStructuredAdapter(fresh.value, { createTransport });
+    const adapter = createGeminiStructuredAdapter(fresh.value, {
+      createTransport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
 
     await expect(adapter.open()).resolves.toEqual({
       nativeSessionId: 'gemini-native-1',
@@ -112,12 +152,15 @@ describe('Gemini structured adapter', () => {
     expect(transport.request).toHaveBeenCalledWith('session/new', {
       cwd: 'C:\\workspace', mcpServers: []
     });
-    expect(transport.request).not.toHaveBeenCalledWith('authenticate', expect.anything());
+    expect(transport.request).toHaveBeenCalledWith('authenticate', {
+      methodId: 'oauth-personal'
+    });
 
     const resumedTransport = new FakeTransport();
     const resumed = context('C:\\workspace', 'resume');
     const resumeAdapter = createGeminiStructuredAdapter(resumed.value, {
-      createTransport: async () => resumedTransport
+      createTransport: async () => resumedTransport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
     });
     await expect(resumeAdapter.open()).resolves.toMatchObject({
       nativeSessionId: 'gemini-native-1'
@@ -125,6 +168,10 @@ describe('Gemini structured adapter', () => {
     expect(resumedTransport.request).toHaveBeenCalledWith('session/load', {
       sessionId: 'gemini-native-1', cwd: 'C:\\workspace', mcpServers: []
     });
+    const requestedMethods = resumedTransport.request.mock.calls.map(([method]) => method);
+    expect(requestedMethods.indexOf('authenticate')).toBeLessThan(
+      requestedMethods.indexOf('session/load')
+    );
   });
 
   it('streams ACP updates and completes prompt usage without blocking dispatch', async () => {
@@ -132,7 +179,8 @@ describe('Gemini structured adapter', () => {
     transport.holdPrompt();
     const current = context('C:\\workspace');
     const adapter = createGeminiStructuredAdapter(current.value, {
-      createTransport: async () => transport
+      createTransport: async () => transport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
     });
     await adapter.open();
     await adapter.activate?.();
@@ -153,6 +201,28 @@ describe('Gemini structured adapter', () => {
     await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
       kind: 'assistant.delta', payload: { text: 'Working' }
     })));
+    transport.emit('session/update', {
+      sessionId: 'gemini-native-1',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'edit-1',
+        status: 'completed',
+        content: [{
+          type: 'diff',
+          path: 'src/app.ts',
+          oldText: 'export const ready = false;',
+          newText: 'export const ready = true;'
+        }]
+      }
+    });
+    expect(current.events).toContainEqual(expect.objectContaining({
+      kind: 'diff.updated',
+      payload: expect.objectContaining({
+        files: [expect.objectContaining({
+          pathLabel: 'src/app.ts', additions: 1, deletions: 1
+        })]
+      })
+    }));
     await adapter.dispatch({ kind: 'turn.cancel', connectionId: 'connection-gemini' });
     expect(transport.notify).toHaveBeenCalledWith('session/cancel', {
       sessionId: 'gemini-native-1'
@@ -162,6 +232,98 @@ describe('Gemini structured adapter', () => {
       kind: 'usage.updated',
       payload: { inputTokens: 12, cachedInputTokens: 3, outputTokens: 5, totalTokens: 17 }
     })));
+  });
+
+  it('accepts ACP command-list updates and executes a selected command', async () => {
+    const transport = new FakeTransport();
+    const current = context('C:\\workspace');
+    const commandLists: unknown[] = [];
+    current.value.callbacks.commandsChanged = (commands) => commandLists.push(commands);
+    const adapter = createGeminiStructuredAdapter(current.value, {
+      createTransport: async () => transport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
+    await adapter.open();
+    await adapter.activate?.();
+
+    transport.emit('session/update', {
+      sessionId: 'gemini-native-1',
+      update: {
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [{
+          name: 'memory',
+          description: 'Manage saved memory.',
+          input: { hint: '[show|add]' }
+        }]
+      }
+    });
+    expect(commandLists).toEqual([[{
+      id: 'gemini:memory',
+      name: '/memory',
+      description: 'Manage saved memory.',
+      inputHint: '[show|add]'
+    }]]);
+
+    await adapter.dispatch({
+      kind: 'command.execute',
+      connectionId: 'connection-gemini',
+      commandId: 'gemini:memory',
+      argument: 'show'
+    });
+    await vi.waitFor(() => expect(transport.request).toHaveBeenCalledWith(
+      'session/prompt',
+      expect.objectContaining({ prompt: [{ type: 'text', text: '/memory show' }] })
+    ));
+  });
+
+  it('publishes and changes the Gemini model through ACP session configuration', async () => {
+    const transport = new FakeTransport();
+    transport.sessionConfigOptions = [{
+      id: 'model',
+      name: 'Model',
+      category: 'model',
+      type: 'select',
+      currentValue: 'gemini-2.5-pro',
+      options: [{
+        value: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        description: 'Best for complex work.'
+      }, {
+        value: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        description: 'Fast for everyday work.'
+      }]
+    }];
+    const current = context('C:\\workspace');
+    const commandLists: unknown[] = [];
+    current.value.callbacks.commandsChanged = (commands) => commandLists.push(commands);
+    const adapter = createGeminiStructuredAdapter(current.value, {
+      createTransport: async () => transport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
+
+    const opened = await adapter.open();
+    expect(opened.commands?.find(({ id }) => id === 'model')).toMatchObject({
+      selectedValue: 'gemini-2.5-pro',
+      choices: expect.arrayContaining([
+        expect.objectContaining({ value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' })
+      ])
+    });
+
+    await adapter.dispatch({
+      kind: 'command.execute',
+      connectionId: 'connection-gemini',
+      commandId: 'model',
+      argument: 'gemini-2.5-flash'
+    });
+    expect(transport.request).toHaveBeenCalledWith('session/set_config_option', {
+      sessionId: 'gemini-native-1',
+      configId: 'model',
+      value: 'gemini-2.5-flash'
+    });
+    expect(commandLists.at(-1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'model', selectedValue: 'gemini-2.5-flash' })
+    ]));
   });
 
   it('contains ACP filesystem access to the selected workspace and resolves permissions', async () => {
@@ -175,7 +337,8 @@ describe('Gemini structured adapter', () => {
       createTransport: async (options) => {
         handleRequest = options.handleRequest;
         return transport;
-      }
+      },
+      resolveAuthenticationMethod: async () => 'oauth-personal'
     });
     await adapter.open();
     await adapter.activate?.();

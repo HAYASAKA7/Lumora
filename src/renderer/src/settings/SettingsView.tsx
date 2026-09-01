@@ -314,7 +314,14 @@ export function SettingsView({
         id="settings-panel-security"
         role="tabpanel"
       >
-        {catalogReady ? <WorkspaceTrustPanel workspaces={workspaces} /> : null}
+        {catalogReady ? (
+          <WorkspaceTrustPanel
+            onSettingsChange={onGeneralSettingsChange}
+            saving={generalSettingsSaving}
+            settings={generalSettings}
+            workspaces={workspaces}
+          />
+        ) : null}
       </section>
 
       <section

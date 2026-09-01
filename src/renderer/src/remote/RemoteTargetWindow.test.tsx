@@ -82,7 +82,10 @@ function runtimeApiDefaults() {
     }),
     getKeyboardSettings: vi.fn().mockResolvedValue(DEFAULT_KEYBOARD_SETTINGS),
     onGeneralSettingsChanged: vi.fn(() => () => undefined),
-    onRuntimeEvent: vi.fn(() => () => undefined)
+    onRuntimeEvent: vi.fn(() => () => undefined),
+    prepareLaunch: vi.fn(() => new Promise(() => undefined)),
+    trustWorkspaceForLaunch: vi.fn().mockResolvedValue({}),
+    startRuntime: vi.fn()
   };
 }
 
@@ -96,7 +99,9 @@ function providerApiDefaults() {
     }),
     installProvider: vi.fn(),
     updateProvider: vi.fn(),
-    openProviderInstallGuide: vi.fn().mockResolvedValue(undefined)
+    openProviderInstallGuide: vi.fn().mockResolvedValue(undefined),
+    getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
+    revokeWorkspaceTrust: vi.fn().mockResolvedValue([])
   };
 }
 
@@ -586,7 +591,10 @@ describe('RemoteTargetWindow', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Environment' }));
     expect(await screen.findByText('v24.0.0')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
-    expect(await screen.findByText('/home/builder')).toBeInTheDocument();
+    expect(await screen.findByRole('switch', {
+      name: 'Automatically trust workspaces when launching'
+    })).toBeInTheDocument();
+    expect(screen.getByText('No workspaces are trusted.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Terminal profiles' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remote computers' })).not.toBeInTheDocument();
   });
@@ -1469,7 +1477,7 @@ describe('RemoteTargetWindow', () => {
     fireEvent.click(await screen.findByRole('button', {
       name: `Resume ${session.title}`
     }));
-    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+    expect(await screen.findByLabelText(`Starting ${session.title}`))
       .toBeInTheDocument();
     await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
@@ -1479,6 +1487,17 @@ describe('RemoteTargetWindow', () => {
       cols: 100,
       rows: 30
     }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    const resumeButton = await screen.findByRole('button', {
+      name: `Resume ${session.title}`
+    });
+    fireEvent.contextMenu(resumeButton, { clientX: 80, clientY: 90 });
+    fireEvent.click(await screen.findByRole('menuitem', {
+      name: 'Resume options…'
+    }));
+    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+      .toBeInTheDocument();
   });
 
   it('switches running remote sessions from the sidebar and reconciles them after exit', async () => {
@@ -1625,7 +1644,7 @@ describe('RemoteTargetWindow', () => {
     fireEvent.click(within(recentRegion).getByRole('button', {
       name: new RegExp(session.title)
     }));
-    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+    expect(await screen.findByLabelText(`Starting ${session.title}`))
       .toBeInTheDocument();
   });
 

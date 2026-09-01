@@ -117,6 +117,10 @@ Test each platform package, not only an unpacked development build.
    output or an external page scrollbar.
 7. Resume a provider with complete session support and confirm the exact native
    session opens with configured launch settings.
+8. For Codex, Claude Code, and Gemini, verify a healthy local structured route,
+   multiple turns, commands, cancellation, clean exit, and a deliberately
+   disabled or unavailable route falling back to PTY. Confirm Remote Lumora
+   remains PTY-routed.
 8. Fork a Codex, Claude Code, or OpenCode session with a task and confirm a
    distinct native session opens while the source remains resumable.
 9. Enable cross-agent handoff, transfer one saved session to a different
@@ -170,11 +174,11 @@ change before creating the tag. The tag-triggered workflow runs
 
 ## Create the draft prerelease
 
-Push a tag that exactly matches the package version. For version `0.4.2`:
+Push a tag that exactly matches the package version. For version `0.5.0`:
 
 ```powershell
-git tag v0.4.2
-git push origin v0.4.2
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 The **Lumora unsigned prerelease** workflow then:

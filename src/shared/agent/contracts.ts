@@ -48,6 +48,14 @@ const RuntimeMetadataEventSchema = z.strictObject({
   })
 });
 
+const RuntimeCommandsEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('runtime.commands'),
+  payload: z.strictObject({
+    count: z.number().int().nonnegative().max(256)
+  })
+});
+
 const UserMessageEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.literal('user.message'),
@@ -80,6 +88,7 @@ const ActivityStartedPayloadSchema = z.strictObject({
 
 const ActivityUpdatePayloadSchema = z.strictObject({
   activityId: OpaqueIdSchema,
+  title: DisplayTextSchema.optional(),
   status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   detail: z.string().max(65_536).nullable()
 });
@@ -116,6 +125,23 @@ const FileChangedEventSchema = z.strictObject({
     title: DisplayTextSchema,
     pathLabel: z.string().trim().min(1).max(4_096),
     change: z.enum(['created', 'updated', 'deleted', 'moved'])
+  })
+});
+
+export const StructuredAgentDiffFileSchema = z.strictObject({
+  pathLabel: z.string().trim().min(1).max(4_096),
+  oldPathLabel: z.string().trim().min(1).max(4_096).nullable(),
+  additions: z.number().int().nonnegative().max(1_000_000),
+  deletions: z.number().int().nonnegative().max(1_000_000),
+  patch: z.string().min(1).max(262_144)
+});
+
+const DiffUpdatedEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('diff.updated'),
+  payload: z.strictObject({
+    diffId: OpaqueIdSchema,
+    files: z.array(StructuredAgentDiffFileSchema).min(1).max(64)
   })
 });
 
@@ -168,6 +194,20 @@ const UsageUpdatedEventSchema = z.strictObject({
   })
 });
 
+const AccountUsageUpdatedEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('account.usage.updated'),
+  payload: z.strictObject({
+    plan: z.string().trim().min(1).max(128).nullable(),
+    windows: z.array(z.strictObject({
+      kind: z.enum(['primary', 'secondary']),
+      usedPercent: z.number().nonnegative(),
+      windowDurationMinutes: z.number().nonnegative().nullable(),
+      resetsAt: z.number().nonnegative().nullable()
+    })).max(2)
+  })
+});
+
 const TurnStatusEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.enum(['turn.started', 'turn.completed']),
@@ -190,6 +230,7 @@ const RuntimeErrorEventSchema = z.strictObject({
 export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
   RuntimeStatusEventSchema,
   RuntimeMetadataEventSchema,
+  RuntimeCommandsEventSchema,
   UserMessageEventSchema,
   AssistantDeltaEventSchema,
   AssistantMessageEventSchema,
@@ -199,10 +240,12 @@ export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
   CommandStartedEventSchema,
   CommandUpdatedEventSchema,
   FileChangedEventSchema,
+  DiffUpdatedEventSchema,
   ApprovalRequestedEventSchema,
   ApprovalResolvedEventSchema,
   PlanUpdatedEventSchema,
   UsageUpdatedEventSchema,
+  AccountUsageUpdatedEventSchema,
   TurnStatusEventSchema,
   RuntimeErrorEventSchema
 ]).superRefine((event, context) => {
@@ -237,10 +280,24 @@ const CancelTurnActionSchema = z.strictObject({
   connectionId: OpaqueIdSchema
 });
 
+const ExecuteCommandActionSchema = z.strictObject({
+  kind: z.literal('command.execute'),
+  connectionId: OpaqueIdSchema,
+  commandId: OpaqueIdSchema,
+  argument: z.string().max(131_072).default('')
+});
+
+const RefreshSessionDetailsActionSchema = z.strictObject({
+  kind: z.literal('session.details.refresh'),
+  connectionId: OpaqueIdSchema
+});
+
 export const StructuredAgentActionSchema = z.discriminatedUnion('kind', [
   PromptSubmitActionSchema,
   ApprovalRespondActionSchema,
-  CancelTurnActionSchema
+  CancelTurnActionSchema,
+  ExecuteCommandActionSchema,
+  RefreshSessionDetailsActionSchema
 ]);
 
 const StartPromptSchema = z.string().max(131_072).default('');
@@ -300,9 +357,37 @@ export const StructuredAgentRuntimeSummarySchema = z.strictObject({
   }).nullable()
 });
 
+export const StructuredAgentCommandSchema = z.strictObject({
+  id: OpaqueIdSchema,
+  name: z.string().trim().regex(/^\/[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/),
+  description: z.string().trim().min(1).max(512),
+  descriptionKey: z.string().trim().regex(/^[a-z0-9][a-z0-9.-]{2,255}$/).optional(),
+  inputHint: z.string().trim().min(1).max(256).nullable(),
+  choices: z.array(z.strictObject({
+    value: z.string().trim().min(1).max(512),
+    label: DisplayTextSchema,
+    labelKey: z.string().trim().regex(/^[a-z0-9][a-z0-9.-]{2,255}$/).optional(),
+    description: z.string().trim().min(1).max(512).nullable().default(null)
+  })).max(256).optional(),
+  selectedValue: z.string().trim().min(1).max(512).optional(),
+  selectionBehavior: z.enum(['execute', 'continue']).optional()
+}).superRefine((command, context) => {
+  if (
+    command.selectedValue !== undefined &&
+    !command.choices?.some(({ value }) => value === command.selectedValue)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['selectedValue'],
+      message: 'The selected command value must be one of its choices.'
+    });
+  }
+});
+
 export const StructuredAgentRuntimeSnapshotSchema = z.strictObject({
   runtime: StructuredAgentRuntimeSummarySchema,
   events: z.array(StructuredAgentEventSchema).max(500),
+  commands: z.array(StructuredAgentCommandSchema).max(256).optional(),
   boundary: StructuredAgentHistoryBoundarySchema.nullable()
 });
 
@@ -330,6 +415,8 @@ export type StructuredAgentApprovalDecision = z.infer<
 >;
 export type StructuredAgentEvent = z.infer<typeof StructuredAgentEventSchema>;
 export type StructuredAgentAction = z.infer<typeof StructuredAgentActionSchema>;
+export type StructuredAgentCommand = z.infer<typeof StructuredAgentCommandSchema>;
+export type StructuredAgentDiffFile = z.infer<typeof StructuredAgentDiffFileSchema>;
 export type StructuredAgentLaunchRequest = z.infer<
   typeof StructuredAgentLaunchRequestSchema
 >;

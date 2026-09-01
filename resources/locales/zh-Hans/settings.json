@@ -319,7 +319,14 @@
     "revoking": "正在撤销",
     "revoke-label": "撤销对 {workspace} 的信任",
     "load-error": "无法加载工作区信任决定。",
-    "revoke-error": "无法撤销工作区信任。"
+    "revoke-error": "无法撤销工作区信任。",
+    "auto-trust-group": "启动信任策略",
+    "auto-trust-label": "启动时自动信任工作区",
+    "auto-trust-description": "Lumora 解析出准确的本地或远程工作区路径后，跳过逐个工作区确认信任的步骤。",
+    "auto-trust-heading": "启用工作区自动信任？",
+    "auto-trust-warning": "Lumora 启动的智能体可以使用你的权限读取、修改、执行或删除工作区中的文件。此设置同时适用于本地和远程 Lumora，但每条信任记录仍仅属于对应的计算机。",
+    "auto-trust-acknowledgement": "我了解智能体可以修改或删除工作区文件",
+    "auto-trust-confirm": "启用自动信任"
   },
   "about": {
     "title": "关于 Lumora",

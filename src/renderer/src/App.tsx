@@ -95,6 +95,8 @@ import {
 import type { RuntimeSwitcherState } from './terminal/RuntimeSwitcher';
 import { TerminalProfiles } from './terminal/TerminalProfiles';
 import { TerminalWorkspace } from './terminal/TerminalWorkspace';
+import { DirectSessionLaunchWorkspace } from './terminal/DirectSessionLaunchWorkspace';
+import { useDirectSessionLaunch } from './terminal/useDirectSessionLaunch';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { TooltipProvider } from './ui/Tooltip';
@@ -131,6 +133,8 @@ type SystemStatus =
   | { state: 'loading' }
   | { state: 'ready'; info: SystemInfo }
   | { state: 'error' };
+
+const STRUCTURED_EVENT_RENDER_INTERVAL_MS = 32;
 
 interface ResumeIntent {
   session: SessionSummary;
@@ -382,6 +386,8 @@ function AppContent(): ReactNode {
   const [structuredSnapshots, setStructuredSnapshots] = useState<
     StructuredAgentRuntimeSnapshot[]
   >([]);
+  const pendingStructuredEvents = useRef<StructuredAgentEvent[]>([]);
+  const structuredEventFlushTimer = useRef<number | null>(null);
   const [activeStructuredConnectionId, setActiveStructuredConnectionId] =
     useState<string | null>(null);
   const [launchPreviews, setLaunchPreviews] = useState(
@@ -817,49 +823,69 @@ function AppContent(): ReactNode {
     });
   }, []);
 
-  const appendStructuredEvent = useCallback((event: StructuredAgentEvent) => {
+  const flushStructuredEvents = useCallback(() => {
+    structuredEventFlushTimer.current = null;
+    const events = pendingStructuredEvents.current.splice(0);
+    if (events.length === 0) return;
     setStructuredSnapshots((current) => current.map((snapshot) => {
-      if (snapshot.runtime.connectionId !== event.connectionId) return snapshot;
-      const latest = snapshot.events[snapshot.events.length - 1];
-      if (
-        latest !== undefined &&
-        (event.generation < latest.generation ||
-          (event.generation === latest.generation &&
-            event.sequence <= latest.sequence))
-      ) return snapshot;
-      const runtime = event.kind === 'runtime.status'
-        ? {
-            ...snapshot.runtime,
-            state: event.payload.state,
-            nativeSessionId: event.nativeSessionId,
-            generation: event.generation,
-            updatedAt: event.timestamp,
-            error: event.payload.state === 'failed'
-              ? snapshot.runtime.error
-              : null
-          }
-        : event.kind === 'runtime.metadata'
+      const relevant = events.filter(
+        ({ connectionId }) => connectionId === snapshot.runtime.connectionId
+      );
+      if (relevant.length === 0) return snapshot;
+      let runtime = snapshot.runtime;
+      let latest = snapshot.events[snapshot.events.length - 1];
+      const accepted: StructuredAgentEvent[] = [];
+      for (const event of relevant) {
+        if (
+          latest !== undefined &&
+          (event.generation < latest.generation ||
+            (event.generation === latest.generation &&
+              event.sequence <= latest.sequence))
+        ) continue;
+        runtime = event.kind === 'runtime.status'
           ? {
-              ...snapshot.runtime,
+              ...runtime,
+              state: event.payload.state,
               nativeSessionId: event.nativeSessionId,
-              catalogSessionId: event.payload.catalogSessionId,
-              title: event.payload.title,
               generation: event.generation,
-              updatedAt: event.timestamp
+              updatedAt: event.timestamp,
+              error: event.payload.state === 'failed' ? runtime.error : null
             }
-        : {
-            ...snapshot.runtime,
-            nativeSessionId: event.nativeSessionId,
-            generation: event.generation,
-            updatedAt: event.timestamp
-          };
+          : event.kind === 'runtime.metadata'
+            ? {
+                ...runtime,
+                nativeSessionId: event.nativeSessionId,
+                catalogSessionId: event.payload.catalogSessionId,
+                title: event.payload.title,
+                generation: event.generation,
+                updatedAt: event.timestamp
+              }
+            : {
+                ...runtime,
+                nativeSessionId: event.nativeSessionId,
+                generation: event.generation,
+                updatedAt: event.timestamp
+              };
+        accepted.push(event);
+        latest = event;
+      }
+      if (accepted.length === 0) return snapshot;
       return {
         ...snapshot,
         runtime,
-        events: [...snapshot.events, event].slice(-500)
+        events: [...snapshot.events, ...accepted].slice(-500)
       };
     }));
   }, []);
+
+  const queueStructuredEvent = useCallback((event: StructuredAgentEvent) => {
+    pendingStructuredEvents.current.push(event);
+    if (structuredEventFlushTimer.current !== null) return;
+    structuredEventFlushTimer.current = window.setTimeout(
+      flushStructuredEvents,
+      STRUCTURED_EVENT_RENDER_INTERVAL_MS
+    );
+  }, [flushStructuredEvents]);
 
   const closeStructuredTab = useCallback((connectionId: string) => {
     setRuntimeMru((current) => current.filter((id) => id !== connectionId));
@@ -924,7 +950,7 @@ function AppContent(): ReactNode {
     [liveRuntimeBySessionId, liveStructuredBySessionId]
   );
 
-  const openCatalogSession = useCallback((
+  const openCatalogSessionOptions = useCallback((
     session: SessionSummary,
     workspace: WorkspaceSummary
   ) => {
@@ -1056,7 +1082,16 @@ function AppContent(): ReactNode {
     );
     const unsubscribe = window.lumora.onStructuredAgentEvent((event) => {
       if (!current) return;
-      appendStructuredEvent(event);
+      if (event.kind === 'runtime.commands') {
+        void window.lumora.getStructuredRuntimeSnapshot(event.connectionId).then(
+          (snapshot) => {
+            if (current) updateStructuredSnapshot(snapshot);
+          },
+          () => undefined
+        );
+        return;
+      }
+      queueStructuredEvent(event);
       if (
         event.kind === 'runtime.status' &&
         event.payload.state === 'closed'
@@ -1068,8 +1103,18 @@ function AppContent(): ReactNode {
     return () => {
       current = false;
       unsubscribe();
+      if (structuredEventFlushTimer.current !== null) {
+        window.clearTimeout(structuredEventFlushTimer.current);
+        structuredEventFlushTimer.current = null;
+      }
+      pendingStructuredEvents.current = [];
     };
-  }, [appendStructuredEvent, closeStructuredTab, scheduleAfterExit]);
+  }, [
+    closeStructuredTab,
+    queueStructuredEvent,
+    scheduleAfterExit,
+    updateStructuredSnapshot
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1353,6 +1398,88 @@ function AppContent(): ReactNode {
     updateStructuredSnapshot
   ]);
 
+  const handleDirectSessionStarted = useCallback((
+    result: AgentRuntimeStartResult | RuntimeSummary,
+    preview: LaunchPreview,
+    activate: boolean
+  ) => {
+    if (!('mode' in result) || result.mode === 'pty') {
+      const runtime = 'mode' in result ? result.runtime : result;
+      updateRuntime(runtime);
+      setOpenRuntimeIds((current) =>
+        current.includes(runtime.id) ? current : [...current, runtime.id]
+      );
+      setLaunchPreviews((current) => {
+        const next = new Map(current);
+        next.set(runtime.id, preview);
+        return next;
+      });
+      if (activate) activateRuntime(runtime.id);
+      return;
+    }
+    void window.lumora.getStructuredRuntimeSnapshot(
+      result.runtime.connectionId
+    ).then(
+      (snapshot) => updateStructuredSnapshot(snapshot),
+      () => updateStructuredSnapshot({
+        runtime: result.runtime,
+        events: [],
+        boundary: null
+      })
+    );
+    if (activate) activateStructuredRuntime(result.runtime.connectionId);
+  }, [
+    activateRuntime,
+    activateStructuredRuntime,
+    updateRuntime,
+    updateStructuredSnapshot
+  ]);
+
+  const directSessionLaunch = useDirectSessionLaunch({
+    api: window.lumora,
+    autoTrustWorkspaces: generalSettings?.autoTrustWorkspaces ?? false,
+    mode: 'agent',
+    onStarted: handleDirectSessionStarted
+  });
+
+  const openCatalogSession = useCallback((
+    session: SessionSummary,
+    workspace: WorkspaceSummary
+  ) => {
+    setNewSessionIntent(null);
+    setRecoveryRuntime(null);
+    setResumeIntent(null);
+    const runningRuntime = liveRuntimeBySessionId.get(session.id);
+    if (runningRuntime !== undefined) {
+      directSessionLaunch.hide();
+      activateRuntime(runningRuntime.id);
+      setTerminalFocusRequestKey((current) => current + 1);
+      return;
+    }
+    const structuredRuntime = liveStructuredBySessionId.get(session.id);
+    if (structuredRuntime !== undefined) {
+      directSessionLaunch.hide();
+      activateStructuredRuntime(structuredRuntime.runtime.connectionId);
+      return;
+    }
+    directSessionLaunch.open(session, workspace);
+  }, [
+    activateRuntime,
+    activateStructuredRuntime,
+    directSessionLaunch.hide,
+    directSessionLaunch.open,
+    liveRuntimeBySessionId,
+    liveStructuredBySessionId
+  ]);
+
+  const openCatalogSessionOptionsOnly = useCallback((
+    session: SessionSummary,
+    workspace: WorkspaceSummary
+  ) => {
+    directSessionLaunch.hide();
+    openCatalogSessionOptions(session, workspace);
+  }, [directSessionLaunch.hide, openCatalogSessionOptions]);
+
   const resumeCatalogSession = useCallback(
     (session: SessionSummary) => {
       if (catalogStatus.state !== 'ready') {
@@ -1369,6 +1496,19 @@ function AppContent(): ReactNode {
     [catalogStatus, openCatalogSession]
   );
 
+  const resumeCatalogSessionOptions = useCallback(
+    (session: SessionSummary) => {
+      if (catalogStatus.state !== 'ready') return;
+      const workspace = catalogStatus.snapshot.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace !== undefined) {
+        openCatalogSessionOptionsOnly(session, workspace);
+      }
+    },
+    [catalogStatus, openCatalogSessionOptionsOnly]
+  );
+
   const resumeWorkspaceSession = useCallback(
     (session: SessionSummary) => {
       if (workspaceDetailStatus.state !== 'ready') {
@@ -1383,6 +1523,19 @@ function AppContent(): ReactNode {
       openCatalogSession(session, workspace);
     },
     [openCatalogSession, workspaceDetailStatus]
+  );
+
+  const resumeWorkspaceSessionOptions = useCallback(
+    (session: SessionSummary) => {
+      if (workspaceDetailStatus.state !== 'ready') return;
+      const workspace = workspaceDetailStatus.snapshot.workspaces.find(
+        (candidate) => candidate.id === session.workspaceId
+      );
+      if (workspace !== undefined) {
+        openCatalogSessionOptionsOnly(session, workspace);
+      }
+    },
+    [openCatalogSessionOptionsOnly, workspaceDetailStatus]
   );
 
   useEffect(() => {
@@ -1448,9 +1601,12 @@ function AppContent(): ReactNode {
     structuredSnapshots.some(({ runtime }) =>
       runtime.connectionId === activeStructuredConnectionId
     );
+  const directSessionLaunchActive = directSessionLaunch.launch !== null;
   const terminalActive =
+    directSessionLaunchActive ||
     (activeRuntimeId !== null && openRuntimes.length > 0) ||
     structuredTerminalActive;
+
   const liveRuntimesRef = useRef(liveRuntimes);
   liveRuntimesRef.current = liveRuntimes;
   const liveStructuredSnapshotsRef = useRef(liveStructuredSnapshots);
@@ -1490,6 +1646,10 @@ function AppContent(): ReactNode {
     activateRuntime(runtimeId);
   }, [activateRuntime, activateStructuredRuntime]);
   const openLiveTerminals = useCallback(() => {
+    if (directSessionLaunch.hasLaunch) {
+      directSessionLaunch.show();
+      return;
+    }
     const liveIds = liveRuntimesRef.current.map((runtime) => runtime.id);
     const structuredIds = liveStructuredSnapshotsRef.current.map(
       ({ runtime }) => runtime.connectionId
@@ -1510,7 +1670,12 @@ function AppContent(): ReactNode {
     }
     activateTerminalRuntime(nextActive);
     setTerminalFocusRequestKey((current) => current + 1);
-  }, [activateTerminalRuntime, runtimeMru]);
+  }, [
+    activateTerminalRuntime,
+    directSessionLaunch.hasLaunch,
+    directSessionLaunch.show,
+    runtimeMru
+  ]);
   const closeStructuredRuntime = useCallback(async (connectionId: string) => {
     try {
       await window.lumora.closeStructuredRuntime(connectionId);
@@ -1531,6 +1696,7 @@ function AppContent(): ReactNode {
   }, [activateStructuredRuntime, updateStructuredSnapshot]);
   const navigateToRoute = useCallback(
     (routeId: RouteId) => {
+      directSessionLaunch.hide();
       closeWorkspaceDetail();
       if (routeId === 'settings') {
         setSettingsCategory('general');
@@ -1544,7 +1710,7 @@ function AppContent(): ReactNode {
         setSidebarExpanded(true);
       }
     },
-    [closeWorkspaceDetail, generalSettings]
+    [closeWorkspaceDetail, directSessionLaunch.hide, generalSettings]
   );
 
   useEffect(() => {
@@ -1619,7 +1785,8 @@ function AppContent(): ReactNode {
 
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
-        (liveRuntimesRef.current.length > 0 ||
+        (directSessionLaunch.hasLaunch ||
+          liveRuntimesRef.current.length > 0 ||
           liveStructuredSnapshotsRef.current.length > 0)
       ) {
         event.preventDefault();
@@ -1670,6 +1837,7 @@ function AppContent(): ReactNode {
     activeTerminalRuntimeId,
     activateTerminalRuntime,
     allOpenRuntimeIds,
+    directSessionLaunch.hasLaunch,
     keyboardSettings,
     liveRuntimes.length,
     liveStructuredSnapshots.length,
@@ -1989,6 +2157,7 @@ function AppContent(): ReactNode {
             onActivateRuntime={activateRuntime}
             onActivateStructuredRuntime={activateStructuredRuntime}
             onResumeSession={resumeCatalogSession}
+            onResumeSessionOptions={resumeCatalogSessionOptions}
             preferenceScope="local"
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
@@ -2006,7 +2175,9 @@ function AppContent(): ReactNode {
             <>
             {activeRuntimeId === null &&
             activeStructuredConnectionId === null &&
-            (liveRuntimes.length > 0 || liveStructuredSnapshots.length > 0) ? (
+            (directSessionLaunch.hasLaunch ||
+              liveRuntimes.length > 0 ||
+              liveStructuredSnapshots.length > 0) ? (
               <button className="secondary-button" data-lumora-command onClick={openLiveTerminals} tabIndex={-1} type="button">
                 {t('shell.runtime.open-terminals')}
               </button>
@@ -2072,6 +2243,7 @@ function AppContent(): ReactNode {
                   setSettingsCategory('providers');
                 }}
                 onResume={resumeCatalogSession}
+                onResumeOptions={resumeCatalogSessionOptions}
                 profiles={terminalProfiles}
                 providerScan={
                   providerStatus.state === 'ready' ? providerStatus.scan : null
@@ -2106,6 +2278,7 @@ function AppContent(): ReactNode {
                   onBack={closeWorkspaceDetail}
                   onRefresh={refreshWorkspaceDetail}
                   onResume={resumeWorkspaceSession}
+                  onResumeOptions={resumeWorkspaceSessionOptions}
 
                   onRetry={() => openWorkspaceDetail(selectedWorkspaceId)}
                   operationError={workspaceDetailOperationError}
@@ -2126,6 +2299,7 @@ function AppContent(): ReactNode {
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
                 onResume={resumeCatalogSession}
+                onResumeOptions={resumeCatalogSessionOptions}
 
                 onSearchChange={setSessionSearch}
                 provider={sessionProvider}
@@ -2202,7 +2376,23 @@ function AppContent(): ReactNode {
             </RegionErrorBoundary>
           </div>
 
-          {openRuntimes.length > 0 ? (
+          {directSessionLaunch.launch === null ? null : (
+            <div className="terminal-surface">
+              <DirectSessionLaunchWorkspace
+                launch={directSessionLaunch.launch}
+                onClose={directSessionLaunch.hide}
+                onOpenOptions={() => {
+                  const currentLaunch = directSessionLaunch.launch;
+                  if (currentLaunch === null) return;
+                  const { session, workspace } = currentLaunch;
+                  openCatalogSessionOptionsOnly(session, workspace);
+                }}
+                onRetry={directSessionLaunch.retry}
+                onTrustAndContinue={directSessionLaunch.trustAndContinue}
+              />
+            </div>
+          )}
+          {openRuntimes.length > 0 && !directSessionLaunchActive ? (
             <div className="terminal-surface" hidden={!terminalActive}>
               <RegionErrorBoundary
                 description={t('errors.terminal.controls-description')}
@@ -2241,7 +2431,7 @@ function AppContent(): ReactNode {
               </RegionErrorBoundary>
             </div>
           ) : null}
-          {structuredSnapshots.length > 0 ? (
+          {structuredSnapshots.length > 0 && !directSessionLaunchActive ? (
             <div className="terminal-surface" hidden={!structuredTerminalActive}>
               <RegionErrorBoundary
                 description={t('errors.terminal.controls-description')}
@@ -2342,6 +2532,7 @@ function AppContent(): ReactNode {
 
       {newSessionIntent !== null && visibleCatalogStatus.state === 'ready' ? (
         <NewSessionDialog
+          generalSettings={generalSettings ?? DEFAULT_GENERAL_SETTINGS}
           initialWorkspaceId={newSessionIntent.initialWorkspaceId}
           onClose={() => setNewSessionIntent(null)}
           onAgentStarted={handleAgentRuntimeStarted}

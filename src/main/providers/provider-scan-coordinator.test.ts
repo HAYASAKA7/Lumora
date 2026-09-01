@@ -88,15 +88,44 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
-  it('starts a fresh scan after the previous scan settles', async () => {
+  it('reuses a successful scan until its cache TTL expires', async () => {
+    let elapsed = 100;
     const scan = vi.fn(async (providers: readonly ProviderId[]) =>
       result(providers)
     );
-    const coordinator = new ProviderScanCoordinator(scan);
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 500,
+      monotonicClock: () => elapsed
+    });
 
-    await coordinator.scan(['codex']);
-    await coordinator.scan(['codex']);
+    const first = await coordinator.scan(['codex']);
+    elapsed = 599;
+    const cached = await coordinator.scan(['codex']);
 
+    expect(cached).toBe(first);
+    expect(scan).toHaveBeenCalledOnce();
+
+    elapsed = 601;
+    await coordinator.scan(['codex']);
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('bypasses and replaces a completed cached scan when freshness is requested', async () => {
+    let generation = 0;
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => ({
+      ...result(providers),
+      scannedAt: `2026-07-23T07:30:0${generation++}.000Z`
+    }));
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 30_000
+    });
+
+    const cached = await coordinator.scan(['codex']);
+    expect(await coordinator.scan(['codex'])).toBe(cached);
+
+    const refreshed = await coordinator.scanFresh(['codex']);
+    expect(refreshed).not.toBe(cached);
+    expect(await coordinator.scan(['codex'])).toBe(refreshed);
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
@@ -126,7 +155,7 @@ describe('ProviderScanCoordinator', () => {
     ).resolves.toHaveLength(3);
 
     await coordinator.scan(['codex']);
-    expect(scan).toHaveBeenCalledTimes(3);
+    expect(scan).toHaveBeenCalledTimes(2);
   });
 
   it('starts a fresh scan after an active scan rejects', async () => {

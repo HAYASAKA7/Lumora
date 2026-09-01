@@ -1509,7 +1509,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', {
       name: new RegExp(otherSession.title)
     }));
-    expect(await screen.findByRole('dialog', { name: 'Resume session' }))
+    expect(await screen.findByRole('region', {
+      name: `Starting ${otherSession.title}`
+    }))
       .toBeInTheDocument();
   });
 
@@ -2573,7 +2575,7 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('opens the shared resume dialog from Home recent sessions', async () => {
+  it('starts a Home recent session directly and keeps resume options on right click', async () => {
     const profile: TerminalProfile = {
       id: 'c'.repeat(64),
       kind: 'detected',
@@ -2590,12 +2592,327 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    fireEvent.click(resumeButton);
+
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    fireEvent.contextMenu(resumeButton, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', {
+      name: 'Resume options…'
+    }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Codex')).toBeInTheDocument();
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+  });
+
+  it('leaves a direct launch immediately and can reopen its loading surface', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise<LaunchPreview>(() => undefined));
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    expect(screen.getByRole('heading', { name: 'Workspaces' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(screen.getByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+    expect(prepareLaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a pending direct launch available through Open terminals', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise<LaunchPreview>(() => undefined));
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open terminals' }));
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+    expect(prepareLaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reopens a pending direct launch by terminal shortcut', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise<LaunchPreview>(() => undefined));
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.keyDown(window, {
+      code: 'KeyT',
+      key: 'T',
+      ctrlKey: true,
+      shiftKey: true
+    });
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+    expect(prepareLaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run a full catalog scan while directly resuming an existing structured session', async () => {
+    const session = readyCatalog.sessions[0]!;
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const preview = {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789ac1',
+      launchHash: 'e'.repeat(64),
+      strategy: 'resume' as const,
+      sessionId: session.id,
+      provider: 'codex' as const,
+      executablePath: 'C:\\tools\\codex.exe',
+      args: ['resume', session.nativeId],
+      command: null,
+      workingDirectory: readyCatalog.workspaces[0]!.canonicalPath,
+      workspaceTrusted: true,
+      environmentNames: ['PATH'],
+      terminalProfile: profile,
+      configuration: [],
+      warnings: [],
+      createdAt: '2026-08-28T00:00:00.000Z',
+      expiresAt: '2026-08-28T00:05:00.000Z'
+    } satisfies LaunchPreview;
+    const runtime: StructuredAgentRuntimeSummary = {
+      connectionId: 'direct-structured-session',
+      providerId: 'codex',
+      nativeSessionId: session.nativeId,
+      catalogSessionId: session.id,
+      workspaceId: session.workspaceId,
+      title: session.title,
+      state: 'ready',
+      generation: 1,
+      createdAt: preview.createdAt,
+      updatedAt: preview.createdAt,
+      error: null
+    };
+    const refreshCatalog = vi.fn().mockResolvedValue(readyCatalog);
+    const prepareLaunch = vi.fn().mockResolvedValue(preview);
+    const startAgentRuntime = vi.fn().mockResolvedValue({
+      mode: 'structured',
+      routeReason: 'verified',
+      runtime
+    });
+    const getStructuredRuntimeSnapshot = vi.fn().mockResolvedValue({
+      runtime,
+      boundary: null,
+      commands: [],
+      events: []
+    });
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch,
+      startAgentRuntime,
+      getStructuredRuntimeSnapshot,
+      refreshCatalog
+    });
+    renderWithLocalization(<App />);
+
+    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    refreshCatalog.mockClear();
+    fireEvent.click(resumeButton);
+
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalled());
+    await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledWith(
+      preview.launchToken
+    ));
+    await waitFor(() => expect(getStructuredRuntimeSnapshot).toHaveBeenCalledWith(
+      runtime.connectionId
+    ));
+    expect(refreshCatalog).not.toHaveBeenCalled();
+  });
+
+  it('coalesces structured provider events before rendering conversation updates', async () => {
+    const runtime: StructuredAgentRuntimeSummary = {
+      connectionId: 'batched-structured-session',
+      providerId: 'codex',
+      nativeSessionId: 'native-batched',
+      catalogSessionId: readyCatalog.sessions[0]!.id,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Batched conversation',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-28T00:00:00.000Z',
+      updatedAt: '2026-08-28T00:00:00.000Z',
+      error: null
+    };
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([runtime]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue({
+        runtime,
+        boundary: null,
+        commands: [],
+        events: []
+      }),
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    await screen.findByRole('heading', { name: runtime.title });
+
+    act(() => {
+      for (let sequence = 1; sequence <= 40; sequence += 1) {
+        eventListener?.({
+          kind: 'user.message',
+          connectionId: runtime.connectionId,
+          providerId: runtime.providerId,
+          nativeSessionId: runtime.nativeSessionId,
+          generation: 1,
+          sequence,
+          eventId: `batched-${sequence}`,
+          parentEventId: null,
+          timestamp: `2026-08-28T00:00:${String(sequence).padStart(2, '0')}.000Z`,
+          turnId: `turn-${sequence}`,
+          payload: { text: `Batched prompt ${sequence}` }
+        });
+      }
+    });
+
+    expect(screen.queryByText('Batched prompt 40')).not.toBeInTheDocument();
+    expect(await screen.findByText('Batched prompt 40')).toBeInTheDocument();
+  });
+
+  it('refreshes late provider command metadata for an open structured session', async () => {
+    const runtime: StructuredAgentRuntimeSummary = {
+      connectionId: 'commands-structured-session',
+      providerId: 'claude',
+      nativeSessionId: 'native-commands',
+      catalogSessionId: readyCatalog.sessions[0]!.id,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Dynamic commands',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-28T00:00:00.000Z',
+      updatedAt: '2026-08-28T00:00:00.000Z',
+      error: null
+    };
+    const initialSnapshot: StructuredAgentRuntimeSnapshot = {
+      runtime,
+      boundary: null,
+      commands: [],
+      events: []
+    };
+    const updatedSnapshot: StructuredAgentRuntimeSnapshot = {
+      ...initialSnapshot,
+      commands: [{
+        id: 'model',
+        name: '/model',
+        description: 'Choose the model for future turns.',
+        inputHint: '<model>',
+        choices: [{ value: 'sonnet', label: 'Claude Sonnet', description: null }],
+        selectedValue: 'sonnet',
+        selectionBehavior: 'execute'
+      }]
+    };
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    const getStructuredRuntimeSnapshot = vi.fn()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValue(updatedSnapshot);
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([runtime]),
+      getStructuredRuntimeSnapshot,
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    await screen.findByRole('heading', { name: runtime.title });
+    expect(screen.queryByRole('button', { name: 'Model' })).not.toBeInTheDocument();
+
+    act(() => eventListener?.({
+      kind: 'runtime.commands',
+      connectionId: runtime.connectionId,
+      providerId: runtime.providerId,
+      nativeSessionId: runtime.nativeSessionId,
+      generation: 1,
+      sequence: 1,
+      eventId: 'commands-event',
+      parentEventId: null,
+      timestamp: '2026-08-28T00:00:01.000Z',
+      turnId: 'runtime-commands',
+      payload: { count: 1 }
+    }));
+
+    expect(await screen.findByRole('button', { name: 'Model' })).toHaveTextContent('Claude Sonnet');
+    expect(getStructuredRuntimeSnapshot).toHaveBeenLastCalledWith(runtime.connectionId);
   });
 
   it('opens the existing terminal when Home selects a running session', async () => {
@@ -2628,7 +2945,7 @@ describe('App', () => {
     })).toHaveFocus();
   });
 
-  it('opens the normal resume confirmation when the tray requests a recent session', async () => {
+  it('starts a recent session directly when requested from the tray', async () => {
     let requestResume!: (sessionId: string) => void;
     const profile: TerminalProfile = {
       id: 'c'.repeat(64),
@@ -2653,9 +2970,11 @@ describe('App', () => {
 
     act(() => requestResume(readyCatalog.sessions[0]!.id));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
-    expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
-    expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
+    expect(await screen.findByRole('region', {
+      name: 'Starting Catalog implementation'
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Resume session' }))
+      .not.toBeInTheDocument();
   });
 
   it('opens the existing terminal when the tray selects a running session', async () => {
@@ -2777,11 +3096,13 @@ describe('App', () => {
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Resume Catalog implementation'
-      })
-    );
+    const resumeButton = await screen.findByRole('button', {
+      name: 'Resume Catalog implementation'
+    });
+    fireEvent.contextMenu(resumeButton, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', {
+      name: 'Resume options…'
+    }));
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(within(dialog).getByText('Catalog implementation')).toBeInTheDocument();
     expect(within(dialog).getByText('Codex')).toBeInTheDocument();
@@ -3569,11 +3890,13 @@ describe('App', () => {
       expect(refreshCatalog).toHaveBeenCalledWith({ text: '', provider: null })
     );
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Resume Catalog implementation'
-      })
-    );
+    const resumeButton = screen.getByRole('button', {
+      name: 'Resume Catalog implementation'
+    });
+    fireEvent.contextMenu(resumeButton, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', {
+      name: 'Resume options…'
+    }));
     const dialog = await screen.findByRole('dialog', { name: 'Resume session' });
     expect(dialog).toBeInTheDocument();
     expect(

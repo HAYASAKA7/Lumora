@@ -1,6 +1,6 @@
 {
   "name": "lumora",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": true,
   "author": "HAYASAKA7",
   "description": "Local workspace and terminal manager for native AI-agent CLIs",
@@ -22,6 +22,7 @@
     "benchmark:startup": "vitest bench src/main/providers/provider-scan-coordinator.bench.ts --run --project node",
     "benchmark:transfer": "vitest bench src/main/transfer/session-transfer-service.bench.ts --run --project node",
     "benchmark:terminal": "vitest bench src/main/terminal/output-buffer.bench.ts --run --project node",
+    "benchmark:agent-ui": "vitest bench src/renderer/src/agent/StructuredAgentWorkspace.bench.tsx --run --project renderer",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "locales:validate": "node scripts/localization/validate-locales.cjs resources/locales",
@@ -38,6 +39,8 @@
     "node-pty": "1.1.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "ssh2": "1.17.0",
     "zod": "4.4.3"
   },

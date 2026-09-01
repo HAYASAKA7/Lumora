@@ -368,6 +368,8 @@ export function AppearanceSettingsPanel({
                 defaultUserMessageColor(settings.appearance.theme)}
             />
           </label>
+        </div>
+        <div className="provider-panel-actions appearance-conversation-actions">
           <button
             className="secondary-button"
             data-lumora-command

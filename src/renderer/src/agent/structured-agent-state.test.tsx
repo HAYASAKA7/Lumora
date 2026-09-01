@@ -45,18 +45,26 @@ describe('structured agent view state', () => {
         activityId: 'file-1', title: 'Updated source', pathLabel: 'src/app.ts',
         change: 'updated'
       }),
-      event(9, 'approval.requested', {
+      event(9, 'diff.updated', {
+        diffId: 'turn-1:workspace',
+        files: [{
+          pathLabel: 'src/app.ts', oldPathLabel: null,
+          additions: 1, deletions: 1,
+          patch: '@@ -1 +1 @@\n-old\n+new'
+        }]
+      }),
+      event(10, 'approval.requested', {
         approvalId: 'approval-1', title: 'Run command', detail: 'npm test',
         choices: ['allow_once', 'deny']
       }),
-      event(10, 'plan.updated', {
+      event(11, 'plan.updated', {
         items: [{ id: 'plan-1', text: 'Fix tests', status: 'completed' }]
       }),
-      event(11, 'usage.updated', {
+      event(12, 'usage.updated', {
         inputTokens: 10, cachedInputTokens: 2, outputTokens: 4, totalTokens: 14
       }),
-      event(12, 'assistant.message', { text: 'Done.' }),
-      event(13, 'turn.completed', { state: 'completed', message: null })
+      event(13, 'assistant.message', { text: 'Done.' }),
+      event(14, 'turn.completed', { state: 'completed', message: null })
     ];
 
     const state = events.reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
@@ -72,10 +80,36 @@ describe('structured agent view state', () => {
         { id: 'command-1', kind: 'command', status: 'completed' },
         { id: 'file-1', kind: 'file', status: 'completed' }
       ],
+      diffs: [{
+        id: 'turn-1:workspace',
+        files: [{ pathLabel: 'src/app.ts', additions: 1, deletions: 1 }]
+      }],
       approvals: [{ id: 'approval-1', decision: null }],
       plan: [{ id: 'plan-1', status: 'completed' }]
     });
     expect(state.usage?.totalTokens).toBe(14);
+  });
+
+  it('replaces a repeated diff snapshot instead of duplicating it', () => {
+    const state = [
+      event(1, 'diff.updated', {
+        diffId: 'turn-1:workspace',
+        files: [{
+          pathLabel: 'src/app.ts', oldPathLabel: null,
+          additions: 1, deletions: 0, patch: '+first'
+        }]
+      }),
+      event(2, 'diff.updated', {
+        diffId: 'turn-1:workspace',
+        files: [{
+          pathLabel: 'src/app.ts', oldPathLabel: null,
+          additions: 2, deletions: 0, patch: '+first\n+second'
+        }]
+      })
+    ].reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+
+    expect(state.turns[0]?.diffs).toHaveLength(1);
+    expect(state.turns[0]?.diffs[0]?.files[0]?.additions).toBe(2);
   });
 
   it('resolves approvals, reports recoverable errors, and ignores stale events', () => {
@@ -102,5 +136,60 @@ describe('structured agent view state', () => {
     expect(initial.error).toEqual({
       code: 'CONNECTION_LOST', message: 'Connection lost.', retryable: true
     });
+  });
+
+  it('retains structured provider account limits for session details', () => {
+    const state = reduceStructuredAgentEvent(
+      createStructuredAgentViewState(),
+      event(1, 'account.usage.updated', {
+        plan: 'pro',
+        windows: [{
+          kind: 'primary',
+          usedPercent: 25,
+          windowDurationMinutes: 300,
+          resetsAt: 1_788_000_000
+        }]
+      })
+    );
+
+    expect(state.accountUsage).toEqual({
+      plan: 'pro',
+      windows: [{
+        kind: 'primary',
+        usedPercent: 25,
+        windowDurationMinutes: 300,
+        resetsAt: 1_788_000_000
+      }]
+    });
+  });
+
+  it('keeps completion-only provider operations visible when their start event was missed', () => {
+    const state = [
+      event(1, 'turn.started', { state: 'running', message: null }),
+      event(2, 'command.updated', {
+        activityId: 'command-late',
+        title: 'npm run verify',
+        status: 'completed',
+        detail: 'All checks passed'
+      }),
+      event(3, 'tool.updated', {
+        activityId: 'tool-late',
+        title: 'browser · open',
+        status: 'completed',
+        detail: null
+      }),
+      event(4, 'turn.completed', { state: 'completed', message: null })
+    ].reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+
+    expect(state.turns[0]?.activities).toEqual([
+      {
+        id: 'command-late', kind: 'command', title: 'npm run verify',
+        detail: 'All checks passed', pathLabel: null, status: 'completed'
+      },
+      {
+        id: 'tool-late', kind: 'tool', title: 'browser · open',
+        detail: null, pathLabel: null, status: 'completed'
+      }
+    ]);
   });
 });

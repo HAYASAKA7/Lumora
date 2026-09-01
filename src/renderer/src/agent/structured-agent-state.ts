@@ -22,6 +22,17 @@ export interface StructuredAgentApprovalView {
   decision: StructuredAgentApprovalDecision | null;
 }
 
+export interface StructuredAgentDiffView {
+  id: string;
+  files: readonly {
+    pathLabel: string;
+    oldPathLabel: string | null;
+    additions: number;
+    deletions: number;
+    patch: string;
+  }[];
+}
+
 export interface StructuredAgentTurnView {
   id: string;
   status: TurnState;
@@ -29,6 +40,7 @@ export interface StructuredAgentTurnView {
   assistantText: string;
   reasoning: readonly string[];
   activities: readonly StructuredAgentActivityView[];
+  diffs: readonly StructuredAgentDiffView[];
   approvals: readonly StructuredAgentApprovalView[];
   plan: readonly {
     id: string;
@@ -48,6 +60,15 @@ export interface StructuredAgentViewState {
     outputTokens: number | null;
     totalTokens: number | null;
   } | null;
+  accountUsage: {
+    plan: string | null;
+    windows: readonly {
+      kind: 'primary' | 'secondary';
+      usedPercent: number;
+      windowDurationMinutes: number | null;
+      resetsAt: number | null;
+    }[];
+  } | null;
   error: { code: string; message: string; retryable: boolean } | null;
 }
 
@@ -58,6 +79,7 @@ export function createStructuredAgentViewState(): StructuredAgentViewState {
     runtimeState: 'starting',
     turns: [],
     usage: null,
+    accountUsage: null,
     error: null
   };
 }
@@ -70,6 +92,7 @@ function emptyTurn(id: string): StructuredAgentTurnView {
     assistantText: '',
     reasoning: [],
     activities: [],
+    diffs: [],
     approvals: [],
     plan: []
   };
@@ -113,6 +136,7 @@ export function reduceStructuredAgentEvent(
         error: event.payload.state === 'ready' ? null : next.error
       };
     case 'runtime.metadata':
+    case 'runtime.commands':
       return next;
     case 'turn.started':
     case 'turn.completed':
@@ -145,30 +169,50 @@ export function reduceStructuredAgentEvent(
       const kind = event.kind === 'tool.started' ? 'tool' : 'command';
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,
-        activities: [...turn.activities, {
-          id: event.payload.activityId,
-          kind,
-          title: event.payload.title,
-          detail: event.payload.detail,
-          pathLabel: null,
-          status: 'running'
-        }]
+        activities: turn.activities.some(({ id }) => id === event.payload.activityId)
+          ? turn.activities.map((activity) => activity.id === event.payload.activityId
+            ? {
+                ...activity,
+                kind,
+                title: event.payload.title,
+                detail: event.payload.detail,
+                status: 'running'
+              }
+            : activity)
+          : [...turn.activities, {
+              id: event.payload.activityId,
+              kind,
+              title: event.payload.title,
+              detail: event.payload.detail,
+              pathLabel: null,
+              status: 'running'
+            }]
       }));
     }
     case 'tool.updated':
-    case 'command.updated':
+    case 'command.updated': {
+      const kind = event.kind === 'tool.updated' ? 'tool' : 'command';
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,
-        activities: turn.activities.map((activity) =>
-          activity.id === event.payload.activityId
+        activities: turn.activities.some(({ id }) => id === event.payload.activityId)
+          ? turn.activities.map((activity) => activity.id === event.payload.activityId
             ? {
                 ...activity,
+                title: event.payload.title ?? activity.title,
                 status: event.payload.status,
                 detail: event.payload.detail
               }
-            : activity
-        )
+            : activity)
+          : [...turn.activities, {
+              id: event.payload.activityId,
+              kind,
+              title: event.payload.title ?? (kind === 'command' ? 'Command' : 'Tool'),
+              detail: event.payload.detail,
+              pathLabel: null,
+              status: event.payload.status
+            }]
       }));
+    }
     case 'file.changed':
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,
@@ -180,6 +224,15 @@ export function reduceStructuredAgentEvent(
           pathLabel: event.payload.pathLabel,
           status: 'completed'
         }]
+      }));
+    case 'diff.updated':
+      return updateTurn(next, event.turnId, (turn) => ({
+        ...turn,
+        diffs: turn.diffs.some(({ id }) => id === event.payload.diffId)
+          ? turn.diffs.map((diff) => diff.id === event.payload.diffId
+            ? { id: event.payload.diffId, files: event.payload.files }
+            : diff)
+          : [...turn.diffs, { id: event.payload.diffId, files: event.payload.files }]
       }));
     case 'approval.requested':
       return updateTurn(next, event.turnId, (turn) => ({
@@ -208,6 +261,8 @@ export function reduceStructuredAgentEvent(
       }));
     case 'usage.updated':
       return { ...next, usage: event.payload };
+    case 'account.usage.updated':
+      return { ...next, accountUsage: event.payload };
     case 'runtime.error':
       return { ...next, error: event.payload };
   }

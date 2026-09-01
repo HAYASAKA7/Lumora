@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { StructuredAgentEvent } from '../../../shared/contracts';
+
 import type {
   ResolvedStructuredAgentLaunch,
   StructuredAgentAdapter,
@@ -120,6 +122,80 @@ describe('StructuredAgentRuntimeHost', () => {
     expect(activate).toHaveBeenCalledOnce();
   });
 
+  it('hydrates a large provider history without publishing every old event as live traffic', async () => {
+    let eventNumber = 0;
+    const history = Array.from({ length: 498 }, (_, index) => ({
+      turnId: `turn-history-${index}`,
+      parentEventId: null,
+      kind: 'assistant.message' as const,
+      payload: { text: `Earlier answer ${index}` }
+    }));
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => ({
+          nativeSessionId: 'native-history',
+          initialEvents: history
+        }),
+        dispatch: async () => undefined,
+        close: async () => undefined
+      }),
+      createConnectionId: () => 'connection-history',
+      createEventId: () => `event-${++eventNumber}`
+    });
+    const observed: StructuredAgentEvent[] = [];
+    host.subscribe((value) => observed.push(value));
+
+    await host.launch(newRequest);
+
+    expect(host.snapshot('connection-history').events).toHaveLength(500);
+    expect(host.snapshot('connection-history').events).toContainEqual(
+      expect.objectContaining({
+        kind: 'assistant.message',
+        turnId: 'turn-history-497'
+      })
+    );
+    expect(observed).toHaveLength(2);
+    expect(observed.map(({ kind }) => kind)).toEqual([
+      'runtime.status',
+      'runtime.status'
+    ]);
+  });
+
+  it('normalizes only the bounded tail of an oversized provider history', async () => {
+    let eventNumber = 0;
+    const history = Array.from({ length: 2_000 }, (_, index) => ({
+      turnId: `turn-history-${index}`,
+      parentEventId: null,
+      kind: 'assistant.message' as const,
+      payload: { text: `Earlier answer ${index}` }
+    }));
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => ({ nativeSessionId: 'native-history', initialEvents: history }),
+        dispatch: async () => undefined,
+        close: async () => undefined
+      }),
+      createConnectionId: () => 'connection-history',
+      createEventId: () => `event-${++eventNumber}`,
+      maxTailEvents: 20
+    });
+
+    await host.launch(newRequest);
+
+    const events = host.snapshot('connection-history').events;
+    expect(events).toHaveLength(20);
+    expect(events).toContainEqual(expect.objectContaining({
+      turnId: 'turn-history-1999',
+      kind: 'assistant.message'
+    }));
+    expect(events).not.toContainEqual(expect.objectContaining({
+      turnId: 'turn-history-0'
+    }));
+    expect(eventNumber).toBeLessThanOrEqual(22);
+  });
+
   it('keeps the native session open when only its optional start prompt fails', async () => {
     const host = new StructuredAgentRuntimeHost({
       resolveLaunch: async () => resolved(),
@@ -215,6 +291,61 @@ describe('StructuredAgentRuntimeHost', () => {
       kind: 'assistant.delta',
       sequence: 2,
       generation: 1
+    });
+  });
+
+  it('keeps a provider connection ready when one presentation event is invalid', async () => {
+    const { host, contexts, close } = harness();
+    await host.launch(newRequest);
+
+    contexts[0]!.callbacks.emit({
+      turnId: 'turn-1',
+      parentEventId: null,
+      kind: 'command.started',
+      payload: {
+        activityId: 'command-1',
+        title: ' ',
+        detail: null
+      }
+    });
+    contexts[0]!.callbacks.emit({
+      turnId: 'turn-1',
+      parentEventId: null,
+      kind: 'assistant.delta',
+      payload: { text: 'The connection is still usable.' }
+    });
+
+    const snapshot = host.snapshot('connection-1');
+    expect(snapshot.runtime.state).toBe('ready');
+    expect(close).not.toHaveBeenCalled();
+    expect(snapshot.events.at(-1)).toMatchObject({
+      kind: 'assistant.delta',
+      payload: { text: 'The connection is still usable.' }
+    });
+  });
+
+  it('publishes live provider command-list replacements', async () => {
+    const { host, contexts } = harness();
+    const observed: StructuredAgentEvent[] = [];
+    host.subscribe((event) => observed.push(event));
+    await host.launch(newRequest);
+
+    contexts[0]!.callbacks.commandsChanged!([{
+      id: 'compact',
+      name: '/compact',
+      description: 'Compact the current context.',
+      inputHint: null
+    }]);
+
+    expect(host.snapshot('connection-1').commands).toEqual([{
+      id: 'compact',
+      name: '/compact',
+      description: 'Compact the current context.',
+      inputHint: null
+    }]);
+    expect(observed.at(-1)).toMatchObject({
+      kind: 'runtime.commands',
+      payload: { count: 1 }
     });
   });
 

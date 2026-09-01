@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import {
   StructuredAgentActionSchema,
+  StructuredAgentCommandSchema,
   StructuredAgentLaunchRequestSchema,
   StructuredAgentRuntimeSnapshotSchema,
   StructuredAgentRuntimeSummarySchema,
   type StructuredAgentAction,
+  type StructuredAgentCommand,
   type StructuredAgentEvent,
   type StructuredAgentLaunchRequest,
   type StructuredAgentRuntimeSnapshot,
@@ -56,6 +58,7 @@ interface LiveStructuredRuntime {
   sequencer: StructuredAgentEventSequencer;
   adapter: StructuredAgentAdapter | null;
   events: StructuredAgentEvent[];
+  commands: StructuredAgentCommand[];
   eventBytes: number;
   closePromise: Promise<StructuredAgentRuntimeSummary> | null;
 }
@@ -167,6 +170,7 @@ export class StructuredAgentRuntimeHost {
       sequencer,
       adapter: null,
       events: [],
+      commands: [],
       eventBytes: 0,
       closePromise: null
     };
@@ -184,13 +188,15 @@ export class StructuredAgentRuntimeHost {
       this.guard.assignNativeSessionId(connectionId, opened.nativeSessionId);
       runtime.sequencer.assignNativeSessionId(opened.nativeSessionId);
       runtime.launch = { ...runtime.launch, nativeSessionId: opened.nativeSessionId };
+      runtime.commands = this.normalizeCommands(opened.commands ?? []);
       this.updateSummary(runtime, {
         nativeSessionId: opened.nativeSessionId,
         state: 'ready',
         error: null
       });
-      for (const event of opened.initialEvents ?? []) {
-        this.acceptAdapterEvent(runtime, 1, event);
+      const initialEvents = opened.initialEvents ?? [];
+      for (const event of initialEvents.slice(-this.maxTailEvents)) {
+        this.acceptAdapterEvent(runtime, 1, event, false);
       }
       this.emitStatus(runtime, 1, 'ready', null);
       try {
@@ -275,6 +281,7 @@ export class StructuredAgentRuntimeHost {
     return StructuredAgentRuntimeSnapshotSchema.parse({
       runtime: runtime.summary,
       events: runtime.events,
+      commands: runtime.commands,
       boundary: {
         kind: 'connection_start',
         message: 'This event view starts when Lumora connected to the provider.'
@@ -330,6 +337,7 @@ export class StructuredAgentRuntimeHost {
       const adapter = await this.createAdapter(runtime, generation);
       runtime.adapter = adapter;
       const opened = await adapter.open();
+      runtime.commands = this.normalizeCommands(opened.commands ?? []);
       if (runtime.summary.nativeSessionId === null) {
         this.guard.assignNativeSessionId(
           runtime.summary.connectionId,
@@ -395,6 +403,16 @@ export class StructuredAgentRuntimeHost {
       launch: runtime.launch,
       callbacks: {
         emit: (event) => this.acceptAdapterEvent(runtime, generation, event),
+        commandsChanged: (commands) => {
+          if (generation !== runtime.sequencer.currentGeneration()) return;
+          runtime.commands = this.normalizeCommands(commands);
+          this.acceptAdapterEvent(runtime, generation, {
+            turnId: 'runtime-commands',
+            parentEventId: null,
+            kind: 'runtime.commands',
+            payload: { count: runtime.commands.length }
+          });
+        },
         exited: (error) => this.acceptAdapterExit(runtime, generation, error)
       }
     };
@@ -404,16 +422,26 @@ export class StructuredAgentRuntimeHost {
   private acceptAdapterEvent(
     runtime: LiveStructuredRuntime,
     generation: number,
-    draft: StructuredAgentEventDraft
+    draft: StructuredAgentEventDraft,
+    publish = true
   ): void {
     if (runtime.summary.state === 'closed' || runtime.summary.state === 'failed') return;
     try {
       const event = runtime.sequencer.next(generation, draft);
-      if (event !== null) this.recordEvent(runtime, event);
+      if (event !== null) this.recordEvent(runtime, event, publish);
     } catch {
-      this.failRuntime(runtime, generation);
-      void runtime.adapter?.close().catch(() => undefined);
+      // Provider payloads evolve independently from Lumora. A single invalid
+      // presentation event must not tear down an otherwise healthy session.
     }
+  }
+
+  private normalizeCommands(
+    commands: readonly StructuredAgentCommand[]
+  ): StructuredAgentCommand[] {
+    return commands.slice(0, 256).flatMap((command) => {
+      const parsed = StructuredAgentCommandSchema.safeParse(command);
+      return parsed.success ? [parsed.data] : [];
+    });
   }
 
   private acceptAdapterExit(
@@ -447,7 +475,8 @@ export class StructuredAgentRuntimeHost {
 
   private recordEvent(
     runtime: LiveStructuredRuntime,
-    event: StructuredAgentEvent
+    event: StructuredAgentEvent,
+    publish = true
   ): void {
     const bytes = Buffer.byteLength(JSON.stringify(event));
     runtime.events.push(event);
@@ -460,7 +489,9 @@ export class StructuredAgentRuntimeHost {
       if (removed === undefined) break;
       runtime.eventBytes -= Buffer.byteLength(JSON.stringify(removed));
     }
-    for (const listener of this.listeners) listener(event);
+    if (publish) {
+      for (const listener of this.listeners) listener(event);
+    }
   }
 
   private updateSummary(

@@ -18,6 +18,7 @@ import {
 } from '../../../shared/provider-definitions';
 import { Tooltip } from '../ui/Tooltip';
 import { useLocalization } from '../localization/useLocalization';
+import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 
 const SESSION_BATCH_SIZE = 40;
 const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
@@ -33,6 +34,7 @@ interface WorkspaceSessionsViewProps {
   onRefresh(): void;
   onRetry(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
+  onResumeOptions?: ((session: SessionSummary) => void) | undefined;
   operationError: string | null;
 }
 
@@ -42,7 +44,8 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   workspace,
   providerScan,
   profiles,
-  onResume
+  onResume,
+  onResumeOptions
 }: {
   session: SessionSummary;
   running: boolean;
@@ -50,6 +53,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   providerScan: ProviderScanResult | null;
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
+  onResumeOptions?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
@@ -63,7 +67,9 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   const actionDescription = running
     ? t('catalog.sessions.open-running')
     : t('catalog.sessions.resume');
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
   return (
+    <>
     <Tooltip content={disabledReason} multiline>
       <article
         aria-description={disabledReason ?? undefined}
@@ -72,6 +78,12 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
             ? ''
             : ' workspace-session-card-unavailable'
         }`}
+        onContextMenu={(event) => resumeMenu.openFromPointer(
+          event,
+          session,
+          running,
+          disabledReason
+        )}
       >
       <div className="workspace-session-copy">
         <div className="workspace-session-heading">
@@ -118,6 +130,12 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
               className="workspace-session-action"
               disabled={disabledReason !== null}
               onClick={() => onResume(session)}
+              onKeyDown={(event) => resumeMenu.openFromKeyboard(
+                event,
+                session,
+                running,
+                disabledReason
+              )}
               data-lumora-command
               tabIndex={-1}
               type="button"
@@ -126,6 +144,8 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
         )}
       </article>
     </Tooltip>
+    {resumeMenu.menu}
+    </>
   );
 });
 
@@ -140,6 +160,7 @@ export function WorkspaceSessionsView({
   onRefresh,
   onRetry,
   onResume,
+  onResumeOptions,
   operationError
 }: WorkspaceSessionsViewProps): ReactNode {
   const { t } = useLocalization();
@@ -277,6 +298,7 @@ export function WorkspaceSessionsView({
               <WorkspaceSessionCard
                 key={session.id}
                 onResume={onResume}
+                onResumeOptions={onResumeOptions}
                 profiles={profiles}
                 providerScan={providerScan}
                 running={runningSessionIds.has(session.id)}

@@ -18,6 +18,7 @@ interface LaunchReadinessProps {
   preview: LaunchPreview | null;
   status: LaunchPreflightStatus;
   trustConfirmed: boolean;
+  trustImplicit?: boolean;
   workspace?: WorkspaceSummary | undefined;
   onRetry(): void;
   onTrustConfirmedChange(confirmed: boolean): void;
@@ -32,6 +33,7 @@ export function LaunchReadiness({
   preview,
   status,
   trustConfirmed,
+  trustImplicit = false,
   workspace,
   onRetry,
   onTrustConfirmedChange
@@ -70,7 +72,7 @@ export function LaunchReadiness({
         </div>
       ) : (
         <>
-          {!preview.workspaceTrusted && workspace !== undefined ? (
+          {!preview.workspaceTrusted && !trustImplicit && workspace !== undefined ? (
             <WorkspaceTrustNotice
               confirmed={trustConfirmed}
               onConfirmedChange={onTrustConfirmedChange}
@@ -78,7 +80,7 @@ export function LaunchReadiness({
             />
           ) : null}
           <LaunchDetails preview={preview} />
-          {preview.workspaceTrusted && workspace !== undefined ? (
+          {(preview.workspaceTrusted || trustImplicit) && workspace !== undefined ? (
             <div className="workspace-trust-ready" role="status">
               <span>{t('terminal.launch.workspace-security')}</span>
               <strong>{t('terminal.launch.trusted')}</strong>

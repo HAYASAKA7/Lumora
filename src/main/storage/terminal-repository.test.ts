@@ -384,7 +384,8 @@ describe('TerminalRepository', () => {
     expect(repository.getGeneralSettings()).toEqual(hidden);
     expect(repository.getGeneralSettings()).toMatchObject({
       warnBeforeApplicationQuit: false,
-      warnBeforeRemoteDisconnect: true
+      warnBeforeRemoteDisconnect: true,
+      autoTrustWorkspaces: false
     });
 
     database.prepare(
@@ -424,8 +425,9 @@ describe('TerminalRepository', () => {
     }), timestamp);
 
     expect(repository.getGeneralSettings()).toMatchObject({
-      version: 12,
+      version: 13,
       startMaximized: false,
+      autoTrustWorkspaces: false,
       appearance: {
         ...DEFAULT_GENERAL_SETTINGS.appearance,
         surfaceOpacity: 0.73,
@@ -450,11 +452,13 @@ describe('TerminalRepository', () => {
     repository.saveGeneralSettings({
       ...DEFAULT_GENERAL_SETTINGS,
       languagePreference: 'zh-Hans',
+      autoTrustWorkspaces: true,
       enabledProviders: ['codex', 'claude']
     }, timestamp);
 
     expect(remoteRepository.getGeneralSettings()).toMatchObject({
       languagePreference: 'zh-Hans',
+      autoTrustWorkspaces: true,
       enabledProviders: [...PROVIDER_IDS]
     });
 
@@ -466,6 +470,7 @@ describe('TerminalRepository', () => {
 
     expect(repository.getGeneralSettings()).toMatchObject({
       languagePreference: 'ja',
+      autoTrustWorkspaces: true,
       enabledProviders: ['codex', 'claude']
     });
   });

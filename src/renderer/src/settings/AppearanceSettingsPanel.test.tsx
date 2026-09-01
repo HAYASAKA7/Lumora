@@ -222,6 +222,12 @@ describe('AppearanceSettingsPanel', () => {
     fireEvent.change(screen.getByLabelText('User message color'), {
       target: { value: '#8B5CF6' }
     });
+    const themeColorButton = screen.getByRole('button', { name: 'Use theme color' });
+    expect(themeColorButton.parentElement).toHaveClass(
+      'provider-panel-actions',
+      'appearance-conversation-actions'
+    );
+    expect(themeColorButton.closest('.appearance-color-control')).toBeNull();
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       appearance: {
@@ -249,7 +255,7 @@ describe('AppearanceSettingsPanel', () => {
         }}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Use theme color' }));
+    fireEvent.click(themeColorButton);
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       appearance: {

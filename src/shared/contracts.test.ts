@@ -1736,11 +1736,12 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 12,
+      version: 13,
       languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
       showUnusableSessions: true,
+      autoTrustWorkspaces: false,
       startMaximized: true,
       checkProviderUpdatesAutomatically: true,
       autoExpandSidebar: true,
@@ -1819,6 +1820,10 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       ...DEFAULT_GENERAL_SETTINGS,
       showInformationalNotices: 'no'
+    }).success).toBe(false);
+    expect(GeneralSettingsSchema.safeParse({
+      ...DEFAULT_GENERAL_SETTINGS,
+      autoTrustWorkspaces: 'yes'
     }).success).toBe(false);
     expect(GeneralSettingsSchema.safeParse({
       ...DEFAULT_GENERAL_SETTINGS,
@@ -1915,11 +1920,20 @@ describe('managed terminal contracts', () => {
     expect(GeneralSettingsSchema.safeParse({
       version: 5
     }).success).toBe(false);
+    const versionTwelve = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 12
+    } as Record<string, unknown>;
+    delete versionTwelve.autoTrustWorkspaces;
+    expect(parseStoredGeneralSettings(versionTwelve)).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
     const versionEleven = {
       ...DEFAULT_GENERAL_SETTINGS,
       version: 11,
       appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
     } as Record<string, unknown>;
+    delete versionEleven.autoTrustWorkspaces;
     delete (versionEleven.appearance as Record<string, unknown>).themePresetId;
     expect(parseStoredGeneralSettings(versionEleven)).toEqual(
       DEFAULT_GENERAL_SETTINGS
@@ -1933,6 +1947,7 @@ describe('managed terminal contracts', () => {
         surfaceOpacity: 0.71
       }
     } as Record<string, unknown>;
+    delete versionTen.autoTrustWorkspaces;
     delete (versionTen.appearance as Record<string, unknown>).interfaceFontFamily;
     delete (versionTen.appearance as Record<string, unknown>).terminalFontFamily;
     delete (versionTen.appearance as Record<string, unknown>).themePresetId;

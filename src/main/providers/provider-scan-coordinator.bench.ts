@@ -24,6 +24,26 @@ const result: ProviderScanResult = {
 };
 
 describe('provider scan coordination', () => {
+  bench('reuses one native scan across a sequential launch pipeline', async () => {
+    let nativeScanCount = 0;
+    const coordinator = new ProviderScanCoordinator(async () => {
+      nativeScanCount += 1;
+      await Promise.resolve();
+      return result;
+    });
+
+    await coordinator.scan(providers);
+    await coordinator.scan(providers);
+    await coordinator.scan(providers);
+    await coordinator.scan(providers);
+
+    if (nativeScanCount !== 1) {
+      throw new Error(
+        `Expected one native scan for the launch pipeline, received ${nativeScanCount}.`
+      );
+    }
+  });
+
   bench('coalesces a 500-request startup and refresh burst', async () => {
     let nativeScanCount = 0;
     const coordinator = new ProviderScanCoordinator(async () => {
