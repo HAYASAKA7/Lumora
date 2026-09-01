@@ -38,11 +38,14 @@ providers without a verified structured route continue through the native PTY.
 | Gemini CLI | ACP | Capability checked; PTY fallback | PTY |
 
 Lumora probes the configured executable and version before offering the route.
-Users can disable the Unified UI independently for each provider. An
-unavailable, incompatible, failed, or timed-out probe—and a structured launch
-failure before ownership is established—falls back to the already validated
-PTY launch. Native forks, cross-agent handoffs, unsupported structured actions,
-and all other providers remain PTY-based.
+Users can disable the Unified UI independently for each provider. When it is
+enabled and verified, a stopped session's context menu can explicitly request
+the Unified UI or the native PTY. The explicit PTY choice is scoped to that
+launch and does not overwrite the provider preference. An unavailable,
+incompatible, failed, or timed-out probe—and a structured launch failure before
+ownership is established—falls back to the already validated PTY launch.
+Native forks, cross-agent handoffs, unsupported structured actions, and all
+other providers remain PTY-based.
 
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system

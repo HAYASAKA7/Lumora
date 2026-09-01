@@ -18,6 +18,7 @@ import {
   supportsManagedProviderUpdate
 } from '../../../shared/provider-definitions';
 import type { ProviderUpdatesStatus } from './useProviderUpdates';
+import { STRUCTURED_PREFERENCES_CHANGED_EVENT } from '../catalog/SessionRouteChoiceContext';
 import { useLocalization } from '../localization/useLocalization';
 
 export type ProviderScanStatus =
@@ -476,8 +477,9 @@ export function ProviderSettings({
     void api.saveStructuredProviderPreference({
       ...preference,
       ...update
-    }).then(async (preferences) => {
+      }).then(async (preferences) => {
         setStructuredPreferences(preferences);
+        window.dispatchEvent(new Event(STRUCTURED_PREFERENCES_CHANGED_EVENT));
         setStructuredOverrideDrafts(Object.fromEntries(
           preferences.map((saved) => [
             saved.providerId,

@@ -15,6 +15,7 @@ import {
   DEFAULT_KEYBOARD_SETTINGS
 } from '../../shared/contracts';
 import type {
+  AgentInteractionRoute,
   AgentRuntimeStartResult,
   AppearanceBackgroundState,
   ApplicationQuitRequest,
@@ -1444,7 +1445,8 @@ function AppContent(): ReactNode {
 
   const openCatalogSession = useCallback((
     session: SessionSummary,
-    workspace: WorkspaceSummary
+    workspace: WorkspaceSummary,
+    interactionRoute: AgentInteractionRoute = 'automatic'
   ) => {
     setNewSessionIntent(null);
     setRecoveryRuntime(null);
@@ -1462,7 +1464,7 @@ function AppContent(): ReactNode {
       activateStructuredRuntime(structuredRuntime.runtime.connectionId);
       return;
     }
-    directSessionLaunch.open(session, workspace);
+    directSessionLaunch.open(session, workspace, interactionRoute);
   }, [
     activateRuntime,
     activateStructuredRuntime,
@@ -1481,7 +1483,10 @@ function AppContent(): ReactNode {
   }, [directSessionLaunch.hide, openCatalogSessionOptions]);
 
   const resumeCatalogSession = useCallback(
-    (session: SessionSummary) => {
+    (
+      session: SessionSummary,
+      interactionRoute: AgentInteractionRoute = 'automatic'
+    ) => {
       if (catalogStatus.state !== 'ready') {
         return;
       }
@@ -1491,7 +1496,7 @@ function AppContent(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      openCatalogSession(session, workspace);
+      openCatalogSession(session, workspace, interactionRoute);
     },
     [catalogStatus, openCatalogSession]
   );
@@ -1510,7 +1515,10 @@ function AppContent(): ReactNode {
   );
 
   const resumeWorkspaceSession = useCallback(
-    (session: SessionSummary) => {
+    (
+      session: SessionSummary,
+      interactionRoute: AgentInteractionRoute = 'automatic'
+    ) => {
       if (workspaceDetailStatus.state !== 'ready') {
         return;
       }
@@ -1520,7 +1528,7 @@ function AppContent(): ReactNode {
       if (workspace === undefined) {
         return;
       }
-      openCatalogSession(session, workspace);
+      openCatalogSession(session, workspace, interactionRoute);
     },
     [openCatalogSession, workspaceDetailStatus]
   );

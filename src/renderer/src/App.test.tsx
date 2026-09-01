@@ -2611,6 +2611,35 @@ describe('App', () => {
     expect(within(dialog).getByText('Lumora')).toBeInTheDocument();
   });
 
+  it('forwards a native-terminal context action as a one-launch PTY route', async () => {
+    const profile: TerminalProfile = {
+      id: 'c'.repeat(64),
+      kind: 'detected',
+      name: 'PowerShell 7',
+      shellFamily: 'pwsh',
+      executablePath: 'C:\\tools\\pwsh.exe',
+      args: [],
+      available: true,
+      recommended: true
+    };
+    const prepareLaunch = vi.fn(() => new Promise<LaunchPreview>(() => undefined));
+    setSystemInfoResult(undefined, undefined, {
+      getTerminalProfiles: vi.fn().mockResolvedValue([profile]),
+      prepareLaunch
+    });
+    renderWithLocalization(<App />);
+
+    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    fireEvent.contextMenu(resumeButton, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', {
+      name: 'Open in native terminal'
+    }));
+
+    await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({ interactionRoute: 'pty' })
+    ));
+  });
+
   it('leaves a direct launch immediately and can reopen its loading surface', async () => {
     const profile: TerminalProfile = {
       id: 'c'.repeat(64),

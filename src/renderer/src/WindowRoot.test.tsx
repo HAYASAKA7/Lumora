@@ -9,6 +9,10 @@ import {
 import { WindowRoot } from './WindowRoot';
 import { TEST_LOCALIZATION_SNAPSHOT } from './test/render-with-localization';
 
+vi.mock('./App', () => ({
+  default: () => <div>Local Lumora</div>
+}));
+
 const TARGET_ID = '0e3f3da6-b340-49f6-b03b-8ae032c3af74';
 const localizationApi = {
   getLocalizationSnapshot: vi.fn().mockResolvedValue(TEST_LOCALIZATION_SNAPSHOT),
@@ -16,6 +20,21 @@ const localizationApi = {
 };
 
 describe('WindowRoot', () => {
+  it('installs structured route preferences only for the local window', async () => {
+    const api = {
+      ...localizationApi,
+      getWindowContext: vi.fn().mockResolvedValue({ mode: 'local' }),
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([]),
+      scanStructuredProviderCapabilities: vi.fn()
+    } as unknown as LumoraApi;
+
+    render(<WindowRoot api={api} />);
+
+    expect(await screen.findByText('Local Lumora')).toBeInTheDocument();
+    expect(api.getStructuredProviderPreferences).toHaveBeenCalledOnce();
+    expect(api.scanStructuredProviderCapabilities).not.toHaveBeenCalled();
+  });
+
   it('owns the app focus policy before resolving the window mode', () => {
     const api = {
       ...localizationApi,

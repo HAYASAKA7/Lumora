@@ -12,6 +12,7 @@ import type { LaunchSpec } from '../../terminal/launch-service';
 import { AgentLaunchRouter } from './agent-launch-router';
 
 const spec = {
+  interactionRoute: 'automatic',
   strategy: 'resume',
   sessionId: 'session-1',
   provider: 'codex',
@@ -66,7 +67,7 @@ function report(
 }
 
 function harness(options: {
-  capability?: StructuredProviderCapabilityReport;
+  capability?: StructuredProviderCapabilityReport | null;
   preferenceEnabled?: boolean;
   structuredFailure?: Error;
   launchSpec?: LaunchSpec;
@@ -77,36 +78,96 @@ function harness(options: {
   const launchStructured = options.structuredFailure === undefined
     ? vi.fn(async () => structuredRuntime)
     : vi.fn(async () => { throw options.structuredFailure; });
+  const scanCapabilities = vi.fn(async () => options.capability === null
+    ? []
+    : [options.capability ?? report('verified')]);
+  const listPreferences = vi.fn(() => [{
+    providerId: 'codex',
+    useUnifiedWhenAvailable: options.preferenceEnabled ?? true,
+    executablePathOverride: null
+  }, {
+    providerId: 'claude',
+    useUnifiedWhenAvailable: true,
+    executablePathOverride: null
+  }, {
+    providerId: 'gemini',
+    useUnifiedWhenAvailable: true,
+    executablePathOverride: null
+  }] satisfies StructuredProviderPreference[]);
   const router = new AgentLaunchRouter({
     consumePreparedLaunch,
     startPty,
     terminatePty,
     launchStructured,
-    scanCapabilities: vi.fn(async () => [options.capability ?? report('verified')]),
-    listPreferences: vi.fn(() => [{
-      providerId: 'codex',
-      useUnifiedWhenAvailable: options.preferenceEnabled ?? true,
-      executablePathOverride: null
-    }, {
-      providerId: 'claude',
-      useUnifiedWhenAvailable: true,
-      executablePathOverride: null
-    }, {
-      providerId: 'gemini',
-      useUnifiedWhenAvailable: true,
-      executablePathOverride: null
-    }] satisfies StructuredProviderPreference[])
+    scanCapabilities,
+    listPreferences
   });
   return {
     router,
     consumePreparedLaunch,
     startPty,
     terminatePty,
-    launchStructured
+    launchStructured,
+    scanCapabilities,
+    listPreferences
   };
 }
 
 describe('AgentLaunchRouter', () => {
+  it('forces PTY without probing structured capabilities', async () => {
+    const forced = { ...spec, interactionRoute: 'pty' as const } as LaunchSpec;
+    const {
+      router,
+      startPty,
+      launchStructured,
+      scanCapabilities,
+      listPreferences
+    } = harness({ launchSpec: forced });
+
+    await expect(router.start('operation-pty', 'launch-token')).resolves
+      .toMatchObject({ mode: 'pty', routeReason: 'explicit_pty' });
+    expect(startPty).toHaveBeenCalledWith(forced);
+    expect(scanCapabilities).not.toHaveBeenCalled();
+    expect(listPreferences).not.toHaveBeenCalled();
+    expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('requires verified resume capability for forced Unified UI', async () => {
+    const { router, startPty, launchStructured } = harness({
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec,
+      capability: null
+    });
+
+    await expect(router.start('operation-unified', 'launch-token')).rejects
+      .toMatchObject({ code: 'AGENT_UNIFIED_ROUTE_UNAVAILABLE' });
+    expect(startPty).not.toHaveBeenCalled();
+    expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('uses forced Unified UI even when the saved automatic preference is disabled', async () => {
+    const { router, startPty, launchStructured } = harness({
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec,
+      preferenceEnabled: false
+    });
+
+    await expect(router.start('operation-unified', 'launch-token')).resolves
+      .toMatchObject({ mode: 'structured' });
+    expect(launchStructured).toHaveBeenCalledOnce();
+    expect(startPty).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back when a forced Unified UI launch fails', async () => {
+    const failure = new Error('structured failed');
+    const { router, startPty } = harness({
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec,
+      structuredFailure: failure
+    });
+
+    await expect(router.start('operation-unified', 'launch-token')).rejects
+      .toBe(failure);
+    expect(startPty).not.toHaveBeenCalled();
+  });
+
   it('automatically starts a verified enabled resume through the structured host', async () => {
     const { router, startPty, launchStructured } = harness();
 

@@ -18,7 +18,8 @@ import type { LaunchSpec } from '../../terminal/launch-service';
 export type AgentLaunchRouteReason =
   | ProviderInteractionRoute['reason']
   | 'unsupported_launch'
-  | 'structured_failed';
+  | 'structured_failed'
+  | 'explicit_pty';
 
 export type AgentRuntimeStartResult =
   | {
@@ -55,6 +56,15 @@ export class AgentLaunchCancelledError extends Error {
   constructor() {
     super('The agent launch was cancelled.');
     this.name = 'AgentLaunchCancelledError';
+  }
+}
+
+export class AgentUnifiedRouteUnavailableError extends Error {
+  readonly code = 'AGENT_UNIFIED_ROUTE_UNAVAILABLE';
+
+  constructor() {
+    super('Unified UI is unavailable for this prepared launch.');
+    this.name = 'AgentUnifiedRouteUnavailableError';
   }
 }
 
@@ -156,9 +166,42 @@ export class AgentLaunchRouter {
     throwIfCancelled(signal);
     const spec = await this.dependencies.consumePreparedLaunch(token);
     throwIfCancelled(signal);
+    if (spec.interactionRoute === 'pty') {
+      return this.startPty(spec, 'explicit_pty', signal);
+    }
     const request = structuredRequest(spec);
     if (request === null) {
+      if (spec.interactionRoute === 'unified') {
+        throw new AgentUnifiedRouteUnavailableError();
+      }
       return this.startPty(spec, 'unsupported_launch', signal);
+    }
+    if (spec.interactionRoute === 'unified') {
+      const reports = await this.dependencies.scanCapabilities();
+      throwIfCancelled(signal);
+      const report = reports.find(
+        (candidate) => candidate.providerId === request.providerId
+      );
+      if (
+        report === undefined ||
+        report.state !== 'verified' ||
+        (request.strategy === 'new' && !report.capabilities.newSession) ||
+        (request.strategy === 'resume' && !report.capabilities.resumeSession)
+      ) {
+        throw new AgentUnifiedRouteUnavailableError();
+      }
+      try {
+        return {
+          mode: 'structured',
+          routeReason: 'verified',
+          runtime: await this.dependencies.launchStructured(request, signal)
+        };
+      } catch (error) {
+        if (signal.aborted || isCancellation(error)) {
+          throw new AgentLaunchCancelledError();
+        }
+        throw error;
+      }
     }
     const [reports, preferences] = await Promise.all([
       this.dependencies.scanCapabilities(),

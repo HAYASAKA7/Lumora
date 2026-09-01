@@ -13,6 +13,7 @@ import {
 const launchSpec: LaunchSpec = {
   displayName: 'New Codex session',
   strategy: 'new',
+  interactionRoute: 'automatic',
   startPrompt: '',
   sessionId: null,
   nativeSessionId: null,

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
+  type AgentRuntimeStartResult,
   type StructuredAgentEvent,
   type StructuredProviderPreference
 } from '../../shared/contracts';
@@ -68,7 +69,7 @@ function harness() {
     )
   };
   const sendEvent = vi.fn();
-  const startPrepared = vi.fn(async () => ({
+  const startPrepared = vi.fn(async (): Promise<AgentRuntimeStartResult> => ({
     mode: 'structured' as const,
     routeReason: 'verified' as const,
     runtime: summary
@@ -122,6 +123,43 @@ describe('registerAgentIpc', () => {
     expect(current.cancelPrepared).toHaveBeenCalledWith(
       '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
     );
+  });
+
+  it('returns an explicitly selected PTY after it has started', async () => {
+    const current = harness();
+    current.startPrepared.mockResolvedValueOnce({
+      mode: 'pty',
+      routeReason: 'explicit_pty',
+      runtime: {
+        id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+        displayName: 'Repository cleanup',
+        strategy: 'resume',
+        sessionId: 'a'.repeat(64),
+        nativeSessionId: 'native-1',
+        reconciliationState: 'not_required',
+        provider: 'codex',
+        workspaceId: 'b'.repeat(64),
+        terminalProfileId: 'c'.repeat(64),
+        launchHash: 'd'.repeat(64),
+        state: 'running',
+        pid: 123,
+        createdAt: '2026-08-27T00:00:00.000Z',
+        startedAt: '2026-08-27T00:00:00.000Z',
+        endedAt: null,
+        exitCode: null,
+        errorCode: null
+      }
+    });
+    const start = current.handlers.get(IPC_CHANNELS.agentRuntimeStart)!;
+
+    await expect(start(event(), {
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      operationId: '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
+    })).resolves.toMatchObject({
+      mode: 'pty',
+      routeReason: 'explicit_pty',
+      runtime: { state: 'running' }
+    });
   });
 
   it('authorizes before parsing and delegates validated local runtime operations', async () => {

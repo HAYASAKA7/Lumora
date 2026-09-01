@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/contracts';
 import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import { ProviderSettings as ProviderSettingsComponent } from './ProviderSettings';
+import { STRUCTURED_PREFERENCES_CHANGED_EVENT } from '../catalog/SessionRouteChoiceContext';
 import { renderWithLocalization } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
@@ -104,6 +105,11 @@ function ProviderSettings(
 
 describe('ProviderSettings', () => {
   it('shows verified unified UI routing and lets local users opt out per provider', async () => {
+    const preferenceChanged = vi.fn();
+    window.addEventListener(
+      STRUCTURED_PREFERENCES_CHANGED_EVENT,
+      preferenceChanged
+    );
     const saveStructuredProviderPreference = vi.fn(async (
       input: StructuredProviderPreference
     ) => [
@@ -218,6 +224,7 @@ describe('ProviderSettings', () => {
       useUnifiedWhenAvailable: false,
       executablePathOverride: null
     }));
+    expect(preferenceChanged).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByRole('textbox', {
       name: 'Codex structured executable path'
@@ -231,6 +238,10 @@ describe('ProviderSettings', () => {
       executablePathOverride: 'D:\\apps\\codex.cmd'
     }));
     await waitFor(() => expect(scanStructuredProviderCapabilities).toHaveBeenLastCalledWith(true));
+    window.removeEventListener(
+      STRUCTURED_PREFERENCES_CHANGED_EVENT,
+      preferenceChanged
+    );
   });
 
   it('shows structured settings only for providers enabled in Lumora', async () => {

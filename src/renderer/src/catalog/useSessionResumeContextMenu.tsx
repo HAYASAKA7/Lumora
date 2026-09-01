@@ -1,8 +1,19 @@
-import { useCallback, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode
+} from 'react';
 
-import type { SessionSummary } from '../../../shared/contracts';
-import { ContextMenu } from '../ui/ContextMenu';
+import type {
+  AgentInteractionRoute,
+  SessionSummary
+} from '../../../shared/contracts';
+import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu';
 import { useLocalization } from '../localization/useLocalization';
+import { useSessionRouteChoice } from './SessionRouteChoiceContext';
 
 interface SessionMenuState {
   anchor: { x: number; y: number };
@@ -12,15 +23,99 @@ interface SessionMenuState {
 }
 
 interface SessionResumeContextMenuOptions {
-  onResume?: ((session: SessionSummary) => void) | undefined;
+  onResume?: ((
+    session: SessionSummary,
+    interactionRoute: AgentInteractionRoute
+  ) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+}
+
+const UNIFIED_REASON_KEYS = {
+  unavailable: 'terminal.direct.unified-unavailable',
+  incompatible: 'terminal.direct.unified-incompatible',
+  failed: 'terminal.direct.unified-failed',
+  timed_out: 'terminal.direct.unified-timed-out',
+  resume_unsupported: 'terminal.direct.unified-resume-unsupported'
+} as const;
+
+function SessionResumeMenu({
+  closeMenu,
+  menu,
+  onResume,
+  onResumeOptions
+}: {
+  closeMenu(): void;
+  menu: SessionMenuState;
+  onResume: SessionResumeContextMenuOptions['onResume'];
+  onResumeOptions: SessionResumeContextMenuOptions['onResumeOptions'];
+}): ReactNode {
+  const { t } = useLocalization();
+  const unifiedChoice = useSessionRouteChoice(menu.session.provider);
+
+  useEffect(() => {
+    if (!menu.running) unifiedChoice.resolve();
+  }, [menu.running, unifiedChoice.resolve]);
+
+  const items: readonly ContextMenuItem[] = menu.running
+    ? [{
+        id: 'open-running',
+        label: t('common.actions.open'),
+        disabled: onResume === undefined,
+        onSelect: () => onResume?.(menu.session, 'automatic')
+      }]
+    : [
+        ...(unifiedChoice.visibility === 'visible'
+          ? [{
+              id: 'resume-unified',
+              label: t('terminal.direct.open-unified'),
+              disabled:
+                onResume === undefined ||
+                menu.disabledReason !== null ||
+                unifiedChoice.state !== 'available',
+              ...(() => {
+                const description = menu.disabledReason ?? (
+                  unifiedChoice.state === 'checking'
+                    ? t('terminal.direct.unified-checking')
+                    : unifiedChoice.state === 'unavailable'
+                      ? t(UNIFIED_REASON_KEYS[unifiedChoice.reason])
+                      : null
+                );
+                return description === null ? {} : { description };
+              })(),
+              onSelect: () => onResume?.(menu.session, 'unified')
+            }]
+          : []),
+        {
+          id: 'resume-pty',
+          label: t('terminal.direct.open-native-terminal'),
+          disabled: onResume === undefined || menu.disabledReason !== null,
+          ...(menu.disabledReason === null
+            ? {}
+            : { description: menu.disabledReason }),
+          onSelect: () => onResume?.(menu.session, 'pty')
+        },
+        {
+          id: 'resume-options',
+          label: t('terminal.direct.resume-options'),
+          disabled: onResumeOptions === undefined,
+          onSelect: () => onResumeOptions?.(menu.session)
+        }
+      ];
+
+  return (
+    <ContextMenu
+      anchor={menu.anchor}
+      items={items}
+      label={t('shell.topbar.session-actions')}
+      onClose={closeMenu}
+    />
+  );
 }
 
 export function useSessionResumeContextMenu({
   onResume,
   onResumeOptions
 }: SessionResumeContextMenuOptions) {
-  const { t } = useLocalization();
   const [menu, setMenu] = useState<SessionMenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
@@ -69,31 +164,11 @@ export function useSessionResumeContextMenu({
   return {
     closeMenu,
     menu: menu === null ? null : (
-      <ContextMenu
-        anchor={menu.anchor}
-        items={[
-          {
-            id: 'resume-now',
-            label: t(
-              menu.running
-                ? 'common.actions.open'
-                : 'terminal.direct.resume-now'
-            ),
-            disabled: onResume === undefined || menu.disabledReason !== null,
-            ...(menu.disabledReason === null
-              ? {}
-              : { description: menu.disabledReason }),
-            onSelect: () => onResume?.(menu.session)
-          },
-          {
-            id: 'resume-options',
-            label: t('terminal.direct.resume-options'),
-            disabled: onResumeOptions === undefined || menu.running,
-            onSelect: () => onResumeOptions?.(menu.session)
-          }
-        ]}
-        label={t('shell.topbar.session-actions')}
-        onClose={closeMenu}
+      <SessionResumeMenu
+        closeMenu={closeMenu}
+        menu={menu}
+        onResume={onResume}
+        onResumeOptions={onResumeOptions}
       />
     ),
     openFromKeyboard,

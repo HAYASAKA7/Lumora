@@ -1482,6 +1482,7 @@ describe('RemoteTargetWindow', () => {
     await waitFor(() => expect(prepareLaunch).toHaveBeenCalledWith({
       strategy: 'resume',
       sessionId: session.id,
+      interactionRoute: 'automatic',
       startPrompt: '',
       terminalProfileId: null,
       cols: 100,

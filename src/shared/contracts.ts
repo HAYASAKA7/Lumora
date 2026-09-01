@@ -1945,7 +1945,14 @@ const StartPromptSchema = z.string().max(4_096).refine(
   'The start prompt is invalid.'
 ).transform((prompt) => prompt.trim().length === 0 ? '' : prompt);
 
+export const AgentInteractionRouteSchema = z.enum([
+  'automatic',
+  'unified',
+  'pty'
+]);
+
 const LaunchRequestBaseFields = {
+  interactionRoute: AgentInteractionRouteSchema.default('automatic'),
   terminalProfileId: StableIdSchema.nullable().default(null),
   startPrompt: StartPromptSchema.optional().default(''),
   ...TerminalDimensionsFields
@@ -1990,8 +1997,11 @@ export const LaunchPreviewSchema = z.strictObject({
   expiresAt: z.iso.datetime()
 });
 
-export type LaunchPrepareRequest = z.infer<typeof LaunchPrepareRequestSchema>;
+// This is the caller-facing shape. Schema defaults (including interactionRoute)
+// are applied at the IPC/service boundary before a launch is prepared.
+export type LaunchPrepareRequest = z.input<typeof LaunchPrepareRequestSchema>;
 export type LaunchPreview = z.infer<typeof LaunchPreviewSchema>;
+export type AgentInteractionRoute = z.infer<typeof AgentInteractionRouteSchema>;
 
 export const RuntimeStateSchema = z.enum([
   'launching',
@@ -2102,7 +2112,8 @@ export const AgentLaunchRouteReasonSchema = z.enum([
   'failed',
   'timed_out',
   'unsupported_launch',
-  'structured_failed'
+  'structured_failed',
+  'explicit_pty'
 ]);
 export const AgentRuntimeStartResultSchema = z.discriminatedUnion('mode', [
   z.strictObject({

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import type {
   AgentRuntimeStartResult,
+  AgentInteractionRoute,
   LaunchPrepareRequest,
   LaunchPreview,
   LumoraApi,
@@ -20,6 +21,7 @@ export type DirectSessionLaunchPhase =
 export interface DirectSessionLaunchState {
   id: number;
   operationId: string;
+  interactionRoute: AgentInteractionRoute;
   phase: DirectSessionLaunchPhase;
   preview: LaunchPreview | null;
   session: SessionSummary;
@@ -50,10 +52,14 @@ interface UseDirectSessionLaunchOptions {
   ): void;
 }
 
-function prepareRequest(sessionId: string): LaunchPrepareRequest {
+function prepareRequest(
+  sessionId: string,
+  interactionRoute: AgentInteractionRoute
+): LaunchPrepareRequest {
   return {
     strategy: 'resume',
     sessionId,
+    interactionRoute,
     startPrompt: '',
     terminalProfileId: null,
     cols: 100,
@@ -158,16 +164,32 @@ export function useDirectSessionLaunch({
     }
   }, [api, mode, onStarted, updateLaunch]);
 
-  const begin = useCallback((session: SessionSummary, workspace: WorkspaceSummary) => {
+  const begin = useCallback((
+    session: SessionSummary,
+    workspace: WorkspaceSummary,
+    interactionRoute: AgentInteractionRoute = 'automatic'
+  ) => {
     const current = launchRef.current;
+    if (
+      current !== null &&
+      current.session.id === session.id &&
+      current.workspace.id === workspace.id &&
+      current.interactionRoute === interactionRoute
+    ) {
+      visibleId.current = current.id;
+      setVisibleLaunchId(current.id);
+      return;
+    }
     if (
       current !== null &&
       current.session.id === session.id &&
       current.workspace.id === workspace.id
     ) {
-      visibleId.current = current.id;
-      setVisibleLaunchId(current.id);
-      return;
+      cancelled.current.add(current.id);
+      if (mode === 'agent') {
+        void api.cancelAgentRuntimeStart?.(current.operationId)
+          .catch(() => undefined);
+      }
     }
     const id = nextId.current + 1;
     const operationId = createOperationId();
@@ -177,6 +199,7 @@ export function useDirectSessionLaunch({
     const next = {
       id,
       operationId,
+      interactionRoute,
       phase: 'preparing',
       preview: null,
       session,
@@ -185,7 +208,7 @@ export function useDirectSessionLaunch({
     launchRef.current = next;
     setLaunch(next);
     setVisibleLaunchId(id);
-    void api.prepareLaunch(prepareRequest(session.id)).then((preview) => {
+    void api.prepareLaunch(prepareRequest(session.id, interactionRoute)).then((preview) => {
       if (cancelled.current.has(id)) {
         inFlight.current.delete(id);
         cancelled.current.delete(id);
@@ -205,7 +228,7 @@ export function useDirectSessionLaunch({
       inFlight.current.delete(id);
       updateLaunch(id, (current) => ({ ...current, phase: 'error' }));
     });
-  }, [api, autoTrustWorkspaces, createOperationId, startPrepared, updateLaunch]);
+  }, [api, autoTrustWorkspaces, createOperationId, mode, startPrepared, updateLaunch]);
 
   const trustAndContinue = useCallback(() => {
     if (
@@ -222,7 +245,7 @@ export function useDirectSessionLaunch({
     if (launch === null || launch.phase !== 'error') return;
     launchRef.current = null;
     setLaunch(null);
-    begin(launch.session, launch.workspace);
+    begin(launch.session, launch.workspace, launch.interactionRoute);
   }, [begin, launch]);
 
   const hide = useCallback(() => {

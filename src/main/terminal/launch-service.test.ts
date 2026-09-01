@@ -258,6 +258,33 @@ function harness(overrides: {
 }
 
 describe('LaunchService', () => {
+  it('preserves explicit and default interaction routes in prepared launches', async () => {
+    const explicit = harness({ trusted: true }).service;
+    const explicitPreview = await explicit.prepare({
+      strategy: 'resume',
+      sessionId,
+      interactionRoute: 'unified',
+      startPrompt: '',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    await expect(explicit.consume(explicitPreview.launchToken)).resolves
+      .toMatchObject({ interactionRoute: 'unified' });
+
+    const automatic = harness({ trusted: true }).service;
+    const automaticPreview = await automatic.prepare({
+      strategy: 'resume',
+      sessionId,
+      startPrompt: '',
+      terminalProfileId: profileId,
+      cols: 100,
+      rows: 30
+    });
+    await expect(automatic.consume(automaticPreview.launchToken)).resolves
+      .toMatchObject({ interactionRoute: 'automatic' });
+  });
+
   it('pins a verified runtime directory for a default provider command', async () => {
     const resolveProviderRuntimeDirectory = vi.fn(async () => '/opt/node/bin');
     const { service } = harness({

@@ -21,8 +21,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reducing resume-time renderer work for long sessions.
 - Resume sessions directly from their normal primary action. Lumora activates
   an already-running session, uses a verified local Unified UI when available,
-  and otherwise starts the native PTY path. Right-click keeps the advanced
-  resume dialog available; Remote Lumora continues to use direct PTY resume.
+  and otherwise starts the native PTY path. For providers with an enabled and
+  verified Unified UI, right-click can explicitly open that UI or use the
+  native terminal for only that launch without changing the saved provider
+  preference. The advanced resume dialog remains available, while Remote
+  Lumora continues to use direct PTY resume.
 - Add an explicitly confirmed **Automatically trust workspaces** security
   preference for users who choose to bypass per-workspace launch confirmation.
 - Add an Appearance preference for the Unified UI user-message color while
@@ -52,6 +55,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Cancel a direct session launch when its loading surface is closed, including
   structured-provider startup and late PTY fallback races, so a hidden launch
   cannot leave an agent process running in the background.
+- Accept an explicitly selected native PTY result across the validated IPC
+  boundary, preventing an already-running terminal from being reported as a
+  failed direct launch before its terminal page appears.
 
 ### Security
 

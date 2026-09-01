@@ -3,6 +3,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import {
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
+  type AgentInteractionRoute,
   type LaunchPrepareRequest,
   type LaunchPreview,
   type LaunchSettingsLayer,
@@ -73,6 +74,7 @@ interface LaunchServiceDependencies {
 }
 
 export interface LaunchSpec {
+  interactionRoute: AgentInteractionRoute;
   displayName: string;
   strategy: 'new' | 'resume' | 'fork';
   startPrompt: string;
@@ -440,6 +442,7 @@ export class LaunchService {
     }
     const createdAt = this.clock();
     const partial = {
+      interactionRoute: request.interactionRoute,
       displayName,
       strategy: handoff === null ? request.strategy : 'new' as const,
       startPrompt: request.startPrompt,

@@ -265,10 +265,14 @@ earlier turns progressively.
 Select a saved session normally to resume it directly. Lumora returns to an
 existing runtime when the session is already active, uses the verified Unified
 UI when supported, and otherwise resumes through the native PTY without an
-extra dialog. Right-click a session and choose the advanced resume action when
-you need provider selection, handoff, fork, launch overrides, or other detailed
-options. Workspace trust confirmation still appears unless you explicitly
-enable and confirm **Settings > Security > Automatically trust workspaces**.
+extra dialog. When a provider's Unified UI preference is enabled, right-click
+a stopped session to explicitly open it in **Unified UI** or in the **native
+terminal**. The native-terminal choice applies to that launch only and does not
+change the saved provider preference. The same menu keeps the advanced resume
+action for provider selection, handoff, fork, launch overrides, or other
+detailed options. Workspace trust confirmation still appears unless you
+explicitly enable and confirm **Settings > Security > Automatically trust
+workspaces**.
 
 Remote Lumora remains PTY-based in 0.5. Structured-interface settings and local
 capability results do not claim remote support. A failed or incompatible local

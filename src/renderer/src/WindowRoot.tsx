@@ -7,6 +7,7 @@ import type {
 } from '../../shared/contracts';
 import App from './App';
 import { buildAppearancePresentation } from './appearance/presentation';
+import { SessionRouteChoiceProvider } from './catalog/SessionRouteChoiceContext';
 import { installAppFocusPolicy } from './focus/app-focus-policy';
 import { LocalizationProvider } from './localization/LocalizationProvider';
 import { useLocalization } from './localization/useLocalization';
@@ -86,7 +87,13 @@ function WindowContent({ api }: { api: LumoraApi }) {
       </main>
     );
   }
-  if (context.mode === 'local') return <App />;
+  if (context.mode === 'local') {
+    return (
+      <SessionRouteChoiceProvider api={api}>
+        <App />
+      </SessionRouteChoiceProvider>
+    );
+  }
   if (appearance === null) {
     return (
       <main className="window-bootstrap" aria-label={t('errors.localization.opening')}>

@@ -1276,6 +1276,7 @@ describe('managed terminal contracts', () => {
 
     expect(LaunchPrepareRequestSchema.parse(request)).toEqual({
       ...request,
+      interactionRoute: 'automatic',
       startPrompt: ''
     });
     expect(LaunchPreviewSchema.parse(preview)).toEqual(preview);
@@ -1306,8 +1307,19 @@ describe('managed terminal contracts', () => {
     } as const;
     expect(LaunchPrepareRequestSchema.parse(resumeRequest)).toEqual({
       ...resumeRequest,
+      interactionRoute: 'automatic',
       startPrompt: ''
     });
+    for (const interactionRoute of ['automatic', 'unified', 'pty'] as const) {
+      expect(LaunchPrepareRequestSchema.parse({
+        ...resumeRequest,
+        interactionRoute
+      }).interactionRoute).toBe(interactionRoute);
+    }
+    expect(LaunchPrepareRequestSchema.safeParse({
+      ...resumeRequest,
+      interactionRoute: 'browser'
+    }).success).toBe(false);
     expect(
       LaunchPrepareRequestSchema.parse({
         ...resumeRequest,
@@ -1322,7 +1334,10 @@ describe('managed terminal contracts', () => {
       cols: 120,
       rows: 36
     } as const;
-    expect(LaunchPrepareRequestSchema.parse(forkRequest)).toEqual(forkRequest);
+    expect(LaunchPrepareRequestSchema.parse(forkRequest)).toEqual({
+      ...forkRequest,
+      interactionRoute: 'automatic'
+    });
     const promptlessForkRequest = {
       strategy: 'fork',
       sessionId: forkRequest.sessionId,
@@ -1332,6 +1347,7 @@ describe('managed terminal contracts', () => {
     } as const;
     expect(LaunchPrepareRequestSchema.parse(promptlessForkRequest)).toEqual({
       ...promptlessForkRequest,
+      interactionRoute: 'automatic',
       startPrompt: ''
     });
     expect(

@@ -34,6 +34,66 @@ const runtime = {
 } as RuntimeSummary;
 
 describe('useDirectSessionLaunch', () => {
+  it('forwards explicit and automatic interaction routes into preparation', async () => {
+    const api = {
+      prepareLaunch: vi.fn().mockResolvedValue({
+        ...preview,
+        workspaceTrusted: true
+      }),
+      trustWorkspaceForLaunch: vi.fn(),
+      startRuntime: vi.fn().mockResolvedValue(runtime)
+    };
+    const { result } = renderHook(() => useDirectSessionLaunch({
+      api,
+      autoTrustWorkspaces: false,
+      mode: 'pty',
+      onStarted: vi.fn()
+    }));
+
+    act(() => result.current.open(session, workspace, 'pty'));
+    await waitFor(() => expect(api.prepareLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({ interactionRoute: 'pty' })
+    ));
+
+    act(() => result.current.open(
+      { ...session, id: 'session-2' },
+      workspace
+    ));
+    await waitFor(() => expect(api.prepareLaunch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ interactionRoute: 'automatic' })
+    ));
+  });
+
+  it('preserves an explicit route when retrying a failed preparation', async () => {
+    const api = {
+      prepareLaunch: vi.fn()
+        .mockRejectedValueOnce(new Error('prepare failed'))
+        .mockResolvedValueOnce({ ...preview, workspaceTrusted: true }),
+      trustWorkspaceForLaunch: vi.fn(),
+      startRuntime: vi.fn().mockResolvedValue(runtime)
+    };
+    const { result } = renderHook(() => useDirectSessionLaunch({
+      api,
+      autoTrustWorkspaces: false,
+      mode: 'pty',
+      onStarted: vi.fn()
+    }));
+
+    act(() => result.current.open(session, workspace, 'unified'));
+    await waitFor(() => expect(result.current.launch?.phase).toBe('error'));
+    act(() => result.current.retry());
+
+    await waitFor(() => expect(api.prepareLaunch).toHaveBeenCalledTimes(2));
+    expect(api.prepareLaunch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ interactionRoute: 'unified' })
+    );
+    expect(api.prepareLaunch).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ interactionRoute: 'unified' })
+    );
+  });
+
   it('cancels an agent launch and ignores a late successful result when closed', async () => {
     let resolveRuntime!: (value: AgentRuntimeStartResult) => void;
     const operationId = '00000000-0000-4000-8000-000000000002';

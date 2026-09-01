@@ -189,8 +189,12 @@ sandboxed Unified UI
 ```
 
 The launch router consumes each prepared launch once and selects the structured
-route only for an advertised new or resume capability. Native forks,
-cross-agent handoffs, unsupported providers, and unhealthy routes use the PTY.
+route only for an advertised new or resume capability. A prepared launch can
+also carry an explicit local route selected from a session context menu:
+`unified` requires the verified capability and never silently falls back,
+whereas `pty` bypasses structured probing for that launch without changing the
+stored provider preference. Native forks, cross-agent handoffs, unsupported
+providers, and unhealthy automatic routes use the PTY.
 If structured startup fails before the runtime owns the session, Lumora uses
 the already validated PTY specification. An ownership collision is never
 converted into a fallback because doing so would bypass the one-writer guard.
