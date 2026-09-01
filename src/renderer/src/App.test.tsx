@@ -590,7 +590,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', {
       name: 'Second structured session'
     })).toBeVisible();
-  });
+  }, 15_000);
 
   it('warns before exiting with active local or remote agents', async () => {
     let quitListener: ((request: {

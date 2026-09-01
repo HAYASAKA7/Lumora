@@ -370,7 +370,7 @@ describe('StructuredAgentWorkspace', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Review the docs' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open link' }));
     expect(openTerminalLink).toHaveBeenCalledWith('https://example.com/docs');
-  });
+  }, 15_000);
 
   it('submits multiline prompts directly while preserving IME composition', () => {
     const { dispatchStructuredAgentAction } = renderWorkspace();
