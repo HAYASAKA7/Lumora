@@ -46,6 +46,8 @@ import {
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
+  AgentRuntimeCancelRequestSchema,
+  AgentRuntimeStartRequestSchema,
   AgentRuntimeStartResultSchema,
   RuntimeEventSchema,
   RuntimeSummarySchema,
@@ -88,6 +90,21 @@ const missingClaude = {
 } as const;
 
 describe('automatic agent launch contracts', () => {
+  it('requires a distinct operation identity for cancellable agent starts', () => {
+    const launchToken = '0198f8b6-18f3-7ca0-9f0f-123456789abc';
+    const operationId = '0198f8b6-18f3-7ca0-9f0f-abcdef123456';
+
+    expect(AgentRuntimeStartRequestSchema.parse({
+      launchToken,
+      operationId
+    })).toEqual({ launchToken, operationId });
+    expect(AgentRuntimeCancelRequestSchema.parse({ operationId })).toEqual({
+      operationId
+    });
+    expect(AgentRuntimeStartRequestSchema.safeParse({ launchToken }).success)
+      .toBe(false);
+  });
+
   it('accepts either a PTY fallback or a verified structured runtime', () => {
     const ptyRuntime = RuntimeSummarySchema.parse({
       id: '0198f8b6-18f3-7ca0-9f0f-123456789abc',

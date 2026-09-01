@@ -194,6 +194,12 @@ cross-agent handoffs, unsupported providers, and unhealthy routes use the PTY.
 If structured startup fails before the runtime owns the session, Lumora uses
 the already validated PTY specification. An ownership collision is never
 converted into a fallback because doing so would bypass the one-writer guard.
+Each direct launch also carries a renderer-created operation identity. The
+main-process router owns its cancellation signal until startup settles. Closing
+the launch surface cancels that operation; a structured adapter is closed while
+it opens, and a PTY that resolves after cancellation is immediately terminated.
+Cancellation never becomes a structured-start failure or triggers PTY fallback.
+Normal page navigation only hides the launch surface and does not cancel it.
 
 The main-process runtime host owns provider processes, cancellation, cleanup,
 reconnection, event sequencing, and session reconciliation. The renderer sees

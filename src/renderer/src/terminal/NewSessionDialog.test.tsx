@@ -159,7 +159,8 @@ describe('NewSessionDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
 
     await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledWith(
-      preview.launchToken
+      preview.launchToken,
+      expect.any(String)
     ));
     expect(onAgentStarted).toHaveBeenCalledWith(result, preview);
   });

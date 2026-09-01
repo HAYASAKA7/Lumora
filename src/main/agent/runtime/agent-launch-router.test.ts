@@ -73,12 +73,14 @@ function harness(options: {
 } = {}) {
   const consumePreparedLaunch = vi.fn(async () => options.launchSpec ?? spec);
   const startPty = vi.fn(async () => ptyRuntime);
+  const terminatePty = vi.fn(async () => undefined);
   const launchStructured = options.structuredFailure === undefined
     ? vi.fn(async () => structuredRuntime)
     : vi.fn(async () => { throw options.structuredFailure; });
   const router = new AgentLaunchRouter({
     consumePreparedLaunch,
     startPty,
+    terminatePty,
     launchStructured,
     scanCapabilities: vi.fn(async () => [options.capability ?? report('verified')]),
     listPreferences: vi.fn(() => [{
@@ -95,24 +97,33 @@ function harness(options: {
       executablePathOverride: null
     }] satisfies StructuredProviderPreference[])
   });
-  return { router, consumePreparedLaunch, startPty, launchStructured };
+  return {
+    router,
+    consumePreparedLaunch,
+    startPty,
+    terminatePty,
+    launchStructured
+  };
 }
 
 describe('AgentLaunchRouter', () => {
   it('automatically starts a verified enabled resume through the structured host', async () => {
     const { router, startPty, launchStructured } = harness();
 
-    await expect(router.start('launch-token')).resolves.toEqual({
+    await expect(router.start('operation-1', 'launch-token')).resolves.toEqual({
       mode: 'structured',
       routeReason: 'verified',
       runtime: structuredRuntime
     });
-    expect(launchStructured).toHaveBeenCalledWith({
-      strategy: 'resume',
-      providerId: 'codex',
-      sessionId: 'session-1',
-      startPrompt: 'Continue the implementation.'
-    });
+    expect(launchStructured).toHaveBeenCalledWith(
+      {
+        strategy: 'resume',
+        providerId: 'codex',
+        sessionId: 'session-1',
+        startPrompt: 'Continue the implementation.'
+      },
+      expect.any(AbortSignal)
+    );
     expect(startPty).not.toHaveBeenCalled();
   });
 
@@ -121,7 +132,7 @@ describe('AgentLaunchRouter', () => {
       preferenceEnabled: false
     });
 
-    await expect(router.start('launch-token')).resolves.toEqual({
+    await expect(router.start('operation-1', 'launch-token')).resolves.toEqual({
       mode: 'pty',
       routeReason: 'disabled',
       runtime: ptyRuntime
@@ -140,7 +151,7 @@ describe('AgentLaunchRouter', () => {
       }
     });
 
-    await expect(router.start('launch-token')).resolves.toEqual({
+    await expect(router.start('operation-1', 'launch-token')).resolves.toEqual({
       mode: 'pty',
       routeReason: 'unsupported_launch',
       runtime: ptyRuntime
@@ -154,7 +165,7 @@ describe('AgentLaunchRouter', () => {
       structuredFailure: new Error('provider startup failed')
     });
 
-    await expect(router.start('launch-token')).resolves.toEqual({
+    await expect(router.start('operation-1', 'launch-token')).resolves.toEqual({
       mode: 'pty',
       routeReason: 'structured_failed',
       runtime: ptyRuntime
@@ -168,7 +179,7 @@ describe('AgentLaunchRouter', () => {
     });
     const { router, startPty } = harness({ structuredFailure: collision });
 
-    await expect(router.start('launch-token')).rejects.toBe(collision);
+    await expect(router.start('operation-1', 'launch-token')).rejects.toBe(collision);
     expect(startPty).not.toHaveBeenCalled();
   });
 
@@ -176,10 +187,75 @@ describe('AgentLaunchRouter', () => {
     const fork = { ...spec, strategy: 'fork' as const } as LaunchSpec;
     const { router, launchStructured } = harness({ launchSpec: fork });
 
-    await expect(router.start('launch-token')).resolves.toMatchObject({
+    await expect(router.start('operation-1', 'launch-token')).resolves.toMatchObject({
       mode: 'pty',
       routeReason: 'unsupported_launch'
     });
     expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('cancels a structured launch without falling back to PTY', async () => {
+    let release!: () => void;
+    const launchStructured = vi.fn((
+      _request: unknown,
+      signal: AbortSignal
+    ) => new Promise<StructuredAgentRuntimeSummary>((_resolve, reject) => {
+      release = () => reject(Object.assign(new Error('cancelled'), {
+        code: 'STRUCTURED_RUNTIME_START_CANCELLED'
+      }));
+      signal.addEventListener('abort', release, { once: true });
+    }));
+    const startPty = vi.fn(async () => ptyRuntime);
+    const router = new AgentLaunchRouter({
+      consumePreparedLaunch: vi.fn(async () => spec),
+      startPty,
+      terminatePty: vi.fn(async () => undefined),
+      launchStructured,
+      scanCapabilities: vi.fn(async () => [report('verified')]),
+      listPreferences: vi.fn(() => [{
+        providerId: 'codex' as const,
+        useUnifiedWhenAvailable: true,
+        executablePathOverride: null
+      }])
+    });
+
+    const starting = router.start('operation-1', 'launch-token');
+    await vi.waitFor(() => expect(launchStructured).toHaveBeenCalledOnce());
+    await router.cancel('operation-1');
+
+    await expect(starting).rejects.toMatchObject({
+      code: 'AGENT_LAUNCH_CANCELLED'
+    });
+    expect(startPty).not.toHaveBeenCalled();
+  });
+
+  it('terminates a PTY that resolves after cancellation', async () => {
+    let resolvePty!: (runtime: RuntimeSummary) => void;
+    const startPty = vi.fn(() => new Promise<RuntimeSummary>((resolve) => {
+      resolvePty = resolve;
+    }));
+    const terminatePty = vi.fn(async () => undefined);
+    const router = new AgentLaunchRouter({
+      consumePreparedLaunch: vi.fn(async () => ({
+        ...spec,
+        strategy: 'fork'
+      } as LaunchSpec)),
+      startPty,
+      terminatePty,
+      launchStructured: vi.fn(async () => structuredRuntime),
+      scanCapabilities: vi.fn(async () => []),
+      listPreferences: vi.fn(() => [])
+    });
+
+    const starting = router.start('operation-1', 'launch-token');
+    await vi.waitFor(() => expect(startPty).toHaveBeenCalledOnce());
+    const cancelling = router.cancel('operation-1');
+    resolvePty(ptyRuntime);
+
+    await cancelling;
+    await expect(starting).rejects.toMatchObject({
+      code: 'AGENT_LAUNCH_CANCELLED'
+    });
+    expect(terminatePty).toHaveBeenCalledWith(ptyRuntime.id);
   });
 });

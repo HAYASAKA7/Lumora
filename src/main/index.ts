@@ -855,7 +855,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   const agentLaunchRouter = new AgentLaunchRouter({
     consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
     startPty: (spec) => terminalRuntime!.startPreparedRuntime(spec),
-    launchStructured: (request) => structuredAgentRuntime!.launch(request),
+    terminatePty: (runtimeId) => terminalRuntime!.terminateRuntime(runtimeId),
+    launchStructured: (request, signal) =>
+      structuredAgentRuntime!.launch(request, signal),
     scanCapabilities: () => scanStructuredCapabilities(false),
     listPreferences: () => terminalRuntime!.getStructuredProviderPreferences()
   });
@@ -1355,7 +1357,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         return terminalRuntime!.saveStructuredProviderPreference(input);
       }
     },
-    startPrepared: (launchToken) => agentLaunchRouter.start(launchToken),
+    startPrepared: (operationId, launchToken) =>
+      agentLaunchRouter.start(operationId, launchToken),
+    cancelPrepared: (operationId) => agentLaunchRouter.cancel(operationId),
     sendEvent: (event) => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);

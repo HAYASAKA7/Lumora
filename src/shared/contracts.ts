@@ -2122,6 +2122,13 @@ export const RuntimeIdRequestSchema = z.strictObject({
 export const RuntimeStartRequestSchema = z.strictObject({
   launchToken: z.uuid()
 });
+export const AgentRuntimeStartRequestSchema = z.strictObject({
+  launchToken: z.uuid(),
+  operationId: z.uuid()
+});
+export const AgentRuntimeCancelRequestSchema = z.strictObject({
+  operationId: z.uuid()
+});
 export const RuntimeWriteRequestSchema = z.strictObject({
   runtimeId: RuntimeIdSchema,
   data: z.string().min(1).max(65_536)
@@ -2165,6 +2172,12 @@ export type AgentRuntimeStartResult = z.infer<
 >;
 export type RuntimeIdRequest = z.infer<typeof RuntimeIdRequestSchema>;
 export type RuntimeStartRequest = z.infer<typeof RuntimeStartRequestSchema>;
+export type AgentRuntimeStartRequest = z.infer<
+  typeof AgentRuntimeStartRequestSchema
+>;
+export type AgentRuntimeCancelRequest = z.infer<
+  typeof AgentRuntimeCancelRequestSchema
+>;
 export type RuntimeWriteRequest = z.infer<typeof RuntimeWriteRequestSchema>;
 export type RuntimeResizeRequest = z.infer<typeof RuntimeResizeRequestSchema>;
 export type RuntimeAttachment = z.infer<typeof RuntimeAttachmentSchema>;
@@ -2332,6 +2345,7 @@ export const IPC_CHANNELS = {
   terminalLinkOpen: 'lumora:terminal:link:open',
   runtimeEvent: 'lumora:terminal:runtime:event',
   agentRuntimeStart: 'lumora:agent:runtime:start-prepared',
+  agentRuntimeCancelStart: 'lumora:agent:runtime:cancel-start',
   structuredCapabilityScan: 'lumora:agent:capabilities:scan',
   structuredPreferencesGet: 'lumora:agent:preferences:get',
   structuredPreferenceSave: 'lumora:agent:preferences:save',
@@ -2494,7 +2508,11 @@ export interface LumoraApi {
   ): Promise<WorkspaceTrustDecision>;
   revokeWorkspaceTrust(workspaceId: string): Promise<WorkspaceTrustDecision[]>;
   startRuntime(launchToken: string): Promise<RuntimeSummary>;
-  startAgentRuntime(launchToken: string): Promise<AgentRuntimeStartResult>;
+  startAgentRuntime(
+    launchToken: string,
+    operationId: string
+  ): Promise<AgentRuntimeStartResult>;
+  cancelAgentRuntimeStart(operationId: string): Promise<void>;
   listRuntimes(): Promise<RuntimeSummary[]>;
   attachRuntime(runtimeId: string): Promise<RuntimeAttachment>;
   writeRuntime(input: RuntimeWriteRequest): Promise<void>;

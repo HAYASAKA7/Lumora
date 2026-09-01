@@ -49,6 +49,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Prevent a Unified UI session and a PTY session from concurrently owning the
   same provider session; selecting a running session returns to its existing
   runtime instead of creating a duplicate.
+- Cancel a direct session launch when its loading surface is closed, including
+  structured-provider startup and late PTY fallback races, so a hidden launch
+  cannot leave an agent process running in the background.
 
 ### Security
 

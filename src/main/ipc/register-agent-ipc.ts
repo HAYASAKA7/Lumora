@@ -2,7 +2,8 @@ import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
   AgentRuntimeStartResultSchema,
-  RuntimeStartRequestSchema,
+  AgentRuntimeCancelRequestSchema,
+  AgentRuntimeStartRequestSchema,
   StructuredAgentActionSchema,
   StructuredAgentCapabilityScanRequestSchema,
   StructuredAgentCommandResultSchema,
@@ -54,7 +55,8 @@ interface RegisterAgentIpcOptions {
       input: StructuredProviderPreference
     ): Promise<readonly StructuredProviderPreference[]> | readonly StructuredProviderPreference[];
   };
-  startPrepared(launchToken: string): Promise<unknown>;
+  startPrepared(operationId: string, launchToken: string): Promise<unknown>;
+  cancelPrepared(operationId: string): Promise<void>;
   sendEvent(event: StructuredAgentEvent): void;
 }
 
@@ -95,15 +97,24 @@ export function registerAgentIpc({
   scanCapabilities,
   preferences,
   startPrepared,
+  cancelPrepared,
   sendEvent
 }: RegisterAgentIpcOptions): () => void {
   ipc.handle(IPC_CHANNELS.agentRuntimeStart, async (event, input) => {
     authorizeLocal(event, authorize);
     return protectedOperation(async () => {
-      const request = RuntimeStartRequestSchema.parse(input);
+      const request = AgentRuntimeStartRequestSchema.parse(input);
       return AgentRuntimeStartResultSchema.parse(
-        await startPrepared(request.launchToken)
+        await startPrepared(request.operationId, request.launchToken)
       );
+    });
+  });
+  ipc.handle(IPC_CHANNELS.agentRuntimeCancelStart, async (event, input) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(async () => {
+      const request = AgentRuntimeCancelRequestSchema.parse(input);
+      await cancelPrepared(request.operationId);
+      return StructuredAgentCommandResultSchema.parse({ accepted: true });
     });
   });
   ipc.handle(IPC_CHANNELS.structuredCapabilityScan, async (event, input) => {

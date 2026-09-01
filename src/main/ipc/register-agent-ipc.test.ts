@@ -73,6 +73,7 @@ function harness() {
     routeReason: 'verified' as const,
     runtime: summary
   }));
+  const cancelPrepared = vi.fn(async () => undefined);
   const dispose = registerAgentIpc({
     ipc: { handle: (channel, handler) => handlers.set(channel, handler as Handler) },
     authorize,
@@ -80,6 +81,7 @@ function harness() {
     scanCapabilities,
     preferences,
     startPrepared,
+    cancelPrepared,
     sendEvent
   });
   return {
@@ -89,6 +91,7 @@ function harness() {
     scanCapabilities,
     preferences,
     startPrepared,
+    cancelPrepared,
     sendEvent,
     dispose,
     unsubscribe,
@@ -102,10 +105,22 @@ describe('registerAgentIpc', () => {
     const start = current.handlers.get(IPC_CHANNELS.agentRuntimeStart)!;
 
     await expect(start(event(), {
-      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+      launchToken: '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      operationId: '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
     })).resolves.toMatchObject({ mode: 'structured', routeReason: 'verified' });
     expect(current.startPrepared).toHaveBeenCalledWith(
+      '0198f8b6-18f3-7ca0-9f0f-abcdef123456',
       '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+    );
+
+    const cancel = current.handlers.get(
+      IPC_CHANNELS.agentRuntimeCancelStart
+    )!;
+    await expect(cancel(event(), {
+      operationId: '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
+    })).resolves.toEqual({ accepted: true });
+    expect(current.cancelPrepared).toHaveBeenCalledWith(
+      '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
     );
   });
 

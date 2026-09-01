@@ -327,6 +327,24 @@ function context(strategy: 'new' | 'resume' = 'new') {
 }
 
 describe('Codex structured adapter', () => {
+  it('closes a transport that resolves after startup was cancelled', async () => {
+    let resolveTransport!: (transport: FakeTransport) => void;
+    const transport = new FakeTransport();
+    const adapter = createCodexStructuredAdapter(context('new').value, {
+      createTransport: () => new Promise((resolve) => {
+        resolveTransport = resolve;
+      })
+    });
+
+    const opening = adapter.open();
+    await adapter.close();
+    resolveTransport(transport);
+
+    await expect(opening).rejects.toThrow('closed during startup');
+    expect(transport.close).toHaveBeenCalledOnce();
+    expect(transport.request).not.toHaveBeenCalled();
+  });
+
   it('starts and resumes exact native threads without sending an empty prompt', async () => {
     const transport = new FakeTransport();
     const createTransport: CodexStructuredTransportFactory = vi.fn(async () => transport);

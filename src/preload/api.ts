@@ -48,6 +48,8 @@ import {
   RuntimeListSchema,
   RuntimeResizeRequestSchema,
   RuntimeStartRequestSchema,
+  AgentRuntimeCancelRequestSchema,
+  AgentRuntimeStartRequestSchema,
   RuntimeSummarySchema,
   RuntimeWriteRequestSchema,
   RemoteConnectionProfileInputSchema,
@@ -569,10 +571,21 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.runtimeStart, request);
       return RuntimeSummarySchema.parse(value);
     },
-    async startAgentRuntime(launchToken) {
-      const request = RuntimeStartRequestSchema.parse({ launchToken });
+    async startAgentRuntime(launchToken, operationId) {
+      const request = AgentRuntimeStartRequestSchema.parse({
+        launchToken,
+        operationId
+      });
       const value = await invoke(IPC_CHANNELS.agentRuntimeStart, request);
       return AgentRuntimeStartResultSchema.parse(value);
+    },
+    async cancelAgentRuntimeStart(operationId) {
+      const request = AgentRuntimeCancelRequestSchema.parse({ operationId });
+      const value = await invoke(
+        IPC_CHANNELS.agentRuntimeCancelStart,
+        request
+      );
+      StructuredAgentCommandResultSchema.parse(value);
     },
     async listRuntimes() {
       const value = await invoke(IPC_CHANNELS.runtimeList);

@@ -1257,6 +1257,9 @@ describe('createLumoraApi structured agent bridge', () => {
       if (channel === IPC_CHANNELS.agentRuntimeStart) {
         return { mode: 'structured', routeReason: 'verified', runtime: summary };
       }
+      if (channel === IPC_CHANNELS.agentRuntimeCancelStart) {
+        return { accepted: true };
+      }
       return summary;
     }, (channel, listener) => {
       expect(channel).toBe(IPC_CHANNELS.structuredRuntimeEvent);
@@ -1265,8 +1268,12 @@ describe('createLumoraApi structured agent bridge', () => {
     });
 
     await expect(api.startAgentRuntime(
-      '0198f8b6-18f3-7ca0-9f0f-123456789abc'
+      '0198f8b6-18f3-7ca0-9f0f-123456789abc',
+      '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
     )).resolves.toMatchObject({ mode: 'structured', routeReason: 'verified' });
+    await expect(api.cancelAgentRuntimeStart(
+      '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
+    )).resolves.toBeUndefined();
     await expect(api.scanStructuredProviderCapabilities(true)).resolves.toEqual([]);
     await expect(api.getStructuredProviderPreferences()).resolves.toHaveLength(3);
     await expect(api.saveStructuredProviderPreference({
@@ -1297,6 +1304,7 @@ describe('createLumoraApi structured agent bridge', () => {
     expect(listener).toHaveBeenCalledWith(event);
     expect(calls.map(([channel]) => channel)).toEqual([
       IPC_CHANNELS.agentRuntimeStart,
+      IPC_CHANNELS.agentRuntimeCancelStart,
       IPC_CHANNELS.structuredCapabilityScan,
       IPC_CHANNELS.structuredPreferencesGet,
       IPC_CHANNELS.structuredPreferenceSave,

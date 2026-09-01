@@ -2380,7 +2380,7 @@ function AppContent(): ReactNode {
             <div className="terminal-surface">
               <DirectSessionLaunchWorkspace
                 launch={directSessionLaunch.launch}
-                onClose={directSessionLaunch.hide}
+                onClose={directSessionLaunch.cancel}
                 onOpenOptions={() => {
                   const currentLaunch = directSessionLaunch.launch;
                   if (currentLaunch === null) return;

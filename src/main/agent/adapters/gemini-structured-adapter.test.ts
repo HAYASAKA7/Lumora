@@ -112,6 +112,25 @@ function context(workspace: string, strategy: 'new' | 'resume' = 'new') {
 }
 
 describe('Gemini structured adapter', () => {
+  it('closes a transport that resolves after startup was cancelled', async () => {
+    let resolveTransport!: (transport: FakeTransport) => void;
+    const transport = new FakeTransport();
+    const adapter = createGeminiStructuredAdapter(context('C:\\workspace').value, {
+      createTransport: () => new Promise((resolve) => {
+        resolveTransport = resolve;
+      }),
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
+
+    const opening = adapter.open();
+    await adapter.close();
+    resolveTransport(transport);
+
+    await expect(opening).rejects.toThrow('closed during startup');
+    expect(transport.close).toHaveBeenCalledOnce();
+    expect(transport.request).not.toHaveBeenCalled();
+  });
+
   it('reads the existing Gemini authentication method without exposing credentials', async () => {
     await expect(resolveGeminiAuthenticationMethod({
       GEMINI_CLI_HOME: 'C:\\Users\\dev'

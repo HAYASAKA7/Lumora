@@ -2786,7 +2786,8 @@ describe('App', () => {
 
     await waitFor(() => expect(prepareLaunch).toHaveBeenCalled());
     await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledWith(
-      preview.launchToken
+      preview.launchToken,
+      expect.any(String)
     ));
     await waitFor(() => expect(getStructuredRuntimeSnapshot).toHaveBeenCalledWith(
       runtime.connectionId

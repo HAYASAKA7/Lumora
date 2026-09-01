@@ -65,6 +65,7 @@ interface LiveStructuredRuntime {
 
 export type StructuredAgentRuntimeHostErrorCode =
   | 'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
+  | 'STRUCTURED_RUNTIME_START_CANCELLED'
   | 'STRUCTURED_RUNTIME_FAILED'
   | 'STRUCTURED_RUNTIME_NOT_FOUND'
   | 'STRUCTURED_RUNTIME_NOT_READY'
@@ -75,6 +76,7 @@ const ERROR_MESSAGES: Readonly<Record<
   string
 >> = Object.freeze({
   STRUCTURED_RUNTIME_ALREADY_ACTIVE: 'This provider session is already active in Lumora.',
+  STRUCTURED_RUNTIME_START_CANCELLED: 'The structured provider session launch was cancelled.',
   STRUCTURED_RUNTIME_FAILED: 'Lumora could not start the structured provider session.',
   STRUCTURED_RUNTIME_NOT_FOUND: 'The structured provider session was not found.',
   STRUCTURED_RUNTIME_NOT_READY: 'The structured provider session is not ready.',
@@ -117,12 +119,25 @@ export class StructuredAgentRuntimeHost {
     return () => this.listeners.delete(listener);
   }
 
-  async launch(value: StructuredAgentLaunchRequest): Promise<StructuredAgentRuntimeSummary> {
+  async launch(
+    value: StructuredAgentLaunchRequest,
+    signal?: AbortSignal
+  ): Promise<StructuredAgentRuntimeSummary> {
     if (this.lifecycle !== 'active') {
       throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_SHUTTING_DOWN');
     }
+    if (signal?.aborted) {
+      throw new StructuredAgentRuntimeHostError(
+        'STRUCTURED_RUNTIME_START_CANCELLED'
+      );
+    }
     const request = StructuredAgentLaunchRequestSchema.parse(value);
     const launch = await this.options.resolveLaunch(request);
+    if (signal?.aborted) {
+      throw new StructuredAgentRuntimeHostError(
+        'STRUCTURED_RUNTIME_START_CANCELLED'
+      );
+    }
     if (launch.request.providerId !== request.providerId) {
       throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
     }
@@ -176,11 +191,35 @@ export class StructuredAgentRuntimeHost {
     };
     this.live.set(connectionId, runtime);
     this.emitStatus(runtime, 1, 'starting', null);
+    let cancelled = signal?.aborted ?? false;
+    let adapterClosePromise: Promise<void> | null = null;
+    const closeAdapter = (): Promise<void> => {
+      if (runtime.adapter === null) return Promise.resolve();
+      adapterClosePromise ??= runtime.adapter.close().catch(() => undefined);
+      return adapterClosePromise;
+    };
+    const cancelLaunch = () => {
+      cancelled = true;
+      void closeAdapter();
+    };
+    signal?.addEventListener('abort', cancelLaunch, { once: true });
 
     try {
       const adapter = await this.createAdapter(runtime, 1);
       runtime.adapter = adapter;
+      if (cancelled) {
+        await closeAdapter();
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_START_CANCELLED'
+        );
+      }
       const opened = await adapter.open();
+      if (cancelled) {
+        await closeAdapter();
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_START_CANCELLED'
+        );
+      }
       if (runtime.summary.state !== 'starting') {
         await adapter.close().catch(() => undefined);
         throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
@@ -215,7 +254,14 @@ export class StructuredAgentRuntimeHost {
       }
       return runtime.summary;
     } catch (error) {
-      await runtime.adapter?.close().catch(() => undefined);
+      await closeAdapter();
+      if (cancelled || signal?.aborted) {
+        this.guard.release(connectionId);
+        this.live.delete(connectionId);
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_START_CANCELLED'
+        );
+      }
       this.failRuntime(runtime, 1);
       this.live.delete(connectionId);
       if (error instanceof StructuredSessionGuardError) {
@@ -225,6 +271,8 @@ export class StructuredAgentRuntimeHost {
       }
       if (error instanceof StructuredAgentRuntimeHostError) throw error;
       throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+    } finally {
+      signal?.removeEventListener('abort', cancelLaunch);
     }
   }
 

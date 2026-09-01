@@ -594,11 +594,16 @@ export function createGeminiStructuredAdapter(
 
   return {
     async open() {
-      transport = await createTransport({
+      const nextTransport = await createTransport({
         executablePath: context.launch.executablePath,
         workingDirectory: context.launch.workingDirectory,
         handleRequest
       });
+      if (closed) {
+        await nextTransport.close().catch(() => undefined);
+        throw new Error('The Gemini structured session was closed during startup.');
+      }
+      transport = nextTransport;
       transport.onNotification(acceptNotification);
       transport.onExit((error) => {
         if (!closed) context.callbacks.exited(error);

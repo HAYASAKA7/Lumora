@@ -64,6 +64,35 @@ function harness(options: { maxTailEvents?: number } = {}) {
 }
 
 describe('StructuredAgentRuntimeHost', () => {
+  it('closes a structured adapter when its launch is cancelled', async () => {
+    let rejectOpen!: (error: Error) => void;
+    const close = vi.fn(async () => {
+      rejectOpen(new Error('transport closed'));
+    });
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: () => new Promise((_resolve, reject) => {
+          rejectOpen = reject;
+        }),
+        dispatch: async () => undefined,
+        close
+      }),
+      createConnectionId: () => 'connection-1'
+    });
+    const controller = new AbortController();
+
+    const launching = host.launch(newRequest, controller.signal);
+    await vi.waitFor(() => expect(host.list()).toHaveLength(1));
+    controller.abort();
+
+    await expect(launching).rejects.toMatchObject({
+      code: 'STRUCTURED_RUNTIME_START_CANCELLED'
+    });
+    expect(close).toHaveBeenCalledOnce();
+    expect(host.list()).toEqual([]);
+  });
+
   it('launches a new native session and emits an ordered bounded envelope', async () => {
     const { host } = harness();
     const observed: unknown[] = [];

@@ -254,7 +254,10 @@ export function ResumeSessionDialog({
       }
       try {
         if (onAgentStarted !== undefined) {
-          const result = await api.startAgentRuntime(preview.launchToken);
+          const result = await api.startAgentRuntime(
+            preview.launchToken,
+            globalThis.crypto.randomUUID()
+          );
           finishLaunchOperation(operation);
           onAgentStarted(result, confirmedPreview);
           return;
