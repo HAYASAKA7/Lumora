@@ -23,8 +23,12 @@ export const STRUCTURED_PREFERENCES_CHANGED_EVENT =
 
 type RouteChoiceApi = Pick<
   LumoraApi,
-  'getStructuredProviderPreferences' | 'scanStructuredProviderCapabilities'
->;
+  'getStructuredProviderPreferences'
+  | 'scanStructuredProviderCapabilities'
+> & Partial<Pick<
+  LumoraApi,
+  'getGeneralSettings' | 'onGeneralSettingsChanged'
+>>;
 
 type UnavailableReason =
   | 'unavailable'
@@ -48,6 +52,7 @@ export type SessionUnifiedRouteChoice =
     };
 
 interface RouteChoiceContextValue {
+  unifiedAgentUiEnabled: boolean | null;
   preferences: readonly StructuredProviderPreference[] | null;
   reports: readonly StructuredProviderCapabilityReport[] | null;
   scanFailed: boolean;
@@ -77,6 +82,9 @@ export function SessionRouteChoiceProvider({
   const [preferences, setPreferences] = useState<
     readonly StructuredProviderPreference[] | null
   >(null);
+  const [unifiedAgentUiEnabled, setUnifiedAgentUiEnabled] = useState<
+    boolean | null
+  >(null);
   const [reports, setReports] = useState<
     readonly StructuredProviderCapabilityReport[] | null
   >(null);
@@ -93,20 +101,49 @@ export function SessionRouteChoiceProvider({
     );
   }, [api]);
 
+  const refreshGeneralSettings = useCallback(() => {
+    if (api.getGeneralSettings === undefined) {
+      setUnifiedAgentUiEnabled(true);
+      return;
+    }
+    void api.getGeneralSettings().then(
+      (settings) => {
+        setUnifiedAgentUiEnabled(settings.unifiedAgentUiEnabled);
+        if (!settings.unifiedAgentUiEnabled) {
+          setReports(null);
+          setScanFailed(false);
+          scanPromise.current = null;
+        }
+      },
+      () => setUnifiedAgentUiEnabled(false)
+    );
+  }, [api]);
+
   useEffect(() => {
     refreshPreferences();
+    refreshGeneralSettings();
     window.addEventListener(
       STRUCTURED_PREFERENCES_CHANGED_EVENT,
       refreshPreferences
     );
-    return () => window.removeEventListener(
-      STRUCTURED_PREFERENCES_CHANGED_EVENT,
-      refreshPreferences
+    const unsubscribe = api.onGeneralSettingsChanged?.(
+      refreshGeneralSettings
     );
-  }, [refreshPreferences]);
+    return () => {
+      window.removeEventListener(
+        STRUCTURED_PREFERENCES_CHANGED_EVENT,
+        refreshPreferences
+      );
+      unsubscribe?.();
+    };
+  }, [api, refreshGeneralSettings, refreshPreferences]);
 
   const resolve = useCallback(() => {
-    if (reports !== null || scanPromise.current !== null) return;
+    if (
+      unifiedAgentUiEnabled !== true ||
+      reports !== null ||
+      scanPromise.current !== null
+    ) return;
     setScanFailed(false);
     const pending = api.scanStructuredProviderCapabilities(false).then(
       (nextReports) => setReports(nextReports),
@@ -115,14 +152,15 @@ export function SessionRouteChoiceProvider({
       if (scanPromise.current === pending) scanPromise.current = null;
     });
     scanPromise.current = pending;
-  }, [api, reports]);
+  }, [api, reports, unifiedAgentUiEnabled]);
 
   const value = useMemo(() => ({
     preferences,
     reports,
     resolve,
-    scanFailed
-  }), [preferences, reports, resolve, scanFailed]);
+    scanFailed,
+    unifiedAgentUiEnabled
+  }), [preferences, reports, resolve, scanFailed, unifiedAgentUiEnabled]);
 
   return (
     <RouteChoiceContext.Provider value={value}>
@@ -136,6 +174,7 @@ export function useSessionRouteChoice(
 ): SessionUnifiedRouteChoice {
   const context = useContext(RouteChoiceContext);
   if (context === null || !isStructuredProvider(provider)) return hiddenChoice;
+  if (context.unifiedAgentUiEnabled !== true) return hiddenChoice;
   const preference = context.preferences?.find(
     (candidate) => candidate.providerId === provider
   );

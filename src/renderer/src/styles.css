@@ -1090,9 +1090,54 @@ button {
 
 .structured-provider-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
+}
+
+.structured-provider-heading > div {
+  min-width: 0;
+}
+
+.structured-provider-master-toggle {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.structured-provider-master-toggle:has(input:disabled) {
+  cursor: wait;
+}
+
+.structured-provider-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.structured-provider-settings-dialog {
+  width: min(740px, 100%);
+}
+
+.structured-provider-settings-dialog-body {
+  height: clamp(360px, 68vh, 680px);
+  max-height: min(680px, calc(100vh - 156px));
+}
+
+.structured-provider-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.structured-provider-dialog-actions p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.structured-provider-dialog-actions button {
+  flex: 0 0 auto;
 }
 
 .structured-provider-grid {
@@ -1146,45 +1191,6 @@ button {
 
 .structured-provider-recovery p {
   margin: 0;
-}
-
-.structured-provider-advanced {
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
-.structured-provider-advanced summary {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.structured-provider-advanced[open] {
-  display: grid;
-  gap: 10px;
-}
-
-.structured-provider-advanced label {
-  display: grid;
-  gap: 7px;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.structured-provider-advanced input {
-  min-width: 0;
-  padding: 9px 10px;
-  color: var(--text);
-  font: inherit;
-  background: var(--control-surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-}
-
-.structured-provider-panel + .provider-panel-header {
-  margin-top: 24px;
 }
 
 .provider-panel-actions {
@@ -3933,6 +3939,7 @@ button {
 }
 
 .app-shell .dialog-body::-webkit-scrollbar,
+.structured-provider-settings-dialog-body::-webkit-scrollbar,
 .app-shell .launch-readiness::-webkit-scrollbar,
 .app-shell .resume-workflow-stage::-webkit-scrollbar {
   width: var(--modal-scrollbar-size);

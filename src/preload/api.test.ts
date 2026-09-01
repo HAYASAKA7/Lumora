@@ -1247,7 +1247,13 @@ describe('createLumoraApi structured agent bridge', () => {
       ) return [
         { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null },
         { providerId: 'claude', useUnifiedWhenAvailable: true, executablePathOverride: null },
-        { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null }
+        { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'opencode', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'cursor', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'copilot', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'qwen', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'kimi', useUnifiedWhenAvailable: true, executablePathOverride: null },
+        { providerId: 'goose', useUnifiedWhenAvailable: true, executablePathOverride: null }
       ];
       if (channel === IPC_CHANNELS.structuredRuntimeList) return [summary];
       if (channel === IPC_CHANNELS.structuredRuntimeSnapshot) {
@@ -1275,10 +1281,10 @@ describe('createLumoraApi structured agent bridge', () => {
       '0198f8b6-18f3-7ca0-9f0f-abcdef123456'
     )).resolves.toBeUndefined();
     await expect(api.scanStructuredProviderCapabilities(true)).resolves.toEqual([]);
-    await expect(api.getStructuredProviderPreferences()).resolves.toHaveLength(3);
+    await expect(api.getStructuredProviderPreferences()).resolves.toHaveLength(9);
     await expect(api.saveStructuredProviderPreference({
       providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null
-    })).resolves.toHaveLength(3);
+    })).resolves.toHaveLength(9);
     await expect(api.launchStructuredRuntime({
       strategy: 'new', providerId: 'codex', workspaceId: 'workspace-1', startPrompt: ''
     })).resolves.toEqual(summary);

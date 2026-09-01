@@ -43,7 +43,13 @@ function verified(
   const integration = {
     codex: 'codex_app_server',
     claude: 'claude_agent_sdk',
-    gemini: 'gemini_acp'
+    gemini: 'gemini_acp',
+    opencode: 'opencode_acp',
+    cursor: 'cursor_acp',
+    copilot: 'copilot_acp',
+    qwen: 'qwen_acp',
+    kimi: 'kimi_acp',
+    goose: 'goose_acp'
   } as const;
   return {
     providerId: installation.provider,
@@ -92,7 +98,13 @@ describe('StructuredProviderProbeCoordinator', () => {
     expect(reports.map(({ providerId, state }) => [providerId, state])).toEqual([
       ['codex', 'unavailable'],
       ['claude', 'unavailable'],
-      ['gemini', 'unavailable']
+      ['gemini', 'unavailable'],
+      ['opencode', 'unavailable'],
+      ['cursor', 'unavailable'],
+      ['copilot', 'unavailable'],
+      ['qwen', 'unavailable'],
+      ['kimi', 'unavailable'],
+      ['goose', 'unavailable']
     ]);
     expect(JSON.stringify(reports)).not.toContain('executablePath');
   });
@@ -151,7 +163,13 @@ describe('StructuredProviderProbeCoordinator', () => {
     expect(reports.map(({ providerId, state }) => [providerId, state])).toEqual([
       ['codex', 'failed'],
       ['claude', 'timed_out'],
-      ['gemini', 'verified']
+      ['gemini', 'verified'],
+      ['opencode', 'unavailable'],
+      ['cursor', 'unavailable'],
+      ['copilot', 'unavailable'],
+      ['qwen', 'unavailable'],
+      ['kimi', 'unavailable'],
+      ['goose', 'unavailable']
     ]);
   });
 });

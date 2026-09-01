@@ -24,6 +24,7 @@ import {
   GeneralSettingsChangedSchema,
   GeneralSettingsSchema,
   IPC_CHANNELS,
+  STRUCTURED_AGENT_PROVIDER_IDS,
   KeyboardSettingsSchema,
   LaunchPrepareRequestSchema,
   LaunchPreviewSchema,
@@ -624,7 +625,8 @@ export function createLumoraApi(
     async scanStructuredProviderCapabilities(fresh = false) {
       const request = StructuredAgentCapabilityScanRequestSchema.parse({ fresh });
       const value = await invoke(IPC_CHANNELS.structuredCapabilityScan, request);
-      return StructuredProviderCapabilityReportSchema.array().max(3).parse(value);
+        return StructuredProviderCapabilityReportSchema.array()
+          .max(STRUCTURED_AGENT_PROVIDER_IDS.length).parse(value);
     },
     async getStructuredProviderPreferences() {
       const value = await invoke(IPC_CHANNELS.structuredPreferencesGet);

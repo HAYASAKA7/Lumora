@@ -35,7 +35,7 @@ type GlobalGeneralSettings = Pick<
 
 type TargetGeneralSettings = Pick<
   GeneralSettings,
-  'enabledProviders'
+  'enabledProviders' | 'unifiedAgentUiEnabled'
 >;
 
 type FormerTargetGeneralSettings = Pick<
@@ -73,7 +73,8 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
 
 function targetProjection(settings: GeneralSettings): TargetGeneralSettings {
   return {
-    enabledProviders: settings.enabledProviders
+    enabledProviders: settings.enabledProviders,
+    unifiedAgentUiEnabled: settings.unifiedAgentUiEnabled
   };
 }
 
@@ -111,7 +112,7 @@ function mergeStoredSettings(
   return {
     ...fallback,
     ...stored,
-    version: 13,
+    version: 14,
     appearance: {
       ...fallback.appearance,
       ...objectValue(stored.appearance)
@@ -133,7 +134,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 13,
+      version: 14,
       ...globalProjection(global),
       ...targetProjection(target)
     });

@@ -167,17 +167,27 @@ and runs only for a user-confirmed cross-agent launch.
 ## Structured agent runtime
 
 Lumora's local Unified UI is an additional provider interaction route, not a
-replacement session model. Codex app-server, Claude Agent SDK, and Gemini ACP
-adapters translate provider events into strict shared contracts while the
-provider continues to own authentication, sessions, tools, permissions, and
-model behavior.
+replacement session model. Codex app-server and Claude Agent SDK have dedicated
+adapters. Gemini CLI, OpenCode, Cursor CLI, GitHub Copilot CLI, Qwen Code, Kimi
+Code, and goose use provider-owned ACP servers through a shared profiled
+adapter. Every adapter translates provider events into strict shared contracts
+while the provider continues to own authentication, sessions, tools,
+permissions, and model behavior.
+
+An ACP provider is eligible only after its exact executable invocation returns
+a valid protocol-version-1 initialization response. The registry owns the
+provider-to-integration mapping and the ACP profile owns its argument vector and
+authentication policy. Cursor CLI and goose can open new structured sessions,
+but their launch-only catalog support means Lumora does not invent saved-session
+discovery for them. A failed handshake or structured startup leaves the native
+PTY route available.
 
 ```text
 catalog session or new launch
           |
  expiring prepared-launch token + workspace trust
           |
- provider capability report + user preference
+ target master gate + provider capability report + user preference
         /   \
  verified   unavailable / disabled / failed
     |                    |
@@ -188,12 +198,15 @@ sequenced, bounded normalized events
 sandboxed Unified UI
 ```
 
-The launch router consumes each prepared launch once and selects the structured
+The launch router consumes each prepared launch once and treats the target-scoped
+Unified UI master setting as an authoritative gate before running capability
+probes. A disabled automatic route goes directly to PTY, while an explicitly
+requested Unified UI route fails closed. When enabled, it selects the structured
 route only for an advertised new or resume capability. A prepared launch can
 also carry an explicit local route selected from a session context menu:
 `unified` requires the verified capability and never silently falls back,
 whereas `pty` bypasses structured probing for that launch without changing the
-stored provider preference. Native forks, cross-agent handoffs, unsupported
+stored provider preference. Native forks, cross-agent handoffs, PTY-only
 providers, and unhealthy automatic routes use the PTY.
 If structured startup fails before the runtime owns the session, Lumora uses
 the already validated PTY specification. An ownership collision is never

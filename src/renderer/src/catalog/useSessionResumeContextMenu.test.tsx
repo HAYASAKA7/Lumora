@@ -6,6 +6,7 @@ import type {
   AgentInteractionRoute,
   SessionSummary
 } from '../../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import {
   SessionRouteChoiceProvider
 } from './SessionRouteChoiceContext';
@@ -88,6 +89,7 @@ function MenuHarness({
 
 function setup(options: { enabled?: boolean; resumeSession?: boolean } = {}) {
   const api = {
+    getGeneralSettings: vi.fn().mockResolvedValue(DEFAULT_GENERAL_SETTINGS),
     getStructuredProviderPreferences: vi.fn().mockResolvedValue([{
       providerId: 'codex',
       useUnifiedWhenAvailable: options.enabled ?? true,

@@ -435,13 +435,19 @@ describe('provider lifecycle migration', () => {
     ).run(workspaceId, timestamp)).toThrow();
   });
 
-  it('adds target-scoped structured provider preferences to an existing catalog', () => {
+  it('expands structured provider preferences without losing existing choices', () => {
     database = new DatabaseSync(':memory:');
     runMigrations(
       database,
-      CATALOG_MIGRATIONS.filter(({ version }) => version <= 19)
+      CATALOG_MIGRATIONS.filter(({ version }) => version <= 20)
     );
     const timestamp = '2026-08-27T00:00:00.000Z';
+    expect(() => database!.prepare(
+      `INSERT INTO structured_provider_preference (
+        execution_target_id, provider_id, use_unified_when_available,
+        executable_path_override, updated_at
+      ) VALUES ('local', 'codex', 1, NULL, ?)`
+    ).run(timestamp)).not.toThrow();
 
     runMigrations(database, CATALOG_MIGRATIONS);
 
@@ -449,13 +455,14 @@ describe('provider lifecycle migration', () => {
       `INSERT INTO structured_provider_preference (
         execution_target_id, provider_id, use_unified_when_available,
         executable_path_override, updated_at
-      ) VALUES ('local', 'codex', 1, NULL, ?)`
-    ).run(timestamp)).not.toThrow();
-    expect(() => database!.prepare(
-      `INSERT INTO structured_provider_preference (
-        execution_target_id, provider_id, use_unified_when_available,
-        executable_path_override, updated_at
       ) VALUES ('local', 'opencode', 1, NULL, ?)`
-    ).run(timestamp)).toThrow();
+    ).run(timestamp)).not.toThrow();
+    expect(database.prepare(
+      `SELECT provider_id, use_unified_when_available
+       FROM structured_provider_preference ORDER BY provider_id`
+    ).all()).toEqual([
+      { provider_id: 'codex', use_unified_when_available: 1 },
+      { provider_id: 'opencode', use_unified_when_available: 1 }
+    ]);
   });
 });

@@ -23,7 +23,13 @@ describe('StructuredProviderPreferenceRepository', () => {
     expect(repository().list()).toEqual([
       { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null },
       { providerId: 'claude', useUnifiedWhenAvailable: true, executablePathOverride: null },
-      { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      { providerId: 'gemini', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'opencode', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'cursor', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'copilot', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'qwen', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'kimi', useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'goose', useUnifiedWhenAvailable: true, executablePathOverride: null }
     ]);
   });
 

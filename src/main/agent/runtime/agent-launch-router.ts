@@ -43,6 +43,7 @@ interface AgentLaunchRouterDependencies {
   ): Promise<StructuredAgentRuntimeSummary>;
   scanCapabilities(): Promise<readonly StructuredProviderCapabilityReport[]>;
   listPreferences(): readonly StructuredProviderPreference[];
+  isUnifiedUiEnabled(): boolean;
 }
 
 interface PendingAgentLaunch {
@@ -168,6 +169,12 @@ export class AgentLaunchRouter {
     throwIfCancelled(signal);
     if (spec.interactionRoute === 'pty') {
       return this.startPty(spec, 'explicit_pty', signal);
+    }
+    if (!this.dependencies.isUnifiedUiEnabled()) {
+      if (spec.interactionRoute === 'unified') {
+        throw new AgentUnifiedRouteUnavailableError();
+      }
+      return this.startPty(spec, 'disabled', signal);
     }
     const request = structuredRequest(spec);
     if (request === null) {

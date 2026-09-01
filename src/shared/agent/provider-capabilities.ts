@@ -1,11 +1,20 @@
 import { z } from 'zod';
 
-import { StructuredAgentProviderIdSchema } from './contracts';
+import {
+  STRUCTURED_AGENT_PROVIDER_IDS,
+  StructuredAgentProviderIdSchema
+} from './contracts';
 
 export const STRUCTURED_INTEGRATIONS = [
   'codex_app_server',
   'claude_agent_sdk',
-  'gemini_acp'
+  'gemini_acp',
+  'opencode_acp',
+  'cursor_acp',
+  'copilot_acp',
+  'qwen_acp',
+  'kimi_acp',
+  'goose_acp'
 ] as const;
 
 export const StructuredIntegrationSchema = z.enum(STRUCTURED_INTEGRATIONS);
@@ -79,7 +88,7 @@ export const StructuredProviderPreferenceSchema = z.strictObject({
 
 export const StructuredProviderPreferenceListSchema = z.array(
   StructuredProviderPreferenceSchema
-).length(3);
+).length(STRUCTURED_AGENT_PROVIDER_IDS.length);
 
 export const StructuredProviderPreferenceInputSchema =
   StructuredProviderPreferenceSchema;

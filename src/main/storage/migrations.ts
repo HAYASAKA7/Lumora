@@ -567,6 +567,34 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         PRIMARY KEY (execution_target_id, provider_id)
       ) STRICT`
     ]
+  },
+  {
+    version: 21,
+    statements: [
+      `CREATE TABLE structured_provider_preference_next (
+        execution_target_id TEXT NOT NULL
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        provider_id TEXT NOT NULL CHECK (provider_id IN (
+          'codex', 'claude', 'gemini', 'opencode', 'cursor',
+          'copilot', 'qwen', 'kimi', 'goose'
+        )),
+        use_unified_when_available INTEGER NOT NULL DEFAULT 1
+          CHECK (use_unified_when_available IN (0, 1)),
+        executable_path_override TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (execution_target_id, provider_id)
+      ) STRICT`,
+      `INSERT INTO structured_provider_preference_next (
+        execution_target_id, provider_id, use_unified_when_available,
+        executable_path_override, updated_at
+      )
+      SELECT execution_target_id, provider_id, use_unified_when_available,
+        executable_path_override, updated_at
+      FROM structured_provider_preference`,
+      'DROP TABLE structured_provider_preference',
+      `ALTER TABLE structured_provider_preference_next
+       RENAME TO structured_provider_preference`
+    ]
   }
 ];
 

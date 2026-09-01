@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  STRUCTURED_AGENT_PROVIDER_IDS,
   StructuredAgentActionSchema,
   StructuredAgentCommandSchema,
   StructuredAgentEventSchema,
@@ -23,6 +24,28 @@ const envelope = {
 } as const;
 
 describe('structured agent contracts', () => {
+  it('covers every provider with a native ACP candidate', () => {
+    expect(STRUCTURED_AGENT_PROVIDER_IDS).toEqual([
+      'codex',
+      'claude',
+      'gemini',
+      'opencode',
+      'cursor',
+      'copilot',
+      'qwen',
+      'kimi',
+      'goose'
+    ]);
+    for (const providerId of STRUCTURED_AGENT_PROVIDER_IDS) {
+      expect(StructuredAgentLaunchRequestSchema.parse({
+        strategy: 'new',
+        providerId,
+        workspaceId: 'workspace-01',
+        startPrompt: ''
+      }).providerId).toBe(providerId);
+    }
+  });
+
   it('accepts bounded turn-grouped conversation and activity events', () => {
     expect(StructuredAgentEventSchema.parse({
       ...envelope,

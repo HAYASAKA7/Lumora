@@ -80,14 +80,14 @@ describe('provider definitions', () => {
       { provider: 'claude', structuredIntegration: 'claude_agent_sdk' },
       { provider: 'gemini', structuredIntegration: 'gemini_acp' },
       { provider: 'antigravity', structuredIntegration: null },
-      { provider: 'opencode', structuredIntegration: null },
-      { provider: 'cursor', structuredIntegration: null },
-      { provider: 'copilot', structuredIntegration: null },
-      { provider: 'qwen', structuredIntegration: null },
-      { provider: 'kimi', structuredIntegration: null },
+      { provider: 'opencode', structuredIntegration: 'opencode_acp' },
+      { provider: 'cursor', structuredIntegration: 'cursor_acp' },
+      { provider: 'copilot', structuredIntegration: 'copilot_acp' },
+      { provider: 'qwen', structuredIntegration: 'qwen_acp' },
+      { provider: 'kimi', structuredIntegration: 'kimi_acp' },
       { provider: 'amp', structuredIntegration: null },
       { provider: 'crush', structuredIntegration: null },
-      { provider: 'goose', structuredIntegration: null },
+      { provider: 'goose', structuredIntegration: 'goose_acp' },
       { provider: 'aider', structuredIntegration: null }
     ]);
   });

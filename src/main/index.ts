@@ -859,7 +859,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     launchStructured: (request, signal) =>
       structuredAgentRuntime!.launch(request, signal),
     scanCapabilities: () => scanStructuredCapabilities(false),
-    listPreferences: () => terminalRuntime!.getStructuredProviderPreferences()
+    listPreferences: () => terminalRuntime!.getStructuredProviderPreferences(),
+    isUnifiedUiEnabled: () =>
+      terminalRuntime!.getGeneralSettings().unifiedAgentUiEnabled
   });
   const localePaths = resolveLocalePaths({
     isPackaged: app.isPackaged,

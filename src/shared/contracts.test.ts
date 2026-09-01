@@ -1769,7 +1769,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 13,
+      version: 14,
       languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
@@ -1784,6 +1784,7 @@ describe('managed terminal contracts', () => {
       warnBeforeRemoteDisconnect: true,
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
+      unifiedAgentUiEnabled: true,
       enabledProviders: [...PROVIDER_IDS],
       appearance: {
         theme: 'lumora',
@@ -1803,6 +1804,14 @@ describe('managed terminal contracts', () => {
         backgroundPosition: 'center'
       }
     });
+    const versionThirteen = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 13
+    } as Record<string, unknown>;
+    delete versionThirteen.unifiedAgentUiEnabled;
+    expect(parseStoredGeneralSettings(versionThirteen)).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
     expect(FontFamilyNameSchema.parse(' JetBrains Mono ')).toBe('JetBrains Mono');
     expect(FontFamilyNameSchema.safeParse('Bad\nFont').success).toBe(false);
     expect(FontFamilyNameSchema.safeParse('x'.repeat(129)).success).toBe(false);
@@ -1958,6 +1967,7 @@ describe('managed terminal contracts', () => {
       version: 12
     } as Record<string, unknown>;
     delete versionTwelve.autoTrustWorkspaces;
+    delete versionTwelve.unifiedAgentUiEnabled;
     expect(parseStoredGeneralSettings(versionTwelve)).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
@@ -1967,6 +1977,7 @@ describe('managed terminal contracts', () => {
       appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
     } as Record<string, unknown>;
     delete versionEleven.autoTrustWorkspaces;
+    delete versionEleven.unifiedAgentUiEnabled;
     delete (versionEleven.appearance as Record<string, unknown>).themePresetId;
     expect(parseStoredGeneralSettings(versionEleven)).toEqual(
       DEFAULT_GENERAL_SETTINGS
@@ -1981,6 +1992,7 @@ describe('managed terminal contracts', () => {
       }
     } as Record<string, unknown>;
     delete versionTen.autoTrustWorkspaces;
+    delete versionTen.unifiedAgentUiEnabled;
     delete (versionTen.appearance as Record<string, unknown>).interfaceFontFamily;
     delete (versionTen.appearance as Record<string, unknown>).terminalFontFamily;
     delete (versionTen.appearance as Record<string, unknown>).themePresetId;
@@ -1998,6 +2010,7 @@ describe('managed terminal contracts', () => {
       appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
     } as Record<string, unknown>;
     versionNine.version = 9;
+    delete versionNine.unifiedAgentUiEnabled;
     delete versionNine.languagePreference;
     delete (versionNine.appearance as Record<string, unknown>).interfaceFontFamily;
     delete (versionNine.appearance as Record<string, unknown>).terminalFontFamily;

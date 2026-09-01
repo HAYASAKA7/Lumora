@@ -3,7 +3,13 @@ import { z } from 'zod';
 export const STRUCTURED_AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
-  'gemini'
+  'gemini',
+  'opencode',
+  'cursor',
+  'copilot',
+  'qwen',
+  'kimi',
+  'goose'
 ] as const;
 
 export const StructuredAgentProviderIdSchema = z.enum(

@@ -253,7 +253,8 @@ Before release, test at least:
 7. direct primary-click resume, one-launch right-click Unified UI and native
    PTY choices, advanced right-click resume, and activation of an already-running
    session without a duplicate runtime or false loading failure;
-8. verified Codex, Claude Code, and Gemini Unified UI launch, multiple turns,
+8. verified Codex, Claude Code, Gemini, OpenCode, Cursor CLI, GitHub Copilot
+   CLI, Qwen Code, Kimi Code, and goose Unified UI launch, multiple turns,
    Markdown, commands, cancellation, activity, diffs, history paging, clean
    exit, and automatic PTY fallback; and
 9. restart behavior and lost-runtime reporting.

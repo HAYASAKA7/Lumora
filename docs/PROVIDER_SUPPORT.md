@@ -35,17 +35,34 @@ providers without a verified structured route continue through the native PTY.
 | --- | --- | --- | --- |
 | Codex | App-server protocol | Capability checked; PTY fallback | PTY |
 | Claude Code | Claude Agent SDK | Capability checked; PTY fallback | PTY |
-| Gemini CLI | ACP | Capability checked; PTY fallback | PTY |
+| Gemini CLI | ACP (`gemini --acp`) | Capability checked; PTY fallback | PTY |
+| OpenCode | ACP (`opencode acp`) | Capability checked; PTY fallback | PTY |
+| Cursor CLI | ACP (`cursor-agent acp`) | New sessions when capability check passes; PTY fallback | PTY |
+| GitHub Copilot CLI | ACP (`copilot --acp --stdio`) | Capability checked; PTY fallback | PTY |
+| Qwen Code | ACP (`qwen --acp`) | Capability checked; PTY fallback | PTY |
+| Kimi Code | ACP (`kimi acp`) | Capability checked; PTY fallback | PTY |
+| goose | ACP (`goose acp`) | New sessions when capability check passes; PTY fallback | PTY |
 
 Lumora probes the configured executable and version before offering the route.
-Users can disable the Unified UI independently for each provider. When it is
-enabled and verified, a stopped session's context menu can explicitly request
+ACP candidates must complete a protocol-version-1 initialization handshake;
+having a similarly named command is not enough. Cursor CLI and goose remain
+launch-only catalog providers, so their verified ACP routes can create Unified
+UI sessions but Lumora does not present provider-owned saved sessions for exact
+resume. Antigravity, Amp, Crush, and Aider remain PTY-only because Lumora does
+not have a provider-owned structured protocol for them.
+Settings presents one target-scoped Unified UI master switch. Turning it off
+forces automatic launches through the native PTY without deleting the saved
+per-provider choices. The detailed settings dialog contains capability status,
+individual provider switches, and fallback guidance; provider start commands
+remain configured once in the installation cards. Opening detailed settings is
+what triggers a status refresh. When the master and provider choice are enabled
+and verified, a stopped session's context menu can explicitly request
 the Unified UI or the native PTY. The explicit PTY choice is scoped to that
 launch and does not overwrite the provider preference. An unavailable,
 incompatible, failed, or timed-out probe—and a structured launch failure before
 ownership is established—falls back to the already validated PTY launch.
-Native forks, cross-agent handoffs, unsupported structured actions, and all
-other providers remain PTY-based.
+Native forks, cross-agent handoffs, and unsupported structured actions remain
+PTY-based.
 
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system

@@ -16,6 +16,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   provider commands and models, cancellation, approvals, process and tool
   activity, file diffs, session usage details, and provider account limits when
   the integration exposes them.
+- Extend the local Unified UI capability pipeline to OpenCode, Cursor CLI,
+  GitHub Copilot CLI, Qwen Code, Kimi Code, and goose through their native ACP
+  server modes. Each route uses its provider-owned executable, authentication,
+  session identity, command list, model configuration, tool activity,
+  permissions, cancellation, and history capabilities when advertised.
 - Add bounded, progressively loaded conversation history. Lumora initially
   renders a small recent window and loads earlier turns as the user scrolls,
   reducing resume-time renderer work for long sessions.
@@ -41,6 +46,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Route Unified UI availability through provider capability probes and
   per-provider settings. Disabled, unavailable, incompatible, timed-out, or
   failed integrations fall back to the existing native terminal automatically.
+- Gate every ACP route on a bounded protocol handshake and preserve automatic
+  native PTY fallback when the installed provider version is unavailable,
+  incompatible, times out, or cannot start a structured session. Cursor CLI
+  and goose expose new Unified UI sessions while remaining launch-only catalog
+  providers.
+- Replace expanded inline Unified UI controls with one target-scoped master
+  switch and a Lumora detailed-settings dialog. Turning the master switch off
+  forces native PTY routing without erasing individual provider choices.
+  Provider start commands remain configured in the installation cards rather
+  than being duplicated in the Unified UI dialog.
 - Keep provider settings controls, conversation actions, dialogs, context
   menus, message-color actions, and loading states aligned with Lumora's shared
   UI components and spacing rules.
@@ -61,6 +76,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Accept an explicitly selected native PTY result across the validated IPC
   boundary, preventing an already-running terminal from being reported as a
   failed direct launch before its terminal page appears.
+- Keep Unified UI detailed settings usable while capability checks run: saved
+  provider choices render independently, stale checks cannot overwrite newer
+  results, and Close or Escape never becomes trapped behind a slow probe.
 
 ### Security
 
@@ -69,6 +87,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tokens, provider capability checks, workspace trust, and one-writer session
   ownership. The sandboxed renderer receives normalized events rather than
   direct filesystem or process access.
+- Keep additional ACP providers behind the same main-process boundary, strict
+  schemas, workspace-confined file access, bounded protocol frames, provider
+  permission prompts, and one-writer session ownership.
 
 ## [0.4.2] - 2026-08-26
 

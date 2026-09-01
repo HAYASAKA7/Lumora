@@ -265,6 +265,7 @@ export function SettingsView({
           generalSettings={generalSettings}
           generalSettingsSaveError={generalSettingsSaveError}
           generalSettingsSaving={generalSettingsSaving}
+          onGeneralSettingsChange={onGeneralSettingsChange}
           onRefresh={onRefreshProviders}
           onRefreshUpdates={onRefreshProviderUpdates}
           refreshing={providerRefreshing}

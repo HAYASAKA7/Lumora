@@ -48,21 +48,21 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('opencode'),
     displayName: 'OpenCode',
     sessionSupport: 'complete',
-    structuredIntegration: null,
+    structuredIntegration: 'opencode_acp',
     installGuideUrl: 'https://opencode.ai/docs/'
   },
   {
     ...providerProbe('cursor'),
     displayName: 'Cursor CLI',
     sessionSupport: 'launch_only',
-    structuredIntegration: null,
+    structuredIntegration: 'cursor_acp',
     installGuideUrl: 'https://cursor.com/docs/cli/installation'
   },
   {
     ...providerProbe('copilot'),
     displayName: 'GitHub Copilot CLI',
     sessionSupport: 'complete',
-    structuredIntegration: null,
+    structuredIntegration: 'copilot_acp',
     installGuideUrl:
       'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli'
   },
@@ -70,14 +70,14 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('qwen'),
     displayName: 'Qwen Code',
     sessionSupport: 'complete',
-    structuredIntegration: null,
+    structuredIntegration: 'qwen_acp',
     installGuideUrl: 'https://qwenlm.github.io/qwen-code-docs/en/'
   },
   {
     ...providerProbe('kimi'),
     displayName: 'Kimi Code',
     sessionSupport: 'complete',
-    structuredIntegration: null,
+    structuredIntegration: 'kimi_acp',
     installGuideUrl: 'https://www.kimi.com/help/kimi-code/cli-getting-started'
   },
   {
@@ -98,7 +98,7 @@ export const PROVIDER_DEFINITIONS = Object.freeze([
     ...providerProbe('goose'),
     displayName: 'goose',
     sessionSupport: 'launch_only',
-    structuredIntegration: null,
+    structuredIntegration: 'goose_acp',
     installGuideUrl: 'https://block.github.io/goose/docs/getting-started/installation'
   },
   {

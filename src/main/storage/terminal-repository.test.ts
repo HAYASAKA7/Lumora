@@ -425,7 +425,7 @@ describe('TerminalRepository', () => {
     }), timestamp);
 
     expect(repository.getGeneralSettings()).toMatchObject({
-      version: 13,
+      version: 14,
       startMaximized: false,
       autoTrustWorkspaces: false,
       appearance: {
@@ -453,12 +453,14 @@ describe('TerminalRepository', () => {
       ...DEFAULT_GENERAL_SETTINGS,
       languagePreference: 'zh-Hans',
       autoTrustWorkspaces: true,
+      unifiedAgentUiEnabled: false,
       enabledProviders: ['codex', 'claude']
     }, timestamp);
 
     expect(remoteRepository.getGeneralSettings()).toMatchObject({
       languagePreference: 'zh-Hans',
       autoTrustWorkspaces: true,
+      unifiedAgentUiEnabled: true,
       enabledProviders: [...PROVIDER_IDS]
     });
 
@@ -471,6 +473,7 @@ describe('TerminalRepository', () => {
     expect(repository.getGeneralSettings()).toMatchObject({
       languagePreference: 'ja',
       autoTrustWorkspaces: true,
+      unifiedAgentUiEnabled: false,
       enabledProviders: ['codex', 'claude']
     });
   });

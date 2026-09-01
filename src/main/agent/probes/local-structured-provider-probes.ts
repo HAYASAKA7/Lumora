@@ -5,6 +5,11 @@ import { spawnStructuredLineTransport } from '../transport/process-invocation';
 import { probeClaudeStructuredProvider } from './claude-probe';
 import { probeCodexStructuredProvider } from './codex-probe';
 import { probeGeminiStructuredProvider } from './gemini-probe';
+import {
+  acpProviderProfile,
+  isAcpProvider
+} from '../acp/acp-provider-profiles';
+import { probeAcpStructuredProvider } from './acp-probe';
 import type { ReadyStructuredProviderInstallation } from './structured-provider-probe-coordinator';
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -51,13 +56,24 @@ export function createLocalStructuredProviderProbe({
           createTransport(executablePath, ['app-server', '--stdio'], 10_000)
       });
     }
-    if (installation.provider === 'gemini') {
-      return probeGeminiStructuredProvider({
+    if (isAcpProvider(installation.provider)) {
+      const profile = acpProviderProfile(installation.provider);
+      if (installation.provider === 'gemini') {
+        return probeGeminiStructuredProvider({
+          executablePath: installation.executablePath,
+          version: installation.version,
+          clientVersion,
+          createTransport: async (executablePath) =>
+            createTransport(executablePath, profile.arguments, 30_000)
+        });
+      }
+      return probeAcpStructuredProvider({
+        profile,
         executablePath: installation.executablePath,
         version: installation.version,
         clientVersion,
         createTransport: async (executablePath) =>
-          createTransport(executablePath, ['--acp'], 30_000)
+          createTransport(executablePath, profile.arguments, 30_000)
       });
     }
     return probeClaude({

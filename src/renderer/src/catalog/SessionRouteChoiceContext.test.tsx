@@ -6,6 +6,7 @@ import type {
   StructuredProviderCapabilityReport,
   StructuredProviderPreference
 } from '../../../shared/contracts';
+import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
 import {
   STRUCTURED_PREFERENCES_CHANGED_EVENT,
   SessionRouteChoiceProvider,
@@ -69,9 +70,15 @@ function report(
 
 function harness(options: {
   enabled?: boolean;
+  masterEnabled?: boolean;
   capability?: StructuredProviderCapabilityReport;
 } = {}) {
   const api = {
+    getGeneralSettings: vi.fn().mockResolvedValue({
+      ...DEFAULT_GENERAL_SETTINGS,
+      unifiedAgentUiEnabled: options.masterEnabled ?? true
+    }),
+    onGeneralSettingsChanged: vi.fn(() => () => undefined),
     getStructuredProviderPreferences: vi.fn().mockResolvedValue(
       preferences(options.enabled ?? true)
     ),
@@ -113,6 +120,17 @@ describe('SessionRouteChoiceProvider', () => {
 
   it('hides Unified UI when the saved provider preference is disabled', async () => {
     const { api, wrapper } = harness({ enabled: false });
+    const { result } = renderHook(() => useSessionRouteChoice('codex'), {
+      wrapper
+    });
+
+    await waitFor(() => expect(result.current.visibility).toBe('hidden'));
+    act(() => result.current.resolve());
+    expect(api.scanStructuredProviderCapabilities).not.toHaveBeenCalled();
+  });
+
+  it('hides Unified UI and avoids capability scans when its master switch is off', async () => {
+    const { api, wrapper } = harness({ masterEnabled: false });
     const { result } = renderHook(() => useSessionRouteChoice('codex'), {
       wrapper
     });

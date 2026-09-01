@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  STRUCTURED_INTEGRATIONS,
   StructuredProviderCapabilityReportSchema,
   selectProviderInteractionRoute
 } from './provider-capabilities';
@@ -26,6 +27,20 @@ const verified = StructuredProviderCapabilityReportSchema.parse({
 });
 
 describe('structured provider capabilities', () => {
+  it('keeps native structured integration identities explicit', () => {
+    expect(STRUCTURED_INTEGRATIONS).toEqual([
+      'codex_app_server',
+      'claude_agent_sdk',
+      'gemini_acp',
+      'opencode_acp',
+      'cursor_acp',
+      'copilot_acp',
+      'qwen_acp',
+      'kimi_acp',
+      'goose_acp'
+    ]);
+  });
+
   it('selects structured UI only for a verified enabled route', () => {
     expect(selectProviderInteractionRoute({
       preferenceEnabled: true,

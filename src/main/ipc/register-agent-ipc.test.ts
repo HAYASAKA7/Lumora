@@ -60,7 +60,13 @@ function harness() {
   const preferenceValues: StructuredProviderPreference[] = [
       { providerId: 'codex' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
       { providerId: 'claude' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
-      { providerId: 'gemini' as const, useUnifiedWhenAvailable: true, executablePathOverride: null }
+      { providerId: 'gemini' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'opencode' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'cursor' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'copilot' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'qwen' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'kimi' as const, useUnifiedWhenAvailable: true, executablePathOverride: null },
+      { providerId: 'goose' as const, useUnifiedWhenAvailable: true, executablePathOverride: null }
   ];
   const preferences = {
     list: vi.fn(() => preferenceValues),
@@ -193,7 +199,7 @@ describe('registerAgentIpc', () => {
   it('reads and saves validated per-provider routing preferences', async () => {
     const current = harness();
     const get = current.handlers.get(IPC_CHANNELS.structuredPreferencesGet)!;
-    await expect(get(event())).resolves.toHaveLength(3);
+    await expect(get(event())).resolves.toHaveLength(9);
     const save = current.handlers.get(IPC_CHANNELS.structuredPreferenceSave)!;
     await expect(save(event(), {
       providerId: 'claude', useUnifiedWhenAvailable: false, executablePathOverride: null

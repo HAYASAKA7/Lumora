@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import type {
   GeneralSettings,
@@ -11,7 +12,10 @@ import type {
   StructuredProviderCapabilityReport,
   StructuredProviderPreference
 } from '../../../shared/contracts';
-import { DEFAULT_GENERAL_SETTINGS } from '../../../shared/contracts';
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  STRUCTURED_AGENT_PROVIDER_IDS
+} from '../../../shared/contracts';
 import {
   PROVIDER_DEFINITIONS,
   providerDefinition,
@@ -43,7 +47,13 @@ export type ProviderSettingsApi = Pick<
 const STRUCTURED_INTEGRATION_LABELS = {
   codex_app_server: 'Codex app-server',
   claude_agent_sdk: 'Claude Agent SDK',
-  gemini_acp: 'Gemini ACP'
+  gemini_acp: 'Gemini ACP',
+  opencode_acp: 'OpenCode ACP',
+  cursor_acp: 'Cursor ACP',
+  copilot_acp: 'GitHub Copilot ACP',
+  qwen_acp: 'Qwen ACP',
+  kimi_acp: 'Kimi ACP',
+  goose_acp: 'goose ACP'
 } as const;
 
 const STRUCTURED_FALLBACK_LABELS = {
@@ -351,6 +361,7 @@ export function ProviderSettings({
   generalSettings = DEFAULT_GENERAL_SETTINGS,
   generalSettingsSaving = false,
   generalSettingsSaveError = null,
+  onGeneralSettingsChange = () => undefined,
   refreshing = false,
   onSaveEnabledProviders = async () => true,
   updatesStatus,
@@ -364,6 +375,7 @@ export function ProviderSettings({
   generalSettings?: GeneralSettings;
   generalSettingsSaving?: boolean;
   generalSettingsSaveError?: string | null;
+  onGeneralSettingsChange?: (settings: GeneralSettings) => void;
   refreshing?: boolean;
   onSaveEnabledProviders?: (
     providers: readonly ProviderId[]
@@ -399,11 +411,15 @@ export function ProviderSettings({
   const [structuredPreferences, setStructuredPreferences] = useState<
     readonly StructuredProviderPreference[]
   >([]);
-  const [structuredOverrideDrafts, setStructuredOverrideDrafts] = useState<
-    Partial<Record<StructuredProviderPreference['providerId'], string>>
-  >({});
-  const [structuredBusy, setStructuredBusy] = useState(false);
+  const [structuredPreferencesLoading, setStructuredPreferencesLoading] = useState(false);
+  const [structuredReportsLoading, setStructuredReportsLoading] = useState(false);
+  const [structuredSaving, setStructuredSaving] = useState(false);
   const [structuredError, setStructuredError] = useState(false);
+  const [structuredDialogOpen, setStructuredDialogOpen] = useState(false);
+  const structuredDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const structuredReportsRequestRef = useRef(0);
+  const structuredBusy =
+    structuredPreferencesLoading || structuredReportsLoading || structuredSaving;
   useEffect(() => {
     setEnabledProviderDraft(generalSettings.enabledProviders);
   }, [generalSettings.enabledProviders]);
@@ -436,33 +452,49 @@ export function ProviderSettings({
       api.scanStructuredProviderCapabilities === undefined ||
       api.getStructuredProviderPreferences === undefined
     ) return;
-    setStructuredBusy(true);
     setStructuredError(false);
-    void Promise.all([
-      api.scanStructuredProviderCapabilities(fresh),
-      api.getStructuredProviderPreferences()
-    ]).then(
-      ([reports, preferences]) => {
-        setStructuredReports(reports);
+    setStructuredPreferencesLoading(true);
+    void api.getStructuredProviderPreferences().then(
+      (preferences) => {
         setStructuredPreferences(preferences);
-        setStructuredOverrideDrafts(Object.fromEntries(
-          preferences.map((preference) => [
-            preference.providerId,
-            preference.executablePathOverride ?? ''
-          ])
-        ));
-        setStructuredBusy(false);
+        setStructuredPreferencesLoading(false);
       },
       () => {
         setStructuredError(true);
-        setStructuredBusy(false);
+        setStructuredPreferencesLoading(false);
+      }
+    );
+    const requestId = ++structuredReportsRequestRef.current;
+    setStructuredReportsLoading(true);
+    void api.scanStructuredProviderCapabilities(fresh).then(
+      (reports) => {
+        if (structuredReportsRequestRef.current !== requestId) return;
+        setStructuredReports(reports);
+        setStructuredReportsLoading(false);
+      },
+      () => {
+        if (structuredReportsRequestRef.current !== requestId) return;
+        setStructuredError(true);
+        setStructuredReportsLoading(false);
       }
     );
   };
 
+  const closeStructuredDialog = () => {
+    setStructuredDialogOpen(false);
+    window.requestAnimationFrame(() => structuredDetailsButtonRef.current?.focus());
+  };
+
   useEffect(() => {
-    refreshStructuredProviders(false);
-  }, [api, scope]);
+    if (!structuredDialogOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeStructuredDialog();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [structuredDialogOpen]);
 
   const saveStructuredPreference = (
     preference: StructuredProviderPreference,
@@ -472,29 +504,34 @@ export function ProviderSettings({
     >>
   ) => {
     if (api.saveStructuredProviderPreference === undefined) return;
-    setStructuredBusy(true);
+    setStructuredSaving(true);
     setStructuredError(false);
     void api.saveStructuredProviderPreference({
       ...preference,
       ...update
-      }).then(async (preferences) => {
+      }).then((preferences) => {
         setStructuredPreferences(preferences);
         window.dispatchEvent(new Event(STRUCTURED_PREFERENCES_CHANGED_EVENT));
-        setStructuredOverrideDrafts(Object.fromEntries(
-          preferences.map((saved) => [
-            saved.providerId,
-            saved.executablePathOverride ?? ''
-          ])
-        ));
+        setStructuredSaving(false);
         if (api.scanStructuredProviderCapabilities !== undefined) {
-          setStructuredReports(
-            await api.scanStructuredProviderCapabilities(true)
+          const requestId = ++structuredReportsRequestRef.current;
+          setStructuredReportsLoading(true);
+          void api.scanStructuredProviderCapabilities(true).then(
+            (reports) => {
+              if (structuredReportsRequestRef.current !== requestId) return;
+              setStructuredReports(reports);
+              setStructuredReportsLoading(false);
+            },
+            () => {
+              if (structuredReportsRequestRef.current !== requestId) return;
+              setStructuredError(true);
+              setStructuredReportsLoading(false);
+            }
           );
         }
-        setStructuredBusy(false);
       }).catch(() => {
         setStructuredError(true);
-        setStructuredBusy(false);
+        setStructuredSaving(false);
       });
   };
 
@@ -573,6 +610,9 @@ export function ProviderSettings({
     );
   const enabledStructuredPreferences = structuredPreferences.filter(
     ({ providerId }) => generalSettings.enabledProviders.includes(providerId)
+  );
+  const enabledStructuredProviderIds = STRUCTURED_AGENT_PROVIDER_IDS.filter(
+    (providerId) => generalSettings.enabledProviders.includes(providerId)
   );
 
   const toggleProvider = (provider: ProviderId, enabled: boolean) => {
@@ -693,147 +733,6 @@ export function ProviderSettings({
         )}
       </section>
 
-      {scope !== 'local' || enabledStructuredPreferences.length === 0 ? null : (
-        <section
-          aria-labelledby="structured-provider-title"
-          className="provider-selection-panel structured-provider-panel"
-        >
-          <div className="structured-provider-heading">
-            <div>
-              <p className="card-label">
-                {t('providers.settings.unified-eyebrow')}
-              </p>
-              <h2 id="structured-provider-title">
-                {t('providers.settings.unified-title')}
-              </h2>
-              <p>{t('providers.settings.unified-description')}</p>
-            </div>
-            <button
-              className="secondary-button"
-              disabled={structuredBusy}
-              onClick={() => refreshStructuredProviders(true)}
-              type="button"
-            >
-              {t(structuredBusy
-                ? 'providers.settings.unified-checking'
-                : 'providers.settings.unified-refresh')}
-            </button>
-          </div>
-          <div className="structured-provider-grid">
-            {enabledStructuredPreferences.map((preference) => {
-              const definition = providerDefinition(preference.providerId);
-              const report = structuredReports.find(
-                (candidate) => candidate.providerId === preference.providerId
-              );
-              return (
-                <article className="structured-provider-option" key={preference.providerId}>
-                  <div className="structured-provider-option-header">
-                    <strong>{definition.displayName}</strong>
-                    <label className="settings-switch structured-provider-toggle">
-                      <input
-                        aria-label={t('providers.settings.use-unified', {
-                          provider: definition.displayName
-                        })}
-                        checked={preference.useUnifiedWhenAvailable}
-                        disabled={structuredBusy}
-                        onChange={(event) => saveStructuredPreference(
-                          preference,
-                          { useUnifiedWhenAvailable: event.currentTarget.checked }
-                        )}
-                        type="checkbox"
-                      />
-                      <span aria-hidden="true" className="settings-switch-track">
-                        <span className="settings-switch-thumb" />
-                      </span>
-                    </label>
-                  </div>
-                  <div className="structured-provider-copy">
-                    <p>
-                      {report?.state === 'verified'
-                        ? t('providers.settings.unified-verified', {
-                            integration: STRUCTURED_INTEGRATION_LABELS[report.integration]
-                          })
-                        : report === undefined
-                          ? t('providers.settings.unified-fallback')
-                          : t(STRUCTURED_FALLBACK_LABELS[report.state])}
-                    </p>
-                    {report === undefined || report.issue === null ? null : (
-                      <div className="structured-provider-recovery">
-                        <p>{report.issue.message}</p>
-                        <p>{report.issue.recovery}</p>
-                      </div>
-                    )}
-                  </div>
-                  <details className="structured-provider-advanced">
-                    <summary>{t('providers.settings.unified-advanced')}</summary>
-                    <label>
-                      <span>{t('providers.settings.unified-executable-label')}</span>
-                      <input
-                        aria-label={t('providers.settings.unified-executable-aria', {
-                          provider: definition.displayName
-                        })}
-                        disabled={structuredBusy}
-                        maxLength={32_768}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value;
-                          setStructuredOverrideDrafts((current) => ({
-                            ...current,
-                            [preference.providerId]: value
-                          }));
-                        }}
-                        placeholder={t('providers.settings.unified-executable-placeholder')}
-                        type="text"
-                        value={structuredOverrideDrafts[preference.providerId] ?? ''}
-                      />
-                    </label>
-                    <p>{t('providers.settings.unified-executable-help')}</p>
-                    <div className="catalog-actions">
-                      <button
-                        aria-label={t('providers.settings.unified-executable-save-aria', {
-                          provider: definition.displayName
-                        })}
-                        className="secondary-button"
-                        data-lumora-command
-                        disabled={structuredBusy}
-                        onClick={() => saveStructuredPreference(preference, {
-                          executablePathOverride:
-                            structuredOverrideDrafts[preference.providerId]?.trim() || null
-                        })}
-                        type="button"
-                      >
-                        {t('providers.settings.unified-executable-save')}
-                      </button>
-                      <button
-                        className="text-button"
-                        data-lumora-command
-                        disabled={structuredBusy || preference.executablePathOverride === null}
-                        onClick={() => {
-                          setStructuredOverrideDrafts((current) => ({
-                            ...current,
-                            [preference.providerId]: ''
-                          }));
-                          saveStructuredPreference(preference, {
-                            executablePathOverride: null
-                          });
-                        }}
-                        type="button"
-                      >
-                        {t('providers.settings.unified-executable-reset')}
-                      </button>
-                    </div>
-                  </details>
-                </article>
-              );
-            })}
-          </div>
-          {structuredError ? (
-            <p className="catalog-operation-error" role="alert">
-              {t('providers.settings.unified-error')}
-            </p>
-          ) : null}
-        </section>
-      )}
-
       <div className="provider-panel-header">
         <div>
           <p className="card-label">
@@ -927,6 +826,165 @@ export function ProviderSettings({
             <p className="catalog-operation-error" role="alert">{commandError}</p>
           )}
         </>
+      )}
+
+      {scope !== 'local' || enabledStructuredProviderIds.length === 0 ? null : (
+        <section
+          aria-labelledby="structured-provider-title"
+          className="provider-selection-panel structured-provider-panel"
+        >
+          <div className="structured-provider-heading">
+            <div>
+              <p className="card-label">
+                {t('providers.settings.unified-eyebrow')}
+              </p>
+              <h2 id="structured-provider-title">
+                {t('providers.settings.unified-title')}
+              </h2>
+              <p>{t('providers.settings.unified-description')}</p>
+            </div>
+            <label className="settings-switch structured-provider-master-toggle">
+              <input
+                aria-label={t('providers.settings.unified-master-label')}
+                checked={generalSettings.unifiedAgentUiEnabled}
+                disabled={generalSettingsSaving}
+                onChange={(event) => onGeneralSettingsChange({
+                  ...generalSettings,
+                  unifiedAgentUiEnabled: event.currentTarget.checked
+                })}
+                type="checkbox"
+              />
+              <span aria-hidden="true" className="settings-switch-track">
+                <span className="settings-switch-thumb" />
+              </span>
+            </label>
+          </div>
+          <div className="structured-provider-panel-actions">
+            <button
+              aria-label={t('providers.settings.unified-details-open-aria')}
+              className="secondary-button"
+              data-lumora-command
+              onClick={() => {
+                setStructuredDialogOpen(true);
+                refreshStructuredProviders(false);
+              }}
+              ref={structuredDetailsButtonRef}
+              type="button"
+            >
+              {t('providers.settings.unified-details-open')}
+            </button>
+          </div>
+        </section>
+      )}
+      {!structuredDialogOpen ? null : createPortal(
+        <div className="dialog-backdrop" role="presentation">
+          <section
+            aria-labelledby="structured-provider-dialog-title"
+            aria-modal="true"
+            className="new-session-dialog structured-provider-settings-dialog"
+            role="dialog"
+          >
+            <header>
+              <div>
+                <p className="card-label">
+                  {t('providers.settings.unified-eyebrow')}
+                </p>
+                <h2 id="structured-provider-dialog-title">
+                  {t('providers.settings.unified-details-title')}
+                </h2>
+              </div>
+              <button
+                aria-label={t('providers.settings.unified-details-close-aria')}
+                className="text-button"
+                data-lumora-command
+                onClick={closeStructuredDialog}
+                type="button"
+              >
+                {t('common.actions.close')}
+              </button>
+            </header>
+            <div className="dialog-body structured-provider-settings-dialog-body">
+              <div className="structured-provider-dialog-actions">
+                <p>{t('providers.settings.unified-details-description')}</p>
+                <button
+                  className="secondary-button"
+                  data-lumora-command
+                  disabled={structuredBusy}
+                  onClick={() => refreshStructuredProviders(true)}
+                  type="button"
+                >
+                  {t(structuredBusy
+                    ? 'providers.settings.unified-checking'
+                    : 'providers.settings.unified-refresh')}
+                </button>
+              </div>
+              {structuredPreferencesLoading && enabledStructuredPreferences.length === 0 ? (
+                <div className="provider-panel-state" role="status">
+                  <span className="status-dot" aria-hidden="true" />
+                  {t('providers.settings.unified-checking')}
+                </div>
+              ) : (
+                <div className="structured-provider-grid">
+                  {enabledStructuredPreferences.map((preference) => {
+                    const definition = providerDefinition(preference.providerId);
+                    const report = structuredReports.find(
+                      (candidate) => candidate.providerId === preference.providerId
+                    );
+                    return (
+                      <article className="structured-provider-option" key={preference.providerId}>
+                        <div className="structured-provider-option-header">
+                          <strong>{definition.displayName}</strong>
+                          <label className="settings-switch structured-provider-toggle">
+                            <input
+                              aria-label={t('providers.settings.use-unified', {
+                                provider: definition.displayName
+                              })}
+                              checked={preference.useUnifiedWhenAvailable}
+                              disabled={structuredSaving}
+                              onChange={(event) => saveStructuredPreference(
+                                preference,
+                                { useUnifiedWhenAvailable: event.currentTarget.checked }
+                              )}
+                              type="checkbox"
+                            />
+                            <span aria-hidden="true" className="settings-switch-track">
+                              <span className="settings-switch-thumb" />
+                            </span>
+                          </label>
+                        </div>
+                        <div className="structured-provider-copy">
+                          <p>
+                            {report?.state === 'verified'
+                              ? t('providers.settings.unified-verified', {
+                                  integration: STRUCTURED_INTEGRATION_LABELS[report.integration]
+                                })
+                              : report === undefined
+                                ? t(structuredReportsLoading
+                                  ? 'providers.settings.unified-checking'
+                                  : 'providers.settings.unified-fallback')
+                                : t(STRUCTURED_FALLBACK_LABELS[report.state])}
+                          </p>
+                          {report === undefined || report.issue === null ? null : (
+                            <div className="structured-provider-recovery">
+                              <p>{report.issue.message}</p>
+                              <p>{report.issue.recovery}</p>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+              {structuredError ? (
+                <p className="catalog-operation-error" role="alert">
+                  {t('providers.settings.unified-error')}
+                </p>
+              ) : null}
+            </div>
+          </section>
+        </div>,
+        document.body
       )}
     </section>
   );

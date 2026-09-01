@@ -104,7 +104,7 @@ function ProviderSettings(
 }
 
 describe('ProviderSettings', () => {
-  it('shows verified unified UI routing and lets local users opt out per provider', async () => {
+  it('keeps Unified UI provider details in a Lumora modal after installations', async () => {
     const preferenceChanged = vi.fn();
     window.addEventListener(
       STRUCTURED_PREFERENCES_CHANGED_EVENT,
@@ -190,8 +190,30 @@ describe('ProviderSettings', () => {
 
     render(<ProviderSettings />);
 
-    expect(await screen.findByRole('heading', {
+    const unifiedHeading = await screen.findByRole('heading', {
       name: 'Unified agent interface'
+    });
+    expect(unifiedHeading).toBeInTheDocument();
+    const installationsHeading = screen.getByRole('heading', {
+      name: 'Provider installations'
+    });
+    expect(
+      installationsHeading.compareDocumentPosition(unifiedHeading) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
+    expect(screen.getByRole('checkbox', {
+      name: 'Use Unified UI when available'
+    })).toBeChecked();
+    expect(screen.queryByRole('checkbox', {
+      name: 'Use unified interface for Codex when verified'
+    })).not.toBeInTheDocument();
+
+    const detailsButton = screen.getByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    });
+    fireEvent.click(detailsButton);
+    expect(await screen.findByRole('dialog', {
+      name: 'Unified UI settings'
     })).toBeInTheDocument();
     const codexSwitch = screen.getByRole('checkbox', {
       name: 'Use unified interface for Codex when verified'
@@ -225,23 +247,112 @@ describe('ProviderSettings', () => {
       executablePathOverride: null
     }));
     expect(preferenceChanged).toHaveBeenCalledTimes(1);
-
-    fireEvent.change(screen.getByRole('textbox', {
-      name: 'Codex structured executable path'
-    }), { target: { value: 'D:\\apps\\codex.cmd' } });
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Verify and save Codex structured executable'
-    }));
-    await waitFor(() => expect(saveStructuredProviderPreference).toHaveBeenCalledWith({
-      providerId: 'codex',
-      useUnifiedWhenAvailable: false,
-      executablePathOverride: 'D:\\apps\\codex.cmd'
-    }));
     await waitFor(() => expect(scanStructuredProviderCapabilities).toHaveBeenLastCalledWith(true));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Close Unified UI settings'
+    }));
+    await waitFor(() => expect(detailsButton).toHaveFocus());
     window.removeEventListener(
       STRUCTURED_PREFERENCES_CHANGED_EVENT,
       preferenceChanged
     );
+  });
+
+  it('renders stored Unified UI settings without waiting for capability checks', async () => {
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ]),
+      scanStructuredProviderCapabilities: vi.fn(() => new Promise(() => undefined)),
+      saveStructuredProviderPreference: vi.fn()
+    });
+
+    render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex']
+    }} />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    }));
+
+    expect(await screen.findByRole('checkbox', {
+      name: 'Use unified interface for Codex when verified'
+    })).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: 'Close Unified UI settings'
+    })).toBeEnabled();
+  });
+
+  it('does not duplicate provider command settings in Unified UI details', async () => {
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ]),
+      scanStructuredProviderCapabilities: vi.fn().mockResolvedValue([]),
+      saveStructuredProviderPreference: vi.fn()
+    });
+
+    render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex']
+    }} />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    }));
+    expect(await screen.findByRole('checkbox', {
+      name: 'Use unified interface for Codex when verified'
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', {
+      name: 'Codex structured executable path'
+    })).not.toBeInTheDocument();
+  });
+
+  it('closes Unified UI settings while a capability check is pending', async () => {
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([
+        { providerId: 'codex', useUnifiedWhenAvailable: true, executablePathOverride: null }
+      ]),
+      scanStructuredProviderCapabilities: vi.fn(() => new Promise(() => undefined)),
+      saveStructuredProviderPreference: vi.fn()
+    });
+
+    render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex']
+    }} />);
+
+    const detailsButton = await screen.findByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    });
+    fireEvent.click(detailsButton);
+    const closeButton = await screen.findByRole('button', {
+      name: 'Close Unified UI settings'
+    });
+    fireEvent.click(closeButton);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', {
+      name: 'Unified UI settings'
+    })).not.toBeInTheDocument());
+    await waitFor(() => expect(detailsButton).toHaveFocus());
+  });
+
+  it('updates only the target-scoped Unified UI master setting', async () => {
+    setLumora();
+    const onGeneralSettingsChange = vi.fn();
+
+    render(<ProviderSettings
+      onGeneralSettingsChange={onGeneralSettingsChange}
+    />);
+
+    fireEvent.click(await screen.findByRole('checkbox', {
+      name: 'Use Unified UI when available'
+    }));
+    expect(onGeneralSettingsChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      unifiedAgentUiEnabled: false
+    });
   });
 
   it('shows structured settings only for providers enabled in Lumora', async () => {
@@ -260,6 +371,9 @@ describe('ProviderSettings', () => {
       enabledProviders: ['codex']
     }} />);
 
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    }));
     expect(await screen.findByRole('checkbox', {
       name: 'Use unified interface for Codex when verified'
     })).toBeInTheDocument();
@@ -287,7 +401,7 @@ describe('ProviderSettings', () => {
       />
     );
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(13);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(14);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Use Claude Code' }));
     expect(
       screen.getByRole('checkbox', { name: 'Use Codex' })

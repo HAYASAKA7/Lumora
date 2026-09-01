@@ -68,6 +68,7 @@ function report(
 
 function harness(options: {
   capability?: StructuredProviderCapabilityReport | null;
+  masterEnabled?: boolean;
   preferenceEnabled?: boolean;
   structuredFailure?: Error;
   launchSpec?: LaunchSpec;
@@ -94,13 +95,15 @@ function harness(options: {
     useUnifiedWhenAvailable: true,
     executablePathOverride: null
   }] satisfies StructuredProviderPreference[]);
+  const isUnifiedUiEnabled = vi.fn(() => options.masterEnabled ?? true);
   const router = new AgentLaunchRouter({
     consumePreparedLaunch,
     startPty,
     terminatePty,
     launchStructured,
     scanCapabilities,
-    listPreferences
+    listPreferences,
+    isUnifiedUiEnabled
   });
   return {
     router,
@@ -109,7 +112,8 @@ function harness(options: {
     terminatePty,
     launchStructured,
     scanCapabilities,
-    listPreferences
+    listPreferences,
+    isUnifiedUiEnabled
   };
 }
 
@@ -129,6 +133,40 @@ describe('AgentLaunchRouter', () => {
     expect(startPty).toHaveBeenCalledWith(forced);
     expect(scanCapabilities).not.toHaveBeenCalled();
     expect(listPreferences).not.toHaveBeenCalled();
+    expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('uses PTY without probing when the Unified UI master switch is off', async () => {
+    const {
+      router,
+      startPty,
+      launchStructured,
+      scanCapabilities,
+      listPreferences
+    } = harness({ masterEnabled: false });
+
+    await expect(router.start('operation-disabled', 'launch-token')).resolves
+      .toEqual({
+        mode: 'pty',
+        routeReason: 'disabled',
+        runtime: ptyRuntime
+      });
+    expect(startPty).toHaveBeenCalledWith(spec);
+    expect(scanCapabilities).not.toHaveBeenCalled();
+    expect(listPreferences).not.toHaveBeenCalled();
+    expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when Unified UI is explicitly requested while its master switch is off', async () => {
+    const { router, startPty, launchStructured, scanCapabilities } = harness({
+      masterEnabled: false,
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec
+    });
+
+    await expect(router.start('operation-disabled-unified', 'launch-token'))
+      .rejects.toMatchObject({ code: 'AGENT_UNIFIED_ROUTE_UNAVAILABLE' });
+    expect(startPty).not.toHaveBeenCalled();
+    expect(scanCapabilities).not.toHaveBeenCalled();
     expect(launchStructured).not.toHaveBeenCalled();
   });
 
@@ -277,7 +315,8 @@ describe('AgentLaunchRouter', () => {
         providerId: 'codex' as const,
         useUnifiedWhenAvailable: true,
         executablePathOverride: null
-      }])
+      }]),
+      isUnifiedUiEnabled: vi.fn(() => true)
     });
 
     const starting = router.start('operation-1', 'launch-token');
@@ -305,7 +344,8 @@ describe('AgentLaunchRouter', () => {
       terminatePty,
       launchStructured: vi.fn(async () => structuredRuntime),
       scanCapabilities: vi.fn(async () => []),
-      listPreferences: vi.fn(() => [])
+      listPreferences: vi.fn(() => []),
+      isUnifiedUiEnabled: vi.fn(() => true)
     });
 
     const starting = router.start('operation-1', 'launch-token');

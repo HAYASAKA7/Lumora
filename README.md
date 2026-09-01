@@ -250,11 +250,12 @@ current verification matrix.
 
 ## Unified agent interface
 
-Lumora 0.5 adds a local chat-style interface for Codex, Claude Code, and Gemini
-CLI. Each route uses the provider's structured integration—Codex app-server,
-Claude Agent SDK, or Gemini ACP—and is enabled only after Lumora completes a
-capability check. Open **Settings > Providers** to review each result or turn
-the Unified UI off for an individual provider.
+Lumora 0.5 adds a local chat-style interface for Codex, Claude Code, Gemini CLI,
+OpenCode, Cursor CLI, GitHub Copilot CLI, Qwen Code, Kimi Code, and goose. Each
+route uses the provider's own structured integration and is enabled only after
+Lumora completes a capability check. Open **Settings > Providers** for the
+master switch, then open **Detailed settings** to review results, set individual
+provider choices, and inspect native-terminal fallback guidance.
 
 The Unified UI can show streamed Markdown responses, provider commands and
 models, cancellation, approvals, process and tool activity, changed-file diffs,
@@ -272,7 +273,8 @@ session becomes useful.
 Select a saved session normally to resume it directly. Lumora returns to an
 existing runtime when the session is already active, uses the verified Unified
 UI when supported, and otherwise resumes through the native PTY without an
-extra dialog. When a provider's Unified UI preference is enabled, right-click
+extra dialog. When the Unified UI master switch and a provider preference are
+enabled, right-click
 a stopped session to explicitly open it in **Unified UI** or in the **native
 terminal**. The native-terminal choice applies to that launch only and does not
 change the saved provider preference. The same menu keeps the advanced resume

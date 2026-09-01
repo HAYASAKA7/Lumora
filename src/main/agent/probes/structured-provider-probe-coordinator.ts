@@ -9,6 +9,7 @@ import type {
   StructuredIntegration,
   StructuredProviderCapabilityReport
 } from '../../../shared/agent/provider-capabilities';
+import { providerDefinition } from '../../../shared/provider-definitions';
 import {
   failedReport,
   timedOutReport,
@@ -40,13 +41,13 @@ interface CachedReport {
 
 class ProbeTimedOutError extends Error {}
 
-const INTEGRATIONS: Readonly<
-  Record<StructuredAgentProviderId, StructuredIntegration>
-> = Object.freeze({
-  codex: 'codex_app_server',
-  claude: 'claude_agent_sdk',
-  gemini: 'gemini_acp'
-});
+function integrationFor(providerId: StructuredAgentProviderId): StructuredIntegration {
+  const integration = providerDefinition(providerId).structuredIntegration;
+  if (integration === null) {
+    throw new Error(`Structured provider ${providerId} has no integration.`);
+  }
+  return integration;
+}
 
 function isStructuredProvider(
   provider: ProviderInstallation['provider']
@@ -93,7 +94,7 @@ export class StructuredProviderProbeCoordinator {
         if (installation === undefined || installation.state !== 'ready') {
           return Promise.resolve(unavailableReport({
             providerId,
-            integration: INTEGRATIONS[providerId],
+            integration: integrationFor(providerId),
             version: installation?.version ?? null,
             ...(this.options.now === undefined ? {} : { now: this.options.now })
           }));
@@ -124,7 +125,7 @@ export class StructuredProviderProbeCoordinator {
 
     const identity = {
       providerId: installation.provider,
-      integration: INTEGRATIONS[installation.provider],
+      integration: integrationFor(installation.provider),
       version: installation.version,
       ...(this.options.now === undefined ? {} : { now: this.options.now })
     };

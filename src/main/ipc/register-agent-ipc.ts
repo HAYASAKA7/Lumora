@@ -1,6 +1,7 @@
 import {
   IPC_CHANNELS,
   LOCAL_EXECUTION_TARGET_ID,
+  STRUCTURED_AGENT_PROVIDER_IDS,
   AgentRuntimeStartResultSchema,
   AgentRuntimeCancelRequestSchema,
   AgentRuntimeStartRequestSchema,
@@ -121,7 +122,8 @@ export function registerAgentIpc({
     authorizeLocal(event, authorize);
     return protectedOperation(async () => {
       const request = StructuredAgentCapabilityScanRequestSchema.parse(input);
-      return StructuredProviderCapabilityReportSchema.array().length(3).parse(
+      return StructuredProviderCapabilityReportSchema.array()
+        .length(STRUCTURED_AGENT_PROVIDER_IDS.length).parse(
         await scanCapabilities(request.fresh)
       );
     });

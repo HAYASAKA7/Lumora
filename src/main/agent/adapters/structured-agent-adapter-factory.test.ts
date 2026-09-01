@@ -39,14 +39,30 @@ function adapter(): StructuredAgentAdapter {
 }
 
 describe('structured agent adapter factory', () => {
-  it.each(['codex', 'claude', 'gemini'] as const)(
+  it.each([
+    'codex',
+    'claude',
+    'gemini',
+    'opencode',
+    'cursor',
+    'copilot',
+    'qwen',
+    'kimi',
+    'goose'
+  ] as const)(
     'routes %s to its dedicated adapter without changing launch identity',
     async (providerId) => {
       const selected = adapter();
       const creators = {
         codex: vi.fn(() => selected),
         claude: vi.fn(() => selected),
-        gemini: vi.fn(() => selected)
+        gemini: vi.fn(() => selected),
+        opencode: vi.fn(() => selected),
+        cursor: vi.fn(() => selected),
+        copilot: vi.fn(() => selected),
+        qwen: vi.fn(() => selected),
+        kimi: vi.fn(() => selected),
+        goose: vi.fn(() => selected)
       };
       const factory = createStructuredAgentAdapterFactory(creators);
       const current = context(providerId);
