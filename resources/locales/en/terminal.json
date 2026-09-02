@@ -165,7 +165,7 @@
     "recover-description": "The terminal renderer lost its connection to the running process.",
     "switcher-title": "Open terminals",
     "switcher-label": "Terminal switcher",
-    "switcher-hint": "Keep holding the modifier and press the shortcut again to cycle.",
+    "switcher-hint": "Keep holding the modifier. Press the shortcut again or use ↑/↓ to select.",
     "workspace-fallback": "Workspace",
     "recovery-label": "Runtime recovery",
     "recover-lost": "Recover lost runtime",

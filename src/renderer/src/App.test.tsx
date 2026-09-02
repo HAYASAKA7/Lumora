@@ -1886,6 +1886,70 @@ describe('App', () => {
     ).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('moves an open terminal switcher selection with arrow keys and wraps', async () => {
+    const first = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789b10'),
+      displayName: 'First session'
+    };
+    const second = {
+      ...runningRuntime(
+        '0198f8b6-18f3-7ca0-9f0f-123456789b11',
+        'claude'
+      ),
+      displayName: 'Second session'
+    };
+    const third = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789b12'),
+      displayName: 'Third session'
+    };
+    const runtimes = [first, second, third];
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue(runtimes),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimes.find((runtime) => runtime.id === runtimeId)!,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(screen.getByRole('option', { name: /Second session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(window, {
+      code: 'ArrowDown',
+      key: 'ArrowDown',
+      ctrlKey: true
+    });
+    expect(screen.getByRole('option', { name: /Third session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(window, {
+      code: 'ArrowDown',
+      key: 'ArrowDown',
+      ctrlKey: true,
+      repeat: true
+    });
+    expect(screen.getByRole('option', { name: /First session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(window, {
+      code: 'ArrowUp',
+      key: 'ArrowUp',
+      ctrlKey: true
+    });
+    expect(screen.getByRole('option', { name: /Third session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyUp(window, { code: 'ControlLeft', key: 'Control' });
+    expect(screen.getByRole('tab', { hidden: true, name: /Third session/ }))
+      .toHaveAttribute('aria-selected', 'true');
+  });
+
   it('cycles from a PTY terminal into a structured provider session', async () => {
     const pty = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad2'

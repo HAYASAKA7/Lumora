@@ -90,6 +90,7 @@ import {
   RuntimeSwitcher,
   buildRuntimeMru,
   nextRuntimeInOrder,
+  previousRuntimeInOrder,
   reconcileRuntimeSwitch,
   touchRuntimeMru
 } from './terminal/RuntimeSwitcher';
@@ -1744,6 +1745,23 @@ function AppContent(): ReactNode {
         event.preventDefault();
         event.stopPropagation();
         setRuntimeSwitcher(null);
+        return;
+      }
+      if (
+        runtimeSwitcher !== null &&
+        (event.code === 'ArrowDown' || event.code === 'ArrowUp')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setRuntimeSwitcher((current) => {
+          if (current === null) return null;
+          const selectedRuntimeId = event.code === 'ArrowDown'
+            ? nextRuntimeInOrder(current.order, current.selectedRuntimeId)
+            : previousRuntimeInOrder(current.order, current.selectedRuntimeId);
+          return selectedRuntimeId === null
+            ? current
+            : { ...current, selectedRuntimeId };
+        });
         return;
       }
       if (keyboardEventMatchesChord(event, switcherChord)) {

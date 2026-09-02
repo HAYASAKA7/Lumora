@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -346,12 +346,20 @@ describe('Gemini structured adapter', () => {
   });
 
   it('contains ACP filesystem access to the selected workspace and resolves permissions', async () => {
-    const workspace = await mkdtemp(join(tmpdir(), 'lumora-gemini-adapter-'));
-    onTestFinished(() => rm(workspace, { recursive: true, force: true }));
+    const root = await mkdtemp(join(tmpdir(), 'lumora-gemini-adapter-'));
+    const workspace = join(root, 'workspace');
+    const workspaceAlias = join(root, 'workspace-alias');
+    await mkdir(workspace);
+    await symlink(
+      workspace,
+      workspaceAlias,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    onTestFinished(() => rm(root, { recursive: true, force: true }));
     await writeFile(join(workspace, 'inside.txt'), 'inside', 'utf8');
     const transport = new FakeTransport();
     let handleRequest: ((request: JsonRpcProviderRequest) => Promise<unknown>) | undefined;
-    const current = context(workspace);
+    const current = context(workspaceAlias);
     const adapter = createGeminiStructuredAdapter(current.value, {
       createTransport: async (options) => {
         handleRequest = options.handleRequest;
@@ -365,14 +373,14 @@ describe('Gemini structured adapter', () => {
     await expect(handleRequest?.({
       id: 1,
       method: 'fs/read_text_file',
-      params: { sessionId: 'gemini-native-1', path: join(workspace, 'inside.txt') }
+      params: { sessionId: 'gemini-native-1', path: join(workspaceAlias, 'inside.txt') }
     })).resolves.toEqual({ content: 'inside' });
     await expect(handleRequest?.({
       id: 2,
       method: 'fs/write_text_file',
       params: {
         sessionId: 'gemini-native-1',
-        path: join(workspace, 'written.txt'),
+        path: join(workspaceAlias, 'written.txt'),
         content: 'written'
       }
     })).resolves.toEqual({});
@@ -380,7 +388,7 @@ describe('Gemini structured adapter', () => {
     await expect(handleRequest?.({
       id: 3,
       method: 'fs/read_text_file',
-      params: { sessionId: 'gemini-native-1', path: join(workspace, '..', 'outside.txt') }
+      params: { sessionId: 'gemini-native-1', path: join(workspaceAlias, '..', 'outside.txt') }
     })).rejects.toThrow('workspace');
 
     const permission = handleRequest?.({

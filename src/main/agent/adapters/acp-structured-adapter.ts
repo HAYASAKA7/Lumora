@@ -177,12 +177,13 @@ async function containedPath(
   if (!isAbsolute(requestedPath)) {
     throw new Error(`The ${providerName} filesystem path must be absolute.`);
   }
-  const workspaceReal = await realpath(workspace);
+  const workspaceResolved = resolve(workspace);
   const candidate = resolve(requestedPath);
-  const lexicalRelation = relative(workspaceReal, candidate);
+  const lexicalRelation = relative(workspaceResolved, candidate);
   if (lexicalRelation.startsWith('..') || isAbsolute(lexicalRelation)) {
     throw new Error(`${providerName} filesystem access is outside the selected workspace.`);
   }
+  const workspaceReal = await realpath(workspaceResolved);
   const anchor = operation === 'read'
     ? await realpath(candidate)
     : await realpath(dirname(candidate));

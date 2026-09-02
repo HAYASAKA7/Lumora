@@ -57,6 +57,18 @@ export function nextRuntimeInOrder(
   return order[(currentIndex + 1) % order.length] ?? order[0] ?? null;
 }
 
+export function previousRuntimeInOrder(
+  order: readonly string[],
+  currentRuntimeId: string | null
+): string | null {
+  if (order.length === 0) return null;
+  const currentIndex = currentRuntimeId === null
+    ? 0
+    : order.indexOf(currentRuntimeId);
+  if (currentIndex < 0) return order.at(-1) ?? null;
+  return order[(currentIndex - 1 + order.length) % order.length] ?? null;
+}
+
 export function reconcileRuntimeSwitch(
   state: RuntimeSwitcherState,
   validRuntimeIds: readonly string[]
