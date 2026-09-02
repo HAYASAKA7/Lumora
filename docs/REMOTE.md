@@ -7,6 +7,14 @@ developer environment and enabled agent providers, and opens target-scoped
 SSH terminals. After connection, the window becomes a target-scoped Lumora
 shell with **Home**, **Workspaces**, **All sessions**, and **Settings**.
 
+<p align="center">
+  <img src="screenshots/0.5/remote/lumora_remote_computers.png" alt="Lumora Remote computers page with isolated SSH profiles and connection state" width="1100">
+</p>
+
+General navigation and terminal behavior follow the local application. See
+[Using Lumora](USER_GUIDE.md) for shared controls and
+[Settings and customization](SETTINGS.md) for global-versus-target settings.
+
 ## Connect a computer
 
 1. Open the separate **Remote** entrance in the lower sidebar.
@@ -16,6 +24,10 @@ shell with **Home**, **Workspaces**, **All sessions**, and **Settings**.
 4. Trust the fingerprint only when it matches.
 5. Open the isolated remote window and connect with the configured password,
    private key, or SSH agent method.
+
+<p align="center">
+  <img src="screenshots/0.5/remote/lumora_remote_connection.png" alt="Remote Lumora authentication form for a verified SSH target" width="1000">
+</p>
 
 Profiles can be edited or deleted from the local Remote page. Lumora closes the
 profile's isolated window and active SSH/helper resources before either
@@ -75,6 +87,10 @@ explicit confirmation. Lumora uploads a temporary copy, verifies its size and
 SHA-256 digest on the remote computer, applies executable permissions on Unix,
 and atomically activates it. An invalid existing helper is not replaced until
 the new upload has passed verification.
+
+<p align="center">
+  <img src="screenshots/0.5/remote/lumora_remote_install_helper.png" alt="Remote Lumora helper installation confirmation with version and per-user location" width="1000">
+</p>
 
 The helper runs only while Lumora has an active remote connection and consumes
 minimal resources. It requires no administrator service, background daemon, or

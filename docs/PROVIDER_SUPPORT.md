@@ -64,6 +64,9 @@ ownership is established—falls back to the already validated PTY launch.
 Native forks, cross-agent handoffs, and unsupported structured actions remain
 PTY-based.
 
+See the [Unified UI guide](UNIFIED_UI.md) for configuration, route selection,
+conversation behavior, commands, models, activity, lifecycle, and fallback.
+
 Automated coverage is not a real CLI smoke test. Unit and integration tests
 validate Lumora's adapters and command construction, while the operating-system
 columns below record hands-on testing with the real provider executable. Leave a

@@ -12,6 +12,9 @@ const providerSupportPath = new URL(
   '../../../docs/PROVIDER_SUPPORT.md',
   import.meta.url
 );
+const userGuidePath = new URL('../../../docs/USER_GUIDE.md', import.meta.url);
+const unifiedUiGuidePath = new URL('../../../docs/UNIFIED_UI.md', import.meta.url);
+const settingsGuidePath = new URL('../../../docs/SETTINGS.md', import.meta.url);
 
 describe('unsigned MVP release documentation', () => {
   it('keeps user installation guidance in README and maintainer steps in the release guide', async () => {
@@ -33,8 +36,10 @@ describe('unsigned MVP release documentation', () => {
       'provider-owned sessions',
       '<h1 align="center">Lumora</h1>',
       'resources/icons/lumora/source/lumora-symbol-gradient.svg',
-      'docs/screenshots/0.3/lumora_home.png',
-      '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
+      'docs/screenshots/0.5/core/home.png',
+      'docs/USER_GUIDE.md',
+      'docs/UNIFIED_UI.md',
+      'docs/SETTINGS.md',
       'docs/ARCHITECTURE.md',
       'docs/DEVELOPMENT.md',
       'docs/RELEASING.md',
@@ -48,6 +53,8 @@ describe('unsigned MVP release documentation', () => {
     );
     expect(readme).not.toContain('## Build locally');
     expect(readme).not.toContain('## Create the draft prerelease');
+    expect(readme).not.toContain('## Managed terminals');
+    expect(readme.split('\n').length).toBeLessThan(400);
 
     for (const documentation of [
       '# Releasing Lumora',
@@ -60,6 +67,59 @@ describe('unsigned MVP release documentation', () => {
     ]) {
       expect(releaseGuide).toContain(documentation);
     }
+  });
+
+  it('keeps detailed user workflows in focused guides with current screenshots', async () => {
+    const [userGuide, unifiedUiGuide, settingsGuide, homeScreenshot, conversationScreenshot] =
+      await Promise.all([
+        readFile(userGuidePath, 'utf8'),
+        readFile(unifiedUiGuidePath, 'utf8'),
+        readFile(settingsGuidePath, 'utf8'),
+        readFile(new URL('../../../docs/screenshots/0.5/core/home.png', import.meta.url)),
+        readFile(
+          new URL(
+            '../../../docs/screenshots/0.5/unified-ui/unified_ui_conversation.png',
+            import.meta.url
+          )
+        )
+      ]);
+
+    for (const documentation of [
+      '# Using Lumora',
+      '## Workspaces',
+      '## Saved sessions',
+      '## Managed native terminals',
+      '| `Ctrl+Shift+L` | Collapse or expand the sidebar |',
+      'screenshots/0.5/core/session_context_menu.png'
+    ]) {
+      expect(userGuide).toContain(documentation);
+    }
+
+    for (const documentation of [
+      '# Lumora Unified UI',
+      '## Supported integrations',
+      '## Commands and models',
+      '## Process, tools, approvals, and file changes',
+      '## Lifecycle and fallback',
+      'screenshots/0.5/unified-ui/unified_ui_activity.png'
+    ]) {
+      expect(unifiedUiGuide).toContain(documentation);
+    }
+
+    for (const documentation of [
+      '# Lumora settings and customization',
+      '## General',
+      '## Appearance',
+      '## Mods',
+      '## Providers',
+      '## Diagnostics',
+      'screenshots/0.5/settings/settings_about.png'
+    ]) {
+      expect(settingsGuide).toContain(documentation);
+    }
+
+    expect(homeScreenshot.byteLength).toBeGreaterThan(0);
+    expect(conversationScreenshot.byteLength).toBeGreaterThan(0);
   });
 
   it('documents the controlled Lumora draft prerelease process', async () => {

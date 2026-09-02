@@ -12,9 +12,16 @@ computer. Verified provider, version, and operating-system routes are marked
 are available as **Experimental** in both packaged and development builds. A
 route marked **Not verified** remains unavailable.
 
+<p align="center">
+  <img src="screenshots/0.5/settings/settings_transfer.png" alt="Lumora Transfer settings showing guarded export and import actions and provider route status" width="1100">
+</p>
+
 Experimental access does not mark a route as verified. Keep the source archive
 and provider data, and confirm imported sessions with the native provider before
 relying on them.
+
+For other application settings, see
+[Settings and customization](SETTINGS.md).
 
 ## What an archive contains
 

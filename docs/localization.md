@@ -11,6 +11,10 @@ Lumora translates only application-owned interface text. Provider TUI output,
 commands, prompts, session and workspace names, paths, host data, diagnostic
 logs, and stable error codes stay unchanged.
 
+For the application workflow and screenshots, see
+[Settings and customization](SETTINGS.md#mods). This document defines the pack
+formats, validation rules, and maintainer constraints.
+
 ## Mods and user language packs
 
 Open **Settings > Mods** to manage Lumora's data-only customization directory.
