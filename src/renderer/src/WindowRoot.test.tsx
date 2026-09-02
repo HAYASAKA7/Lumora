@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -31,7 +31,9 @@ describe('WindowRoot', () => {
     render(<WindowRoot api={api} />);
 
     expect(await screen.findByText('Local Lumora')).toBeInTheDocument();
-    expect(api.getStructuredProviderPreferences).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(api.getStructuredProviderPreferences).toHaveBeenCalledOnce();
+    });
     expect(api.scanStructuredProviderCapabilities).not.toHaveBeenCalled();
   });
 

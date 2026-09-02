@@ -22,6 +22,13 @@ clean up listeners, timers, files, and handles. Avoid arbitrary sleeps,
 machine-specific paths, installed-provider assumptions, network dependencies,
 and order-dependent shared state.
 
+Real-provider smoke tests must also have explicit lifecycle ownership. Before
+stopping the development host or removing its worktree, close every runtime
+through Lumora and verify that the provider process and its MCP descendants
+have exited. An interrupted smoke test must perform the same cleanup in its
+failure path; a provider process that retains the worktree as its current
+directory is a failed test, not a worktree-cleanup problem.
+
 Cross-platform code must cover Windows, macOS, and Linux branches. Migration
 tests must open representative older schemas. Lifecycle tests must cover
 repeated close, late events, concurrent calls, undefined native exit values,

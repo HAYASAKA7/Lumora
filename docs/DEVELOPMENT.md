@@ -259,6 +259,13 @@ Before release, test at least:
    exit, and automatic PTY fallback; and
 9. restart behavior and lost-runtime reporting.
 
+Every real-provider check owns the process it starts. Before stopping
+`npm run dev` or removing the test worktree, close all native and Unified UI
+runtimes through Lumora, wait for the runtime lists to become empty, and verify
+that the provider and any MCP child processes have exited. Apply the same
+cleanup after an interrupted or failed check; never leave a provider process
+running from a test worktree.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs `npm ci` and `npm run verify` on Windows,
