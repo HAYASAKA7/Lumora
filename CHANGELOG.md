@@ -7,17 +7,6 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
-
-- Navigate the open-terminal switcher with Up and Down while holding its
-  configured modifier, including continuous key-repeat and wrapped selection.
-
-### Fixed
-
-- Accept filesystem requests inside ACP workspaces reached through canonical
-  path aliases, fixing the Windows and macOS verification failure without
-  weakening the real-path containment check against symlink escapes.
-
 ## [0.5.0] - 2026-09-01
 
 ### Added
@@ -49,6 +38,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Navigate the open-terminal switcher with Up and Down while holding its
+  configured modifier, including continuous key-repeat and wrapped selection.
 - Improve direct session launch responsiveness by beginning the normal resume
   flow immediately and keeping preparation and loading inside the terminal
   workspace. Navigation and other Lumora pages remain usable while a provider
@@ -73,6 +64,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Accept filesystem requests inside ACP workspaces reached through canonical
+  path aliases, fixing the Windows and macOS verification failure without
+  weakening the real-path containment check against symlink escapes.
 - Stabilize structured provider lifecycle handling across first responses,
   subsequent turns, commands, cancellation, reconnection, and clean exit.
 - Keep the composer focused after sending, follow new output only while the
