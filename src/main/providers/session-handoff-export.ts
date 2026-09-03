@@ -1,7 +1,10 @@
+import { createReadStream } from 'node:fs';
+
 import type { ProviderId } from '../../shared/contracts';
 
 const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 const MAX_NORMALIZED_BYTES = 32 * 1024 * 1024;
+const MAX_TRACKED_CLAUDE_ACTIVITIES = 2_048;
 const TEXT_BLOCK_TYPES = new Set(['text', 'input_text', 'output_text']);
 const PATH_FIELDS = new Set([
   'path',
@@ -31,7 +34,7 @@ export type HandoffCoverage = 'complete' | 'partial' | 'unavailable';
 export interface NormalizedSessionHandoff {
   messages: HandoffMessage[];
   activities: HandoffActivity[];
-  messageCoverage: 'complete';
+  messageCoverage: HandoffCoverage;
   activityCoverage: HandoffCoverage;
   warnings: string[];
 }
@@ -236,9 +239,9 @@ function normalizeCodex(
 function normalizeClaude(
   records: readonly Record<string, unknown>[],
   messages: HandoffMessage[],
-  activities: HandoffActivity[]
+  activities: HandoffActivity[],
+  activityById = new Map<string, HandoffActivity>()
 ): void {
-  const activityById = new Map<string, HandoffActivity>();
   for (const record of records) {
     const message = objectValue(record.message);
     if (message === null) continue;
@@ -256,7 +259,13 @@ function normalizeClaude(
           status: 'unknown'
         };
         activities.push(activity);
-        if (typeof block.id === 'string') activityById.set(block.id, activity);
+        if (typeof block.id === 'string') {
+          activityById.set(block.id, activity);
+          if (activityById.size > MAX_TRACKED_CLAUDE_ACTIVITIES) {
+            const oldestId = activityById.keys().next().value as string | undefined;
+            if (oldestId !== undefined) activityById.delete(oldestId);
+          }
+        }
       } else if (
         block.type === 'tool_result' &&
         typeof block.tool_use_id === 'string'
@@ -418,27 +427,28 @@ function activityCoverage(provider: ProviderId): HandoffCoverage {
   return 'partial';
 }
 
-export function normalizeSessionHandoff(
-  provider: ProviderId,
-  raw: string
-): NormalizedSessionHandoff {
-  const sourceBytes = Buffer.byteLength(raw, 'utf8');
-  if (sourceBytes < 1 || sourceBytes > MAX_SOURCE_BYTES) {
-    throw new SessionHandoffExportError(
-      'The session source is empty or exceeds the handoff size limit.'
-    );
-  }
-  const document = parseDocument(raw);
-  const records = recordsFrom(document);
-  const messages: HandoffMessage[] = [];
-  const activities: HandoffActivity[] = [];
+interface NormalizationState {
+  claudeActivityById: Map<string, HandoffActivity>;
+}
 
+function createNormalizationState(): NormalizationState {
+  return { claudeActivityById: new Map() };
+}
+
+function normalizeDocument(
+  provider: ProviderId,
+  document: unknown,
+  messages: HandoffMessage[],
+  activities: HandoffActivity[],
+  state: NormalizationState
+): void {
+  const records = recordsFrom(document);
   switch (provider) {
     case 'codex':
       normalizeCodex(records, messages, activities);
       break;
     case 'claude':
-      normalizeClaude(records, messages, activities);
+      normalizeClaude(records, messages, activities, state.claudeActivityById);
       break;
     case 'gemini':
       normalizeGemini(document, messages, activities);
@@ -460,6 +470,28 @@ export function normalizeSessionHandoff(
         'The selected provider does not support session handoff export.'
       );
   }
+}
+
+export function normalizeSessionHandoff(
+  provider: ProviderId,
+  raw: string
+): NormalizedSessionHandoff {
+  const sourceBytes = Buffer.byteLength(raw, 'utf8');
+  if (sourceBytes < 1 || sourceBytes > MAX_SOURCE_BYTES) {
+    throw new SessionHandoffExportError(
+      'The session source is empty or exceeds the handoff size limit.'
+    );
+  }
+  const document = parseDocument(raw);
+  const messages: HandoffMessage[] = [];
+  const activities: HandoffActivity[] = [];
+  normalizeDocument(
+    provider,
+    document,
+    messages,
+    activities,
+    createNormalizationState()
+  );
 
   if (messages.length === 0) {
     throw new SessionHandoffExportError(
@@ -475,6 +507,367 @@ export function normalizeSessionHandoff(
     warnings: coverage === 'complete'
       ? []
       : ['Tool activity may be incomplete for this provider version.']
+  };
+  if (Buffer.byteLength(JSON.stringify(result), 'utf8') > MAX_NORMALIZED_BYTES) {
+    throw new SessionHandoffExportError(
+      'The normalized session exceeds the handoff size limit.'
+    );
+  }
+  return result;
+}
+
+export interface SessionHandoffFileNormalizationOptions {
+  maximumMessageBytes?: number;
+  openingMessageBytes?: number;
+  maximumActivityBytes?: number;
+  maximumLineBytes?: number;
+}
+
+interface ResolvedFileNormalizationOptions {
+  maximumMessageBytes: number;
+  openingMessageBytes: number;
+  maximumActivityBytes: number;
+  maximumLineBytes: number;
+}
+
+interface IndexedMessage {
+  sequence: number;
+  message: HandoffMessage;
+  bytes: number;
+  truncated: boolean;
+}
+
+type BoundedJsonlLine =
+  | { kind: 'line'; text: string }
+  | { kind: 'oversized' };
+
+const DEFAULT_FILE_NORMALIZATION_OPTIONS: ResolvedFileNormalizationOptions = {
+  maximumMessageBytes: 512 * 1024,
+  openingMessageBytes: 64 * 1024,
+  maximumActivityBytes: 128 * 1024,
+  maximumLineBytes: 8 * 1024 * 1024
+};
+const OPENING_MESSAGE_COUNT = 4;
+const TRUNCATION_MARKER = '\n\n[Content truncated by Lumora.]';
+
+function boundedInteger(
+  value: number | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+  label: string
+): number {
+  const resolved = value ?? fallback;
+  if (!Number.isInteger(resolved) || resolved < minimum || resolved > maximum) {
+    throw new SessionHandoffExportError(`${label} is outside the safe range.`);
+  }
+  return resolved;
+}
+
+function resolveFileNormalizationOptions(
+  options: SessionHandoffFileNormalizationOptions
+): ResolvedFileNormalizationOptions {
+  const maximumMessageBytes = boundedInteger(
+    options.maximumMessageBytes,
+    DEFAULT_FILE_NORMALIZATION_OPTIONS.maximumMessageBytes,
+    256,
+    8 * 1024 * 1024,
+    'The message budget'
+  );
+  const openingMessageBytes = boundedInteger(
+    options.openingMessageBytes,
+    DEFAULT_FILE_NORMALIZATION_OPTIONS.openingMessageBytes,
+    128,
+    maximumMessageBytes,
+    'The opening-message budget'
+  );
+  return {
+    maximumMessageBytes,
+    openingMessageBytes,
+    maximumActivityBytes: boundedInteger(
+      options.maximumActivityBytes,
+      DEFAULT_FILE_NORMALIZATION_OPTIONS.maximumActivityBytes,
+      128,
+      2 * 1024 * 1024,
+      'The activity budget'
+    ),
+    maximumLineBytes: boundedInteger(
+      options.maximumLineBytes,
+      DEFAULT_FILE_NORMALIZATION_OPTIONS.maximumLineBytes,
+      1_024,
+      32 * 1024 * 1024,
+      'The JSONL record limit'
+    )
+  };
+}
+
+function utf8Prefix(value: string, maximumBytes: number): string {
+  if (Buffer.byteLength(value, 'utf8') <= maximumBytes) return value;
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const midpoint = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(value.slice(0, midpoint), 'utf8') <= maximumBytes) {
+      low = midpoint;
+    } else {
+      high = midpoint - 1;
+    }
+  }
+  let end = low;
+  if (end > 0) {
+    const lastCodeUnit = value.charCodeAt(end - 1);
+    if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+function fitMessage(
+  message: HandoffMessage,
+  maximumBytes: number
+): { message: HandoffMessage; truncated: boolean } | null {
+  const fixedBytes = Buffer.byteLength(JSON.stringify({
+    role: message.role,
+    content: '',
+    timestamp: message.timestamp
+  }), 'utf8');
+  if (fixedBytes >= maximumBytes) return null;
+  const contentBytes = Buffer.byteLength(message.content, 'utf8');
+  if (fixedBytes + contentBytes <= maximumBytes) {
+    return { message, truncated: false };
+  }
+  const markerBytes = Buffer.byteLength(TRUNCATION_MARKER, 'utf8');
+  const available = maximumBytes - fixedBytes - markerBytes;
+  if (available < 1) return null;
+  return {
+    message: {
+      ...message,
+      content: `${utf8Prefix(message.content, available)}${TRUNCATION_MARKER}`
+    },
+    truncated: true
+  };
+}
+
+function fitActivity(
+  activity: HandoffActivity,
+  maximumBytes: number
+): HandoffActivity | null {
+  const fitted: HandoffActivity = {
+    ...activity,
+    referencedPaths: [...activity.referencedPaths]
+  };
+  while (
+    fitted.referencedPaths.length > 0 &&
+    Buffer.byteLength(JSON.stringify(fitted), 'utf8') > maximumBytes
+  ) fitted.referencedPaths.pop();
+  return Buffer.byteLength(JSON.stringify(fitted), 'utf8') <= maximumBytes
+    ? fitted
+    : null;
+}
+
+async function* readBoundedJsonlLines(
+  sourcePath: string,
+  maximumLineBytes: number
+): AsyncGenerator<BoundedJsonlLine> {
+  const stream = createReadStream(sourcePath);
+  let parts: Buffer[] = [];
+  let pendingBytes = 0;
+  let discarding = false;
+
+  const reset = (): void => {
+    parts = [];
+    pendingBytes = 0;
+  };
+
+  for await (const rawChunk of stream) {
+    const chunk = Buffer.isBuffer(rawChunk)
+      ? rawChunk
+      : Buffer.from(rawChunk);
+    let offset = 0;
+    for (let index = 0; index < chunk.length; index += 1) {
+      if (chunk[index] !== 0x0a) continue;
+      const segment = chunk.subarray(offset, index);
+      if (discarding) {
+        yield { kind: 'oversized' };
+        discarding = false;
+        reset();
+      } else if (pendingBytes + segment.length > maximumLineBytes) {
+        yield { kind: 'oversized' };
+        reset();
+      } else {
+        parts.push(segment);
+        pendingBytes += segment.length;
+        const line = Buffer.concat(parts, pendingBytes).toString('utf8')
+          .replace(/\r$/, '');
+        reset();
+        if (line.trim().length > 0) yield { kind: 'line', text: line };
+      }
+      offset = index + 1;
+    }
+    const remainder = chunk.subarray(offset);
+    if (remainder.length === 0 || discarding) continue;
+    if (pendingBytes + remainder.length > maximumLineBytes) {
+      discarding = true;
+      reset();
+    } else {
+      parts.push(remainder);
+      pendingBytes += remainder.length;
+    }
+  }
+
+  if (discarding) {
+    yield { kind: 'oversized' };
+  } else if (pendingBytes > 0) {
+    const line = Buffer.concat(parts, pendingBytes).toString('utf8')
+      .replace(/\r$/, '');
+    if (line.trim().length > 0) yield { kind: 'line', text: line };
+  }
+}
+
+export async function normalizeSessionHandoffFile(
+  provider: ProviderId,
+  sourcePath: string,
+  options: SessionHandoffFileNormalizationOptions = {}
+): Promise<NormalizedSessionHandoff> {
+  const limits = resolveFileNormalizationOptions(options);
+  const recentMessageBudget = limits.maximumMessageBytes - limits.openingMessageBytes;
+  const openingMessages: IndexedMessage[] = [];
+  const recentMessages: IndexedMessage[] = [];
+  const activities: Array<{ activity: HandoffActivity; bytes: number }> = [];
+  const state = createNormalizationState();
+  let openingBytes = 0;
+  let recentBytes = 0;
+  let activityBytes = 0;
+  let totalMessages = 0;
+  let totalActivities = 0;
+  let malformedRecords = 0;
+  let oversizedRecords = 0;
+
+  for await (const line of readBoundedJsonlLines(sourcePath, limits.maximumLineBytes)) {
+    if (line.kind === 'oversized') {
+      oversizedRecords += 1;
+      continue;
+    }
+    let document: unknown;
+    try {
+      document = JSON.parse(line.text) as unknown;
+    } catch {
+      malformedRecords += 1;
+      continue;
+    }
+    const lineMessages: HandoffMessage[] = [];
+    const lineActivities: HandoffActivity[] = [];
+    normalizeDocument(provider, document, lineMessages, lineActivities, state);
+
+    for (const message of lineMessages) {
+      const sequence = totalMessages;
+      totalMessages += 1;
+      if (openingMessages.length < OPENING_MESSAGE_COUNT) {
+        const openingFit = fitMessage(
+          message,
+          limits.openingMessageBytes - openingBytes
+        );
+        if (openingFit !== null) {
+          const bytes = Buffer.byteLength(JSON.stringify(openingFit.message), 'utf8');
+          openingMessages.push({
+            sequence,
+            message: openingFit.message,
+            bytes,
+            truncated: openingFit.truncated
+          });
+          openingBytes += bytes;
+        }
+      }
+
+      if (recentMessageBudget > 0) {
+        const recentFit = fitMessage(message, recentMessageBudget);
+        if (recentFit !== null) {
+          const bytes = Buffer.byteLength(JSON.stringify(recentFit.message), 'utf8');
+          recentMessages.push({
+            sequence,
+            message: recentFit.message,
+            bytes,
+            truncated: recentFit.truncated
+          });
+          recentBytes += bytes;
+          while (recentBytes > recentMessageBudget && recentMessages.length > 0) {
+            const removed = recentMessages.shift();
+            if (removed === undefined) break;
+            recentBytes -= removed.bytes;
+          }
+        }
+      }
+    }
+
+    for (const activity of lineActivities) {
+      totalActivities += 1;
+      const fitted = fitActivity(activity, limits.maximumActivityBytes);
+      if (fitted === null) continue;
+      const bytes = Buffer.byteLength(JSON.stringify(fitted), 'utf8');
+      activities.push({ activity: fitted, bytes });
+      activityBytes += bytes;
+      while (activityBytes > limits.maximumActivityBytes && activities.length > 0) {
+        const removed = activities.shift();
+        if (removed === undefined) break;
+        activityBytes -= removed.bytes;
+      }
+    }
+  }
+
+  const selectedBySequence = new Map<number, IndexedMessage>();
+  for (const selected of [...openingMessages, ...recentMessages]) {
+    const existing = selectedBySequence.get(selected.sequence);
+    if (existing === undefined || selected.bytes > existing.bytes) {
+      selectedBySequence.set(selected.sequence, selected);
+    }
+  }
+  const selectedMessages = [...selectedBySequence.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, selected]) => selected);
+  const messages = selectedMessages.map(({ message }) => message);
+  if (messages.length === 0) {
+    throw new SessionHandoffExportError(
+      'The session source does not contain a readable conversation.'
+    );
+  }
+
+  const omittedMessages = totalMessages > messages.length;
+  const truncatedContent = selectedMessages.some(({ truncated }) => truncated);
+  const omittedActivities = totalActivities > activities.length;
+  const incompleteRecords = malformedRecords > 0 || oversizedRecords > 0;
+  const warnings: string[] = [];
+  if (omittedMessages) {
+    warnings.push(
+      'Historical conversation was condensed to the opening and most recent messages.'
+    );
+  }
+  if (truncatedContent) {
+    warnings.push('One or more retained messages were truncated to a safe size.');
+  }
+  if (malformedRecords > 0) {
+    warnings.push(`${malformedRecords} malformed JSONL record(s) were skipped.`);
+  }
+  if (oversizedRecords > 0) {
+    warnings.push(`${oversizedRecords} oversized JSONL record(s) were skipped.`);
+  }
+  const providerActivityCoverage = activityCoverage(provider);
+  if (providerActivityCoverage !== 'complete') {
+    warnings.push('Tool activity may be incomplete for this provider version.');
+  } else if (omittedActivities) {
+    warnings.push('Older tool activity was omitted from the managed context.');
+  }
+
+  const result: NormalizedSessionHandoff = {
+    messages,
+    activities: activities.map(({ activity }) => activity),
+    messageCoverage:
+      omittedMessages || truncatedContent || incompleteRecords
+        ? 'partial'
+        : 'complete',
+    activityCoverage:
+      providerActivityCoverage === 'complete' && !omittedActivities && !incompleteRecords
+        ? 'complete'
+        : 'partial',
+    warnings
   };
   if (Buffer.byteLength(JSON.stringify(result), 'utf8') > MAX_NORMALIZED_BYTES) {
     throw new SessionHandoffExportError(

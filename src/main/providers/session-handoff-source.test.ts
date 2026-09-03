@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  truncate,
+  writeFile
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -46,7 +55,7 @@ describe('session handoff source snapshots', () => {
       sourceDirectory: destination
     });
 
-    expect(result.raw).toContain('turn.prompt');
+    expect(result.kind).toBe('jsonl-file');
     expect(result.sourceFiles).toHaveLength(1);
     expect(result.sourceFiles[0]).not.toBe(wirePath);
   });
@@ -95,10 +104,37 @@ describe('session handoff source snapshots', () => {
       sourceDirectory: destination
     });
 
-    expect(result.raw).toBe('{"type":"message"}\n');
+    expect(result.kind).toBe('jsonl-file');
     expect(result.sourceFiles).toHaveLength(1);
     expect(result.sourceFiles[0]).not.toBe(sourcePath);
-    await expect(readFile(result.sourceFiles[0]!, 'utf8')).resolves.toBe(result.raw);
+    await expect(readFile(result.sourceFiles[0]!, 'utf8')).resolves.toBe(
+      '{"type":"message"}\n'
+    );
+  });
+
+  it('snapshots a source above the former 64 MiB limit without loading it into memory', async () => {
+    const sourceRoot = await directory('large-source');
+    const destination = await directory('large-destination');
+    const sourcePath = join(sourceRoot, 'session.jsonl');
+    await writeFile(sourcePath, '{"type":"response_item"}\n', 'utf8');
+    await truncate(sourcePath, 64 * 1024 * 1024 + 1);
+
+    const result = await createFileHandoffSnapshotter('codex')({
+      nativeSessionId: 'native-large',
+      sourceKeys: [sourcePath],
+      installation: {
+        provider: 'codex', displayName: 'Codex', state: 'ready',
+        executablePath: '/tools/codex', version: '1.0.0', issue: null
+      },
+      sourceDirectory: destination
+    });
+
+    expect(result).toMatchObject({
+      kind: 'jsonl-file',
+      sourceFiles: [join(destination, 'codex-session.jsonl')],
+      sourcePath: join(destination, 'codex-session.jsonl')
+    });
+    expect('raw' in result).toBe(false);
   });
 
   it('exports OpenCode JSON with an argv-only bounded command', async () => {
@@ -130,6 +166,8 @@ describe('session handoff source snapshots', () => {
       shell: false,
       windowsHide: true
     }));
+    expect(result.kind).toBe('inline');
+    if (result.kind !== 'inline') throw new Error('Expected an inline export.');
     expect(result.raw).toBe(JSON.stringify({ messages: [] }));
     await expect(readFile(result.sourceFiles[0]!, 'utf8')).resolves.toBe(result.raw);
   });

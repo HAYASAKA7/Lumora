@@ -16,10 +16,12 @@ import {
 } from '../../shared/provider-definitions';
 import {
   normalizeSessionHandoff,
+  normalizeSessionHandoffFile,
   type HandoffActivity,
   type HandoffMessage,
   type NormalizedSessionHandoff
 } from '../providers/session-handoff-export';
+import type { SessionHandoffSnapshot } from '../providers/session-catalog-adapter';
 
 const CONTEXT_CHUNK_CHARACTERS = 240_000;
 const UUID_PATTERN =
@@ -51,10 +53,7 @@ export interface HandoffPlan extends HandoffReservationInput {
   expiresAt: string;
 }
 
-export interface AcquiredHandoffSource {
-  raw: string;
-  sourceFiles: readonly string[];
-}
+export type AcquiredHandoffSource = SessionHandoffSnapshot;
 
 export interface MaterializedHandoff {
   manifestPath: string;
@@ -267,7 +266,12 @@ export class HandoffService {
       if (acquired.sourceFiles.length === 0) {
         throw new Error('The provider did not produce a handoff source copy.');
       }
-      const normalized = normalizeSessionHandoff(plan.sourceProvider, acquired.raw);
+      const normalized = acquired.kind === 'inline'
+        ? normalizeSessionHandoff(plan.sourceProvider, acquired.raw)
+        : await normalizeSessionHandoffFile(
+            plan.sourceProvider,
+            ensureInside(plan.sourceDirectory, acquired.sourcePath)
+          );
       const rendered = contextChunks(normalized);
       const contextFiles: string[] = [];
       for (const [index, content] of rendered.entries()) {

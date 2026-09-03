@@ -76,6 +76,7 @@ describe('catalog refresh', () => {
                 }),
                 buildResumeArguments: () => [],
                 snapshotHandoff: async () => ({
+                  kind: 'inline' as const,
                   raw: '',
                   sourceFiles: []
                 })

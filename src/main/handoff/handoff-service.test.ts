@@ -93,7 +93,7 @@ describe('HandoffService', () => {
         }
       ].map((value) => JSON.stringify(value)).join('\n');
       await writeFile(sourcePath, raw, { encoding: 'utf8', flag: 'wx' });
-      return { raw, sourceFiles: [sourcePath] };
+      return { kind: 'inline', raw, sourceFiles: [sourcePath] };
     });
 
     const manifest = JSON.parse(await readFile(result.manifestPath, 'utf8'));
@@ -136,6 +136,61 @@ describe('HandoffService', () => {
     expect(plan.prompt).toContain(startPrompt);
   });
 
+  it('materializes bounded context from a managed JSONL snapshot', async () => {
+    const rootDirectory = await root();
+    const service = new HandoffService({
+      rootDirectory,
+      createId: () => '019c0000-0000-7000-8000-000000000005'
+    });
+    const plan = service.reserve({
+      sourceSessionId: 'e'.repeat(64),
+      sourceNativeId: 'native-large',
+      sourceProvider: 'codex',
+      destinationProvider: 'claude',
+      retentionDays: 7,
+      startPrompt: ''
+    });
+
+    const result = await service.materialize(plan, async (sourceDirectory) => {
+      const sourcePath = join(sourceDirectory, 'session.jsonl');
+      await writeFile(sourcePath, [
+        JSON.stringify({
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: 'opening objective' }]
+          }
+        }),
+        '{malformed-record',
+        JSON.stringify({
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'latest answer' }]
+          }
+        })
+      ].join('\n'), 'utf8');
+      return {
+        kind: 'jsonl-file',
+        sourcePath,
+        sourceFiles: [sourcePath]
+      };
+    });
+
+    const manifest = JSON.parse(await readFile(result.manifestPath, 'utf8'));
+    expect(manifest).toMatchObject({
+      messageCoverage: 'partial',
+      messageCount: 2,
+      sourceFiles: ['source/session.jsonl']
+    });
+    expect(manifest.warnings.join(' ')).toContain('malformed JSONL record');
+    const context = await readFile(result.contextFiles[0]!, 'utf8');
+    expect(context).toContain('opening objective');
+    expect(context).toContain('latest answer');
+  });
+
   it('deletes an incomplete handoff when normalization fails', async () => {
     const rootDirectory = await root();
     const service = new HandoffService({
@@ -155,7 +210,7 @@ describe('HandoffService', () => {
       const sourcePath = join(sourceDirectory, 'session.jsonl');
       const raw = JSON.stringify({ type: 'reasoning', content: 'private' });
       await writeFile(sourcePath, raw, 'utf8');
-      return { raw, sourceFiles: [sourcePath] };
+      return { kind: 'inline', raw, sourceFiles: [sourcePath] };
     })).rejects.toThrow('does not contain a readable conversation');
 
     const { access } = await import('node:fs/promises');

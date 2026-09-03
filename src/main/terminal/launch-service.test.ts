@@ -77,6 +77,7 @@ const sessionCatalogRegistry = createSessionCatalogRegistry(
           buildForkArguments(provider, nativeSessionId, startPrompt)
       }),
       snapshotHandoff: vi.fn(async () => ({
+        kind: 'inline' as const,
         raw: '{"messages":[]}',
         sourceFiles: ['/tmp/source.json']
       }))

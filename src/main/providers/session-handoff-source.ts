@@ -13,7 +13,8 @@ import type {
 } from './session-catalog-adapter';
 
 type Environment = Readonly<Record<string, string | undefined>>;
-const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
+const MAX_INLINE_SOURCE_BYTES = 64 * 1024 * 1024;
+const MAX_MANAGED_JSONL_SOURCE_BYTES = 1024 * 1024 * 1024;
 
 function sameFileState(
   left: { size: number; mtimeMs: number },
@@ -37,10 +38,14 @@ export function createFileHandoffSnapshotter(
       throw new Error(`${provider} handoff source is not a local file.`);
     }
     const before = await stat(sourcePath);
-    if (!before.isFile() || before.size < 1 || before.size > MAX_SOURCE_BYTES) {
+    const extension = extname(sourcePath).toLocaleLowerCase();
+    const isJsonDocument = extension === '.json';
+    const maximumBytes = isJsonDocument
+      ? MAX_INLINE_SOURCE_BYTES
+      : MAX_MANAGED_JSONL_SOURCE_BYTES;
+    if (!before.isFile() || before.size < 1 || before.size > maximumBytes) {
       throw new Error(`${provider} handoff source is unavailable or too large.`);
     }
-    const extension = extname(sourcePath).toLocaleLowerCase();
     const safeExtension = extension === '.json' || extension === '.jsonl'
       ? extension
       : '.jsonl';
@@ -53,11 +58,19 @@ export function createFileHandoffSnapshotter(
     if (!sameFileState(before, after)) {
       throw new Error(`${provider} handoff source changed while copying.`);
     }
-    const raw = await readFile(destinationPath, 'utf8');
-    if (Buffer.byteLength(raw, 'utf8') !== before.size) {
+    const copied = await stat(destinationPath);
+    if (!copied.isFile() || copied.size !== before.size) {
       throw new Error(`${provider} handoff snapshot is incomplete.`);
     }
-    return { raw, sourceFiles: [destinationPath] };
+    if (!isJsonDocument) {
+      return {
+        kind: 'jsonl-file',
+        sourcePath: destinationPath,
+        sourceFiles: [destinationPath]
+      };
+    }
+    const raw = await readFile(destinationPath, 'utf8');
+    return { kind: 'inline', raw, sourceFiles: [destinationPath] };
   };
 }
 
@@ -80,7 +93,7 @@ export function createKimiHandoffSnapshotter(): SessionHandoffSnapshotter {
     if (
       stateEntry.isSymbolicLink() || !stateEntry.isFile() ||
       before.isSymbolicLink() || !before.isFile() ||
-      before.size < 1 || before.size > MAX_SOURCE_BYTES
+      before.size < 1 || before.size > MAX_MANAGED_JSONL_SOURCE_BYTES
     ) {
       throw new Error('Kimi handoff source is unavailable or too large.');
     }
@@ -96,11 +109,15 @@ export function createKimiHandoffSnapshotter(): SessionHandoffSnapshotter {
     if (!sameFileState(before, after)) {
       throw new Error('Kimi handoff source changed while copying.');
     }
-    const raw = await readFile(destinationPath, 'utf8');
-    if (Buffer.byteLength(raw, 'utf8') !== before.size) {
+    const copied = await stat(destinationPath);
+    if (!copied.isFile() || copied.size !== before.size) {
       throw new Error('Kimi handoff snapshot is incomplete.');
     }
-    return { raw, sourceFiles: [destinationPath] };
+    return {
+      kind: 'jsonl-file',
+      sourcePath: destinationPath,
+      sourceFiles: [destinationPath]
+    };
   };
 }
 
@@ -157,7 +174,7 @@ export function createOpenCodeHandoffSnapshotter({
   platform,
   runCommand = executeStructuredCommand,
   timeoutMs = 30_000,
-  maxOutputBytes = MAX_SOURCE_BYTES
+  maxOutputBytes = MAX_INLINE_SOURCE_BYTES
 }: OpenCodeHandoffSnapshotterOptions): SessionHandoffSnapshotter {
   return async ({ nativeSessionId, installation, sourceDirectory }) => {
     if (installation.provider !== 'opencode') {
@@ -195,6 +212,10 @@ export function createOpenCodeHandoffSnapshotter({
       encoding: 'utf8',
       flag: 'wx'
     });
-    return { raw: output.stdout, sourceFiles: [destinationPath] };
+    return {
+      kind: 'inline',
+      raw: output.stdout,
+      sourceFiles: [destinationPath]
+    };
   };
 }

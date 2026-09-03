@@ -53,10 +53,21 @@ export interface SessionHandoffSnapshotRequest {
   sourceDirectory: string;
 }
 
-export interface SessionHandoffSnapshot {
+export interface InlineSessionHandoffSnapshot {
+  kind: 'inline';
   raw: string;
   sourceFiles: string[];
 }
+
+export interface JsonlFileSessionHandoffSnapshot {
+  kind: 'jsonl-file';
+  sourcePath: string;
+  sourceFiles: string[];
+}
+
+export type SessionHandoffSnapshot =
+  | InlineSessionHandoffSnapshot
+  | JsonlFileSessionHandoffSnapshot;
 
 export type SessionHandoffSnapshotter = (
   request: SessionHandoffSnapshotRequest

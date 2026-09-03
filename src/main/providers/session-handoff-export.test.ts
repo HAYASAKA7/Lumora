@@ -1,6 +1,43 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { normalizeSessionHandoff } from './session-handoff-export';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+  normalizeSessionHandoff,
+  normalizeSessionHandoffFile
+} from './session-handoff-export';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(temporaryDirectories.splice(0).map((directory) =>
+    rm(directory, { recursive: true, force: true })
+  ));
+});
+
+async function jsonlFile(lines: readonly string[]): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'lumora-handoff-export-'));
+  temporaryDirectories.push(directory);
+  const path = join(directory, 'session.jsonl');
+  await writeFile(path, lines.join('\n'), 'utf8');
+  return path;
+}
+
+function codexMessage(role: 'user' | 'assistant', content: string): string {
+  return JSON.stringify({
+    type: 'response_item',
+    payload: {
+      type: 'message',
+      role,
+      content: [{
+        type: role === 'user' ? 'input_text' : 'output_text',
+        text: content
+      }]
+    }
+  });
+}
 
 describe('normalizeSessionHandoff', () => {
   it('normalizes Kimi wire messages without reasoning or tool output', () => {
@@ -211,6 +248,74 @@ describe('normalizeSessionHandoff', () => {
 
     expect(() => normalizeSessionHandoff('codex', raw)).toThrow(
       'contains invalid JSONL'
+    );
+  });
+
+  it('streams opening and recent messages into a bounded partial handoff', async () => {
+    const sourcePath = await jsonlFile([
+      codexMessage('user', 'opening objective'),
+      codexMessage('assistant', 'opening acknowledgement'),
+      ...Array.from({ length: 12 }, (_, index) =>
+        codexMessage(index % 2 === 0 ? 'user' : 'assistant', `middle-${index}-${'x'.repeat(80)}`)
+      ),
+      codexMessage('user', 'latest request'),
+      codexMessage('assistant', 'latest answer')
+    ]);
+
+    const result = await normalizeSessionHandoffFile('codex', sourcePath, {
+      maximumMessageBytes: 700,
+      openingMessageBytes: 220,
+      maximumActivityBytes: 200,
+      maximumLineBytes: 2_048
+    });
+
+    expect(result.messages.map((message) => message.content)).toEqual(
+      expect.arrayContaining([
+        'opening objective',
+        'opening acknowledgement',
+        'latest request',
+        'latest answer'
+      ])
+    );
+    expect(result.messages.some((message) => message.content.startsWith('middle-0-')))
+      .toBe(false);
+    expect(result.messageCoverage).toBe('partial');
+    expect(result.warnings.join(' ')).toContain('opening and most recent');
+    expect(Buffer.byteLength(JSON.stringify(result.messages), 'utf8'))
+      .toBeLessThan(1_000);
+  });
+
+  it('skips malformed and oversized JSONL records without losing valid context', async () => {
+    const sourcePath = await jsonlFile([
+      codexMessage('user', 'valid opening'),
+      '{broken-json',
+      codexMessage('assistant', 'x'.repeat(4_000)),
+      codexMessage('assistant', 'valid ending')
+    ]);
+
+    const result = await normalizeSessionHandoffFile('codex', sourcePath, {
+      maximumMessageBytes: 1_024,
+      openingMessageBytes: 256,
+      maximumActivityBytes: 200,
+      maximumLineBytes: 1_024
+    });
+
+    expect(result.messages.map((message) => message.content)).toEqual([
+      'valid opening',
+      'valid ending'
+    ]);
+    expect(result.messageCoverage).toBe('partial');
+    expect(result.warnings.join(' ')).toContain('malformed JSONL record');
+    expect(result.warnings.join(' ')).toContain('oversized JSONL record');
+  });
+
+  it('rejects a streamed source with no readable conversation', async () => {
+    const sourcePath = await jsonlFile([
+      JSON.stringify({ type: 'reasoning', content: 'private' })
+    ]);
+
+    await expect(normalizeSessionHandoffFile('codex', sourcePath)).rejects.toThrow(
+      'does not contain a readable conversation'
     );
   });
 });
