@@ -2278,6 +2278,9 @@ function AppContent(): ReactNode {
                 runningSessionIds={runningSessionIds}
                 runtimes={runtimes}
                 status={visibleCatalogStatus}
+                structuredRunning={liveStructuredSnapshots.map(
+                  ({ runtime }) => runtime
+                )}
                 workspaceById={catalogPresentation?.workspaceById}
               />
             ) : activeRoute.id === 'workspaces' ? (

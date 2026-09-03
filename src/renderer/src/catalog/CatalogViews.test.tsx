@@ -1,6 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import type {
   CatalogSnapshot,
   ProviderScanResult,
@@ -18,6 +19,40 @@ import {
 } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
+
+const runningRuntime: RuntimeSummary = {
+  id: '0198f8b6-18f3-7ca0-9f0f-1234567890ff',
+  displayName: 'Running session',
+  strategy: 'new',
+  sessionId: null,
+  nativeSessionId: null,
+  reconciliationState: 'unresolved',
+  provider: 'codex',
+  workspaceId: 'a'.repeat(64),
+  terminalProfileId: 'f'.repeat(64),
+  launchHash: 'e'.repeat(64),
+  state: 'running',
+  pid: 4242,
+  createdAt: '2026-07-12T04:00:00.000Z',
+  startedAt: '2026-07-12T04:00:01.000Z',
+  endedAt: null,
+  exitCode: null,
+  errorCode: null
+};
+
+const readyStructuredRuntime: StructuredAgentRuntimeSummary = {
+  connectionId: 'structured-codex',
+  providerId: 'codex',
+  nativeSessionId: 'native-structured-codex',
+  catalogSessionId: '1'.repeat(64),
+  workspaceId: 'a'.repeat(64),
+  title: 'Structured review session',
+  state: 'ready',
+  generation: 1,
+  createdAt: '2026-08-26T01:10:00.000Z',
+  updatedAt: '2026-08-26T01:11:00.000Z',
+  error: null
+};
 
 const catalogSnapshot: CatalogSnapshot = {
   refreshedAt: '2026-07-11T04:00:00.000Z',
@@ -1137,7 +1172,7 @@ describe('CatalogHomeSummary', () => {
     expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.getByText('Untitled session')).toBeInTheDocument();
     expect(
-      screen.getByText('Native agent terminals owned by Lumora')
+      screen.getByText('Agents Lumora is running in a terminal or the Unified UI')
     ).toBeInTheDocument();
   });
 
@@ -1228,5 +1263,48 @@ describe('CatalogHomeSummary', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Recover' })[0]!);
     expect(onRecover).toHaveBeenCalledWith(lost[0]);
+  });
+
+  it('counts agents running in the Unified UI alongside terminal agents', () => {
+    render(
+      <CatalogHomeSummary
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        runtimes={[runningRuntime]}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+        structuredRunning={[readyStructuredRuntime]}
+      />
+    );
+
+    expect(screen.getByText('2 running agents')).toBeInTheDocument();
+  });
+
+  it('reports a lone Unified UI agent instead of no managed processes', () => {
+    render(
+      <CatalogHomeSummary
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        runtimes={[]}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+        structuredRunning={[readyStructuredRuntime]}
+      />
+    );
+
+    expect(screen.getByText('1 running agent')).toBeInTheDocument();
+    expect(screen.queryByText('No managed processes')).not.toBeInTheDocument();
+  });
+
+  it('still reports no managed processes when nothing is running', () => {
+    render(
+      <CatalogHomeSummary
+        profiles={[terminalProfile]}
+        providerScan={providerScan}
+        runtimes={[]}
+        status={{ state: 'ready', snapshot: catalogSnapshot }}
+        structuredRunning={[]}
+      />
+    );
+
+    expect(screen.getByText('No managed processes')).toBeInTheDocument();
   });
 });

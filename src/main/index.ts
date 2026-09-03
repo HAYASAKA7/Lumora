@@ -723,6 +723,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     architecture: process.arch,
     getActiveAgentCount: () => countActiveTerminalRuntimes(
       terminalRuntime?.listRuntimes() ?? []
+    ) + countActiveStructuredRuntimes(
+      structuredAgentRuntime?.list() ?? []
     ),
     getProcessMetrics: () => app.getAppMetrics(),
     getExportDirectory: async () => (

@@ -22,6 +22,16 @@ describe('diagnostic application integration', () => {
     expect(source).toContain("operation: 'catalog-refresh'");
   });
 
+  it('counts Unified UI agents in the reported active agent total', () => {
+    const wiring = source.slice(
+      source.indexOf('getActiveAgentCount: () =>'),
+      source.indexOf('getProcessMetrics: () =>')
+    );
+
+    expect(wiring).toContain('countActiveTerminalRuntimes');
+    expect(wiring).toContain('countActiveStructuredRuntimes');
+  });
+
   it('marks the run clean only after orderly runtime shutdown', () => {
     const shutdown = source.slice(source.indexOf("app.on('before-quit'"));
     const shutdownRuntime = shutdown.indexOf('runtime?.shutdown()');

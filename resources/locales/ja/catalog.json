@@ -7,7 +7,7 @@
     "running-agents": "実行中のエージェント",
     "managed-processes-empty": "管理中のプロセスはありません",
     "managed-processes": "{count, plural, one {実行中のエージェント: # 件} other {実行中のエージェント: # 件}}",
-    "managed-processes-description": "Lumora が管理するネイティブエージェントのターミナル",
+    "managed-processes-description": "Lumora がターミナルまたは統合 UI で実行中のエージェント",
     "diagnostics-label": "診断",
     "needs-attention": "確認が必要です",
     "catalog-issues": "{count, plural, one {カタログの問題: # 件} other {カタログの問題: # 件}}",

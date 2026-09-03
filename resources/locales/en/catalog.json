@@ -7,7 +7,7 @@
     "running-agents": "Running agents",
     "managed-processes-empty": "No managed processes",
     "managed-processes": "{count, plural, one {# running agent} other {# running agents}}",
-    "managed-processes-description": "Native agent terminals owned by Lumora",
+    "managed-processes-description": "Agents Lumora is running in a terminal or the Unified UI",
     "diagnostics-label": "Diagnostics",
     "needs-attention": "Needs attention",
     "catalog-issues": "{count, plural, one {# catalog issue} other {# catalog issues}}",

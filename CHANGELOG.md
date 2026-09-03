@@ -13,6 +13,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Trust and continue** were styled with a class the stylesheet never defined,
   so they appeared as plain grey system buttons instead of Lumora controls. The
   approval buttons in the unified agent view had the same problem.
+- Count agents running in the Unified UI as running agents. The **Running
+  agents** card on the home view and the **Active agents** figure in
+  Diagnostics both counted only agents running in a native terminal, so an
+  agent working in Lumora's own interface showed up nowhere in those totals.
+  The status bar, the tray menu and the quit warning already counted both.
 
 ## [0.5.2] - 2026-09-03
 

@@ -7,7 +7,7 @@
     "running-agents": "실행 중인 에이전트",
     "managed-processes-empty": "관리 중인 프로세스 없음",
     "managed-processes": "{count, plural, one {실행 중인 에이전트 #개} other {실행 중인 에이전트 #개}}",
-    "managed-processes-description": "Lumora가 관리하는 네이티브 에이전트 터미널",
+    "managed-processes-description": "Lumora가 터미널 또는 통합 UI에서 실행 중인 에이전트",
     "diagnostics-label": "진단",
     "needs-attention": "확인 필요",
     "catalog-issues": "{count, plural, one {카탈로그 문제 #개} other {카탈로그 문제 #개}}",

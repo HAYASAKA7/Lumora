@@ -1,5 +1,6 @@
 import { memo, type ReactNode, useMemo, useState } from 'react';
 
+import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import type {
   CatalogSnapshot,
   ProviderId,
@@ -28,6 +29,7 @@ import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 const WORKSPACE_BATCH_SIZE = 20;
 const SESSION_BATCH_SIZE = 40;
 const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
+const EMPTY_STRUCTURED_RUNTIMES: readonly StructuredAgentRuntimeSummary[] = [];
 
 export type CatalogViewStatus =
   | { state: 'loading' }
@@ -622,6 +624,7 @@ export function CatalogHomeSummary({
   profiles,
   runtimes = [],
   runningSessionIds = EMPTY_SESSION_IDS,
+  structuredRunning = EMPTY_STRUCTURED_RUNTIMES,
   workspaceById,
   onRecover,
   onOpenProviderUpdates,
@@ -635,6 +638,7 @@ export function CatalogHomeSummary({
   profiles: readonly TerminalProfile[];
   runtimes?: readonly RuntimeSummary[];
   runningSessionIds?: ReadonlySet<string> | undefined;
+  structuredRunning?: readonly StructuredAgentRuntimeSummary[];
   workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   onRecover?(runtime: RuntimeSummary): void;
   onOpenProviderUpdates?(): void;
@@ -670,6 +674,11 @@ export function CatalogHomeSummary({
   const lostRuntimes = runtimes.filter(
     (runtime) => runtime.state === 'runtime_lost'
   );
+  /**
+   * Lumora runs agents both in a native terminal and in the Unified UI, and
+   * `structuredRunning` already holds only the live Unified UI connections.
+   */
+  const runningAgentCount = liveRuntimes.length + structuredRunning.length;
   const attentionCount = snapshot.diagnostics.length + lostRuntimes.length;
   const updateProviderNames = availableProviderUpdates.map(
     (provider) => providerDefinition(provider).displayName
@@ -680,9 +689,9 @@ export function CatalogHomeSummary({
         <p className="card-label">{t('catalog.home.runtime-label')}</p>
         <h2>{t('catalog.home.running-agents')}</h2>
         <strong className="metric-value">
-          {liveRuntimes.length === 0
+          {runningAgentCount === 0
             ? t('catalog.home.managed-processes-empty')
-            : t('catalog.home.managed-processes', { count: liveRuntimes.length })}
+            : t('catalog.home.managed-processes', { count: runningAgentCount })}
         </strong>
         <p className="card-description">
           {t('catalog.home.managed-processes-description')}
