@@ -7,6 +7,23 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-03
+
+### Fixed
+
+- Restore cross-agent handoff for large file-backed sessions by copying the
+  provider-owned transcript first and normalizing it incrementally instead of
+  loading the complete source into memory.
+- Preserve useful context from oversized histories by retaining bounded opening
+  and recent messages, recent tool activity, and explicit partial-coverage
+  warnings while leaving the original provider session unchanged.
+
+### Performance
+
+- Bound cross-agent handoff memory use, individual JSONL records, retained
+  messages, tool activity, and Claude tool-result tracking so large or malformed
+  histories cannot cause unbounded main-process work.
+
 ## [0.5.0] - 2026-09-01
 
 ### Added

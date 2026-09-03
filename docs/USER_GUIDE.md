@@ -96,7 +96,9 @@ fork, cross-agent handoff, an initial task, or one-time launch overrides.
 Codex, Claude Code, and OpenCode support provider-native forks when the
 installed version meets Lumora's tested minimum. Cross-agent handoff is a
 separate opt-in workflow: it creates a new destination-provider session from a
-temporary managed copy and leaves the source session unchanged.
+temporary managed copy and leaves the source session unchanged. For a large
+file-backed history, Lumora retains bounded opening and recent conversation
+context and reports when older content was condensed.
 
 See [Provider support and verification](PROVIDER_SUPPORT.md) for the exact
 capability matrix and [Move sessions between devices](SESSION_TRANSFER.md) for

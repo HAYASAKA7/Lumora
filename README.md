@@ -144,7 +144,9 @@ Complete session support includes new-session launch, provider-owned metadata
 discovery, catalog display, and exact native resume. Codex, Claude Code, and
 OpenCode can also request provider-native forks. Optional cross-agent handoff
 creates a new destination session from a temporary managed copy and never
-replaces the source session.
+replaces the source session. Large file-backed histories are read incrementally;
+Lumora keeps bounded opening and recent context instead of loading an entire
+transcript into memory.
 
 See [Using Lumora](docs/USER_GUIDE.md#saved-sessions) and
 [Provider support and verification](docs/PROVIDER_SUPPORT.md).

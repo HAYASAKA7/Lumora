@@ -161,8 +161,11 @@ and never copies or rewrites the source transcript.
 
 Complete-session adapters also expose a bounded handoff snapshot operation.
 File-backed providers copy the selected source before parsing it; OpenCode uses
-its structured export command. This operation is separate from catalog scans
-and runs only for a user-confirmed cross-agent launch.
+its structured export command. Large JSONL snapshots are normalized as a stream
+with bounded records, messages, activities, and provider correlation state;
+the complete source is never retained in process memory. This operation is
+separate from catalog scans and runs only for a user-confirmed cross-agent
+launch.
 
 ## Structured agent runtime
 
@@ -364,7 +367,9 @@ For an enabled cross-agent handoff, the main process instead:
 3. after workspace trust and final confirmation, copies the source into a new
    Lumora-managed handoff directory;
 4. normalizes ordered user and assistant messages plus a compact, safe tool
-   activity ledger into bounded Markdown files; and
+   activity ledger into bounded Markdown files, retaining opening and recent
+   context with explicit partial-coverage warnings when a large history must be
+   condensed; and
 5. launches a new destination-provider session with a bootstrap prompt that
    identifies the managed directory, treats its contents as untrusted history,
    follows the user's conversation language, summarizes the imported state,
