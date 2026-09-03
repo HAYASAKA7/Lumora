@@ -167,6 +167,15 @@ describe('StructuredAgentWorkspace', () => {
     });
   });
 
+  it('offers the approval choices as standard Lumora buttons', () => {
+    renderWorkspace();
+
+    expect(screen.getByRole('button', { name: 'Allow once' }))
+      .toHaveClass('refresh-button');
+    expect(screen.getByRole('button', { name: 'Deny' }))
+      .toHaveClass('secondary-button');
+  });
+
   it('retains completed turns when the bounded event tail advances', () => {
     const props = {
       api: {

@@ -91,7 +91,7 @@ export function DirectSessionLaunchWorkspace({
                     {t('terminal.direct.resume-options')}
                   </button>
                   <button
-                    className="primary-button"
+                    className="refresh-button"
                     data-lumora-command
                     onClick={onTrustAndContinue}
                     tabIndex={-1}
@@ -112,7 +112,7 @@ export function DirectSessionLaunchWorkspace({
                     {t('terminal.direct.resume-options')}
                   </button>
                   <button
-                    className="primary-button"
+                    className="refresh-button"
                     data-lumora-command
                     onClick={onRetry}
                     tabIndex={-1}

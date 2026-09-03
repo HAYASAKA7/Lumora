@@ -578,7 +578,7 @@ export function StructuredAgentWorkspace({
                     <div className="catalog-actions">
                       {approval.choices.map((decision) => (
                         <button
-                          className={decision === 'deny' ? 'secondary-button' : 'primary-button'}
+                          className={decision === 'deny' ? 'secondary-button' : 'refresh-button'}
                           data-lumora-command
                           key={decision}
                           onClick={() => void dispatch({

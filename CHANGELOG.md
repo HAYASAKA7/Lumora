@@ -7,6 +7,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Give the session loading screen Lumora's own buttons. **Try again** and
+  **Trust and continue** were styled with a class the stylesheet never defined,
+  so they appeared as plain grey system buttons instead of Lumora controls. The
+  approval buttons in the unified agent view had the same problem.
+
 ## [0.5.2] - 2026-09-03
 
 ### Fixed

@@ -56,6 +56,38 @@ describe('DirectSessionLaunchWorkspace', () => {
       .toBeInTheDocument();
   });
 
+  it('offers the recovery actions as standard Lumora buttons', () => {
+    renderWithLocalization(
+      <DirectSessionLaunchWorkspace
+        launch={{ ...launch, phase: 'error' }}
+        onClose={vi.fn()}
+        onOpenOptions={vi.fn()}
+        onRetry={vi.fn()}
+        onTrustAndContinue={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Try again' }))
+      .toHaveClass('refresh-button');
+    expect(screen.getByRole('button', { name: /Resume options/ }))
+      .toHaveClass('secondary-button');
+  });
+
+  it('offers the trust action as a standard Lumora button', () => {
+    renderWithLocalization(
+      <DirectSessionLaunchWorkspace
+        launch={{ ...launch, phase: 'awaiting-trust' }}
+        onClose={vi.fn()}
+        onOpenOptions={vi.fn()}
+        onRetry={vi.fn()}
+        onTrustAndContinue={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Trust and continue' }))
+      .toHaveClass('refresh-button');
+  });
+
   it('renders the provider name in the starting phase instead of a locale key', () => {
     renderWithLocalization(
       <DirectSessionLaunchWorkspace
