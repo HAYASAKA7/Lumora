@@ -3,6 +3,8 @@ import { availableParallelism } from 'node:os';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+import { resolveTestTimeouts } from './src/shared/test-runner-config';
+
 const LOCAL_TEST_MAX_WORKERS = 3;
 
 export function resolveTestMaxWorkers(
@@ -29,6 +31,7 @@ const maxWorkers = resolveTestMaxWorkers(
 export default defineConfig({
   test: {
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
+    ...resolveTestTimeouts(process.env.CI),
     projects: [
       {
         test: {

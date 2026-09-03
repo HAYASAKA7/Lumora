@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
+
+import { resolveAsyncUtilTimeout } from '../../shared/test-runner-config';
+
+configure({ asyncUtilTimeout: resolveAsyncUtilTimeout(process.env.CI) });
 
 /**
  * jsdom implements no layout, so it ships no `scrollIntoView`. Electron always
