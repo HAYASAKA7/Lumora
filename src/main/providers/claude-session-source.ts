@@ -282,8 +282,14 @@ function parseMetadata(
   lifetimeTokens: number | null
 ): ProviderSessionRecord | null {
   const nativeIds = new Set<string>();
-  const workspacePaths = new Set<string>();
   const timestamps: number[] = [];
+  /**
+   * A session keeps the workspace it started in even when the agent later works
+   * in other folders, including git worktrees. Claude Code files the transcript
+   * under the originating workspace and resumes it from there, so the first
+   * recorded `cwd` is the workspace Lumora must report and relaunch into.
+   */
+  let workspacePath: string | null = null;
   let title: RankedTitle | null = null;
 
   for (const line of lines) {
@@ -300,8 +306,12 @@ function parseMetadata(
     if (typeof record.sessionId === 'string' && record.sessionId.trim()) {
       nativeIds.add(record.sessionId.trim());
     }
-    if (typeof record.cwd === 'string' && record.cwd.trim()) {
-      workspacePaths.add(record.cwd.trim());
+    if (
+      workspacePath === null &&
+      typeof record.cwd === 'string' &&
+      record.cwd.trim()
+    ) {
+      workspacePath = record.cwd.trim();
     }
     if (typeof record.timestamp === 'string') {
       const parsedTimestamp = Date.parse(record.timestamp);
@@ -315,11 +325,7 @@ function parseMetadata(
     }
   }
 
-  if (
-    nativeIds.size !== 1 ||
-    workspacePaths.size !== 1 ||
-    timestamps.length === 0
-  ) {
+  if (nativeIds.size !== 1 || workspacePath === null || timestamps.length === 0) {
     return null;
   }
   const createdAt = new Date(Math.min(...timestamps)).toISOString();
@@ -328,7 +334,7 @@ function parseMetadata(
   const parsed = ProviderSessionRecordSchema.safeParse({
     provider: 'claude',
     nativeId: [...nativeIds][0],
-    workspacePath: [...workspacePaths][0],
+    workspacePath,
     title: title?.value ?? 'Untitled session',
     createdAt,
     updatedAt,

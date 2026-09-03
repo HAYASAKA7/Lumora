@@ -14,6 +14,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   authoritative sidecar file, and it writes its automatic title immediately
   after the rename, so Lumora kept displaying the automatic title instead of the
   name you chose.
+- Keep Claude Code sessions visible after the agent moves between folders. A
+  session that started in one workspace and then worked inside a git worktree
+  or subfolder was discarded during discovery, so its name, activity time and
+  token usage silently stopped updating. Such a session now stays listed under
+  the workspace it started in, which is also the workspace Claude Code resumes
+  it from.
 
 ## [0.5.1] - 2026-09-03
 

@@ -411,4 +411,26 @@ describe('discoverClaudeSessions', () => {
     expect(result.sessions).toHaveLength(1);
     expect(result.sessions[0]?.title).toBe('Automatic summary title');
   });
+  it('keeps the workspace where the session started when the agent moves between folders', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    await writeSession(projects, 'project', 'moved.jsonl', [
+      claudeLine({ type: 'mode', cwd: undefined, timestamp: undefined }),
+      claudeLine({ cwd: '/work/lumora', timestamp: '2026-07-11T01:00:00.000Z' }),
+      claudeLine({
+        cwd: '/work/lumora/.worktrees/feature',
+        timestamp: '2026-07-11T01:30:00.000Z'
+      }),
+      claudeLine({
+        cwd: '/work/lumora/.worktrees/feature/tests',
+        timestamp: '2026-07-11T02:00:00.000Z'
+      })
+    ]);
+
+    const result = await discoverClaudeSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.workspacePath).toBe('/work/lumora');
+    expect(result.invalidCount).toBe(0);
+  });
 });
