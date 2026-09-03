@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-03
+
 ### Fixed
 
 - Show the current name for Claude Code sessions that were renamed inside the

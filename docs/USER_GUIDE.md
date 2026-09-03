@@ -72,6 +72,12 @@ All Sessions searches across titles and workspaces and filters by installed,
 enabled providers for which Lumora found sessions. Token totals appear when a
 provider exposes reliable all-time usage metadata.
 
+Session names and workspaces are owned by the provider, so renaming a session
+inside the provider is reflected in Lumora on the next catalog refresh. A
+session stays grouped under the workspace it started in even when the agent
+later works in other folders, such as a git worktree or a subdirectory, because
+that is the workspace the provider resumes it from.
+
 <p align="center">
   <img src="screenshots/0.5/core/all_sessions.png" alt="Lumora All Sessions with search, provider filtering, running state, and token usage" width="1100">
 </p>
