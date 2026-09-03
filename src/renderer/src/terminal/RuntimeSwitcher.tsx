@@ -118,6 +118,18 @@ export function RuntimeSwitcher({
     };
   }, []);
 
+  /**
+   * The list scrolls once there are more open terminals than fit, and the
+   * switcher layer ignores pointer events, so cycling with the keyboard is the
+   * only way to reach an entry further down. Follow the selection to keep it
+   * on screen.
+   */
+  useEffect(() => {
+    listboxRef.current
+      ?.querySelector(`#runtime-switcher-option-${CSS.escape(selectedRuntimeId)}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selectedRuntimeId]);
+
   return (
     <div className="runtime-switcher-layer">
       <section

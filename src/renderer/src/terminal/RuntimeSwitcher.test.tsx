@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { RuntimeSummary, WorkspaceSummary } from '../../../shared/contracts';
 import {
@@ -131,6 +131,53 @@ describe('runtime switcher', () => {
     unmount();
     expect(previouslyFocused).toHaveFocus();
     previouslyFocused.remove();
+  });
+
+  it('keeps the selected entry in view as the selection moves down a long list', () => {
+    const entries = Array.from({ length: 24 }, (_, index) => ({
+      id: `runtime-${index}`,
+      provider: 'codex' as const,
+      title: `Session ${index}`,
+      workspaceId: workspace.id
+    }));
+    const scrolled: string[] = [];
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      scrolled.push(this.id);
+    });
+    const original = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+      writable: true
+    });
+    onTestFinished(() => {
+      if (original === undefined) {
+        delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+        return;
+      }
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original);
+    });
+
+    const view = render(
+      <RuntimeSwitcher
+        entries={entries}
+        selectedRuntimeId="runtime-0"
+        workspaces={[workspace]}
+      />
+    );
+    expect(scrolled.at(-1)).toBe('runtime-switcher-option-runtime-0');
+
+    view.rerender(
+      <RuntimeSwitcher
+        entries={entries}
+        selectedRuntimeId="runtime-19"
+        workspaces={[workspace]}
+      />
+    );
+    expect(scrolled.at(-1)).toBe('runtime-switcher-option-runtime-19');
   });
 
   it('renders provider-neutral structured terminal entries', () => {

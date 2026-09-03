@@ -26,6 +26,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and every other Lumora dialog cut their content off at the bottom edge with
   no scrollbar, hiding the rest of the page and, in dialogs that have one, the
   row of action buttons. Short dialogs are unchanged.
+- Keep the Ctrl+Tab terminal switcher on screen. With about a dozen or more
+  terminals open it grew past the bottom of the window, taking the last entries
+  and the hint line with it. It now stops at the window edge and scrolls its
+  list, following the selection as you cycle. It looks the same whenever it
+  already fits.
 
 ## [0.5.2] - 2026-09-03
 

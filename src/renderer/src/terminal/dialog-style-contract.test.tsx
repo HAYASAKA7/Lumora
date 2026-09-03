@@ -383,21 +383,28 @@ describe('popup layout styles', () => {
     expect(focus).toContain('outline-offset: -3px');
   });
 
-  it('keeps the runtime switcher content-sized like its former design', () => {
-    const switcher = rule('.runtime-switcher');
-    expect(switcher).toContain(
-      'width: min(440px, calc(100vw - 40px))'
-    );
-    expect(switcher).toContain('overflow: hidden');
-    expect(switcher).not.toContain('display: grid');
-    expect(switcher).not.toContain('grid-template-rows');
-    expect(switcher).not.toContain('height:');
+  it('keeps the runtime switcher content-sized until it runs out of window', () => {
+    const switcher = effectiveDeclarations(rule('.runtime-switcher'));
+    const list = effectiveDeclarations(rule('.runtime-switcher-list'));
 
-    const list = rule('.runtime-switcher-list');
-    expect(list).toContain('display: grid');
-    expect(list).not.toContain('min-height:');
-    expect(list).not.toContain('overflow-y:');
-    expect(list).not.toContain('scrollbar-gutter:');
+    expect(switcher.get('width')).toBe('min(440px, calc(100vw - 40px))');
+    expect(switcher.get('overflow')).toBe('hidden');
+
+    /**
+     * The switcher opens below a fixed offset in its layer, so without a bound
+     * a long list of open terminals simply runs off the bottom of the window,
+     * taking the hint line with it. It stays content-sized while it fits; past
+     * that the list, and only the list, scrolls under a pinned title and hint.
+     */
+    expect(switcher.get('display')).toBe('grid');
+    expect(switcher.get('grid-template-rows')).toBe('auto minmax(0, 1fr) auto');
+    expect(switcher.get('max-height')).toBe(
+      'calc(100vh - var(--runtime-switcher-offset) - 20px)'
+    );
+    expect(switcher.get('height')).toBeUndefined();
+    expect(list.get('display')).toBe('grid');
+    expect(list.get('min-height')).toBe('0');
+    expect(list.get('overflow-y')).toBe('auto');
   });
 
   it('caps standard dialogs to the available height on narrow windows', () => {
