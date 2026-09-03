@@ -38,6 +38,11 @@ sessions use the normal resume route. Each list can be collapsed independently
 and refreshes when a managed runtime exits. The recent list loads progressively
 as it scrolls.
 
+A session counts as running whether it runs in a native terminal or in the
+Unified UI, and it appears as soon as it starts rather than once the provider
+finishes connecting. The same total is shown by **Running agents** on Home, the
+status bar, the tray menu, and **Active agents** in Diagnostics.
+
 Collapse the main sidebar to keep only navigation icons. Session lists then
 disappear and the terminal tab strip becomes the primary session switcher.
 Lumora remembers the sidebar state across application launches.
@@ -188,6 +193,12 @@ Lumora intentionally does not use browser-style `Tab` or `Shift+Tab` navigation.
 | `Ctrl+4` | Open Terminal Profiles |
 | `Ctrl+5` | Open Remote Computers |
 | `Ctrl+,` | Open Settings |
+
+Hold the switcher shortcut's modifier to keep the switcher open and release it
+to move to the highlighted session. The list scrolls when more terminals are
+open than fit the window, and following the highlight keeps it in view.
+Switching away from Lumora closes the switcher without changing the active
+session.
 
 ## More guides
 
