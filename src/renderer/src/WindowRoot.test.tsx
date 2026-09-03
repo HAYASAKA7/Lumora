@@ -238,8 +238,14 @@ describe('WindowRoot', () => {
       fireEvent.focus(window);
     });
 
-    expect(screen.getByTestId('remote-appearance-root'))
-      .toHaveAttribute('data-theme', 'light');
+    /**
+     * Focus starts an appearance request, and the theme only lands once that
+     * promise resolves and React commits the state it carries. Waiting for the
+     * attribute keeps the test honest on a loaded machine, where a single act
+     * flush is not always enough.
+     */
+    await waitFor(() => expect(screen.getByTestId('remote-appearance-root'))
+      .toHaveAttribute('data-theme', 'light'));
     expect(getAppearancePresentation).toHaveBeenCalledTimes(2);
   });
 });
