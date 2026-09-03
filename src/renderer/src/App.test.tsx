@@ -1887,6 +1887,47 @@ describe('App', () => {
     expect(attachRuntime).toHaveBeenCalledTimes(1);
   });
 
+  it('dismisses the terminal switcher when the window loses focus', async () => {
+    const first = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ae0'
+    );
+    const second = runningRuntime(
+      '0198f8b6-18f3-7ca0-9f0f-123456789ae1',
+      'claude'
+    );
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([first, second]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: runtimeId === first.id ? first : second,
+        snapshot: '',
+        outputSequence: 0
+      }))
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open terminals' })
+    );
+    await screen.findByRole('tab', { hidden: true, name: /Codex working session/ });
+
+    fireEvent.keyDown(window, { code: 'Tab', key: 'Tab', ctrlKey: true });
+    expect(screen.getByRole('dialog', { name: 'Open terminals' }))
+      .toBeInTheDocument();
+
+    /**
+     * Windows swallows Alt+Tab, so the modifier keyup that normally closes the
+     * switcher never reaches Lumora and the popup would stay on screen.
+     */
+    fireEvent.blur(window);
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Open terminals' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { hidden: true, name: /Codex working session/ })
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('ignores the terminal switcher shortcut outside the terminal page', async () => {
     const first = runningRuntime(
       '0198f8b6-18f3-7ca0-9f0f-123456789ad0'

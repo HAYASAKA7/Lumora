@@ -1887,11 +1887,22 @@ function AppContent(): ReactNode {
       }
     };
 
+    /**
+     * The switcher is held open by a modifier and normally closes on its keyup.
+     * A window switch consumes that keyup - Windows takes Alt+Tab before Lumora
+     * sees it - so without this the popup stays on screen over the app. The
+     * pending switch is abandoned rather than applied, because leaving the app
+     * mid-cycle is not a choice of terminal.
+     */
+    const blur = () => setRuntimeSwitcher(null);
+
     window.addEventListener('keydown', keydown, true);
     window.addEventListener('keyup', keyup, true);
+    window.addEventListener('blur', blur);
     return () => {
       window.removeEventListener('keydown', keydown, true);
       window.removeEventListener('keyup', keyup, true);
+      window.removeEventListener('blur', blur);
     };
   }, [
     activeTerminalRuntimeId,

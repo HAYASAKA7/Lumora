@@ -5518,6 +5518,16 @@ button {
   overflow-y: auto;
 }
 
+/**
+ * The list is focused only so it can receive keys while the switcher is held
+ * open, and Chromium treats that programmatic focus as keyboard focus. The
+ * selected row already carries the selection through `aria-activedescendant`
+ * and `.is-selected`, so a ring around the whole list only reads as a glitch.
+ */
+.runtime-switcher-list:focus-visible {
+  outline: none;
+}
+
 .runtime-switcher-option {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);

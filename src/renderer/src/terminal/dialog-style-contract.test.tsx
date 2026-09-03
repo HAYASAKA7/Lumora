@@ -407,6 +407,20 @@ describe('popup layout styles', () => {
     expect(list.get('overflow-y')).toBe('auto');
   });
 
+  it('does not ring the switcher list when it takes programmatic focus', () => {
+    /**
+     * The list is `tabindex="-1"` and only takes focus so it can receive keys
+     * while the switcher is held open. Chromium still treats that as keyboard
+     * focus and draws the global focus ring around the whole list, which says
+     * nothing the selected row does not already say through `aria-activedescendant`
+     * and `.is-selected`.
+     */
+    expect(
+      effectiveDeclarations(rule('.runtime-switcher-list:focus-visible'))
+        .get('outline')
+    ).toBe('none');
+  });
+
   it('caps standard dialogs to the available height on narrow windows', () => {
     const expectedRule =
       '.new-session-dialog {\n' +

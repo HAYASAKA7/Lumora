@@ -31,6 +31,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the hint line with it. It now stops at the window edge and scrolls its
   list, following the selection as you cycle. It looks the same whenever it
   already fits.
+- Close the Ctrl+Tab terminal switcher when you switch away from Lumora.
+  Windows takes Alt+Tab before Lumora sees the key release that normally closes
+  the switcher, so the popup could stay on screen after you came back. The
+  pending switch is abandoned rather than applied.
+- Stop drawing a focus ring around the terminal switcher list. The list takes
+  focus only to receive keys, so the ring marked the whole popup as focused
+  while saying nothing the highlighted row did not already say.
 
 ## [0.5.2] - 2026-09-03
 
