@@ -3912,7 +3912,7 @@ button {
   --modal-control-gap: 8px;
   --modal-scrollbar-size: 8px;
   display: grid;
-  grid-template-rows: auto minmax(0, auto) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   row-gap: var(--modal-section-gap);
   width: min(760px, 100%);
   max-height: calc(100vh - 56px);

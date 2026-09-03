@@ -217,7 +217,7 @@ describe('popup layout styles', () => {
     expect(dialogDeclarations.get('--modal-scrollbar-size')).toBe('8px');
     expect(dialog).toContain('display: grid');
     expect(dialog).toContain(
-      'grid-template-rows: auto minmax(0, auto) auto'
+      'grid-template-rows: auto minmax(0, 1fr) auto'
     );
     expect(dialog).toContain('width: min(760px, 100%)');
     expect(dialog).toContain(
@@ -240,6 +240,24 @@ describe('popup layout styles', () => {
     expect(body).toContain('min-height: 0');
     expect(body).toContain('overflow-y: auto');
     expect(body).toContain('scrollbar-gutter: stable');
+  });
+
+  it('scrolls a long dialog body instead of clipping it', () => {
+    const dialog = effectiveDeclarations(rule('.new-session-dialog'));
+    const body = effectiveDeclarations(rule('.dialog-body'));
+
+    /**
+     * The dialog is capped by `max-height` and hides its own overflow, so the
+     * body row has to take the space left over from the header and footer. An
+     * `auto` maximum sizes that row to its content instead, and everything past
+     * the cap - including the footer actions - is clipped away with no
+     * scrollbar, because the body is exactly as tall as its own content.
+     */
+    expect(dialog.get('grid-template-rows')).toBe('auto minmax(0, 1fr) auto');
+    expect(dialog.get('max-height')).toBe('calc(100vh - 56px)');
+    expect(dialog.get('overflow')).toBe('hidden');
+    expect(body.get('min-height')).toBe('0');
+    expect(body.get('overflow-y')).toBe('auto');
   });
 
   it('aligns modal content symmetrically outside fixed scrollbar gutters', () => {

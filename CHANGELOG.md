@@ -22,6 +22,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Resuming into the Unified UI left the session missing from the running list,
   the status bar and the home count until the provider finished connecting,
   unlike a terminal resume, which appears as soon as it starts.
+- Scroll dialogs whose content is taller than the window. **Session details**
+  and every other Lumora dialog cut their content off at the bottom edge with
+  no scrollbar, hiding the rest of the page and, in dialogs that have one, the
+  row of action buttons. Short dialogs are unchanged.
 
 ## [0.5.2] - 2026-09-03
 
