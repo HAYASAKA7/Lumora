@@ -390,6 +390,7 @@ function AppContent(): ReactNode {
   >([]);
   const pendingStructuredEvents = useRef<StructuredAgentEvent[]>([]);
   const structuredEventFlushTimer = useRef<number | null>(null);
+  const adoptingStructuredRuntimes = useRef(new Set<string>());
   const [activeStructuredConnectionId, setActiveStructuredConnectionId] =
     useState<string | null>(null);
   const [launchPreviews, setLaunchPreviews] = useState(
@@ -936,6 +937,14 @@ function AppContent(): ReactNode {
     ),
     [structuredSnapshots]
   );
+  const structuredConnectionIds = useMemo(
+    () => new Set(structuredSnapshots.map(
+      ({ runtime }) => runtime.connectionId
+    )),
+    [structuredSnapshots]
+  );
+  const structuredConnectionIdsRef = useRef(structuredConnectionIds);
+  structuredConnectionIdsRef.current = structuredConnectionIds;
   const liveStructuredBySessionId = useMemo(
     () => new Map(liveStructuredSnapshots.flatMap((snapshot) =>
       snapshot.runtime.catalogSessionId === null
@@ -1082,6 +1091,30 @@ function AppContent(): ReactNode {
       },
       () => undefined
     );
+    /**
+     * `flushStructuredEvents` can only update snapshots Lumora already holds,
+     * so a runtime it has not seen yet - a resume that is still loading, or one
+     * started from another window - would have its events dropped and stay out
+     * of the running sessions list. Adopt it the way an unknown terminal
+     * runtime is adopted, unless the event says it is already gone.
+     */
+    const adoptStructuredRuntime = (event: StructuredAgentEvent) => {
+      const { connectionId } = event;
+      if (
+        structuredConnectionIdsRef.current.has(connectionId) ||
+        adoptingStructuredRuntimes.current.has(connectionId) ||
+        (event.kind === 'runtime.status' && event.payload.state === 'closed')
+      ) return;
+      adoptingStructuredRuntimes.current.add(connectionId);
+      void window.lumora.getStructuredRuntimeSnapshot(connectionId).then(
+        (snapshot) => {
+          if (current) updateStructuredSnapshot(snapshot);
+        },
+        () => undefined
+      ).finally(() => {
+        adoptingStructuredRuntimes.current.delete(connectionId);
+      });
+    };
     const unsubscribe = window.lumora.onStructuredAgentEvent((event) => {
       if (!current) return;
       if (event.kind === 'runtime.commands') {
@@ -1093,6 +1126,7 @@ function AppContent(): ReactNode {
         );
         return;
       }
+      adoptStructuredRuntime(event);
       queueStructuredEvent(event);
       if (
         event.kind === 'runtime.status' &&

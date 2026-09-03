@@ -18,6 +18,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Diagnostics both counted only agents running in a native terminal, so an
   agent working in Lumora's own interface showed up nowhere in those totals.
   The status bar, the tray menu and the quit warning already counted both.
+- List a Unified UI session in **Running sessions** while it is still starting.
+  Resuming into the Unified UI left the session missing from the running list,
+  the status bar and the home count until the provider finished connecting,
+  unlike a terminal resume, which appears as soon as it starts.
 
 ## [0.5.2] - 2026-09-03
 

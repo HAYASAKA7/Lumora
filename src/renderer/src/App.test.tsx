@@ -532,6 +532,94 @@ describe('App', () => {
     expect(screen.getByText('1 active agent')).toBeInTheDocument();
   });
 
+  it('lists a starting Unified UI session while its resume is still loading', async () => {
+    const runtime: StructuredAgentRuntimeSummary = {
+      connectionId: 'structured-starting',
+      providerId: 'codex',
+      nativeSessionId: null,
+      catalogSessionId: readyCatalog.sessions[0]!.id,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Catalog implementation',
+      state: 'starting',
+      generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:00.000Z',
+      error: null
+    };
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue({
+        runtime,
+        boundary: null,
+        events: []
+      }),
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+
+    await screen.findByRole('region', { name: 'Recent sessions' });
+    expect(screen.queryByRole('region', { name: 'Running sessions' }))
+      .not.toBeInTheDocument();
+
+    act(() => eventListener?.({
+      kind: 'runtime.status',
+      connectionId: runtime.connectionId,
+      providerId: runtime.providerId,
+      nativeSessionId: null,
+      generation: 1,
+      sequence: 1,
+      eventId: 'starting-event',
+      parentEventId: null,
+      timestamp: runtime.createdAt,
+      turnId: 'lifecycle',
+      payload: { state: 'starting', message: null }
+    }));
+
+    const runningRegion = await screen.findByRole('region', {
+      name: 'Running sessions'
+    });
+    expect(within(runningRegion).getByText(runtime.title)).toBeVisible();
+    expect(screen.getByText('1 active agent')).toBeInTheDocument();
+  });
+
+  it('does not resurrect a closed Unified UI session from a late event', async () => {
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    const getStructuredRuntimeSnapshot = vi.fn();
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([]),
+      getStructuredRuntimeSnapshot,
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+
+    await screen.findByRole('region', { name: 'Recent sessions' });
+
+    act(() => eventListener?.({
+      kind: 'runtime.status',
+      connectionId: 'structured-gone',
+      providerId: 'codex',
+      nativeSessionId: null,
+      generation: 1,
+      sequence: 9,
+      eventId: 'closed-event',
+      parentEventId: null,
+      timestamp: '2026-08-27T00:05:00.000Z',
+      turnId: 'lifecycle',
+      payload: { state: 'closed', message: null }
+    }));
+
+    expect(getStructuredRuntimeSnapshot).not.toHaveBeenCalled();
+    expect(screen.queryByRole('region', { name: 'Running sessions' }))
+      .not.toBeInTheDocument();
+  });
+
   it('keeps the next structured session visible when the active one closes', async () => {
     const first: StructuredAgentRuntimeSummary = {
       connectionId: 'structured-first',
