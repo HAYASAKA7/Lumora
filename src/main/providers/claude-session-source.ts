@@ -14,7 +14,30 @@ import {
   type ProviderSessionRecord
 } from './session-discovery';
 
+const SESSION_EXTENSION = '.jsonl';
+const CUSTOM_TITLE_FILE = 'custom-title.json';
+const MAX_CUSTOM_TITLE_BYTES = 64 * 1024;
+const MAX_TITLE_LENGTH = 256;
+
+/**
+ * Claude Code records a rename in two places: a `custom-title` transcript
+ * record and an authoritative `custom-title.json` sidecar beside the
+ * transcript. The sidecar is the only one that is guaranteed to exist and to
+ * stay current, so it outranks anything recovered from the transcript.
+ */
+const TITLE_FIELDS = ['customTitle', 'aiTitle', 'sessionName'] as const;
+
 type Environment = Readonly<Record<string, string | undefined>>;
+
+interface SessionFileEntry {
+  readonly path: string;
+  readonly customTitlePath: string | null;
+}
+
+interface RankedTitle {
+  readonly rank: number;
+  readonly value: string;
+}
 
 interface FileStatLike {
   size: number;
@@ -86,7 +109,7 @@ function sameFingerprint(
 async function enumerateSessionFiles(
   projectsRoot: string,
   maxFiles: number
-): Promise<{ paths: string[]; skipped: number }> {
+): Promise<{ files: SessionFileEntry[]; skipped: number }> {
   let projectEntries;
   try {
     projectEntries = await readdir(projectsRoot, { withFileTypes: true });
@@ -97,14 +120,14 @@ async function enumerateSessionFiles(
       'code' in error &&
       error.code === 'ENOENT'
     ) {
-      return { paths: [], skipped: 0 };
+      return { files: [], skipped: 0 };
     }
     throw new ClaudeSessionSourceError(
       'Claude Code session storage could not be enumerated.'
     );
   }
 
-  const paths: string[] = [];
+  const files: SessionFileEntry[] = [];
   let skipped = 0;
   const projects = projectEntries
     .filter((entry) => entry.isDirectory())
@@ -119,18 +142,27 @@ async function enumerateSessionFiles(
       skipped += 1;
       continue;
     }
+    const sessionDirectories = new Set(
+      entries.filter((value) => value.isDirectory()).map((value) => value.name)
+    );
     for (const entry of entries
       .filter((value) => value.isFile() && value.name.endsWith('.jsonl'))
       .sort((left, right) => left.name.localeCompare(right.name))) {
-      if (paths.length >= maxFiles) {
+      if (files.length >= maxFiles) {
         skipped += 1;
         continue;
       }
-      paths.push(resolve(projectsRoot, project.name, entry.name));
+      const sessionName = entry.name.slice(0, -SESSION_EXTENSION.length);
+      files.push({
+        path: resolve(projectsRoot, project.name, entry.name),
+        customTitlePath: sessionDirectories.has(sessionName)
+          ? resolve(projectsRoot, project.name, sessionName, CUSTOM_TITLE_FILE)
+          : null
+      });
     }
   }
 
-  return { paths, skipped };
+  return { files, skipped };
 }
 
 function completePrefix(text: string, reachesEnd: boolean): string {
@@ -194,14 +226,53 @@ async function readMetadataSegments(
   }
 }
 
-function explicitTitle(record: Record<string, unknown>): string | null {
-  for (const field of ['customTitle', 'aiTitle', 'sessionName']) {
+function explicitTitle(record: Record<string, unknown>): RankedTitle | null {
+  for (const [rank, field] of TITLE_FIELDS.entries()) {
     const value = record[field];
     if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim().slice(0, 256);
+      return { rank, value: value.trim().slice(0, MAX_TITLE_LENGTH) };
     }
   }
   return null;
+}
+
+/**
+ * Reads the rename sidecar. A missing, oversized, malformed or empty sidecar
+ * is not an error; the transcript title remains the fallback.
+ */
+async function readCustomTitle(path: string | null): Promise<string | null> {
+  if (path === null) {
+    return null;
+  }
+  try {
+    const handle = await open(path, 'r');
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > MAX_CUSTOM_TITLE_BYTES) {
+        return null;
+      }
+      const buffer = Buffer.alloc(info.size);
+      const read = await handle.read(buffer, 0, info.size, 0);
+      const parsed: unknown = JSON.parse(
+        buffer.subarray(0, read.bytesRead).toString('utf8')
+      );
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        return null;
+      }
+      const value = (parsed as Record<string, unknown>).customTitle;
+      return typeof value === 'string' && value.trim().length > 0
+        ? value.trim().slice(0, MAX_TITLE_LENGTH)
+        : null;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 function parseMetadata(
@@ -213,7 +284,7 @@ function parseMetadata(
   const nativeIds = new Set<string>();
   const workspacePaths = new Set<string>();
   const timestamps: number[] = [];
-  let title: string | null = null;
+  let title: RankedTitle | null = null;
 
   for (const line of lines) {
     let value: unknown;
@@ -238,7 +309,10 @@ function parseMetadata(
         timestamps.push(parsedTimestamp);
       }
     }
-    title = explicitTitle(record) ?? title;
+    const candidate = explicitTitle(record);
+    if (candidate !== null && (title === null || candidate.rank <= title.rank)) {
+      title = candidate;
+    }
   }
 
   if (
@@ -255,7 +329,7 @@ function parseMetadata(
     provider: 'claude',
     nativeId: [...nativeIds][0],
     workspacePath: [...workspacePaths][0],
-    title: title ?? 'Untitled session',
+    title: title?.value ?? 'Untitled session',
     createdAt,
     updatedAt,
     lifetimeTokens,
@@ -305,7 +379,8 @@ export async function discoverClaudeSessions({
   let invalidCount = enumeration.skipped;
   let unchangedCount = 0;
 
-  for (const sourcePath of enumeration.paths) {
+  for (const entry of enumeration.files) {
+    const sourcePath = entry.path;
     try {
       const beforeStat = await statFile(sourcePath);
       if (!beforeStat.isFile()) {
@@ -353,6 +428,10 @@ export async function discoverClaudeSessions({
       if (normalized === null) {
         invalidCount += 1;
         continue;
+      }
+      const customTitle = await readCustomTitle(entry.customTitlePath);
+      if (customTitle !== null && customTitle !== normalized.title) {
+        normalized = { ...normalized, title: customTitle };
       }
       const existing = sessions.get(normalized.nativeId);
       if (

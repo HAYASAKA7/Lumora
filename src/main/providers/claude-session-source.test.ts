@@ -295,4 +295,120 @@ describe('discoverClaudeSessions', () => {
     expect(result.sessions).toEqual([]);
     expect(result.invalidCount).toBe(1);
   });
+  it('prefers a renamed custom title over a later automatic title record', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    await writeSession(projects, 'project', 'renamed.jsonl', [
+      claudeLine(),
+      claudeLine({
+        type: 'custom-title',
+        customTitle: 'kokoro-new',
+        timestamp: '2026-07-11T01:05:00.000Z'
+      }),
+      claudeLine({
+        type: 'ai-title',
+        aiTitle: 'Automatic summary title',
+        timestamp: '2026-07-11T01:05:01.000Z'
+      })
+    ]);
+
+    const result = await discoverClaudeSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.title).toBe('kokoro-new');
+  });
+
+  it('reads the custom title sidecar written when a session is renamed', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    await writeSession(projects, 'project', 'sidecar.jsonl', [
+      claudeLine(),
+      claudeLine({
+        type: 'ai-title',
+        aiTitle: 'Automatic summary title',
+        timestamp: '2026-07-11T01:05:00.000Z'
+      })
+    ]);
+    const sessionDirectory = join(projects, 'project', 'sidecar');
+    await mkdir(sessionDirectory, { recursive: true });
+    await writeFile(
+      join(sessionDirectory, 'custom-title.json'),
+      JSON.stringify({ customTitle: 'renamed in claude' }),
+      'utf8'
+    );
+
+    const result = await discoverClaudeSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.title).toBe('renamed in claude');
+  });
+
+  it('applies a renamed sidecar title to an unchanged cached transcript', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    const sourcePath = await writeSession(projects, 'project', 'cached.jsonl', [
+      claudeLine(),
+      claudeLine({
+        type: 'ai-title',
+        aiTitle: 'Automatic summary title',
+        timestamp: '2026-07-11T01:05:00.000Z'
+      })
+    ]);
+    const sessionDirectory = join(projects, 'project', 'cached');
+    await mkdir(sessionDirectory, { recursive: true });
+    await writeFile(
+      join(sessionDirectory, 'custom-title.json'),
+      JSON.stringify({ customTitle: 'renamed while cached' }),
+      'utf8'
+    );
+
+    const result = await discoverClaudeSessions({
+      homeDirectory: home,
+      env: {},
+      lookupSource: async (_provider, sourceKey, fingerprint) =>
+        sourceKey === sourcePath
+          ? ({
+              fingerprint,
+              candidate: {
+                provider: 'claude',
+                nativeId: '11111111-1111-4111-8111-111111111111',
+                workspace: { id: 'workspace', canonicalPath: '/work/lumora' },
+                title: 'Automatic summary title',
+                createdAt: '2026-07-11T01:00:00.000Z',
+                updatedAt: '2026-07-11T01:05:00.000Z',
+                lifetimeTokens: null
+              }
+            } as unknown as StoredCatalogSource)
+          : null
+    });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.title).toBe('renamed while cached');
+    expect(result.unchangedCount).toBe(1);
+  });
+
+  it('ignores an unusable custom title sidecar', async () => {
+    const home = await temporaryHome();
+    const projects = join(home, '.claude', 'projects');
+    await writeSession(projects, 'project', 'broken.jsonl', [
+      claudeLine(),
+      claudeLine({
+        type: 'ai-title',
+        aiTitle: 'Automatic summary title',
+        timestamp: '2026-07-11T01:05:00.000Z'
+      })
+    ]);
+    const sessionDirectory = join(projects, 'project', 'broken');
+    await mkdir(sessionDirectory, { recursive: true });
+    await writeFile(
+      join(sessionDirectory, 'custom-title.json'),
+      '{ not valid json',
+      'utf8'
+    );
+
+    const result = await discoverClaudeSessions({ homeDirectory: home, env: {} });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.title).toBe('Automatic summary title');
+  });
 });

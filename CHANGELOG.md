@@ -7,6 +7,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Show the current name for Claude Code sessions that were renamed inside the
+  provider. Claude Code records a rename both as a transcript entry and as an
+  authoritative sidecar file, and it writes its automatic title immediately
+  after the rename, so Lumora kept displaying the automatic title instead of the
+  name you chose.
+
 ## [0.5.1] - 2026-09-03
 
 ### Fixed
