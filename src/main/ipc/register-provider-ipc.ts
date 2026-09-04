@@ -5,6 +5,7 @@ import {
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
   ProviderUpdateCancelResultSchema,
+  ProviderUpdateOutcomeSchema,
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
   PROVIDER_LIFECYCLE_BUSY_CODE,
@@ -13,6 +14,7 @@ import {
   type ProviderId,
   type ProviderScanResult,
   type ProviderUpdateCheckResult,
+  type ProviderUpdateOutcome,
   type ProviderUpdateResult
 } from '../../shared/contracts';
 import { providerDefinition } from '../../shared/provider-definitions';
@@ -47,17 +49,20 @@ interface ProviderUpdatesLike {
  * npm's own text can carry registry credentials, so only the classified code
  * crosses to the renderer, which turns it into its own wording.
  */
-async function withLifecycleCode<T>(operation: () => Promise<T>): Promise<T> {
+async function lifecycleOutcome(
+  operation: () => Promise<unknown>
+): Promise<ProviderUpdateOutcome> {
   try {
-    return await operation();
+    return ProviderUpdateOutcomeSchema.parse({
+      outcome: 'completed',
+      result: ProviderUpdateResultSchema.parse(await operation())
+    });
   } catch (error) {
     const code = (error as { code?: unknown } | null)?.code;
-    if (
-      code === PROVIDER_LIFECYCLE_BUSY_CODE ||
-      code === PROVIDER_LIFECYCLE_CANCELLED_CODE
-    ) {
-      throw new Error(code);
+    if (code === PROVIDER_LIFECYCLE_CANCELLED_CODE) {
+      return ProviderUpdateOutcomeSchema.parse({ outcome: 'cancelled' });
     }
+    if (code === PROVIDER_LIFECYCLE_BUSY_CODE) throw new Error(code);
     throw error;
   }
 }
@@ -132,23 +137,19 @@ export function registerProviderIpc({
 
   ipc.handle(
     IPC_CHANNELS.providerUpdateRun,
-    async (event, input): Promise<ProviderUpdateResult> => {
+    async (event, input): Promise<ProviderUpdateOutcome> => {
       const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
-      return ProviderUpdateResultSchema.parse(
-        await withLifecycleCode(() => updates.update(request.provider))
-      );
+      return lifecycleOutcome(() => updates.update(request.provider));
     }
   );
 
   ipc.handle(
     IPC_CHANNELS.providerInstallRun,
-    async (event, input): Promise<ProviderUpdateResult> => {
+    async (event, input): Promise<ProviderUpdateOutcome> => {
       const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
-      return ProviderUpdateResultSchema.parse(
-        await withLifecycleCode(() => updates.install(request.provider))
-      );
+      return lifecycleOutcome(() => updates.install(request.provider));
     }
   );
 

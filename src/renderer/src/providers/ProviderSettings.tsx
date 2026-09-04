@@ -14,7 +14,6 @@ import type {
 } from '../../../shared/contracts';
 import {
   PROVIDER_LIFECYCLE_BUSY_CODE,
-  PROVIDER_LIFECYCLE_CANCELLED_CODE,
   DEFAULT_GENERAL_SETTINGS,
   STRUCTURED_AGENT_PROVIDER_IDS
 } from '../../../shared/contracts';
@@ -569,10 +568,6 @@ export function ProviderSettings({
     );
   };
 
-  const isCancelled = (error: unknown): boolean => String(
-    (error as { message?: unknown } | null)?.message ?? error
-  ).includes(PROVIDER_LIFECYCLE_CANCELLED_CODE);
-
   const updateFailure = (
     error: unknown,
     provider: ProviderId,
@@ -583,9 +578,6 @@ export function ProviderSettings({
     );
     if (reason.includes(PROVIDER_LIFECYCLE_BUSY_CODE)) {
       return t('providers.settings.update-busy', { provider: displayName });
-    }
-    if (reason.includes(PROVIDER_LIFECYCLE_CANCELLED_CODE)) {
-      return t('providers.settings.update-cancelled', { provider: displayName });
     }
     return t('providers.settings.update-error', {
       provider: displayName,
@@ -601,23 +593,31 @@ export function ProviderSettings({
     setUpdatingProvider(provider);
     setUpdateErrors((current) => ({ ...current, [provider]: undefined }));
     void api.updateProvider(provider).then(
-      async () => {
+      async (outcome) => {
+        setUpdatingProvider(null);
+        if (outcome.outcome === 'cancelled') {
+          setUpdateErrors((current) => ({
+            ...current,
+            [provider]: t('providers.settings.update-cancelled', {
+              provider: displayName
+            })
+          }));
+          /**
+           * Cancelling stops npm partway through replacing the package, so the
+           * version on the card is no longer known to be what is on disk.
+           */
+          await onRefresh();
+          return;
+        }
         await onRefresh();
         await onRefreshUpdates();
-        setUpdatingProvider(null);
       },
-      async (error: unknown) => {
+      (error: unknown) => {
         setUpdateErrors((current) => ({
           ...current,
           [provider]: updateFailure(error, provider, displayName)
         }));
         setUpdatingProvider(null);
-        /**
-         * Cancelling stops npm partway through replacing the package, so the
-         * version on the card is no longer known to be what is on disk. Other
-         * failures leave the installation as npm found it.
-         */
-        if (isCancelled(error)) await onRefresh();
       }
     );
   };
@@ -631,10 +631,14 @@ export function ProviderSettings({
       return next;
     });
     void api.installProvider(provider).then(
-      async () => {
+      async (outcome) => {
+        finish();
+        if (outcome.outcome === 'cancelled') {
+          await onRefresh();
+          return;
+        }
         await onRefresh();
         await onRefreshUpdates();
-        finish();
       },
       () => {
         setInstallErrors((current) => ({

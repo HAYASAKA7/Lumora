@@ -41,6 +41,7 @@ import {
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
   ProviderUpdateCancelResultSchema,
+  ProviderUpdateOutcomeSchema,
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
@@ -406,7 +407,7 @@ export function createLumoraApi(
     async installProvider(provider) {
       const request = ProviderUpdateRequestSchema.parse({ provider });
       const value = await invoke(IPC_CHANNELS.providerInstallRun, request);
-      return ProviderUpdateResultSchema.parse(value);
+      return ProviderUpdateOutcomeSchema.parse(value);
     },
     async openProviderInstallGuide(provider) {
       const request = ProviderUpdateRequestSchema.parse({ provider });
@@ -424,7 +425,7 @@ export function createLumoraApi(
     async updateProvider(provider) {
       const request = ProviderUpdateRequestSchema.parse({ provider });
       const value = await invoke(IPC_CHANNELS.providerUpdateRun, request);
-      return ProviderUpdateResultSchema.parse(value);
+      return ProviderUpdateOutcomeSchema.parse(value);
     },
     async getCatalog(query?: CatalogQuery) {
       const request = CatalogQuerySchema.parse(query ?? EMPTY_CATALOG_QUERY);

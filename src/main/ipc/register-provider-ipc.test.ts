@@ -170,7 +170,7 @@ describe('registerProviderIpc', () => {
       handlers.get(IPC_CHANNELS.providerInstallRun)!(event, {
         provider: 'gemini'
       })
-    ).resolves.toMatchObject({ provider: 'gemini' });
+    ).resolves.toMatchObject({ outcome: 'completed', result: { provider: 'gemini' } });
     await expect(
       handlers.get(IPC_CHANNELS.providerInstallGuideOpen)!(event, {
         provider: 'aider'
@@ -214,7 +214,7 @@ describe('registerProviderIpc', () => {
       handlers.get(IPC_CHANNELS.providerUpdateRun)!(event, {
         provider: 'codex'
       })
-    ).resolves.toMatchObject({ provider: 'codex' });
+    ).resolves.toMatchObject({ outcome: 'completed', result: { provider: 'codex' } });
     expect(update).toHaveBeenCalledWith('codex');
 
     await expect(
@@ -303,5 +303,33 @@ describe('registerProviderIpc', () => {
         trustedEvent, { provider: 'codex' }
       )
     ).rejects.not.toThrow('_authToken');
+  });
+
+  /**
+   * Electron logs every rejected handler, so a cancellation the user asked for
+   * must not travel as a failure.
+   */
+  it('resolves a cancelled update instead of rejecting it', async () => {
+    const { handlers } = createHarness(undefined, undefined, undefined, async () => {
+      throw Object.assign(new Error('stopped'), {
+        code: 'PROVIDER_LIFECYCLE_CANCELLED'
+      });
+    });
+
+    await expect(
+      handlers.get(IPC_CHANNELS.providerUpdateRun)!(
+        trustedEvent, { provider: 'codex' }
+      )
+    ).resolves.toEqual({ outcome: 'cancelled' });
+  });
+
+  it('reports a completed update as a completed outcome', async () => {
+    const { handlers } = createHarness();
+
+    expect(
+      await handlers.get(IPC_CHANNELS.providerUpdateRun)!(
+        trustedEvent, { provider: 'codex' }
+      )
+    ).toMatchObject({ outcome: 'completed', result: { provider: 'codex' } });
   });
 });

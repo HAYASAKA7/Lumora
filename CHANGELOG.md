@@ -13,7 +13,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   process Lumora started, including the processes it spawned underneath, rather
   than only clearing the progress indicator. Lumora re-reads the provider
   afterwards, because stopping an install partway can leave a different version
-  on disk than the one shown.
+  on disk than the one shown. Cancelling is reported as an outcome rather than
+  a failure, so it no longer prints an error in the application log.
 
 ### Fixed
 

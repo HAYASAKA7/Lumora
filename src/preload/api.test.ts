@@ -481,12 +481,14 @@ describe('createLumoraApi', () => {
       if (channel === IPC_CHANNELS.providerInstallGuideOpen) {
         return { opened: true };
       }
-      return update;
+      return { outcome: 'completed', result: update };
     });
 
     await expect(api.checkProviderUpdates()).resolves.toEqual(check);
-    await expect(api.updateProvider('claude')).resolves.toEqual(update);
-    await expect(api.installProvider('claude')).resolves.toEqual(update);
+    await expect(api.updateProvider('claude'))
+      .resolves.toEqual({ outcome: 'completed', result: update });
+    await expect(api.installProvider('claude'))
+      .resolves.toEqual({ outcome: 'completed', result: update });
     await expect(api.openProviderInstallGuide('aider')).resolves.toBeUndefined();
     expect(invocations).toEqual([
       { channel: IPC_CHANNELS.providerUpdatesCheck, args: [] },

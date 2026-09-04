@@ -97,8 +97,28 @@ function providerApiDefaults() {
       checkedAt: '2026-08-05T04:03:02.000Z',
       providers: []
     }),
-    installProvider: vi.fn(),
-    updateProvider: vi.fn(),
+    installProvider: vi.fn().mockResolvedValue({
+      outcome: 'completed',
+      result: {
+        provider: 'codex',
+        completedAt: '2026-08-05T04:03:02.000Z',
+        installation: {
+          provider: 'codex', displayName: 'Codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: '1.0.0', issue: null
+        }
+      }
+    }),
+    updateProvider: vi.fn().mockResolvedValue({
+      outcome: 'completed',
+      result: {
+        provider: 'codex',
+        completedAt: '2026-08-05T04:03:02.000Z',
+        installation: {
+          provider: 'codex', displayName: 'Codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: '1.0.0', issue: null
+        }
+      }
+    }),
     openProviderInstallGuide: vi.fn().mockResolvedValue(undefined),
     getWorkspaceTrustDecisions: vi.fn().mockResolvedValue([]),
     revokeWorkspaceTrust: vi.fn().mockResolvedValue([])
@@ -1158,7 +1178,17 @@ describe('RemoteTargetWindow', () => {
       provider: 'opencode', command: 'opencode --remote',
       updatedAt: '2026-08-05T04:03:02.000Z'
     }]);
-    const installProvider = vi.fn().mockResolvedValue(undefined);
+    const installProvider = vi.fn().mockResolvedValue({
+      outcome: 'completed',
+      result: {
+        provider: 'opencode',
+        completedAt: '2026-08-05T04:03:02.000Z',
+        installation: {
+          provider: 'opencode', displayName: 'OpenCode', state: 'ready',
+          executablePath: '/usr/bin/opencode', version: '1.0.0', issue: null
+        }
+      }
+    });
     const api = {
       ...runtimeApiDefaults(),
       listRemoteTargets: vi.fn().mockResolvedValue([readySummary]),

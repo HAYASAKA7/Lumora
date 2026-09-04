@@ -588,6 +588,20 @@ export const ProviderUpdateResultSchema = z.strictObject({
   installation: ProviderInstallationSchema
 });
 
+/**
+ * Cancelling is something the user asked for, so it travels as an outcome
+ * rather than a rejection. Electron logs every rejected handler, and a
+ * deliberate cancellation is not a fault to report.
+ */
+export const ProviderUpdateOutcomeSchema = z.discriminatedUnion('outcome', [
+  z.strictObject({
+    outcome: z.literal('completed'),
+    result: ProviderUpdateResultSchema
+  }),
+  z.strictObject({ outcome: z.literal('cancelled') })
+]);
+export type ProviderUpdateOutcome = z.infer<typeof ProviderUpdateOutcomeSchema>;
+
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
 export type ProviderInstallation = z.infer<
   typeof ProviderInstallationSchema
@@ -2506,9 +2520,9 @@ export interface LumoraApi {
   openNodeDownloadPage(): Promise<void>;
   scanProviders(): Promise<ProviderScanResult>;
   checkProviderUpdates(): Promise<ProviderUpdateCheckResult>;
-  installProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
+  installProvider(provider: ProviderId): Promise<ProviderUpdateOutcome>;
   openProviderInstallGuide(provider: ProviderId): Promise<void>;
-  updateProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
+  updateProvider(provider: ProviderId): Promise<ProviderUpdateOutcome>;
   cancelProviderUpdate(provider: ProviderId): Promise<boolean>;
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
