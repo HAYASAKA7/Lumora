@@ -9,6 +9,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Collapse the sections of **Settings → Appearance**. Theme packs, message
+  colors, fonts and the workspace image each fold to their heading, showing
+  their current value beside it, and the choice is remembered. The color theme
+  stays visible, and an open section keeps its controls on the page so a live
+  preview still shows through.
 - Confirm a provider install or update in a dialog instead of inside the
   provider card. The confirmation used to replace the action button with a
   warning and two more buttons, pushing every provider below it down the page.

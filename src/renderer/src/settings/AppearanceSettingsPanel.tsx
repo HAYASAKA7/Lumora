@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 
 import type {
   AppearanceBackgroundState,
@@ -13,6 +19,12 @@ import {
   MINIMUM_TERMINAL_FONT_SIZE
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
+import {
+  readAppearanceSections,
+  writeAppearanceSections,
+  type AppearanceSectionPreferenceHost,
+  type AppearanceSections
+} from './appearance-section-preference';
 import { useLocalization } from '../localization/useLocalization';
 import {
   resolveInterfaceFontFamily,
@@ -32,6 +44,7 @@ interface AppearanceSettingsPanelProps {
   onChooseBackground(): void;
   onRefreshThemePresets?(): void;
   onRemoveBackground(): void;
+  preferenceHost?: AppearanceSectionPreferenceHost;
   themePresets?: ThemePresetList;
   themePresetsBusy?: boolean;
   themePresetsError?: boolean;
@@ -60,6 +73,60 @@ function defaultUserMessageColor(theme: AppearanceSettings['theme']): string {
   return theme === 'dark' ? '#172D50' : '#E9F0FF';
 }
 
+/**
+ * Collapses one Appearance section to its heading. The controls stay inline
+ * when open, so a live preview still shows through behind the settings page -
+ * the reason these are sections rather than dialogs.
+ */
+function CollapsibleSection({
+  children,
+  description,
+  eyebrow,
+  expanded,
+  onToggle,
+  summary,
+  heading,
+  headingId
+}: {
+  children: ReactNode;
+  description: string;
+  eyebrow: string;
+  expanded: boolean;
+  onToggle(): void;
+  summary: string;
+  heading: string;
+  headingId: string;
+}): ReactNode {
+  const { t } = useLocalization();
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="appearance-background-section"
+      data-expanded={expanded}
+    >
+      <div className="appearance-section-heading">
+        <button
+          aria-expanded={expanded}
+          className="appearance-section-toggle"
+          onClick={onToggle}
+          type="button"
+        >
+          <span aria-hidden="true" className="appearance-section-chevron" />
+          <span>
+            <p className="card-label">{eyebrow}</p>
+            <h3 id={headingId}>{heading}</h3>
+            {!expanded ? null : <p>{description}</p>}
+          </span>
+          {expanded ? null : (
+            <span className="appearance-section-summary">{summary}</span>
+          )}
+        </button>
+      </div>
+      {!expanded ? null : children}
+    </section>
+  );
+}
+
 export function AppearanceSettingsPanel({
   active = true,
   api = window.lumora,
@@ -73,11 +140,25 @@ export function AppearanceSettingsPanel({
   onChooseBackground,
   onRefreshThemePresets = () => undefined,
   onRemoveBackground,
+  preferenceHost = window,
   themePresets = EMPTY_THEME_PRESETS,
   themePresetsBusy = false,
   themePresetsError = false
 }: AppearanceSettingsPanelProps) {
   const { t } = useLocalization();
+  const [sections, setSections] = useState<AppearanceSections>(
+    () => readAppearanceSections(preferenceHost)
+  );
+  const toggleSection = useCallback((key: keyof AppearanceSections) => {
+    setSections((current) => ({ ...current, [key]: !current[key] }));
+  }, []);
+  /**
+   * Persisting belongs in an effect rather than in the updater, which React is
+   * free to run more than once.
+   */
+  useEffect(() => {
+    writeAppearanceSections(preferenceHost, sections);
+  }, [preferenceHost, sections]);
   const [interfaceFontDraft, setInterfaceFontDraft] = useState(
     settings.appearance.interfaceFontFamily ?? ''
   );
@@ -185,20 +266,15 @@ export function AppearanceSettingsPanel({
         ))}
       </fieldset>
 
-      <section
-        aria-labelledby="appearance-theme-packs-title"
-        className="appearance-background-section appearance-theme-packs-section"
-      >
-        <div className="appearance-section-heading">
-          <div>
-            <p className="card-label">{t('settings.appearance.theme-packs')}</p>
-            <h3 id="appearance-theme-packs-title">
-              {t('settings.appearance.theme-packs-title')}
-            </h3>
-            <p>{t('settings.appearance.theme-packs-description')}</p>
-          </div>
-        </div>
-        <div className="appearance-theme-pack-control">
+      <CollapsibleSection
+        description={t('settings.appearance.theme-packs-description')}
+        eyebrow={t('settings.appearance.theme-packs')}
+        expanded={sections.themePacksExpanded}
+        onToggle={() => toggleSection('themePacksExpanded')}
+        summary={settings.appearance.themePresetId ?? t('settings.appearance.theme-pack-none')}
+        heading={t('settings.appearance.theme-packs-title')}
+        headingId="appearance-theme-packs-title"
+      >        <div className="appearance-theme-pack-control">
           <div className="appearance-select-control">
             <span>{t('settings.appearance.theme-pack')}</span>
             <SelectMenu
@@ -315,7 +391,7 @@ export function AppearanceSettingsPanel({
             {t('settings.appearance.theme-packs-error')}
           </p>
         ) : null}
-      </section>
+      </CollapsibleSection>
 
       <label className="general-setting-card">
         <span className="general-setting-copy">
@@ -342,20 +418,15 @@ export function AppearanceSettingsPanel({
         </span>
       </label>
 
-      <section
-        aria-labelledby="appearance-conversation-title"
-        className="appearance-background-section appearance-conversation-section"
-      >
-        <div className="appearance-section-heading">
-          <div>
-            <p className="card-label">{t('settings.appearance.conversation')}</p>
-            <h3 id="appearance-conversation-title">
-              {t('settings.appearance.conversation-title')}
-            </h3>
-            <p>{t('settings.appearance.conversation-description')}</p>
-          </div>
-        </div>
-        <div className="appearance-color-control">
+      <CollapsibleSection
+        description={t('settings.appearance.conversation-description')}
+        eyebrow={t('settings.appearance.conversation')}
+        expanded={sections.conversationExpanded}
+        onToggle={() => toggleSection('conversationExpanded')}
+        summary={settings.appearance.userMessageColor ?? t('settings.appearance.color-default')}
+        heading={t('settings.appearance.conversation-title')}
+        headingId="appearance-conversation-title"
+      >        <div className="appearance-color-control">
           <label>
             <span>
               <strong>{t('settings.appearance.user-message-color')}</strong>
@@ -384,17 +455,17 @@ export function AppearanceSettingsPanel({
             {t('settings.appearance.use-theme-message-color')}
           </button>
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section aria-labelledby="appearance-typography-title" className="appearance-background-section appearance-typography-section">
-        <div className="appearance-section-heading">
-          <div>
-            <p className="card-label">{t('settings.appearance.typography')}</p>
-            <h3 id="appearance-typography-title">{t('settings.appearance.typography-title')}</h3>
-            <p>{t('settings.appearance.typography-description')}</p>
-          </div>
-        </div>
-        <div className="appearance-font-grid">
+      <CollapsibleSection
+        description={t('settings.appearance.typography-description')}
+        eyebrow={t('settings.appearance.typography')}
+        expanded={sections.typographyExpanded}
+        onToggle={() => toggleSection('typographyExpanded')}
+        summary={`${settings.appearance.terminalFontSize} px`}
+        heading={t('settings.appearance.typography-title')}
+        headingId="appearance-typography-title"
+      >        <div className="appearance-font-grid">
           <FontFamilyEditor
             description={t('settings.appearance.interface-font-description')}
             disabled={saving}
@@ -506,16 +577,20 @@ export function AppearanceSettingsPanel({
             {t('settings.appearance.font-presets-error')}
           </p>
         ) : null}
-      </section>
+      </CollapsibleSection>
 
-      <section aria-labelledby="appearance-background-title" className="appearance-background-section">
-        <div className="appearance-section-heading">
-          <div>
-            <p className="card-label">{t('settings.appearance.background')}</p>
-            <h3 id="appearance-background-title">{t('settings.appearance.background-title')}</h3>
-            <p>{t('settings.appearance.background-description')}</p>
-          </div>
-          <div className="appearance-background-actions">
+      <CollapsibleSection
+        description={t('settings.appearance.background-description')}
+        eyebrow={t('settings.appearance.background')}
+        expanded={sections.backgroundExpanded}
+        onToggle={() => toggleSection('backgroundExpanded')}
+        summary={t(background.available
+          ? 'settings.appearance.background-on'
+          : 'settings.appearance.background-off')}
+        heading={t('settings.appearance.background-title')}
+        headingId="appearance-background-title"
+      >
+        <div className="appearance-background-actions">
             <button
               className="secondary-button"
               disabled={backgroundBusy}
@@ -535,7 +610,6 @@ export function AppearanceSettingsPanel({
               </button>
             ) : null}
           </div>
-        </div>
 
         <label className="general-setting-card">
           <span className="general-setting-copy">
@@ -660,7 +734,7 @@ export function AppearanceSettingsPanel({
         {backgroundError === null ? null : (
           <p className="general-setting-error" role="alert">{backgroundError}</p>
         )}
-      </section>
+      </CollapsibleSection>
 
       {saveError === null ? null : (
         <p className="general-setting-error" role="alert">{saveError}</p>

@@ -461,4 +461,66 @@ describe('AppearanceSettingsPanel', () => {
       }
     });
   });
+
+  it('collapses a section to its heading and remembers the choice', () => {
+    const onChange = vi.fn();
+    // jsdom provides no localStorage here, so the store is injected the same
+    // way the sidebar injects its own preference host.
+    const stored = new Map<string, string>();
+    const preferenceHost = {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => { stored.set(key, value); }
+      }
+    };
+    const panel = () => (
+      <AppearanceSettingsPanel
+        background={{ available: true, revision: '1720000000000-4096' }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        preferenceHost={preferenceHost}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+    const view = render(panel());
+
+    // Everything starts open, so the page reads as it always did.
+    expect(screen.getByRole('slider', { name: 'Terminal text size' }))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Fonts/ }));
+    expect(screen.queryByRole('slider', { name: 'Terminal text size' }))
+      .not.toBeInTheDocument();
+    // The heading stays, so the section is still findable.
+    expect(screen.getByRole('button', { name: /Fonts/ })).toBeInTheDocument();
+
+    view.unmount();
+    render(panel());
+    expect(screen.queryByRole('slider', { name: 'Terminal text size' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('never collapses the colour theme choice', () => {
+    render(
+      <AppearanceSettingsPanel
+        background={{ available: true, revision: '1720000000000-4096' }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={vi.fn()}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+
+    expect(screen.getAllByRole('radio').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /Color theme/ })).toBeNull();
+  });
 });
