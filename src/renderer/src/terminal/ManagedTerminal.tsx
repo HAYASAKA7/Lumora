@@ -64,6 +64,32 @@ function isRuntimeLive(runtime: RuntimeSummary): boolean {
   return runtime.state === 'launching' || runtime.state === 'running';
 }
 
+/**
+ * Fits the grid to the container without slicing the last line.
+ *
+ * The fit addon measures the element the terminal was opened into but then
+ * subtracts the padding of the terminal element itself, so an inset on the
+ * container is invisible to it and it can fit one row more than the container
+ * actually shows. Dropping that row is the whole correction: nothing else about
+ * the layout changes, and when the grid already fits this does nothing.
+ */
+function fitWithinContainer(
+  terminal: import('@xterm/xterm').Terminal,
+  fitAddon: import('@xterm/addon-fit').FitAddon,
+  host: HTMLElement
+): void {
+  fitAddon.fit();
+  const screen = host.querySelector('.xterm-screen');
+  if (!(screen instanceof HTMLElement)) return;
+  const style = getComputedStyle(host);
+  const available = host.clientHeight -
+    parseFloat(style.paddingTop || '0') -
+    parseFloat(style.paddingBottom || '0');
+  if (screen.offsetHeight > available && terminal.rows > 1) {
+    terminal.resize(terminal.cols, terminal.rows - 1);
+  }
+}
+
 export function ManagedTerminal({
   api = window.lumora,
   active,
@@ -350,7 +376,7 @@ export function ManagedTerminal({
           pasteClipboardContents();
           return false;
         });
-        fitAddon.fit();
+        fitWithinContainer(terminal, fitAddon, target);
 
         const input = terminal.onData((data) => {
           writeRuntimeInput(data);
@@ -387,7 +413,9 @@ export function ManagedTerminal({
         const observer =
           typeof ResizeObserver === 'undefined'
             ? null
-            : new ResizeObserver(() => fitAddon.fit());
+            : new ResizeObserver(
+                () => fitWithinContainer(terminal, fitAddon, target)
+              );
         observer?.observe(target);
         dispose = () => {
           if (outputFlushTimer !== null) {
@@ -465,7 +493,11 @@ export function ManagedTerminal({
     const terminal = terminalRef.current;
     if (terminal === null) return;
     terminal.options.fontFamily = fontFamily;
-    fitAddonRef.current?.fit();
+    const host = container.current;
+    const addon = fitAddonRef.current;
+    if (host !== null && addon !== null) {
+      fitWithinContainer(terminal, addon, host);
+    }
   }, [fontFamily]);
 
   /**
@@ -476,7 +508,11 @@ export function ManagedTerminal({
     const terminal = terminalRef.current;
     if (terminal === null) return;
     terminal.options.fontSize = fontSize;
-    fitAddonRef.current?.fit();
+    const host = container.current;
+    const addon = fitAddonRef.current;
+    if (host !== null && addon !== null) {
+      fitWithinContainer(terminal, addon, host);
+    }
   }, [fontSize]);
 
   useEffect(() => {
@@ -490,7 +526,12 @@ export function ManagedTerminal({
       clearInterruptGuard();
       return;
     }
-    fitAddonRef.current?.fit();
+    const host = container.current;
+    const addon = fitAddonRef.current;
+    const terminal = terminalRef.current;
+    if (host !== null && addon !== null && terminal !== null) {
+      fitWithinContainer(terminal, addon, host);
+    }
     terminalRef.current?.focus();
   }, [active, clearInterruptGuard, focusRequestKey]);
 

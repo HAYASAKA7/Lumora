@@ -7,6 +7,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop the terminal slicing its last line. The terminal fitted one row more
+  than its container shows, so the bottom line of an agent's status bar was cut
+  off by the edge. The extra row is dropped when it does not fit.
+
 ### Added
 
 - Choose the terminal text size under **Settings → Appearance**, beside the
