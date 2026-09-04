@@ -1134,7 +1134,6 @@ describe('RemoteTargetWindow', () => {
     await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
     const openCodeSwitch = screen.getByRole('checkbox', { name: 'Use OpenCode' });
     fireEvent.click(openCodeSwitch);
-    fireEvent.click(screen.getByRole('button', { name: 'Save provider selection' }));
 
     await waitFor(() => expect(api.saveRemoteProviderPreferences)
       .toHaveBeenCalledWith({ enabledProviders: ['codex', 'opencode'] }));
@@ -1203,6 +1202,7 @@ describe('RemoteTargetWindow', () => {
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
 
+    fireEvent.click(screen.getByRole('button', { name: 'OpenCode details' }));
     const command = await screen.findByLabelText('OpenCode start command');
     fireEvent.change(command, { target: { value: 'opencode --remote' } });
     fireEvent.click(screen.getByRole('button', {

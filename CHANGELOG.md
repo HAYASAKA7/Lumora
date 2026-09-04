@@ -9,6 +9,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Rebuild **Settings → Providers** around one card per provider. A card now
+  carries the version, a switch to turn the provider on or off, an update
+  button when there is one, and a **Details** button. Details holds the
+  installed path, the release state and the custom start command. The separate
+  list of enabled providers is gone, because the switch replaces it and applies
+  at once. Every provider Lumora supports keeps a card even when it is turned
+  off, so it can always be turned back on.
+
 - Collapse the sections of **Settings → Appearance**. Theme packs, message
   colors, fonts and the workspace image each fold to their heading, showing
   their current value beside it, and the choice is remembered. The color theme

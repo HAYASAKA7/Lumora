@@ -3772,8 +3772,14 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
     expect(screen.getByText('2.3.4 (Claude Code)')).toBeInTheDocument();
-    expect(screen.getByText('C:\\tools\\codex.exe')).toBeInTheDocument();
-    expect(screen.getByText('C:\\tools\\claude.exe')).toBeInTheDocument();
+    // Versions stay on the cards; the installed paths moved behind Details.
+    fireEvent.click(screen.getByRole('button', { name: 'Codex details' }));
+    expect(await screen.findByText('C:\\tools\\codex.exe')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code details' }));
+    expect(await screen.findByText('C:\\tools\\claude.exe')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(
       screen.queryByRole('heading', { name: 'Developer tools' })
     ).not.toBeInTheDocument();
@@ -3802,9 +3808,12 @@ describe('App', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Providers' }));
 
     expect(await screen.findByText('codex-cli 1.2.3')).toBeInTheDocument();
-    expect(screen.getByText('Not installed')).toBeInTheDocument();
+    // The diagnostic and its recovery moved behind the card's Details.
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Claude Code details' })
+    );
     expect(
-      screen.getByText('Claude Code was not found on PATH.')
+      await screen.findByText('Claude Code was not found on PATH.')
     ).toBeInTheDocument();
     expect(
       screen.getByText('Install Claude Code or add it to PATH, then refresh.')
@@ -3887,9 +3896,6 @@ describe('App', () => {
     fireEvent.click(
       await screen.findByRole('checkbox', { name: 'Use Claude Code' })
     );
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Save provider selection' })
-    );
 
     await waitFor(() =>
       expect(saveGeneralSettings).toHaveBeenCalledWith({
@@ -3899,11 +3905,17 @@ describe('App', () => {
     );
     await waitFor(() => expect(scanProviders).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(refreshCatalog).toHaveBeenCalled());
+    /**
+     * A provider Lumora supports keeps its card even when it is turned off.
+     * Removing the card would take the switch with it and leave no way back on.
+     */
     await waitFor(() =>
-      expect(
-        screen.queryByRole('heading', { name: 'Claude Code' })
-      ).not.toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: 'Use Claude Code' }))
+        .not.toBeChecked()
     );
+    expect(
+      screen.getByRole('heading', { name: 'Claude Code' })
+    ).toBeInTheDocument();
   });
 
   it('refreshes developer prerequisites independently', async () => {

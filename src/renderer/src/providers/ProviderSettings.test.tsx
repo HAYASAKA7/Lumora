@@ -103,6 +103,11 @@ function ProviderSettings(
   );
 }
 
+/** Release status and the start command now live behind each card's Details. */
+function openDetails(provider: string): void {
+  fireEvent.click(screen.getByRole('button', { name: `${provider} details` }));
+}
+
 describe('ProviderSettings', () => {
   it('keeps Unified UI provider details in a Lumora modal after installations', async () => {
     const preferenceChanged = vi.fn();
@@ -385,32 +390,21 @@ describe('ProviderSettings', () => {
     })).not.toBeInTheDocument();
   });
 
-  it('stages enabled providers, prevents an empty selection, and saves explicitly', async () => {
-    setLumora();
+  it('applies a provider switch at once and keeps one provider enabled', async () => {
     const onSaveEnabledProviders = vi.fn().mockResolvedValue(true);
-    const settings: GeneralSettings = {
-      ...DEFAULT_GENERAL_SETTINGS,
-      enabledProviders: ['codex', 'claude']
-    };
+    setLumora({});
     render(
       <ProviderSettings
-        generalSettings={settings}
         onRefresh={vi.fn()}
+        onRefreshUpdates={vi.fn()}
         onSaveEnabledProviders={onSaveEnabledProviders}
-        status={{ state: 'ready', scan }}
       />
     );
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(14);
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Use Claude Code' }));
-    expect(
-      screen.getByRole('checkbox', { name: 'Use Codex' })
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Save provider selection' }));
-
-    await waitFor(() =>
-      expect(onSaveEnabledProviders).toHaveBeenCalledWith(['codex'])
-    );
+    const codex = await screen.findByRole('checkbox', { name: 'Use Codex' });
+    fireEvent.click(codex);
+    await waitFor(() => expect(onSaveEnabledProviders).toHaveBeenCalledOnce());
+    expect(onSaveEnabledProviders.mock.calls[0]![0]).not.toContain('codex');
   });
 
   it('keeps releases idle and delegates manual checks when automatic checks are disabled', async () => {
@@ -429,7 +423,8 @@ describe('ProviderSettings', () => {
       />
     );
 
-    expect(await screen.findAllByText('Updates not checked')).toHaveLength(2);
+    openDetails('Codex');
+    expect(await screen.findByText('Updates not checked')).toBeVisible();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
 
     fireEvent.click(
@@ -511,6 +506,7 @@ describe('ProviderSettings', () => {
     expect(
       screen.getByRole('heading', { name: 'Provider installations' })
     ).toBeInTheDocument();
+    openDetails('Codex');
     const input = await screen.findByLabelText('Codex start command');
     expect(
       screen.getAllByText(/Provider layer override/).length
@@ -548,8 +544,13 @@ describe('ProviderSettings', () => {
       <ProviderSettings onRefresh={vi.fn()} status={{ state: 'ready', scan }} />
     );
 
+    openDetails('Codex');
     expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
-    expect(screen.getByText('Up to date · 2.0.0')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    openDetails('Claude Code');
+    expect(await screen.findByText('Up to date · 2.0.0')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(
       screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     ).toBeVisible();
@@ -573,6 +574,7 @@ describe('ProviderSettings', () => {
       />
     );
 
+    openDetails('Codex');
     expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
 
@@ -606,6 +608,7 @@ describe('ProviderSettings', () => {
       <ProviderSettings updatesStatus={{ state: 'ready', check: unavailableUpdates }} />
     );
 
+    openDetails('Codex');
     expect(await screen.findByText('Latest version unavailable')).toBeVisible();
     expect(screen.getByText('Check the network connection, then refresh.')).toBeVisible();
     expect(screen.queryByRole('button', { name: /Update Codex/ })).toBeNull();
@@ -648,7 +651,9 @@ describe('ProviderSettings', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
     expect(screen.getByRole('button', { name: 'Updating Codex' })).toBeDisabled();
-    expect(screen.getByLabelText('Claude Code start command')).toBeEnabled();
+    // One provider updating must not lock another's card.
+    expect(screen.getByRole('button', { name: 'Claude Code details' }))
+      .toBeEnabled();
     completeUpdate();
 
     await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
@@ -756,6 +761,7 @@ describe('ProviderSettings', () => {
       screen.getByRole('button', { name: 'Open Aider installation guide' })
     );
     expect(lumora.openProviderInstallGuide).toHaveBeenCalledWith('aider');
+    openDetails('Gemini CLI');
     expect(screen.getByLabelText('Gemini CLI start command')).toHaveValue('');
   });
 

@@ -1444,6 +1444,28 @@ button {
   border-color: var(--success-border);
 }
 
+.provider-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.provider-card-actions .provider-card-switch {
+  margin-left: auto;
+}
+
+.provider-card-version {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.provider-details-dialog {
+  width: min(640px, 100%);
+}
+
 .provider-card-header {
   display: flex;
   align-items: flex-start;
