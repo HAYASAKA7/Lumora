@@ -7,6 +7,24 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Cancel a provider update while it runs. **Cancel update** stops the npm
+  process Lumora started, including the processes it spawned underneath, rather
+  than only clearing the progress indicator. Lumora re-reads the provider
+  afterwards, because stopping an install partway can leave a different version
+  on disk than the one shown.
+
+### Fixed
+
+- Explain why a provider update failed instead of reporting a generic error.
+  npm replaces a global package by moving the installed one aside first, and on
+  Windows a running provider's files cannot be moved, so updating a provider
+  while it was in use both failed and left the installation half-replaced.
+  Lumora now recognises that failure and asks you to close the running sessions
+  first. npm's own output is still never shown, because it can carry registry
+  credentials.
+
 ## [0.5.3] - 2026-09-03
 
 ### Fixed

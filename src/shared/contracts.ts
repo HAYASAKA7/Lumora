@@ -571,6 +571,17 @@ export const ProviderUpdateRequestSchema = z.strictObject({
   provider: ProviderIdSchema
 });
 
+export const ProviderUpdateCancelResultSchema = z.strictObject({
+  cancelled: z.boolean()
+});
+
+/**
+ * A lifecycle failure the user can act on. The code travels instead of npm's
+ * own output, which can carry registry credentials.
+ */
+export const PROVIDER_LIFECYCLE_BUSY_CODE = 'PROVIDER_LIFECYCLE_BUSY';
+export const PROVIDER_LIFECYCLE_CANCELLED_CODE = 'PROVIDER_LIFECYCLE_CANCELLED';
+
 export const ProviderUpdateResultSchema = z.strictObject({
   provider: ProviderIdSchema,
   completedAt: z.iso.datetime(),
@@ -2309,6 +2320,7 @@ export const IPC_CHANNELS = {
   systemInfo: 'lumora:system:info',
   applicationAboutGet: 'lumora:application:about:get',
   applicationReleaseStatusGet: 'lumora:application:release:status:get',
+  providerUpdateCancel: 'lumora:provider:update:cancel',
   applicationProjectOpen: 'lumora:application:project:open',
   applicationReleaseOpen: 'lumora:application:release:open',
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
@@ -2497,6 +2509,7 @@ export interface LumoraApi {
   installProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
   openProviderInstallGuide(provider: ProviderId): Promise<void>;
   updateProvider(provider: ProviderId): Promise<ProviderUpdateResult>;
+  cancelProviderUpdate(provider: ProviderId): Promise<boolean>;
   getCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   refreshCatalog(query?: CatalogQuery): Promise<CatalogSnapshot>;
   chooseWorkspace(): Promise<CatalogSnapshot | null>;

@@ -13,6 +13,8 @@ import type {
   StructuredProviderPreference
 } from '../../../shared/contracts';
 import {
+  PROVIDER_LIFECYCLE_BUSY_CODE,
+  PROVIDER_LIFECYCLE_CANCELLED_CODE,
   DEFAULT_GENERAL_SETTINGS,
   STRUCTURED_AGENT_PROVIDER_IDS
 } from '../../../shared/contracts';
@@ -36,7 +38,8 @@ export type ProviderSettingsApi = Pick<
   'saveProviderLaunchConfig' |
   'installProvider' |
   'openProviderInstallGuide' |
-  'updateProvider'
+  'updateProvider' |
+  'cancelProviderUpdate'
 > & Partial<Pick<
   LumoraApi,
   'scanStructuredProviderCapabilities' |
@@ -98,6 +101,7 @@ function ProviderCard({
   onResetCommand,
   onSaveCommand,
   onUpdate,
+  onCancelUpdate,
   installing,
   installError,
   saving,
@@ -115,6 +119,7 @@ function ProviderCard({
   onResetCommand(): void;
   onSaveCommand(): void;
   onUpdate(): void;
+  onCancelUpdate(): void;
   installing: boolean;
   installError: string | null;
   saving: boolean;
@@ -291,19 +296,33 @@ function ProviderCard({
                 </div>
               </div>
             ) : release.state === 'update_available' ? (
-              <button
-                aria-label={
-                  updating
-                    ? t('providers.settings.updating-label', { provider: installation.displayName })
-                    : t('providers.settings.update-label', { provider: installation.displayName, version: release.latestVersion })
-                }
-                className="secondary-button provider-update-button"
-                disabled={updating}
-                onClick={() => setConfirmingUpdate(true)}
-                type="button"
-              >
-                {updating ? t('providers.states.updating') : t('providers.settings.update-to', { version: release.latestVersion })}
-              </button>
+              <div className="provider-update-actions">
+                <button
+                  aria-label={
+                    updating
+                      ? t('providers.settings.updating-label', { provider: installation.displayName })
+                      : t('providers.settings.update-label', { provider: installation.displayName, version: release.latestVersion })
+                  }
+                  className="secondary-button provider-update-button"
+                  disabled={updating}
+                  onClick={() => setConfirmingUpdate(true)}
+                  type="button"
+                >
+                  {updating ? t('providers.states.updating') : t('providers.settings.update-to', { version: release.latestVersion })}
+                </button>
+                {!updating ? null : (
+                  <button
+                    aria-label={t('providers.settings.cancel-update-label', {
+                      provider: installation.displayName
+                    })}
+                    className="text-button"
+                    onClick={onCancelUpdate}
+                    type="button"
+                  >
+                    {t('providers.settings.cancel-update')}
+                  </button>
+                )}
+              </div>
             ) : null}
           </div>
         )}
@@ -550,6 +569,34 @@ export function ProviderSettings({
     );
   };
 
+  const isCancelled = (error: unknown): boolean => String(
+    (error as { message?: unknown } | null)?.message ?? error
+  ).includes(PROVIDER_LIFECYCLE_CANCELLED_CODE);
+
+  const updateFailure = (
+    error: unknown,
+    provider: ProviderId,
+    displayName: string
+  ): string => {
+    const reason = String(
+      (error as { message?: unknown } | null)?.message ?? error
+    );
+    if (reason.includes(PROVIDER_LIFECYCLE_BUSY_CODE)) {
+      return t('providers.settings.update-busy', { provider: displayName });
+    }
+    if (reason.includes(PROVIDER_LIFECYCLE_CANCELLED_CODE)) {
+      return t('providers.settings.update-cancelled', { provider: displayName });
+    }
+    return t('providers.settings.update-error', {
+      provider: displayName,
+      command: provider
+    });
+  };
+
+  const cancelUpdate = (provider: ProviderId) => {
+    void api.cancelProviderUpdate(provider).catch(() => undefined);
+  };
+
   const updateProvider = (provider: ProviderId, displayName: string) => {
     setUpdatingProvider(provider);
     setUpdateErrors((current) => ({ ...current, [provider]: undefined }));
@@ -559,12 +606,18 @@ export function ProviderSettings({
         await onRefreshUpdates();
         setUpdatingProvider(null);
       },
-      () => {
+      async (error: unknown) => {
         setUpdateErrors((current) => ({
           ...current,
-          [provider]: t('providers.settings.update-error', { provider: displayName, command: provider })
+          [provider]: updateFailure(error, provider, displayName)
         }));
         setUpdatingProvider(null);
+        /**
+         * Cancelling stops npm partway through replacing the package, so the
+         * version on the card is no longer known to be what is on disk. Other
+         * failures leave the installation as npm found it.
+         */
+        if (isCancelled(error)) await onRefresh();
       }
     );
   };
@@ -662,6 +715,7 @@ export function ProviderSettings({
         installation.provider,
         commands[installation.provider]?.trim() || null
       )}
+      onCancelUpdate={() => cancelUpdate(installation.provider)}
       onUpdate={() => updateProvider(
         installation.provider,
         installation.displayName

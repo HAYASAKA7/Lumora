@@ -1207,6 +1207,20 @@ export function createRemoteTargetService({
       return providerUpdatesFor(id).update(provider);
     },
 
+    /**
+     * Stops Lumora waiting on a remote installation. The helper exposes no way
+     * to signal npm on the remote computer, so the install itself runs to
+     * completion there.
+     */
+    cancelProviderUpdate(
+      input: RemoteExecutionTargetId,
+      providerInput: ProviderId
+    ) {
+      const id = RemoteExecutionTargetIdSchema.parse(input);
+      const provider = ProviderIdSchema.parse(providerInput);
+      return providerUpdatesFor(id).cancel(provider);
+    },
+
     async scanSessions(input: RemoteExecutionTargetId) {
       const id = RemoteExecutionTargetIdSchema.parse(input);
       const active = activeTargets.get(id);

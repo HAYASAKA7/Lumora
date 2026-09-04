@@ -161,7 +161,7 @@ describe('ProviderUpdateService.update', () => {
       completedAt: '2026-07-17T03:00:00.000Z',
       installation: updatedCodex
     });
-    expect(runLifecycle).toHaveBeenCalledWith('codex', 'update');
+    expect(runLifecycle).toHaveBeenCalledWith('codex', 'update', expect.any(AbortSignal));
     expect(registry.scan).toHaveBeenCalledOnce();
     expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
@@ -200,7 +200,7 @@ describe('ProviderUpdateService.update', () => {
 
     const first = service.update('codex');
     await vi.waitFor(() =>
-      expect(runLifecycle).toHaveBeenCalledWith('codex', 'update')
+      expect(runLifecycle).toHaveBeenCalledWith('codex', 'update', expect.any(AbortSignal))
     );
     await expect(service.update('codex')).rejects.toMatchObject({
       code: 'PROVIDER_UPDATE_IN_PROGRESS'
@@ -307,7 +307,7 @@ describe('ProviderUpdateService.install', () => {
       completedAt: '2026-07-17T03:10:00.000Z',
       installation: readyGemini
     });
-    expect(runLifecycle).toHaveBeenCalledWith('gemini', 'install');
+    expect(runLifecycle).toHaveBeenCalledWith('gemini', 'install', expect.any(AbortSignal));
     expect(registry.scanFresh).toHaveBeenCalledOnce();
   });
 
@@ -323,5 +323,30 @@ describe('ProviderUpdateService.install', () => {
       code: 'PROVIDER_ALREADY_INSTALLED'
     });
     expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
+  it('stops a running installation through the signal it handed out', async () => {
+    let observed: AbortSignal | undefined;
+    const runLifecycle = vi.fn(
+      (_provider, _action, signal?: AbortSignal) => new Promise<void>((_, reject) => {
+        observed = signal;
+        signal?.addEventListener('abort', () => reject(new Error('cancelled')));
+      })
+    );
+    const service = createProviderUpdateService({
+      registry: { scan: async () => scan() },
+      releases: { latestVersion: async () => '1.0.0' },
+      runLifecycle,
+      now: () => new Date('2026-07-17T02:01:00.000Z')
+    });
+
+    expect(service.cancel('codex')).toBe(false);
+    const running = service.update('codex');
+    await vi.waitFor(() => expect(observed).toBeDefined());
+
+    expect(service.cancel('codex')).toBe(true);
+    expect(observed!.aborted).toBe(true);
+    await expect(running).rejects.toThrow('cancelled');
+    expect(service.cancel('codex')).toBe(false);
   });
 });

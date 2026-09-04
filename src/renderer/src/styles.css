@@ -1593,6 +1593,13 @@ button {
   line-height: 1.4;
 }
 
+.provider-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
 .provider-update-button {
   flex: 0 0 auto;
 }

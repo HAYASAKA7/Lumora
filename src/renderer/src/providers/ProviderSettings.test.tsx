@@ -804,4 +804,51 @@ describe('ProviderSettings', () => {
     expect(screen.getByRole('button', { name: 'Install Gemini CLI' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Install Crush' })).toBeDisabled();
   });
+
+  it('really stops a running update instead of only clearing the status', async () => {
+    const cancelProviderUpdate = vi.fn().mockResolvedValue(true);
+    setLumora({
+      checkProviderUpdates: vi.fn().mockResolvedValue(availableUpdates),
+      // Still running: the card must offer a way out while npm works.
+      updateProvider: vi.fn(() => new Promise(() => undefined)),
+      cancelProviderUpdate
+    });
+    render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm update Codex with npm' })
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Cancel the Codex update' })
+    );
+    await waitFor(() =>
+      expect(cancelProviderUpdate).toHaveBeenCalledWith('codex')
+    );
+  });
+
+  it('explains that a running provider blocked its own update', async () => {
+    setLumora({
+      checkProviderUpdates: vi.fn().mockResolvedValue(availableUpdates),
+      updateProvider: vi.fn().mockRejectedValue(
+        new Error('PROVIDER_LIFECYCLE_BUSY')
+      )
+    });
+    render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm update Codex with npm' })
+    );
+
+    expect(await screen.findByText(
+      'Codex is running, so its files could not be replaced. ' +
+      'Close running Codex sessions and try again.'
+    )).toBeVisible();
+  });
 });

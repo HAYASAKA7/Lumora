@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ChildProcess } from 'node:child_process';
 import { posix, win32 } from 'node:path';
 
 import type { ProviderId, SystemInfo } from '../../shared/contracts';
@@ -27,12 +27,47 @@ export class ProviderLifecycleError extends Error {
     readonly code:
       | 'PROVIDER_INSTALL_GUIDE_REQUIRED'
       | 'PROVIDER_PACKAGE_MANAGER_UNAVAILABLE'
-      | 'PROVIDER_LIFECYCLE_FAILED',
+      | 'PROVIDER_LIFECYCLE_FAILED'
+      | 'PROVIDER_LIFECYCLE_BUSY'
+      | 'PROVIDER_LIFECYCLE_CANCELLED',
     message = 'The provider installation could not be completed.'
   ) {
     super(message);
     this.name = 'ProviderLifecycleError';
   }
+}
+
+/**
+ * npm replaces a global package by moving the installed one aside first, and on
+ * Windows a running executable cannot be renamed. The package is then left
+ * half-moved, which is why an update over a running provider both fails and
+ * breaks the installation.
+ *
+ * Only the shape of the failure is read out of npm's output. The text itself
+ * never reaches the caller, because it can carry registry credentials.
+ */
+const BUSY_FAILURE = /\b(?:EBUSY|EPERM|EACCES)\b|resource busy or locked|errno -404[82]\b/u;
+
+export function classifyLifecycleFailure(output: string): 'busy' | 'failed' {
+  return BUSY_FAILURE.test(output) ? 'busy' : 'failed';
+}
+
+function terminateProcessTree(
+  child: ChildProcess,
+  platform: Platform
+): void {
+  const { pid } = child;
+  if (pid === undefined) return;
+  if (platform === 'win32') {
+    /**
+     * Windows runs npm through a `cmd.exe` wrapper, so signalling the child
+     * would leave npm and its own node process running. Only a tree kill stops
+     * the installation Lumora actually started.
+     */
+    execFile('taskkill', ['/pid', String(pid), '/t', '/f'], () => undefined);
+    return;
+  }
+  child.kill('SIGTERM');
 }
 
 function readWindowsEnvironmentValue(
@@ -94,7 +129,8 @@ export function buildProviderLifecycleInvocation(
 function executeLifecycle(
   invocation: ProviderLifecycleInvocation,
   env: Environment,
-  platform: Platform
+  platform: Platform,
+  signal?: AbortSignal
 ): Promise<void> {
   const pathKey = Object.keys(env).find(
     (key) => key.toLowerCase() === 'path'
@@ -112,7 +148,7 @@ function executeLifecycle(
     NO_COLOR: '1'
   };
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       invocation.file,
       [...invocation.args],
       {
@@ -124,11 +160,33 @@ function executeLifecycle(
         windowsVerbatimArguments:
           invocation.windowsVerbatimArguments ?? false
       },
-      (error) => {
-        if (error === null) resolve();
-        else reject(new ProviderLifecycleError('PROVIDER_LIFECYCLE_FAILED'));
+      (error, stdout, stderr) => {
+        signal?.removeEventListener('abort', abort);
+        if (signal?.aborted === true) {
+          reject(
+            new ProviderLifecycleError(
+              'PROVIDER_LIFECYCLE_CANCELLED',
+              'The provider lifecycle operation was cancelled.'
+            )
+          );
+          return;
+        }
+        if (error === null) {
+          resolve();
+          return;
+        }
+        reject(
+          classifyLifecycleFailure(`${stdout}\n${stderr}`) === 'busy'
+            ? new ProviderLifecycleError(
+                'PROVIDER_LIFECYCLE_BUSY',
+                'The provider is running, so its files could not be replaced.'
+              )
+            : new ProviderLifecycleError('PROVIDER_LIFECYCLE_FAILED')
+        );
       }
     );
+    const abort = (): void => terminateProcessTree(child, platform);
+    signal?.addEventListener('abort', abort, { once: true });
   });
 }
 
@@ -140,6 +198,7 @@ export async function runProviderLifecycle(
     findExecutable,
     probeVersion,
     action = 'install',
+    signal,
     execute
   }: {
     platform: Platform;
@@ -150,9 +209,16 @@ export async function runProviderLifecycle(
       args: readonly string[]
     ): Promise<string>;
     action?: 'install' | 'update';
+    signal?: AbortSignal;
     execute?: ExecuteProviderLifecycle;
   }
 ): Promise<void> {
+  if (signal?.aborted === true) {
+    throw new ProviderLifecycleError(
+      'PROVIDER_LIFECYCLE_CANCELLED',
+      'The provider lifecycle operation was cancelled.'
+    );
+  }
   if (providerDefinition(provider).npmPackage === null) {
     throw new ProviderLifecycleError(
       'PROVIDER_INSTALL_GUIDE_REQUIRED',
@@ -213,9 +279,9 @@ export async function runProviderLifecycle(
     ...(runtimePath === undefined ? {} : { runtimePath })
   };
   try {
-    await (execute ?? ((value) => executeLifecycle(value, env, platform)))(
-      invocation
-    );
+    await (
+      execute ?? ((value) => executeLifecycle(value, env, platform, signal))
+    )(invocation);
   } catch (error) {
     if (error instanceof ProviderLifecycleError) throw error;
     throw new ProviderLifecycleError('PROVIDER_LIFECYCLE_FAILED');

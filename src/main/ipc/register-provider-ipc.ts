@@ -4,8 +4,11 @@ import {
   ExternalOpenResultSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
+  ProviderUpdateCancelResultSchema,
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
+  PROVIDER_LIFECYCLE_BUSY_CODE,
+  PROVIDER_LIFECYCLE_CANCELLED_CODE,
   type LumoraWindowContext,
   type ProviderId,
   type ProviderScanResult,
@@ -37,6 +40,26 @@ interface ProviderUpdatesLike {
   check(): Promise<unknown>;
   install(provider: ProviderId): Promise<unknown>;
   update(provider: ProviderId): Promise<unknown>;
+  cancel(provider: ProviderId): boolean;
+}
+
+/**
+ * npm's own text can carry registry credentials, so only the classified code
+ * crosses to the renderer, which turns it into its own wording.
+ */
+async function withLifecycleCode<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (
+      code === PROVIDER_LIFECYCLE_BUSY_CODE ||
+      code === PROVIDER_LIFECYCLE_CANCELLED_CODE
+    ) {
+      throw new Error(code);
+    }
+    throw error;
+  }
 }
 
 interface ProviderTargetServices {
@@ -88,6 +111,18 @@ export function registerProviderIpc({
   );
 
   ipc.handle(
+    IPC_CHANNELS.providerUpdateCancel,
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async (event, input) => {
+      const { updates } = resolveServices(assertTrusted(event));
+      const request = ProviderUpdateRequestSchema.parse(input);
+      return ProviderUpdateCancelResultSchema.parse({
+        cancelled: updates.cancel(request.provider)
+      });
+    }
+  );
+
+  ipc.handle(
     IPC_CHANNELS.providerUpdatesCheck,
     async (event): Promise<ProviderUpdateCheckResult> => {
       const { updates } = resolveServices(assertTrusted(event));
@@ -101,7 +136,7 @@ export function registerProviderIpc({
       const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
       return ProviderUpdateResultSchema.parse(
-        await updates.update(request.provider)
+        await withLifecycleCode(() => updates.update(request.provider))
       );
     }
   );
@@ -112,7 +147,7 @@ export function registerProviderIpc({
       const { updates } = resolveServices(assertTrusted(event));
       const request = ProviderUpdateRequestSchema.parse(input);
       return ProviderUpdateResultSchema.parse(
-        await updates.install(request.provider)
+        await withLifecycleCode(() => updates.install(request.provider))
       );
     }
   );

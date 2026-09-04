@@ -33,6 +33,12 @@ export interface ProviderUpdateService {
   check(): Promise<ProviderUpdateCheckResult>;
   install(provider: ProviderId): Promise<ProviderUpdateResult>;
   update(provider: ProviderId): Promise<ProviderUpdateResult>;
+  /**
+   * Stops an installation that is still running and reports whether there was
+   * one to stop. The operation itself rejects, so the caller that started it
+   * learns the outcome through its own promise.
+   */
+  cancel(provider: ProviderId): boolean;
 }
 
 export class ProviderUpdateServiceError extends Error {
@@ -156,11 +162,12 @@ export function createProviderUpdateService({
   releases: ProviderReleaseSource;
   runLifecycle(
     provider: ProviderId,
-    action: 'install' | 'update'
+    action: 'install' | 'update',
+    signal?: AbortSignal
   ): Promise<void>;
   now?: () => Date;
 }): ProviderUpdateService {
-  const running = new Set<ProviderId>();
+  const running = new Map<ProviderId, AbortController>();
 
   const assertEnabled = (provider: ProviderId): void => {
     if (enabledProviders().includes(provider)) return;
@@ -172,7 +179,7 @@ export function createProviderUpdateService({
 
   const withLock = async (
     provider: ProviderId,
-    action: () => Promise<ProviderUpdateResult>
+    action: (signal: AbortSignal) => Promise<ProviderUpdateResult>
   ): Promise<ProviderUpdateResult> => {
     if (running.has(provider)) {
       throw new ProviderUpdateServiceError(
@@ -180,9 +187,10 @@ export function createProviderUpdateService({
         'This provider already has a lifecycle operation in progress.'
       );
     }
-    running.add(provider);
+    const controller = new AbortController();
+    running.set(provider, controller);
     try {
-      return await action();
+      return await action(controller.signal);
     } finally {
       running.delete(provider);
     }
@@ -190,9 +198,10 @@ export function createProviderUpdateService({
 
   const resultAfterLifecycle = async (
     provider: ProviderId,
-    action: 'install' | 'update'
+    action: 'install' | 'update',
+    signal: AbortSignal
   ): Promise<ProviderUpdateResult> => {
-    await runLifecycle(provider, action);
+    await runLifecycle(provider, action, signal);
     const after = await (registry.scanFresh?.() ?? registry.scan());
     const installation = after.providers.find(
       (candidate) => candidate.provider === provider
@@ -211,6 +220,13 @@ export function createProviderUpdateService({
   };
 
   return Object.freeze({
+    cancel(provider: ProviderId): boolean {
+      const controller = running.get(provider);
+      if (controller === undefined) return false;
+      controller.abort();
+      return true;
+    },
+
     async check(): Promise<ProviderUpdateCheckResult> {
       const scan = await registry.scan();
       const enabled = new Set(enabledProviders());
@@ -236,7 +252,7 @@ export function createProviderUpdateService({
 
     async install(provider: ProviderId): Promise<ProviderUpdateResult> {
       assertEnabled(provider);
-      return withLock(provider, async () => {
+      return withLock(provider, async (signal) => {
         const before = await registry.scan();
         const installation = before.providers.find(
           (candidate) => candidate.provider === provider
@@ -253,13 +269,13 @@ export function createProviderUpdateService({
             'The provider is already installed.'
           );
         }
-        return resultAfterLifecycle(provider, 'install');
+        return resultAfterLifecycle(provider, 'install', signal);
       });
     },
 
     async update(provider: ProviderId): Promise<ProviderUpdateResult> {
       assertEnabled(provider);
-      return withLock(provider, async () => {
+      return withLock(provider, async (signal) => {
         const before = await registry.scan();
         const installation = before.providers.find(
           (candidate) => candidate.provider === provider
@@ -277,7 +293,7 @@ export function createProviderUpdateService({
           );
         }
 
-        return resultAfterLifecycle(provider, 'update');
+        return resultAfterLifecycle(provider, 'update', signal);
       });
     }
   });

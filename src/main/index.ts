@@ -233,13 +233,14 @@ const providerUpdateService = createProviderUpdateService({
   },
   enabledProviders: () => providerPolicy.providers(),
   releases: providerReleaseSource,
-  runLifecycle: (provider, action) =>
+  runLifecycle: (provider, action, signal) =>
     runProviderLifecycle(provider, {
       action,
       platform,
       env: applicationEnvironment,
       findExecutable: providerDependencies.findExecutable,
-      probeVersion: providerDependencies.probeVersion
+      probeVersion: providerDependencies.probeVersion,
+      ...(signal === undefined ? {} : { signal })
     })
 });
 const developerEnvironmentScanner = createDeveloperEnvironmentScanner(
@@ -1087,6 +1088,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
             ),
           update: (provider: ProviderId) =>
             remoteTargetRuntime!.service.updateProvider(
+              executionTargetId,
+              provider
+            ),
+          cancel: (provider: ProviderId) =>
+            remoteTargetRuntime!.service.cancelProviderUpdate(
               executionTargetId,
               provider
             )

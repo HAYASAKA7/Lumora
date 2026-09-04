@@ -40,6 +40,7 @@ import {
   ProviderLaunchConfigListSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
+  ProviderUpdateCancelResultSchema,
   ProviderUpdateRequestSchema,
   ProviderUpdateResultSchema,
   RuntimeAttachmentSchema,
@@ -414,6 +415,11 @@ export function createLumoraApi(
         request
       );
       ExternalOpenResultSchema.parse(value);
+    },
+    async cancelProviderUpdate(provider) {
+      const request = ProviderUpdateRequestSchema.parse({ provider });
+      const value = await invoke(IPC_CHANNELS.providerUpdateCancel, request);
+      return ProviderUpdateCancelResultSchema.parse(value).cancelled;
     },
     async updateProvider(provider) {
       const request = ProviderUpdateRequestSchema.parse({ provider });

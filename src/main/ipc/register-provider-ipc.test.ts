@@ -84,7 +84,8 @@ function createHarness(
     )
   }),
   install: (provider: ProviderId) => Promise<unknown> = update,
-  openExternal: (url: string) => Promise<unknown> = async () => undefined
+  openExternal: (url: string) => Promise<unknown> = async () => undefined,
+  cancel: (provider: ProviderId) => boolean = () => true
 ) {
   const handlers = new Map<string, InvokeHandler>();
   const ipc = {
@@ -95,7 +96,7 @@ function createHarness(
 
   const resolveServices = vi.fn(() => ({
     registry: { scan },
-    updates: { check, update, install }
+    updates: { check, update, install, cancel }
   }));
 
   registerProviderIpc({
@@ -117,12 +118,15 @@ function createHarness(
   };
 }
 
+const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
+
 describe('registerProviderIpc', () => {
   it('registers one scan operation and validates its response', async () => {
     const { handler, registeredChannels, resolveServices } = createHarness();
 
     expect(registeredChannels).toEqual([
       IPC_CHANNELS.providerScan,
+      IPC_CHANNELS.providerUpdateCancel,
       IPC_CHANNELS.providerUpdatesCheck,
       IPC_CHANNELS.providerUpdateRun,
       IPC_CHANNELS.providerInstallRun,
@@ -262,5 +266,42 @@ describe('registerProviderIpc', () => {
     await expect(
       handler({ senderFrame: { url: 'app://lumora/index.html' } })
     ).rejects.toBeDefined();
+  });
+
+  it('stops a running installation and reports whether there was one', async () => {
+    const cancel = vi.fn(() => true);
+    const { handlers } = createHarness(
+      undefined, undefined, undefined, undefined, undefined, undefined, cancel
+    );
+    const handler = handlers.get(IPC_CHANNELS.providerUpdateCancel)!;
+
+    expect(await handler(trustedEvent, { provider: 'codex' }))
+      .toEqual({ cancelled: true });
+    expect(cancel).toHaveBeenCalledWith('codex');
+    await expect(handler(trustedEvent, { provider: 'not-a-provider' }))
+      .rejects.toThrow();
+  });
+
+  /**
+   * npm's own output can carry registry credentials, so the renderer receives
+   * only the classified code.
+   */
+  it('passes a lifecycle code to the renderer without npm output', async () => {
+    const { handlers } = createHarness(undefined, undefined, undefined, async () => {
+      throw Object.assign(new Error('npm error //registry/:_authToken=secret'), {
+        code: 'PROVIDER_LIFECYCLE_BUSY'
+      });
+    });
+
+    await expect(
+      handlers.get(IPC_CHANNELS.providerUpdateRun)!(
+        trustedEvent, { provider: 'codex' }
+      )
+    ).rejects.toThrow('PROVIDER_LIFECYCLE_BUSY');
+    await expect(
+      handlers.get(IPC_CHANNELS.providerUpdateRun)!(
+        trustedEvent, { provider: 'codex' }
+      )
+    ).rejects.not.toThrow('_authToken');
   });
 });
