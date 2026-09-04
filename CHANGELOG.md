@@ -7,6 +7,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Confirm a provider install or update in a dialog instead of inside the
+  provider card. The confirmation used to replace the action button with a
+  warning and two more buttons, pushing every provider below it down the page.
+
+
 ## [0.5.4] - 2026-09-04
 
 ### Added

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+
 import type {
   GeneralSettings,
   LumoraApi,
@@ -181,34 +183,6 @@ function ProviderCard({
             >
               {t('providers.settings.installation-guide')}
             </button>
-          ) : confirmingInstall ? (
-            <div className="provider-install-confirmation">
-              <p>
-                {t('providers.settings.install-confirm', { provider: installation.displayName })}
-              </p>
-              <div>
-                <button
-                  aria-label={t('providers.settings.confirm-install-label', { provider: installation.displayName })}
-                  className="refresh-button"
-                  disabled={installing}
-                  onClick={() => {
-                    setConfirmingInstall(false);
-                    onInstall();
-                  }}
-                  type="button"
-                >
-                  {t(installing ? 'providers.states.installing' : 'providers.settings.confirm-install')}
-                </button>
-                <button
-                  className="text-button"
-                  disabled={installing}
-                  onClick={() => setConfirmingInstall(false)}
-                  type="button"
-                >
-                  {t('common.actions.cancel')}
-                </button>
-              </div>
-            </div>
           ) : (
             <button
               aria-label={t('providers.settings.install-label', { provider: installation.displayName })}
@@ -266,34 +240,6 @@ function ProviderCard({
               >
                 {t('providers.settings.official-update-guide')}
               </button>
-            ) : release.state === 'update_available' && confirmingUpdate ? (
-              <div className="provider-install-confirmation">
-                <p>
-                  {t('providers.settings.update-warning', { provider: installation.displayName })}
-                </p>
-                <div>
-                  <button
-                    aria-label={t('providers.settings.confirm-update-label', { provider: installation.displayName })}
-                    className="refresh-button"
-                    disabled={updating}
-                    onClick={() => {
-                      setConfirmingUpdate(false);
-                      onUpdate();
-                    }}
-                    type="button"
-                  >
-                    {t('providers.settings.confirm-update')}
-                  </button>
-                  <button
-                    className="text-button"
-                    disabled={updating}
-                    onClick={() => setConfirmingUpdate(false)}
-                    type="button"
-                  >
-                    {t('common.actions.cancel')}
-                  </button>
-                </div>
-              </div>
             ) : release.state === 'update_available' ? (
               <div className="provider-update-actions">
                 <button
@@ -367,6 +313,51 @@ function ProviderCard({
           </button>
         </div>
       </div>
+
+      {/**
+        * A confirmation is a blocking yes or no, so it belongs in a dialog
+        * rather than inside the card. Inline it swapped the action button for a
+        * warning and two more buttons, pushing every provider below it down.
+        */}
+      {!confirmingInstall ? null : (
+        <ConfirmDialog
+          confirmLabel={t(
+            installing
+              ? 'providers.states.installing'
+              : 'providers.settings.confirm-install'
+          )}
+          confirmDisabled={installing}
+          description={t('providers.settings.install-confirm', {
+            provider: installation.displayName
+          })}
+          heading={t('providers.settings.confirm-install-label', {
+            provider: installation.displayName
+          })}
+          onCancel={() => setConfirmingInstall(false)}
+          onConfirm={() => {
+            setConfirmingInstall(false);
+            onInstall();
+          }}
+        />
+      )}
+      {!confirmingUpdate || release === null ||
+        release.state !== 'update_available' ? null : (
+        <ConfirmDialog
+          confirmLabel={t('providers.settings.confirm-update')}
+          confirmDisabled={updating}
+          description={t('providers.settings.update-warning', {
+            provider: installation.displayName
+          })}
+          heading={t('providers.settings.confirm-update-label', {
+            provider: installation.displayName
+          })}
+          onCancel={() => setConfirmingUpdate(false)}
+          onConfirm={() => {
+            setConfirmingUpdate(false);
+            onUpdate();
+          }}
+        />
+      )}
     </article>
   );
 }

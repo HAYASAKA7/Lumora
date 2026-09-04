@@ -646,7 +646,7 @@ describe('ProviderSettings', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm update Codex with npm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
     expect(screen.getByRole('button', { name: 'Updating Codex' })).toBeDisabled();
     expect(screen.getByLabelText('Claude Code start command')).toBeEnabled();
     completeUpdate();
@@ -674,7 +674,7 @@ describe('ProviderSettings', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm update Codex with npm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
     expect(
       await screen.findByText('Codex could not be updated. Run codex update manually or try again.')
     ).toBeVisible();
@@ -745,7 +745,7 @@ describe('ProviderSettings', () => {
     ).toBeVisible();
     expect(lumora.installProvider).not.toHaveBeenCalled();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Confirm install Gemini CLI' })
+      screen.getByRole('button', { name: 'Confirm install' })
     );
     await waitFor(() =>
       expect(lumora.installProvider).toHaveBeenCalledWith('gemini')
@@ -797,9 +797,9 @@ describe('ProviderSettings', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Install Gemini CLI' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm install Gemini CLI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
     fireEvent.click(screen.getByRole('button', { name: 'Install Crush' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm install Crush' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
 
     expect(screen.getByRole('button', { name: 'Install Gemini CLI' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Install Crush' })).toBeDisabled();
@@ -819,7 +819,7 @@ describe('ProviderSettings', () => {
       await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
     fireEvent.click(
-      screen.getByRole('button', { name: 'Confirm update Codex with npm' })
+      screen.getByRole('button', { name: 'Confirm update' })
     );
 
     fireEvent.click(
@@ -843,12 +843,73 @@ describe('ProviderSettings', () => {
       await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
     );
     fireEvent.click(
-      screen.getByRole('button', { name: 'Confirm update Codex with npm' })
+      screen.getByRole('button', { name: 'Confirm update' })
     );
 
     expect(await screen.findByText(
       'Codex is running, so its files could not be replaced. ' +
       'Close running Codex sessions and try again.'
     )).toBeVisible();
+  });
+
+  /**
+   * A confirmation used to swap the action button for a warning paragraph and
+   * two more buttons, pushing every provider below it down the page.
+   */
+  it('confirms an update outside the provider list instead of inside it', async () => {
+    setLumora({ checkProviderUpdates: vi.fn().mockResolvedValue(availableUpdates) });
+    render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
+
+    const update = await screen.findByRole('button', {
+      name: 'Update Codex with npm to 1.1.0'
+    });
+    const list = update.closest('.provider-grid') as HTMLElement | null;
+    expect(list).not.toBeNull();
+
+    fireEvent.click(update);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    /**
+     * jsdom has no layout, so the guarantee worth asserting is structural: the
+     * confirmation lives outside the list, which is what keeps the providers
+     * below it from being pushed down.
+     */
+    expect(list!.contains(dialog)).toBe(false);
+    expect(within(list!).queryByText(/global npm update/)).toBeNull();
+  });
+
+  it('runs the update only after the confirmation is accepted', async () => {
+    const updateProvider = vi.fn().mockResolvedValue({
+      outcome: 'completed',
+      result: {
+        provider: 'codex',
+        completedAt: '2026-09-04T00:00:00.000Z',
+        installation: {
+          provider: 'codex', displayName: 'Codex', state: 'ready',
+          executablePath: '/usr/bin/codex', version: '1.1.0', issue: null
+        }
+      }
+    });
+    setLumora({
+      checkProviderUpdates: vi.fn().mockResolvedValue(availableUpdates),
+      updateProvider
+    });
+    render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Update Codex with npm to 1.1.0'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(updateProvider).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Update Codex with npm to 1.1.0'
+    }));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Confirm update'
+    }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalledWith('codex'));
   });
 });

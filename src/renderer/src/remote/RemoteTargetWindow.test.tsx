@@ -1214,7 +1214,7 @@ describe('RemoteTargetWindow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Install OpenCode' }));
     fireEvent.click(screen.getByRole('button', {
-      name: 'Confirm install OpenCode'
+      name: 'Confirm install'
     }));
     await waitFor(() => expect(installProvider).toHaveBeenCalledWith('opencode'));
   });
