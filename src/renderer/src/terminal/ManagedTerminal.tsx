@@ -69,24 +69,41 @@ function isRuntimeLive(runtime: RuntimeSummary): boolean {
  *
  * The fit addon measures the element the terminal was opened into but then
  * subtracts the padding of the terminal element itself, so an inset on the
- * container is invisible to it and it can fit one row more than the container
- * actually shows. Dropping that row is the whole correction: nothing else about
- * the layout changes, and when the grid already fits this does nothing.
+ * container is invisible to it and it fits a grid up to that inset taller than
+ * the container shows, cutting the bottom line.
+ *
+ * The overflow is at most the inset, so it is taken out of the inset rather
+ * than out of the grid: the terminal keeps every row and still reaches the
+ * bottom of its container. Only if the overflow somehow exceeds the inset does
+ * a row have to go.
  */
 function fitWithinContainer(
   terminal: import('@xterm/xterm').Terminal,
   fitAddon: import('@xterm/addon-fit').FitAddon,
   host: HTMLElement
 ): void {
+  host.style.paddingBottom = '';
   fitAddon.fit();
   const screen = host.querySelector('.xterm-screen');
   if (!(screen instanceof HTMLElement)) return;
   const style = getComputedStyle(host);
+  const insetBottom = parseFloat(style.paddingBottom || '0');
   const available = host.clientHeight -
     parseFloat(style.paddingTop || '0') -
-    parseFloat(style.paddingBottom || '0');
-  if (screen.offsetHeight > available && terminal.rows > 1) {
-    terminal.resize(terminal.cols, terminal.rows - 1);
+    insetBottom;
+  const gridHeight = screen.offsetHeight;
+  let overflow = gridHeight - available;
+  if (overflow <= 0) return;
+
+  if (overflow > insetBottom && terminal.rows > 1) {
+    const cell = gridHeight / terminal.rows;
+    const surplus = Math.ceil((overflow - insetBottom) / cell);
+    const rows = Math.max(1, terminal.rows - surplus);
+    overflow -= (terminal.rows - rows) * cell;
+    terminal.resize(terminal.cols, rows);
+  }
+  if (overflow > 0) {
+    host.style.paddingBottom = `${Math.max(0, insetBottom - overflow)}px`;
   }
 }
 

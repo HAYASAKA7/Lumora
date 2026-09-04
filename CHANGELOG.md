@@ -9,9 +9,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Stop the terminal slicing its last line. The terminal fitted one row more
-  than its container shows, so the bottom line of an agent's status bar was cut
-  off by the edge. The extra row is dropped when it does not fit.
+- Stop the terminal slicing its last line. The terminal fitted a grid slightly
+  taller than its container shows, so the bottom line of an agent's status bar
+  was cut off by the edge. The overflow now comes out of the inset below the
+  terminal, which keeps every row and leaves the terminal reaching the bottom of
+  its container as before.
 
 ### Added
 
