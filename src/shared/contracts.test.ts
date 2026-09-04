@@ -1792,6 +1792,7 @@ describe('managed terminal contracts', () => {
         lightTerminalInLightMode: false,
         interfaceFontFamily: null,
         terminalFontFamily: null,
+        terminalFontSize: 13,
         userMessageColor: null,
         backgroundEnabled: false,
         backgroundOpacity: 0.55,
@@ -1812,6 +1813,32 @@ describe('managed terminal contracts', () => {
     expect(parseStoredGeneralSettings(versionThirteen)).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
+    /**
+     * Settings written before the terminal text size existed must keep working
+     * and land on the size the terminal was hardcoded to.
+     */
+    const withoutTerminalFontSize = structuredClone(DEFAULT_GENERAL_SETTINGS) as
+      Record<string, unknown>;
+    delete (withoutTerminalFontSize.appearance as Record<string, unknown>)
+      .terminalFontSize;
+    expect(parseStoredGeneralSettings(withoutTerminalFontSize).appearance
+      .terminalFontSize).toBe(13);
+    for (const size of [10, 13, 24]) {
+      expect(GeneralSettingsSchema.safeParse({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance, terminalFontSize: size
+        }
+      }).success).toBe(true);
+    }
+    for (const size of [9, 25, 13.5]) {
+      expect(GeneralSettingsSchema.safeParse({
+        ...DEFAULT_GENERAL_SETTINGS,
+        appearance: {
+          ...DEFAULT_GENERAL_SETTINGS.appearance, terminalFontSize: size
+        }
+      }).success).toBe(false);
+    }
     expect(FontFamilyNameSchema.parse(' JetBrains Mono ')).toBe('JetBrains Mono');
     expect(FontFamilyNameSchema.safeParse('Bad\nFont').success).toBe(false);
     expect(FontFamilyNameSchema.safeParse('x'.repeat(129)).success).toBe(false);

@@ -17,12 +17,14 @@ import { encodeTerminalNativeKey } from './terminal-native-key';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useLocalization } from '../localization/useLocalization';
 import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
+import { DEFAULT_TERMINAL_FONT_SIZE } from '../../../shared/contracts';
 
 interface ManagedTerminalProps {
   api?: LumoraApi;
   active: boolean;
   backgroundOpacity?: number;
   fontFamily?: string;
+  fontSize?: number;
   focusRequestKey?: number;
   platform: SystemInfo['platform'];
   runtime: RuntimeSummary;
@@ -67,6 +69,7 @@ export function ManagedTerminal({
   active,
   backgroundOpacity = 1,
   fontFamily = DEFAULT_TERMINAL_FONT_STACK,
+  fontSize = DEFAULT_TERMINAL_FONT_SIZE,
   focusRequestKey = 0,
   platform,
   runtime,
@@ -81,6 +84,7 @@ export function ManagedTerminal({
   const themeRef = useRef({ theme, backgroundOpacity });
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const fontFamilyRef = useRef(fontFamily);
+  const fontSizeRef = useRef(fontSize);
   const interruptDeadlineRef = useRef<number | null>(null);
   const acceptingInputRef = useRef(isRuntimeLive(runtime));
   const interruptTimerRef = useRef<number | null>(null);
@@ -91,6 +95,7 @@ export function ManagedTerminal({
   platformRef.current = platform;
   themeRef.current = { theme, backgroundOpacity };
   fontFamilyRef.current = fontFamily;
+  fontSizeRef.current = fontSize;
 
   const clearInterruptGuard = useCallback(() => {
     interruptDeadlineRef.current = null;
@@ -114,7 +119,7 @@ export function ManagedTerminal({
           allowTransparency: true,
           cursorBlink: true,
           fontFamily: fontFamilyRef.current,
-          fontSize: 13,
+          fontSize: fontSizeRef.current,
           scrollback: 5_000,
           theme: terminalPalette(
             themeRef.current.theme,
@@ -462,6 +467,17 @@ export function ManagedTerminal({
     terminal.options.fontFamily = fontFamily;
     fitAddonRef.current?.fit();
   }, [fontFamily]);
+
+  /**
+   * A different glyph size means a different column count, so the fit has to
+   * run for the running agent to be told the terminal's new dimensions.
+   */
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    if (terminal === null) return;
+    terminal.options.fontSize = fontSize;
+    fitAddonRef.current?.fit();
+  }, [fontSize]);
 
   useEffect(() => {
     if (!isRuntimeLive(runtime)) {

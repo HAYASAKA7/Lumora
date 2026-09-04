@@ -22,6 +22,7 @@ import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { useLocalization } from '../localization/useLocalization';
 import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
+import { DEFAULT_TERMINAL_FONT_SIZE } from '../../../shared/contracts';
 
 const runtimeStateMessageKeys: Record<RuntimeState, string> = {
   launching: 'terminal.runtime.state-launching',
@@ -36,6 +37,7 @@ interface TerminalWorkspaceProps {
   api?: LumoraApi;
   backgroundOpacity?: number;
   fontFamily?: string;
+  fontSize?: number;
   runtimes: readonly RuntimeSummary[];
   activeRuntimeId: string;
   focusRequestKey?: number;
@@ -65,6 +67,7 @@ export function TerminalWorkspace({
   api = window.lumora,
   backgroundOpacity = 1,
   fontFamily = DEFAULT_TERMINAL_FONT_STACK,
+  fontSize = DEFAULT_TERMINAL_FONT_SIZE,
   runtimes,
   activeRuntimeId,
   focusRequestKey = 0,
@@ -369,6 +372,7 @@ export function TerminalWorkspace({
               api={api}
               backgroundOpacity={backgroundOpacity}
               fontFamily={fontFamily}
+              fontSize={fontSize}
               focusRequestKey={focusRequestKey}
               platform={platform}
               runtime={item}

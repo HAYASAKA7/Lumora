@@ -27,6 +27,7 @@ const xterm = vi.hoisted(() => ({
   terminalOptions: null as {
     allowTransparency?: boolean;
     fontFamily?: string;
+    fontSize?: number;
     theme?: { background?: string; foreground?: string };
     linkHandler?: {
       activate(event: MouseEvent, uri: string): void;
@@ -54,6 +55,7 @@ vi.mock('@xterm/xterm', () => ({
     constructor(options?: {
       allowTransparency?: boolean;
       fontFamily?: string;
+      fontSize?: number;
       theme?: { background?: string; foreground?: string };
       linkHandler?: {
         activate(event: MouseEvent, uri: string): void;
@@ -1442,5 +1444,46 @@ describe('ManagedTerminal', () => {
     expect(xterm.customKeyEventHandler).toBe(handler);
     expect(xterm.terminalConstructed).toHaveBeenCalledTimes(1);
     expect(attachRuntime).toHaveBeenCalledTimes(1);
+  });
+
+  it('resizes open terminals when the text size changes', async () => {
+    const attachRuntime = vi.fn().mockResolvedValue({
+      runtime,
+      snapshot: '',
+      outputSequence: 0
+    });
+    installLumora({ attachRuntime });
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        fontSize={13}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    await waitFor(() => expect(xterm.terminalConstructed).toHaveBeenCalledOnce());
+    expect(xterm.terminalOptions?.fontSize).toBe(13);
+    xterm.fitTerminal.mockClear();
+
+    rerender(
+      <ManagedTerminal
+        active
+        fontSize={18}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    /**
+     * The grid has to be refitted, because a larger glyph means fewer columns
+     * and the running agent needs the new size to redraw its interface.
+     */
+    await waitFor(() => expect(xterm.terminalOptions?.fontSize).toBe(18));
+    expect(xterm.fitTerminal).toHaveBeenCalled();
+    expect(xterm.terminalConstructed).toHaveBeenCalledOnce();
   });
 });

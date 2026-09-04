@@ -1075,6 +1075,10 @@ export const FontFamilyNameSchema = z.string()
 
 export const AppearanceColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/u);
 
+export const MINIMUM_TERMINAL_FONT_SIZE = 10;
+export const MAXIMUM_TERMINAL_FONT_SIZE = 24;
+export const DEFAULT_TERMINAL_FONT_SIZE = 13;
+
 export const AppearanceSettingsSchema = z.strictObject({
   theme: AppearanceThemeSchema,
   themePresetId: z.string()
@@ -1085,6 +1089,14 @@ export const AppearanceSettingsSchema = z.strictObject({
   lightTerminalInLightMode: z.boolean(),
   interfaceFontFamily: FontFamilyNameSchema.nullable(),
   terminalFontFamily: FontFamilyNameSchema.nullable(),
+  /**
+   * Terminal glyph size in pixels. A default keeps settings written before this
+   * setting existed readable, so no stored-settings migration is needed.
+   */
+  terminalFontSize: z.number().int()
+    .min(MINIMUM_TERMINAL_FONT_SIZE)
+    .max(MAXIMUM_TERMINAL_FONT_SIZE)
+    .default(DEFAULT_TERMINAL_FONT_SIZE),
   userMessageColor: AppearanceColorSchema.nullable().default(null),
   backgroundEnabled: z.boolean(),
   backgroundOpacity: z.number().min(0).max(1),
@@ -1105,6 +1117,7 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
   lightTerminalInLightMode: false,
   interfaceFontFamily: null,
   terminalFontFamily: null,
+  terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
   userMessageColor: null,
   backgroundEnabled: false,
   backgroundOpacity: 0.55,

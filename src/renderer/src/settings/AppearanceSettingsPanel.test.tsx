@@ -430,4 +430,35 @@ describe('AppearanceSettingsPanel', () => {
       }
     });
   });
+
+  it('saves a terminal text size for every terminal', () => {
+    const onChange = vi.fn();
+    render(
+      <AppearanceSettingsPanel
+        background={{ available: true, revision: '1720000000000-4096' }}
+        backgroundBusy={false}
+        backgroundError={null}
+        onChange={onChange}
+        onChooseBackground={vi.fn()}
+        onRemoveBackground={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+
+    const size = screen.getByRole('slider', { name: 'Terminal text size' });
+    fireEvent.change(size, { target: { value: '18' } });
+    expect(screen.getByText('18 px')).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(size);
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      appearance: {
+        ...DEFAULT_GENERAL_SETTINGS.appearance,
+        terminalFontSize: 18
+      }
+    });
+  });
 });

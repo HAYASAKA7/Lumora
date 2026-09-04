@@ -136,6 +136,7 @@
     "interface-font-placeholder": "使用 Lumora 默认字体",
     "reset-interface-font": "重置界面字体",
     "terminal-font": "终端字体",
+    "terminal-font-size": "终端文字大小",
     "terminal-font-description": "为托管终端内容选择已安装的等宽字体。",
     "terminal-font-placeholder": "使用终端默认字体",
     "reset-terminal-font": "重置终端字体",

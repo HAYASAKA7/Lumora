@@ -136,6 +136,7 @@
     "interface-font-placeholder": "Use the Lumora default",
     "reset-interface-font": "Reset interface font",
     "terminal-font": "Terminal font",
+    "terminal-font-size": "Terminal text size",
     "terminal-font-description": "Choose an installed monospaced font for managed terminal content.",
     "terminal-font-placeholder": "Use the terminal default",
     "reset-terminal-font": "Reset terminal font",

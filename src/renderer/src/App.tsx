@@ -2480,6 +2480,7 @@ function AppContent(): ReactNode {
                 fontFamily={resolveTerminalFontFamily(
                   appearance.terminalFontFamily
                 )}
+                fontSize={appearance.terminalFontSize}
                 onActivate={activateRuntime}
                 onReorder={reorderRuntimeTab}
                 onRuntimeChange={updateRuntime}

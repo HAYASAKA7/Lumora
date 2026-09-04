@@ -8,6 +8,10 @@ import type {
   LumoraApi,
   ThemePresetList
 } from '../../../shared/contracts';
+import {
+  MAXIMUM_TERMINAL_FONT_SIZE,
+  MINIMUM_TERMINAL_FONT_SIZE
+} from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization } from '../localization/useLocalization';
 import {
@@ -428,6 +432,17 @@ export function AppearanceSettingsPanel({
             )}
             resetDisabled={settings.appearance.terminalFontFamily === null}
             resetLabel={t('settings.appearance.reset-terminal-font')}
+          />
+        </div>
+        <div className="appearance-control-grid">
+          <AppearanceRange
+            disabled={saving}
+            label={t('settings.appearance.terminal-font-size')}
+            max={MAXIMUM_TERMINAL_FONT_SIZE}
+            min={MINIMUM_TERMINAL_FONT_SIZE}
+            onChange={(value) => updateAppearance({ terminalFontSize: value })}
+            suffix=" px"
+            value={settings.appearance.terminalFontSize}
           />
         </div>
         <div className="appearance-font-presets">

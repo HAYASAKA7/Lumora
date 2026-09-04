@@ -1764,6 +1764,7 @@ export function RemoteTargetWindow({
                   fontFamily={resolveTerminalFontFamily(
                     generalSettings.appearance.terminalFontFamily
                   )}
+                  fontSize={generalSettings.appearance.terminalFontSize}
                   onActivate={activateRuntime}
                   onReorder={reorderRuntimeTab}
                   onRuntimeChange={updateRuntime}

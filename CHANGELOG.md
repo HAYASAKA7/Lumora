@@ -9,6 +9,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Choose the terminal text size under **Settings → Appearance**, beside the
+  terminal font. Agent interfaces that drew too small can be made readable, and
+  the change reaches terminals that are already open, local and remote, without
+  reopening them. Larger text leaves fewer columns, so a wide interface wraps
+  sooner.
+
 - Cancel a provider update while it runs. **Cancel update** stops the npm
   process Lumora started, including the processes it spawned underneath, rather
   than only clearing the progress indicator. Lumora re-reads the provider
