@@ -40,6 +40,7 @@ dark under a light application theme.
 Appearance also supports:
 
 - independent installed interface and terminal fonts;
+- terminal text size, applied to terminals that are already open;
 - data-only font presets;
 - PNG, JPEG, or WebP managed backgrounds;
 - image opacity, brightness, blur, fit, and position;
@@ -76,6 +77,15 @@ guides, and save provider-specific start commands.
 The local Providers page also contains the Unified UI master switch and its
 detailed capability dialog. See the [Unified UI guide](UNIFIED_UI.md#enable-unified-ui)
 and [provider support matrix](PROVIDER_SUPPORT.md).
+
+An update in progress can be cancelled, which stops the package manager
+process Lumora started rather than only clearing the progress indicator.
+Lumora re-reads the provider afterwards, because an install stopped partway can
+leave a different version on disk than the one shown.
+
+Updating a provider that is currently running fails on Windows, because its
+files cannot be replaced while in use. Lumora reports that specific cause and
+asks for the running sessions to be closed first.
 
 Provider installation never installs Node.js for the user. Remote provider
 lifecycle actions run only on the connected target, use fixed allowlisted

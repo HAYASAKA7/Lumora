@@ -148,6 +148,11 @@ between Lumora pages. With the sidebar expanded, select the session under
 **Running sessions**. With it collapsed, use the terminal tabs or the configured
 terminal-switcher shortcut.
 
+Set the terminal text size under **Settings → Appearance**, beside the terminal
+font. It applies to terminals that are already open, local and remote, without
+reopening them. A larger size leaves fewer columns, so a wide provider interface
+wraps sooner.
+
 When the provider exits, Lumora closes the runtime view and refreshes the
 catalog and sidebar. Stopping a session uses a graceful provider-aware shutdown
 before forceful termination. A full Lumora exit also warns before stopping

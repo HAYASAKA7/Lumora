@@ -7,13 +7,7 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- Stop the terminal slicing its last line. The terminal fitted a grid slightly
-  taller than its container shows, so the bottom line of an agent's status bar
-  was cut off by the edge. The overflow now comes out of the inset below the
-  terminal, which keeps every row and leaves the terminal reaching the bottom of
-  its container as before.
+## [0.5.4] - 2026-09-04
 
 ### Added
 
@@ -22,7 +16,6 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the change reaches terminals that are already open, local and remote, without
   reopening them. Larger text leaves fewer columns, so a wide interface wraps
   sooner.
-
 - Cancel a provider update while it runs. **Cancel update** stops the npm
   process Lumora started, including the processes it spawned underneath, rather
   than only clearing the progress indicator. Lumora re-reads the provider
@@ -39,6 +32,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Lumora now recognises that failure and asks you to close the running sessions
   first. npm's own output is still never shown, because it can carry registry
   credentials.
+- Stop the terminal slicing its last line. The terminal fitted a grid slightly
+  taller than its container shows, so the bottom line of an agent's status bar
+  was cut off by the edge. The overflow now comes out of the inset below the
+  terminal, which keeps every row and leaves the terminal reaching the bottom of
+  its container as before.
 
 ## [0.5.3] - 2026-09-03
 
