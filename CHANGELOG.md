@@ -7,7 +7,28 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-05
+
 ### Changed
+
+- Rebuild **Settings → Providers** around one card per provider. A card carries
+  the version, a switch to turn the provider on or off, an update button when
+  there is one, and a **Details** button. Details holds the detected command,
+  the installed path, the release state and the custom start command. The
+  separate list of enabled providers is gone, because the switch replaces it and
+  applies at once. Every provider Lumora supports keeps a card even when it is
+  turned off, so it can always be turned back on. The update button reads
+  **Update available**; the version it moves to is named in the confirmation.
+- Confirm a provider install or update in a dialog instead of inside the
+  provider card. The confirmation used to replace the action button with a
+  warning and two more buttons, pushing every provider below it down the page.
+- Collapse the sections of **Settings → Appearance**. Theme packs, message
+  colors, fonts and the workspace image each fold to their heading, showing
+  their current value beside it, and the choice is remembered. The color theme
+  stays visible, and an open section keeps its controls on the page so a live
+  preview still shows through.
+
+### Fixed
 
 - Make **Refresh** on **Settings → Providers** actually re-scan. It answered
   from a five-minute cache, so a provider that failed to be detected once
@@ -23,31 +44,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Record what each provider scan found in the diagnostic journal, and log a
   scan that missed a provider as a warning. A scan that returned but detected
   nothing used to be recorded as a plain success.
-
-- Hold the column widths in **All sessions**. The table used to re-measure
-  itself against its contents, so every refresh and every **Load more** shifted
-  the columns under the pointer. The widths now come from the header alone:
-  they still follow the window, but no longer the rows. A value too long for
-  its column is cut with an ellipsis instead of wrapping, so row heights hold
-  as well.
-
-- Rebuild **Settings → Providers** around one card per provider. A card now
-  carries the version, a switch to turn the provider on or off, an update
-  button when there is one, and a **Details** button. Details holds the
-  installed path, the release state and the custom start command. The separate
-  list of enabled providers is gone, because the switch replaces it and applies
-  at once. Every provider Lumora supports keeps a card even when it is turned
-  off, so it can always be turned back on.
-
-- Collapse the sections of **Settings → Appearance**. Theme packs, message
-  colors, fonts and the workspace image each fold to their heading, showing
-  their current value beside it, and the choice is remembered. The color theme
-  stays visible, and an open section keeps its controls on the page so a live
-  preview still shows through.
-- Confirm a provider install or update in a dialog instead of inside the
-  provider card. The confirmation used to replace the action button with a
-  warning and two more buttons, pushing every provider below it down the page.
-
+- Hold the column widths in **All sessions**. The table re-measured itself
+  against its contents, so every refresh and every **Load more** shifted the
+  columns under the pointer. The widths now come from the header alone: they
+  still follow the window, but no longer the rows. A value too long for its
+  column is cut with an ellipsis instead of wrapping, so row heights hold as
+  well.
 
 ## [0.5.4] - 2026-09-04
 

@@ -37,6 +37,12 @@ dark under a light application theme.
   <img src="screenshots/0.5/settings/settings_appearance.png" alt="Lumora Appearance settings with built-in themes and Theme Mod controls" width="1100">
 </p>
 
+Theme packs, message colors, fonts, and the workspace image each fold to their
+heading, showing their current value beside it, so the page stays short. Lumora
+remembers which sections were open. The color theme is always visible, and an
+open section keeps its controls on the page so a live preview still shows
+through.
+
 Appearance also supports:
 
 - independent installed interface and terminal fonts;
@@ -66,12 +72,25 @@ limits, and recovery.
 
 ## Providers
 
-Choose the providers Lumora scans and displays, inspect installed versions,
-check for updates, run confirmed allowlisted npm actions, open official setup
-guides, and save provider-specific start commands.
+Every provider Lumora supports has one card, whether or not it is installed.
+The card carries the detected version, a switch that decides whether Lumora
+scans and offers that provider, an update button when a newer release exists,
+and **Details**. A provider that is switched off keeps its card, so it can
+always be switched back on. At least one provider stays enabled.
+
+**Details** opens a dialog holding the rest: the detected command and installed
+path, whether the provider supports saved sessions, its release state, any
+diagnostic from the last scan, and the provider-specific start command.
+
+Installing or updating a provider asks for confirmation in a dialog naming the
+version it will move to, rather than expanding the card.
+
+**Refresh** re-probes every enabled provider rather than reusing the last
+result, so a provider that failed to be detected once can be re-checked without
+restarting Lumora.
 
 <p align="center">
-  <img src="screenshots/0.5/settings/settings_providers.png" alt="Lumora Providers settings with installation state, versions, and start commands" width="1100">
+  <img src="screenshots/0.5/settings/settings_providers.png" alt="Lumora Providers settings with one card per provider, versions, switches, and Details" width="1100">
 </p>
 
 The local Providers page also contains the Unified UI master switch and its

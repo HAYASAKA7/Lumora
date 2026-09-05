@@ -74,10 +74,15 @@ environment check. Lumora does not install Node.js automatically.
 **Likely cause:** The executable is not on `PATH`, the command name differs from
 Lumora's default, or its version probe is incompatible.
 
-**Resolution:** Run the provider's version command in a normal terminal. Confirm
-that it succeeds, then restart Lumora and select **Refresh**. If the executable
-uses a nonstandard path or wrapper, configure the provider command under
-**Settings > Launch**.
+**Resolution:** Select **Refresh** on **Settings > Providers**, which re-probes
+every enabled provider rather than reusing the last result. If the provider is
+still missing, run its version command in a normal terminal and confirm that it
+succeeds. If the executable uses a nonstandard path or wrapper, configure the
+provider command under **Settings > Launch**.
+
+A scan that missed a provider is recorded in the diagnostic journal with the
+number of providers detected, missing, and failed to probe, so a detection that
+fails intermittently leaves a trace to look back at.
 
 ### An alias or wrapper command does not start
 

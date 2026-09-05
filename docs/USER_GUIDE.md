@@ -12,8 +12,9 @@ For installation and system requirements, start with the
 ## First run
 
 1. Open **Settings > Environment** and confirm Node.js and npm are available.
-2. Open **Settings > Providers**, enable the agents you want Lumora to scan,
-   and review their detected versions.
+2. Open **Settings > Providers**, switch on the agents you want Lumora to scan,
+   and review their detected versions. **Details** on a card shows where the
+   provider was found and lets you set its start command.
 3. Install or authenticate each provider using its supported Lumora action or
    official instructions.
 4. Open **Workspaces**, add a project directory, then select **New session**.
