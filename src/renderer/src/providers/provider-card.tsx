@@ -73,8 +73,10 @@ export function ProviderCard({
   const definition = providerDefinition(installation.provider);
   const label = { provider: installation.displayName };
   const ready = installation.state === 'ready';
-  const updatable = ready && release !== null &&
-    release.state === 'update_available';
+  const available = ready && release !== null &&
+    release.state === 'update_available'
+    ? release
+    : null;
 
   return (
     <article className={`provider-card provider-card-${installation.state}`}>
@@ -98,14 +100,11 @@ export function ProviderCard({
       </header>
 
       <div className="provider-card-actions">
-        {updatable && release !== null ? (
+        {available !== null ? (
           <button
             aria-label={updating
               ? t('providers.settings.updating-label', label)
-              : t('providers.settings.update-label', {
-                  ...label,
-                  version: release.latestVersion
-                })}
+              : t('providers.settings.update-label', label)}
             className="refresh-button"
             data-lumora-command
             disabled={updating}
@@ -118,11 +117,9 @@ export function ProviderCard({
             }}
             type="button"
           >
-            {updating
-              ? t('providers.states.updating')
-              : t('providers.settings.update-to', {
-                  version: release.latestVersion
-                })}
+            {t(updating
+              ? 'providers.states.updating'
+              : 'providers.settings.update-available')}
           </button>
         ) : ready ? null : definition.npmPackage === null ? (
           <button
@@ -229,11 +226,14 @@ export function ProviderCard({
           }}
         />
       )}
-      {!confirmingUpdate || !updatable ? null : (
+      {!confirmingUpdate || available === null ? null : (
         <ConfirmDialog
           confirmDisabled={updating}
           confirmLabel={t('providers.settings.confirm-update')}
-          description={t('providers.settings.update-warning', label)}
+          description={t('providers.settings.update-warning', {
+            ...label,
+            version: available.latestVersion
+          })}
           heading={t('providers.settings.confirm-update-label', label)}
           onCancel={() => setConfirmingUpdate(false)}
           onConfirm={() => {

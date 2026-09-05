@@ -552,11 +552,11 @@ describe('ProviderSettings', () => {
     expect(await screen.findByText('Up to date · 2.0.0')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(
-      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      screen.getByRole('button', { name: 'Update Codex with npm' })
     ).toBeVisible();
     expect(
-      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
-    ).toHaveTextContent('Update with npm to 1.1.0');
+      screen.getByRole('button', { name: 'Update Codex with npm' })
+    ).toHaveTextContent('Update available');
     expect(screen.queryByRole('button', { name: /Update Claude/ })).toBeNull();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
@@ -637,17 +637,17 @@ describe('ProviderSettings', () => {
     );
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm' })
     );
     expect(updateProvider).not.toHaveBeenCalled();
     expect(screen.getByText(
-      'Lumora will run a global npm update. If Codex was installed another way, this may create a separate installation.'
+      'Lumora will update Codex to 1.1.0 with a global npm update. If Codex was installed another way, this may create a separate installation.'
     )).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(updateProvider).not.toHaveBeenCalled();
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      screen.getByRole('button', { name: 'Update Codex with npm' })
     );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
     expect(screen.getByRole('button', { name: 'Updating Codex' })).toBeDisabled();
@@ -677,7 +677,7 @@ describe('ProviderSettings', () => {
     );
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm' })
     );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
     expect(
@@ -822,7 +822,7 @@ describe('ProviderSettings', () => {
     render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm' })
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Confirm update' })
@@ -846,7 +846,7 @@ describe('ProviderSettings', () => {
     render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Update Codex with npm to 1.1.0' })
+      await screen.findByRole('button', { name: 'Update Codex with npm' })
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Confirm update' })
@@ -867,7 +867,7 @@ describe('ProviderSettings', () => {
     render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
 
     const update = await screen.findByRole('button', {
-      name: 'Update Codex with npm to 1.1.0'
+      name: 'Update Codex with npm'
     });
     const list = update.closest('.provider-grid') as HTMLElement | null;
     expect(list).not.toBeNull();
@@ -904,14 +904,14 @@ describe('ProviderSettings', () => {
     render(<ProviderSettings onRefresh={vi.fn()} onRefreshUpdates={vi.fn()} />);
 
     fireEvent.click(await screen.findByRole('button', {
-      name: 'Update Codex with npm to 1.1.0'
+      name: 'Update Codex with npm'
     }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(updateProvider).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Update Codex with npm to 1.1.0'
+      name: 'Update Codex with npm'
     }));
     fireEvent.click(screen.getByRole('button', {
       name: 'Confirm update'
