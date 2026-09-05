@@ -9,6 +9,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Hold the column widths in **All sessions**. The table used to re-measure
+  itself against its contents, so every refresh and every **Load more** shifted
+  the columns under the pointer. The widths now come from the header alone:
+  they still follow the window, but no longer the rows. A value too long for
+  its column is cut with an ellipsis instead of wrapping, so row heights hold
+  as well.
+
 - Rebuild **Settings → Providers** around one card per provider. A card now
   carries the version, a switch to turn the provider on or off, an update
   button when there is one, and a **Details** button. Details holds the

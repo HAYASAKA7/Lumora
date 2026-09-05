@@ -3198,7 +3198,9 @@ button {
 
 .session-table {
   width: 100%;
-  min-width: 760px;
+  /* Wide enough that the fixed columns still hold a date and a badge; below
+     this the wrapper scrolls rather than squeezing them. */
+  min-width: 820px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -3221,6 +3223,49 @@ button {
   padding: 16px 14px;
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+
+/*
+ * An auto-layout table measures its content, so every refresh and every Load
+ * more re-sized the columns under the pointer. Fixed layout takes the widths
+ * from the header alone: they follow the window, never the rows. The share
+ * each column gets is what its longest realistic value needs, and anything
+ * longer is cut with an ellipsis rather than wrapped, so row heights hold too.
+ */
+@media (min-width: 721px) {
+  .session-table {
+    table-layout: fixed;
+  }
+
+  .session-table th:nth-child(1) { width: 23%; }
+  .session-table th:nth-child(2) { width: 13%; }
+  .session-table th:nth-child(3) { width: 19%; }
+  .session-table th:nth-child(4) { width: 18%; }
+  .session-table th:nth-child(5) { width: 13%; }
+  .session-table th:nth-child(6) { width: 14%; }
+
+  .session-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The title truncates; the Running badge beside it never does. */
+  .session-table td:first-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .session-table td:first-child strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .session-table td:first-child .session-running-badge {
+    flex: none;
+    margin-left: 0;
+  }
 }
 
 .session-table tbody tr:last-child td {
