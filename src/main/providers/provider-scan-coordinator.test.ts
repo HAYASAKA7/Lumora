@@ -25,6 +25,20 @@ function result(providers: readonly ProviderId[]): ProviderScanResult {
   };
 }
 
+function readyResult(providers: readonly ProviderId[]): ProviderScanResult {
+  return {
+    scannedAt: '2026-07-23T07:30:00.000Z',
+    providers: providers.map((provider) => ({
+      provider,
+      displayName: provider,
+      state: 'ready' as const,
+      executablePath: `/usr/bin/${provider}`,
+      version: '1.0.0',
+      issue: null
+    }))
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
@@ -56,7 +70,10 @@ describe('ProviderScanCoordinator', () => {
       outcome: 'succeeded',
       durationMs: 32,
       cacheHits: 1,
-      queued: 0
+      queued: 0,
+      ready: 0,
+      notFound: 1,
+      probeFailed: 0
     });
   });
 
@@ -91,7 +108,7 @@ describe('ProviderScanCoordinator', () => {
   it('reuses a successful scan until its cache TTL expires', async () => {
     let elapsed = 100;
     const scan = vi.fn(async (providers: readonly ProviderId[]) =>
-      result(providers)
+      readyResult(providers)
     );
     const coordinator = new ProviderScanCoordinator(scan, {
       cacheTtlMs: 500,
@@ -110,10 +127,53 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
+  it('lets a scan that missed a provider expire early', async () => {
+    let elapsed = 100;
+    const scan = vi.fn(async (providers: readonly ProviderId[]) =>
+      result(providers)
+    );
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 300_000,
+      failedCacheTtlMs: 10_000,
+      monotonicClock: () => elapsed
+    });
+
+    const first = await coordinator.scan(['codex']);
+    elapsed = 10_099;
+    expect(await coordinator.scan(['codex'])).toBe(first);
+    expect(scan).toHaveBeenCalledOnce();
+
+    // Well inside the 300s term a healthy scan would have kept, but past the
+    // shortened one a miss gets.
+    elapsed = 10_101;
+    await coordinator.scan(['codex']);
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts what each scan actually found', async () => {
+    const onSettled = vi.fn();
+    const coordinator = new ProviderScanCoordinator(
+      async (providers) => ({
+        ...result(providers),
+        providers: [
+          readyResult(['codex']).providers[0]!,
+          result(['claude']).providers[0]!
+        ]
+      }),
+      { onSettled }
+    );
+
+    await coordinator.scan(['codex', 'claude']);
+
+    expect(onSettled).toHaveBeenCalledWith(
+      expect.objectContaining({ ready: 1, notFound: 1, probeFailed: 0 })
+    );
+  });
+
   it('bypasses and replaces a completed cached scan when freshness is requested', async () => {
     let generation = 0;
     const scan = vi.fn(async (providers: readonly ProviderId[]) => ({
-      ...result(providers),
+      ...readyResult(providers),
       scannedAt: `2026-07-23T07:30:0${generation++}.000Z`
     }));
     const coordinator = new ProviderScanCoordinator(scan, {

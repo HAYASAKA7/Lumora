@@ -88,6 +88,14 @@ export function buildVersionInvocation(
   };
 }
 
+/**
+ * Node-based provider CLIs are slow to start: measured cold on Windows, gemini
+ * takes 2.6-2.8s and copilot 2.3-2.4s while the machine is idle. A 5s budget
+ * left under two times headroom, so a busy machine turned a working provider
+ * into a probe failure.
+ */
+const VERSION_PROBE_TIMEOUT_MS = 10_000;
+
 export function executeVersionInvocation(
   invocation: VersionInvocation,
   env: Environment = process.env
@@ -100,7 +108,7 @@ export function executeVersionInvocation(
         encoding: 'utf8',
         env: { ...env, NO_COLOR: '1' },
         maxBuffer: 32 * 1024,
-        timeout: 5_000,
+        timeout: VERSION_PROBE_TIMEOUT_MS,
         windowsHide: true,
         windowsVerbatimArguments:
           invocation.windowsVerbatimArguments ?? false

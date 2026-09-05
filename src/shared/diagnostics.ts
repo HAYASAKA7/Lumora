@@ -39,7 +39,10 @@ export const DiagnosticCountsSchema = z.strictObject({
   discovered: z.number().int().min(0).max(MAX_COUNT).optional(),
   unchanged: z.number().int().min(0).max(MAX_COUNT).optional(),
   invalid: z.number().int().min(0).max(MAX_COUNT).optional(),
-  cacheHits: z.number().int().min(0).max(MAX_COUNT).optional()
+  cacheHits: z.number().int().min(0).max(MAX_COUNT).optional(),
+  ready: z.number().int().min(0).max(MAX_COUNT).optional(),
+  notFound: z.number().int().min(0).max(MAX_COUNT).optional(),
+  probeFailed: z.number().int().min(0).max(MAX_COUNT).optional()
 });
 
 export const DiagnosticEventSchema = z.strictObject({

@@ -24,12 +24,51 @@ interface ProviderScanMeasurement {
   durationMs: number;
   cacheHits: number;
   queued: number;
+  /** Per-provider states, so a scan that found nothing leaves a trace. */
+  ready: number;
+  notFound: number;
+  probeFailed: number;
 }
 
 interface ProviderScanCoordinatorOptions {
   monotonicClock?: () => number;
   onSettled?: (measurement: ProviderScanMeasurement) => void;
   cacheTtlMs?: number;
+  /**
+   * How long a scan that missed at least one provider may be reused. A miss is
+   * often transient — a busy machine, a slow CLI — and caching it for the full
+   * term leaves the provider marked absent long after it came back.
+   */
+  failedCacheTtlMs?: number;
+}
+
+/**
+ * Long enough to still absorb the burst of scans the catalog, the terminal and
+ * the launch gate fire at each other, short enough that a miss clears itself.
+ */
+const DEFAULT_FAILED_CACHE_TTL_MS = 10_000;
+
+type ProviderStateCounts = Pick<
+  ProviderScanMeasurement,
+  'ready' | 'notFound' | 'probeFailed'
+>;
+
+const EMPTY_STATE_COUNTS: ProviderStateCounts = Object.freeze({
+  ready: 0,
+  notFound: 0,
+  probeFailed: 0
+});
+
+function countStates(result: ProviderScanResult): ProviderStateCounts {
+  let ready = 0;
+  let notFound = 0;
+  let probeFailed = 0;
+  for (const provider of result.providers) {
+    if (provider.state === 'ready') ready += 1;
+    else if (provider.state === 'not_found') notFound += 1;
+    else probeFailed += 1;
+  }
+  return { ready, notFound, probeFailed };
 }
 
 interface CachedScan {
@@ -43,6 +82,7 @@ export class ProviderScanCoordinator {
   private readonly cache = new Map<string, CachedScan>();
   private readonly monotonicClock: () => number;
   private readonly cacheTtlMs: number;
+  private readonly failedCacheTtlMs: number;
 
   constructor(
     private readonly scanProviders: ScanProviders,
@@ -52,6 +92,13 @@ export class ProviderScanCoordinator {
     this.cacheTtlMs = Math.max(
       0,
       Math.min(5 * 60_000, options.cacheTtlMs ?? 5 * 60_000)
+    );
+    this.failedCacheTtlMs = Math.min(
+      this.cacheTtlMs,
+      Math.max(
+        0,
+        options.failedCacheTtlMs ?? DEFAULT_FAILED_CACHE_TTL_MS
+      )
     );
   }
 
@@ -135,12 +182,17 @@ export class ProviderScanCoordinator {
     let entry!: ActiveScan;
     const promise = (async () => {
       let outcome: ProviderScanMeasurement['outcome'] = 'succeeded';
+      let states = EMPTY_STATE_COUNTS;
       try {
         const result = await this.scanProviders(selectedProviders);
-        if (this.cacheTtlMs > 0) {
+        states = countStates(result);
+        const ttl = states.ready === result.providers.length
+          ? this.cacheTtlMs
+          : this.failedCacheTtlMs;
+        if (ttl > 0) {
           this.cache.set(key, {
             result,
-            expiresAt: this.monotonicClock() + this.cacheTtlMs
+            expiresAt: this.monotonicClock() + ttl
           });
         }
         return result;
@@ -159,7 +211,8 @@ export class ProviderScanCoordinator {
               )
             ),
             cacheHits: entry.cacheHits,
-            queued: entry.queued
+            queued: entry.queued,
+            ...states
           });
         } catch {
           // Measurement consumers cannot change discovery behavior.

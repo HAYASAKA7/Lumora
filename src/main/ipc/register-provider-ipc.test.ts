@@ -121,6 +121,53 @@ function createHarness(
 const trustedEvent = { senderFrame: { url: 'app://lumora/index.html' } };
 
 describe('registerProviderIpc', () => {
+  /**
+   * A refresh that answers from the cache is why a provider that failed once
+   * stayed missing: the button returned at once and nothing was re-probed.
+   */
+  it('re-probes when the renderer asks for a fresh scan', async () => {
+    const scan = vi.fn(async () => validScan);
+    const scanFresh = vi.fn(async () => validScan);
+    const handlers = new Map<string, InvokeHandler>();
+    registerProviderIpc({
+      authorize: () => ({ mode: 'local', executionTargetId: 'local' }),
+      ipc: {
+        handle(channel: string, handler: InvokeHandler) {
+          handlers.set(channel, handler);
+        }
+      },
+      resolveServices: () => ({
+        registry: { scan, scanFresh },
+        updates: {
+          check: async () => ({
+            checkedAt: '2026-07-17T02:00:00.000Z',
+            providers: []
+          }),
+          update: async () => undefined,
+          install: async () => undefined,
+          cancel: () => true
+        }
+      }),
+      openExternal: async () => undefined
+    });
+    const scanHandler = handlers.get(IPC_CHANNELS.providerScan)!;
+
+    await scanHandler(trustedEvent);
+    expect(scan).toHaveBeenCalledOnce();
+    expect(scanFresh).not.toHaveBeenCalled();
+
+    await scanHandler(trustedEvent, { fresh: true });
+    expect(scanFresh).toHaveBeenCalledOnce();
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a scan request that is not the agreed shape', async () => {
+    const { handler } = createHarness();
+
+    await expect(handler(trustedEvent, { fresh: 'yes' })).rejects.toThrow();
+    await expect(handler(trustedEvent, { refresh: true })).rejects.toThrow();
+  });
+
   it('registers one scan operation and validates its response', async () => {
     const { handler, registeredChannels, resolveServices } = createHarness();
 

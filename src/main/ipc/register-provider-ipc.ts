@@ -2,6 +2,7 @@ import type { IpcAuthorizer } from './ipc-access';
 import {
   IPC_CHANNELS,
   ExternalOpenResultSchema,
+  ProviderScanRequestSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
   ProviderUpdateCancelResultSchema,
@@ -36,6 +37,11 @@ interface IpcRegistrar {
 
 interface ProviderRegistryLike {
   scan(): Promise<unknown>;
+  /**
+   * Re-probes rather than answering from the cache. Optional because a target
+   * whose scan is never cached has nothing to bypass.
+   */
+  scanFresh?(): Promise<unknown>;
 }
 
 interface ProviderUpdatesLike {
@@ -109,9 +115,13 @@ export function registerProviderIpc({
 
   ipc.handle(
     IPC_CHANNELS.providerScan,
-    async (event): Promise<ProviderScanResult> => {
+    async (event, input): Promise<ProviderScanResult> => {
       const { registry } = resolveServices(assertTrusted(event));
-      return ProviderScanResultSchema.parse(await registry.scan());
+      const { fresh } = ProviderScanRequestSchema.parse(input ?? {});
+      const scan = fresh && registry.scanFresh !== undefined
+        ? registry.scanFresh()
+        : registry.scan();
+      return ProviderScanResultSchema.parse(await scan);
     }
   );
 

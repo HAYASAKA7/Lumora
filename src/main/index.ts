@@ -204,8 +204,13 @@ const providerScanCoordinator = new ProviderScanCoordinator(
   (providers) => providerRegistry.scan(providers),
   {
     onSettled: (measurement) => {
+      // A scan that returned but missed a provider used to be logged as a
+      // plain success, which left no trace of the miss to go back to.
+      const missed = measurement.notFound + measurement.probeFailed;
       void diagnosticService?.record({
-        severity: measurement.outcome === 'failed' ? 'warning' : 'info',
+        severity: measurement.outcome === 'failed' || missed > 0
+          ? 'warning'
+          : 'info',
         subsystem: 'provider',
         operation: 'provider-scan',
         outcome: measurement.outcome,
@@ -213,7 +218,10 @@ const providerScanCoordinator = new ProviderScanCoordinator(
         durationMs: measurement.durationMs,
         counts: {
           cacheHits: measurement.cacheHits,
-          queued: measurement.queued
+          queued: measurement.queued,
+          ready: measurement.ready,
+          notFound: measurement.notFound,
+          probeFailed: measurement.probeFailed
         }
       }).catch(() => undefined);
     }
@@ -973,7 +981,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       terminal: terminalRuntime,
       environmentScanner: developerEnvironmentScanner,
       providers: Object.freeze({
-        registry: Object.freeze({ scan: scanEnabledProviders }),
+        registry: Object.freeze({
+          scan: scanEnabledProviders,
+          scanFresh: () =>
+            providerScanCoordinator.scanFresh(providerPolicy.providers())
+        }),
         updates: providerUpdateService
       }),
       transfer: Object.freeze({

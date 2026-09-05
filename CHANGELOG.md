@@ -9,6 +9,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Make **Refresh** on **Settings → Providers** actually re-scan. It answered
+  from a five-minute cache, so a provider that failed to be detected once
+  stayed marked missing and the button returned at once as though nothing had
+  happened. A scan the user asks for now re-probes every time.
+- Let a provider scan that missed something expire after ten seconds instead of
+  five minutes, so a detection that failed for a passing reason corrects itself
+  rather than sticking for the rest of the session.
+- Give a provider ten seconds to report its version instead of five. Measured
+  on Windows while idle, gemini takes 2.6-2.8s and copilot 2.3-2.4s to answer,
+  which left too little room on a busy machine and turned a working provider
+  into a probe failure.
+- Record what each provider scan found in the diagnostic journal, and log a
+  scan that missed a provider as a warning. A scan that returned but detected
+  nothing used to be recorded as a plain success.
+
 - Hold the column widths in **All sessions**. The table used to re-measure
   itself against its contents, so every refresh and every **Load more** shifted
   the columns under the pointer. The widths now come from the header alone:

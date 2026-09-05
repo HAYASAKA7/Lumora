@@ -528,6 +528,14 @@ export const ProviderScanResultSchema = z.strictObject({
   providers: z.array(ProviderInstallationSchema).max(PROVIDER_IDS.length)
 });
 
+/**
+ * A scan asked for by the user must re-probe. Only the automatic scans Lumora
+ * runs for itself may be answered from the cache.
+ */
+export const ProviderScanRequestSchema = z.strictObject({
+  fresh: z.boolean().default(false)
+});
+
 const ProviderUpdateComparableFields = {
   ...providerFields,
   installedVersion: z.string().min(1),
@@ -607,6 +615,7 @@ export type ProviderInstallation = z.infer<
   typeof ProviderInstallationSchema
 >;
 export type ProviderScanResult = z.infer<typeof ProviderScanResultSchema>;
+export type ProviderScanRequest = z.infer<typeof ProviderScanRequestSchema>;
 export type ProviderUpdateStatus = z.infer<
   typeof ProviderUpdateStatusSchema
 >;
@@ -2531,7 +2540,7 @@ export interface LumoraApi {
   completeStartupPresentation(): Promise<void>;
   scanDeveloperEnvironment(): Promise<DeveloperEnvironmentScanResult>;
   openNodeDownloadPage(): Promise<void>;
-  scanProviders(): Promise<ProviderScanResult>;
+  scanProviders(options?: { fresh?: boolean }): Promise<ProviderScanResult>;
   checkProviderUpdates(): Promise<ProviderUpdateCheckResult>;
   installProvider(provider: ProviderId): Promise<ProviderUpdateOutcome>;
   openProviderInstallGuide(provider: ProviderId): Promise<void>;

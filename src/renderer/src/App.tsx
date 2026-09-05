@@ -570,7 +570,9 @@ function AppContent(): ReactNode {
     }
   }, [activeRouteId, activeRuntimeId, selectedWorkspaceId, settingsCategory]);
 
-  const refreshProviders = useCallback(async () => {
+  const refreshProviders = useCallback(async (
+    options?: { fresh?: boolean }
+  ) => {
     const requestId = providerRequestId.current + 1;
     providerRequestId.current = requestId;
     setIsProviderRefreshing(true);
@@ -578,7 +580,7 @@ function AppContent(): ReactNode {
       current.state === 'ready' ? current : { state: 'loading' }
     );
 
-    return window.lumora.scanProviders().then(
+    return window.lumora.scanProviders(options).then(
       (scan) => {
         if (providerRequestId.current === requestId) {
           setProviderStatus({ state: 'ready', scan });
@@ -599,6 +601,15 @@ function AppContent(): ReactNode {
       }
     );
   }, []);
+
+  /**
+   * A scan the user asked for re-probes. The automatic scan on start may still
+   * be answered from the cache.
+   */
+  const refreshProvidersFresh = useCallback(
+    () => refreshProviders({ fresh: true }),
+    [refreshProviders]
+  );
 
   const refreshEnvironment = useCallback(async () => {
     const requestId = environmentRequestId.current + 1;
@@ -2414,7 +2425,7 @@ function AppContent(): ReactNode {
                 onRemoveAppearanceBackground={removeAppearanceBackground}
                 onRefreshEnvironment={refreshEnvironment}
                 onRefreshProviderUpdates={providerUpdates.refresh}
-                onRefreshProviders={refreshProviders}
+                onRefreshProviders={refreshProvidersFresh}
                 onRefreshThemePresets={refreshThemePresets}
                 onSaveEnabledProviders={saveEnabledProviders}
                 onSessionImportCompleted={refreshCatalog}

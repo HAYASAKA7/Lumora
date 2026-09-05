@@ -38,6 +38,7 @@ import {
   LumoraWindowContextSchema,
   ProviderLaunchConfigInputSchema,
   ProviderLaunchConfigListSchema,
+  ProviderScanRequestSchema,
   ProviderScanResultSchema,
   ProviderUpdateCheckResultSchema,
   ProviderUpdateCancelResultSchema,
@@ -396,8 +397,11 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.nodeDownloadOpen);
       ExternalOpenResultSchema.parse(value);
     },
-    async scanProviders() {
-      const value = await invoke(IPC_CHANNELS.providerScan);
+    async scanProviders(options?: { fresh?: boolean }) {
+      const value = await invoke(
+        IPC_CHANNELS.providerScan,
+        ProviderScanRequestSchema.parse({ fresh: options?.fresh ?? false })
+      );
       return ProviderScanResultSchema.parse(value);
     },
     async checkProviderUpdates() {
