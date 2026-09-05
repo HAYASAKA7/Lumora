@@ -99,7 +99,19 @@ export function ProviderCard({
         </span>
       </header>
 
+      {/* Details is the one action every provider always has, so it leads and
+          the situational buttons follow it. */}
       <div className="provider-card-actions">
+        <button
+          aria-label={t('providers.settings.details-label', label)}
+          className="secondary-button"
+          data-lumora-command
+          onClick={() => setDetailsOpen(true)}
+          type="button"
+        >
+          {t('providers.settings.details')}
+        </button>
+
         {available !== null ? (
           <button
             aria-label={updating
@@ -157,16 +169,6 @@ export function ProviderCard({
             {t('providers.settings.cancel-update')}
           </button>
         )}
-
-        <button
-          aria-label={t('providers.settings.details-label', label)}
-          className="secondary-button"
-          data-lumora-command
-          onClick={() => setDetailsOpen(true)}
-          type="button"
-        >
-          {t('providers.settings.details')}
-        </button>
 
         <label className="settings-switch provider-card-switch">
           <input
