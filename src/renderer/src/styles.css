@@ -3419,27 +3419,13 @@ button {
 }
 
 /*
- * The attention count is the card's only control, so it has to read as one
- * while keeping the metric's size and weight.
+ * The count stays a plain figure; the detail sits behind its own entry, whose
+ * edge lines up with the card's text rather than the button's own padding.
  */
-.attention-open {
-  padding: 0;
-  color: var(--text);
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.attention-open:hover {
-  color: var(--accent-hover);
-  text-decoration: underline;
-}
-
-.attention-open:focus-visible {
-  outline: 2px solid var(--card-focus-outline);
-  outline-offset: 3px;
-  border-radius: 3px;
+.catalog-metric-card .attention-details {
+  align-self: start;
+  margin-top: 4px;
+  padding: 4px 0;
 }
 
 .attention-dialog {

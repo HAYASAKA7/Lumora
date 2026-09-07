@@ -3490,11 +3490,12 @@ describe('App', () => {
     expect(startRuntime).toHaveBeenCalledWith(preview.launchToken);
 
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
-    const attention = await screen.findByRole('button', {
-      name: 'Show what needs attention'
-    });
-    expect(attention).toHaveTextContent('1 item needs attention');
-    fireEvent.click(attention);
+    expect(
+      await screen.findByText('1 item needs attention')
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show what needs attention' })
+    );
     expect(
       within(
         screen.getByRole('dialog', { name: 'Needs attention' })

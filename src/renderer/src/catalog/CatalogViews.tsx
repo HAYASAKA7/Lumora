@@ -708,25 +708,26 @@ export function CatalogHomeSummary({
           * listing the lost runtimes under it, grew the card every time a new
           * problem appeared.
           */}
-        {attentionCount === 0 ? (
-          <strong className="metric-value">
-            {t('catalog.home.attention-none')}
-          </strong>
-        ) : (
+        <strong className="metric-value">
+          {attentionCount === 0
+            ? t('catalog.home.attention-none')
+            : t('catalog.home.attention-items', { count: attentionCount })}
+        </strong>
+        <p className="card-description">
+          {t('catalog.home.diagnostic-description')}
+        </p>
+        {attentionCount === 0 ? null : (
           <button
             aria-label={t('catalog.home.attention-details-label')}
-            className="metric-value attention-open"
+            className="text-button attention-details"
             data-lumora-command
             onClick={() => setAttentionOpen(true)}
             tabIndex={-1}
             type="button"
           >
-            {t('catalog.home.attention-items', { count: attentionCount })}
+            {t('catalog.home.attention-details')}
           </button>
         )}
-        <p className="card-description">
-          {t('catalog.home.diagnostic-description')}
-        </p>
         {!attentionOpen ? null : (
           <AttentionDialog
             diagnostics={snapshot.diagnostics}

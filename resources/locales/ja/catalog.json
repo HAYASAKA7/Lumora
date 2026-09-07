@@ -12,6 +12,7 @@
     "needs-attention": "確認が必要です",
     "attention-items": "{count, plural, one {確認が必要な項目: # 件} other {確認が必要な項目: # 件}}",
     "attention-none": "対応が必要な項目はありません",
+    "attention-details": "詳細を表示",
     "attention-details-label": "対応が必要な項目を表示",
     "attention-catalog-heading": "カタログの問題",
     "attention-runtime-heading": "失われたランタイム",

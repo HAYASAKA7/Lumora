@@ -12,6 +12,7 @@
     "needs-attention": "Needs attention",
     "attention-items": "{count, plural, one {# item needs attention} other {# items need attention}}",
     "attention-none": "Nothing needs attention",
+    "attention-details": "View details",
     "attention-details-label": "Show what needs attention",
     "attention-catalog-heading": "Catalog issues",
     "attention-runtime-heading": "Lost runtimes",

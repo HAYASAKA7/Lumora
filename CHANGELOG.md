@@ -11,10 +11,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Move the detail out of the **Needs attention** card on Home. The card named
   each kind of problem and listed the lost runtimes under it, so it grew every
-  time one appeared. It now carries the count alone, and selecting the count
-  opens a dialog with each catalog issue, what it affects and how to clear it,
-  and every lost runtime with its recovery action. The catalog issues were not
-  visible anywhere before.
+  time one appeared. It now carries the count alone, with a **View details**
+  entry beneath it that opens a dialog holding each catalog issue, what it
+  affects and how to clear it, and every lost runtime with its recovery action.
+  The catalog issues were not visible anywhere before.
 
 ### Fixed
 

@@ -1255,10 +1255,11 @@ describe('CatalogHomeSummary', () => {
       />
     );
 
+    expect(screen.getByText('5 items need attention')).toBeInTheDocument();
     const trigger = screen.getByRole('button', {
       name: 'Show what needs attention'
     });
-    expect(trigger).toHaveTextContent('5 items need attention');
+    expect(trigger).toHaveTextContent('View details');
     // The card carries the count only; naming each kind is what grew it.
     expect(screen.queryByText(/catalog issue/)).toBeNull();
     expect(screen.queryByText(/lost runtime/)).toBeNull();
