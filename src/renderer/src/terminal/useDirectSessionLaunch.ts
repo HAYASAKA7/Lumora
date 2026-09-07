@@ -180,11 +180,13 @@ export function useDirectSessionLaunch({
       setVisibleLaunchId(current.id);
       return;
     }
-    if (
-      current !== null &&
-      current.session.id === session.id &&
-      current.workspace.id === workspace.id
-    ) {
+    /*
+     * Any launch still in flight is superseded, whichever session it belongs
+     * to. Cancelling only same-session launches left the earlier one running:
+     * its start resolved after the user had moved on and opened a runtime they
+     * had already clicked away from.
+     */
+    if (current !== null) {
       cancelled.current.add(current.id);
       if (mode === 'agent') {
         void api.cancelAgentRuntimeStart?.(current.operationId)

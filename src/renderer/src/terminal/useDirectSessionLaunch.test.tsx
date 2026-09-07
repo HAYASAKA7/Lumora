@@ -282,4 +282,107 @@ describe('useDirectSessionLaunch', () => {
     expect(api.prepareLaunch).toHaveBeenCalledTimes(1);
     expect(api.startRuntime).toHaveBeenCalledTimes(1);
   });
+  /**
+   * Clicking a second session while the first is still starting must leave only
+   * the second one running. The first used to be orphaned rather than
+   * cancelled, so its start resolved and opened a runtime nobody asked for.
+   */
+  it('cancels a launch for another session when a new one is clicked', async () => {
+    let releaseFirst!: (value: AgentRuntimeStartResult) => void;
+    const first = new Promise<AgentRuntimeStartResult>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const secondResult = {
+      mode: 'pty',
+      runtime: { ...runtime, id: 'runtime-2' }
+    } as unknown as AgentRuntimeStartResult;
+    const startAgentRuntime = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce(secondResult);
+    const cancelAgentRuntimeStart = vi.fn().mockResolvedValue(undefined);
+    const terminateRuntime = vi.fn().mockResolvedValue(undefined);
+    const onStarted = vi.fn();
+    let operation = 0;
+
+    const { result } = renderHook(() => useDirectSessionLaunch({
+      api: {
+        prepareLaunch: vi.fn().mockResolvedValue({
+          ...preview,
+          workspaceTrusted: true
+        }),
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn(),
+        startAgentRuntime,
+        cancelAgentRuntimeStart,
+        terminateRuntime
+      },
+      autoTrustWorkspaces: false,
+      createOperationId: () => `operation-${(operation += 1)}`,
+      mode: 'agent',
+      onStarted
+    }));
+
+    act(() => result.current.open(session, workspace));
+    await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.open({ ...session, id: 'session-2' }, workspace));
+    await waitFor(() => expect(startAgentRuntime).toHaveBeenCalledTimes(2));
+
+    // The first session's start now lands, after the user moved on.
+    await act(async () => {
+      releaseFirst({
+        mode: 'pty',
+        runtime: { ...runtime, id: 'runtime-1' }
+      } as unknown as AgentRuntimeStartResult);
+      await first;
+    });
+
+    expect(cancelAgentRuntimeStart).toHaveBeenCalledWith('operation-1');
+    await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
+    expect(onStarted.mock.calls[0]?.[0]).toBe(secondResult);
+    await waitFor(() => expect(terminateRuntime).toHaveBeenCalledWith('runtime-1'));
+  });
+
+  it('cancels a pty launch for another session when a new one is clicked', async () => {
+    let releaseFirst!: (value: RuntimeSummary) => void;
+    const first = new Promise<RuntimeSummary>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const secondRuntime = { ...runtime, id: 'runtime-2' };
+    const startRuntime = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce(secondRuntime);
+    const terminateRuntime = vi.fn().mockResolvedValue(undefined);
+    const onStarted = vi.fn();
+
+    const { result } = renderHook(() => useDirectSessionLaunch({
+      api: {
+        prepareLaunch: vi.fn().mockResolvedValue({
+          ...preview,
+          workspaceTrusted: true
+        }),
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime,
+        terminateRuntime
+      },
+      autoTrustWorkspaces: false,
+      mode: 'pty',
+      onStarted
+    }));
+
+    act(() => result.current.open(session, workspace));
+    await waitFor(() => expect(startRuntime).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.open({ ...session, id: 'session-2' }, workspace));
+    await waitFor(() => expect(startRuntime).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      releaseFirst({ ...runtime, id: 'runtime-1' });
+      await first;
+    });
+
+    await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
+    expect(onStarted.mock.calls[0]?.[0]).toBe(secondRuntime);
+    await waitFor(() => expect(terminateRuntime).toHaveBeenCalledWith('runtime-1'));
+  });
 });

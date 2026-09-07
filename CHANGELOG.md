@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop an abandoned session from resuming. Clicking one session and immediately
+  clicking another started both: only a launch for the *same* session was
+  cancelled, so the first one's start finished after the user had moved on and
+  opened a terminal they had already clicked away from. Any launch still in
+  flight is now superseded, and a runtime that arrives after its launch was
+  superseded is closed.
+
 ## [0.5.5] - 2026-09-05
 
 ### Changed
