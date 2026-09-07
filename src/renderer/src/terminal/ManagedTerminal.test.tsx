@@ -544,7 +544,7 @@ describe('ManagedTerminal', () => {
     expect(xterm.terminalWrite).toHaveBeenCalledWith('first second');
   });
 
-  it('fits and focuses only when its mounted terminal becomes active', async () => {
+  it('focuses only when its mounted terminal becomes active', async () => {
     const attachRuntime = vi.fn().mockResolvedValue({
       runtime,
       snapshot: '',
@@ -574,8 +574,10 @@ describe('ManagedTerminal', () => {
       />
     );
 
-    await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalledTimes(2));
-    expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
+    // Becoming active focuses the terminal. It does not refit it: the box did
+    // not change, so the shape it would fit to is the one it already has.
+    await waitFor(() => expect(xterm.focusTerminal).toHaveBeenCalledTimes(1));
+    expect(xterm.fitTerminal).toHaveBeenCalledTimes(1);
   });
 
   it('refocuses an active terminal when a new focus request arrives', async () => {
@@ -604,8 +606,8 @@ describe('ManagedTerminal', () => {
       />
     );
 
-    expect(xterm.fitTerminal).toHaveBeenCalledTimes(1);
     expect(xterm.focusTerminal).toHaveBeenCalledTimes(1);
+    expect(xterm.fitTerminal).not.toHaveBeenCalled();
   });
 
   it('writes one Codex Shift+Enter compatibility sequence', async () => {
@@ -1518,8 +1520,6 @@ describe('ManagedTerminal', () => {
     expect(host!.clientHeight).toBe(0);
 
     xterm.fitTerminal.mockClear();
-    // Any fit that reaches a hidden host must stop; the text size change is
-    // the path a test can drive, the resize observer is the one that bites.
     rerender(
       <div hidden>
         <ManagedTerminal
@@ -1533,19 +1533,66 @@ describe('ManagedTerminal', () => {
     );
     await Promise.resolve();
     expect(xterm.fitTerminal).not.toHaveBeenCalled();
+  });
 
-    // Shown again, the same change fits normally.
-    rerender(
-      <div>
+  /**
+   * Switching terminals used to refit the one being revealed, which resized
+   * xterm, repainted it and told the agent its size, all to reach the shape it
+   * already had.
+   */
+  it('does no work when a revealed terminal has not changed shape', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+    await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalled());
+    xterm.fitTerminal.mockClear();
+
+    for (const active of [false, true, false, true]) {
+      rerender(
         <ManagedTerminal
-          active
-          fontSize={19}
+          active={active}
           onRuntimeChange={onRuntimeChange}
           platform="win32"
           runtime={runtime}
         />
-      </div>
+      );
+    }
+
+    expect(xterm.fitTerminal).not.toHaveBeenCalled();
+  });
+
+  it('fits again once the terminal box does change', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { rerender } = render(
+      <ManagedTerminal
+        active
+        fontSize={14}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
     );
     await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalled());
+    xterm.fitTerminal.mockClear();
+
+    rerender(
+      <ManagedTerminal
+        active
+        fontSize={20}
+        onRuntimeChange={onRuntimeChange}
+        platform="win32"
+        runtime={runtime}
+      />
+    );
+
+    await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalledTimes(1));
   });
 });

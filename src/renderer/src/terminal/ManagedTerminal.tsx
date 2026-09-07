@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 import '@xterm/xterm/css/xterm.css';
 
 import type {
@@ -77,19 +84,56 @@ function isRuntimeLive(runtime: RuntimeSummary): boolean {
  * bottom of its container. Only if the overflow somehow exceeds the inset does
  * a row have to go.
  */
+interface FittedBox {
+  height: number;
+  width: number;
+  fontFamily: string;
+  fontSize: number;
+}
+
+function measuredBox(
+  terminal: import('@xterm/xterm').Terminal,
+  host: HTMLElement
+): FittedBox {
+  return {
+    height: host.clientHeight,
+    width: host.clientWidth,
+    fontFamily: terminal.options.fontFamily ?? '',
+    fontSize: terminal.options.fontSize ?? 0
+  };
+}
+
+function sameBox(a: FittedBox | null, b: FittedBox): boolean {
+  return a !== null &&
+    a.height === b.height &&
+    a.width === b.width &&
+    a.fontFamily === b.fontFamily &&
+    a.fontSize === b.fontSize;
+}
+
 function fitWithinContainer(
   terminal: import('@xterm/xterm').Terminal,
   fitAddon: import('@xterm/addon-fit').FitAddon,
-  host: HTMLElement
+  host: HTMLElement,
+  fitted: { current: FittedBox | null }
 ): void {
+  const box = measuredBox(terminal, host);
   /*
    * A terminal the user switched away from is display:none, and its computed
    * height is then the specified "100%" rather than a pixel value. The fit
    * addon reads that as 100px and resizes the terminal to about five rows —
    * which also tells the PTY the agent has five rows to draw in. Nothing can
-   * be measured while the terminal is not displayed, so do not try.
+   * be measured while it is not displayed, so do not try.
    */
-  if (host.clientHeight === 0) return;
+  if (box.height === 0 || box.width === 0) return;
+  /*
+   * Nothing about the box has changed since it was last fitted, so the
+   * terminal already has the right shape. Fitting again would resize xterm,
+   * repaint it and tell the agent its size, all to reach the state it is
+   * already in — which is what made switching between terminals flicker.
+   */
+  if (sameBox(fitted.current, box)) return;
+  fitted.current = box;
   host.style.paddingBottom = '';
   fitAddon.fit();
   const screen = host.querySelector('.xterm-screen');
@@ -134,6 +178,7 @@ export function ManagedTerminal({
   const terminalRef = useRef<import('@xterm/xterm').Terminal | null>(null);
   const themeRef = useRef({ theme, backgroundOpacity });
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
+  const fittedBox = useRef<FittedBox | null>(null);
   const fontFamilyRef = useRef(fontFamily);
   const fontSizeRef = useRef(fontSize);
   const interruptDeadlineRef = useRef<number | null>(null);
@@ -183,6 +228,7 @@ export function ManagedTerminal({
           }
         });
         const fitAddon = new FitAddon();
+        fittedBox.current = null;
         terminalRef.current = terminal;
         fitAddonRef.current = fitAddon;
         terminal.loadAddon(fitAddon);
@@ -401,7 +447,7 @@ export function ManagedTerminal({
           pasteClipboardContents();
           return false;
         });
-        fitWithinContainer(terminal, fitAddon, target);
+        fitWithinContainer(terminal, fitAddon, target, fittedBox);
 
         const input = terminal.onData((data) => {
           writeRuntimeInput(data);
@@ -439,7 +485,7 @@ export function ManagedTerminal({
           typeof ResizeObserver === 'undefined'
             ? null
             : new ResizeObserver(
-                () => fitWithinContainer(terminal, fitAddon, target)
+                () => fitWithinContainer(terminal, fitAddon, target, fittedBox)
               );
         observer?.observe(target);
         dispose = () => {
@@ -503,6 +549,7 @@ export function ManagedTerminal({
       }
       terminalRef.current = null;
       fitAddonRef.current = null;
+      fittedBox.current = null;
       dispose();
     };
   }, [api, runtime.id, onRuntimeChange, clearInterruptGuard]);
@@ -521,7 +568,7 @@ export function ManagedTerminal({
     const host = container.current;
     const addon = fitAddonRef.current;
     if (host !== null && addon !== null) {
-      fitWithinContainer(terminal, addon, host);
+      fitWithinContainer(terminal, addon, host, fittedBox);
     }
   }, [fontFamily]);
 
@@ -536,7 +583,7 @@ export function ManagedTerminal({
     const host = container.current;
     const addon = fitAddonRef.current;
     if (host !== null && addon !== null) {
-      fitWithinContainer(terminal, addon, host);
+      fitWithinContainer(terminal, addon, host, fittedBox);
     }
   }, [fontSize]);
 
@@ -546,7 +593,13 @@ export function ManagedTerminal({
     }
   }, [runtime]);
 
-  useEffect(() => {
+  /*
+   * Revealing a terminal usually needs no fit at all, because its box did not
+   * change while it was hidden. When it did — the window was resized on
+   * another terminal — the correction has to land before the browser paints,
+   * or the user sees the old size for a frame first.
+   */
+  useLayoutEffect(() => {
     if (!active) {
       clearInterruptGuard();
       return;
@@ -555,7 +608,7 @@ export function ManagedTerminal({
     const addon = fitAddonRef.current;
     const terminal = terminalRef.current;
     if (host !== null && addon !== null && terminal !== null) {
-      fitWithinContainer(terminal, addon, host);
+      fitWithinContainer(terminal, addon, host, fittedBox);
     }
     terminalRef.current?.focus();
   }, [active, clearInterruptGuard, focusRequestKey]);

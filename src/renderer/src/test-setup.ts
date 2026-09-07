@@ -22,24 +22,30 @@ if (typeof HTMLElement.prototype.scrollIntoView !== 'function') {
 /**
  * jsdom implements no layout, so every element reports `clientHeight: 0` —
  * which production code correctly reads as "not displayed". Model the one rule
- * that matters: an element inside a hidden subtree has no height, anything
- * else has a plausible one. A test that needs an exact height still defines
- * `clientHeight` on its own element, and that own property wins over this.
+ * that matters: an element inside a hidden subtree has no size, anything else
+ * has a plausible one. A test that needs an exact size still defines the
+ * property on its own element, and that own property wins over this.
  */
-const RENDERED_ELEMENT_HEIGHT = 600;
+const RENDERED_ELEMENT_SIZE = { clientHeight: 600, clientWidth: 900 };
 
-Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
-  configurable: true,
-  get(this: HTMLElement): number {
-    for (
-      let node: HTMLElement | null = this;
-      node !== null;
-      node = node.parentElement
-    ) {
-      if (node.hidden || node.style.display === 'none') return 0;
-    }
-    return RENDERED_ELEMENT_HEIGHT;
+function isRendered(element: HTMLElement): boolean {
+  for (
+    let node: HTMLElement | null = element;
+    node !== null;
+    node = node.parentElement
+  ) {
+    if (node.hidden || node.style.display === 'none') return false;
   }
-});
+  return true;
+}
+
+for (const [name, size] of Object.entries(RENDERED_ELEMENT_SIZE)) {
+  Object.defineProperty(HTMLElement.prototype, name, {
+    configurable: true,
+    get(this: HTMLElement): number {
+      return isRendered(this) ? size : 0;
+    }
+  });
+}
 
 afterEach(() => cleanup());
