@@ -7,6 +7,17 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop a terminal collapsing while it is hidden. Lumora keeps every terminal
+  mounted and hides the ones you switch away from. Hiding one made it re-measure
+  itself, and a hidden terminal reports its height as the literal `100%` rather
+  than a pixel value, which the fit came out of as about five rows — so
+  switching back showed five rows for a moment before the terminal grew to fill
+  its container again. The running agent was also told it had five rows to draw
+  in, so a full-screen agent reflowed its whole display each time you left it.
+  A terminal that is not displayed is no longer measured.
+
 ## [0.5.6] - 2026-09-07
 
 ### Changed

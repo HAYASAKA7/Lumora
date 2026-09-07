@@ -82,6 +82,14 @@ function fitWithinContainer(
   fitAddon: import('@xterm/addon-fit').FitAddon,
   host: HTMLElement
 ): void {
+  /*
+   * A terminal the user switched away from is display:none, and its computed
+   * height is then the specified "100%" rather than a pixel value. The fit
+   * addon reads that as 100px and resizes the terminal to about five rows —
+   * which also tells the PTY the agent has five rows to draw in. Nothing can
+   * be measured while the terminal is not displayed, so do not try.
+   */
+  if (host.clientHeight === 0) return;
   host.style.paddingBottom = '';
   fitAddon.fit();
   const screen = host.querySelector('.xterm-screen');

@@ -1486,4 +1486,66 @@ describe('ManagedTerminal', () => {
     expect(xterm.fitTerminal).toHaveBeenCalled();
     expect(xterm.terminalConstructed).toHaveBeenCalledOnce();
   });
+  /**
+   * Lumora keeps every terminal mounted and hides the ones the user switched
+   * away from. Hiding fires the resize observer, and a hidden host reports its
+   * height as the specified "100%" rather than a pixel value, which the fit
+   * addon reads as 100px and turns into a five-row terminal — a size it then
+   * hands to the running agent.
+   */
+  it('does not fit a terminal that is hidden', async () => {
+    installLumora();
+    const onRuntimeChange = vi.fn();
+    const { container, rerender } = render(
+      <div>
+        <ManagedTerminal
+          active
+          fontSize={15}
+          onRuntimeChange={onRuntimeChange}
+          platform="win32"
+          runtime={runtime}
+        />
+      </div>
+    );
+    await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalled());
+
+    const surface = container.firstElementChild as HTMLElement;
+    const host = container.querySelector('.managed-terminal');
+    expect(host).not.toBeNull();
+    expect(host!.clientHeight).toBeGreaterThan(0);
+
+    surface.hidden = true;
+    expect(host!.clientHeight).toBe(0);
+
+    xterm.fitTerminal.mockClear();
+    // Any fit that reaches a hidden host must stop; the text size change is
+    // the path a test can drive, the resize observer is the one that bites.
+    rerender(
+      <div hidden>
+        <ManagedTerminal
+          active
+          fontSize={17}
+          onRuntimeChange={onRuntimeChange}
+          platform="win32"
+          runtime={runtime}
+        />
+      </div>
+    );
+    await Promise.resolve();
+    expect(xterm.fitTerminal).not.toHaveBeenCalled();
+
+    // Shown again, the same change fits normally.
+    rerender(
+      <div>
+        <ManagedTerminal
+          active
+          fontSize={19}
+          onRuntimeChange={onRuntimeChange}
+          platform="win32"
+          runtime={runtime}
+        />
+      </div>
+    );
+    await waitFor(() => expect(xterm.fitTerminal).toHaveBeenCalled());
+  });
 });
