@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
@@ -1167,7 +1167,7 @@ describe('CatalogHomeSummary', () => {
 
     expect(screen.getByText('2 workspaces')).toBeInTheDocument();
     expect(screen.getByText('3 saved sessions')).toBeInTheDocument();
-    expect(screen.getByText('0 catalog issues')).toBeInTheDocument();
+    expect(screen.getByText('Nothing needs attention')).toBeInTheDocument();
     expect(screen.getByText('Catalog implementation')).toBeInTheDocument();
     expect(screen.getByText('12.5K tokens')).toBeInTheDocument();
     expect(screen.getByText('Untitled session')).toBeInTheDocument();
@@ -1210,7 +1210,7 @@ describe('CatalogHomeSummary', () => {
     expect(onResume).toHaveBeenCalledWith(catalogSnapshot.sessions[0]);
   });
 
-  it('combines lost runtimes with diagnostics and offers three recent recoveries', () => {
+  it('counts diagnostics with lost runtimes and details them in a dialog', () => {
     const diagnostic = {
       code: 'CATALOG_SOURCE_INVALID' as const,
       provider: 'claude' as const,
@@ -1255,14 +1255,31 @@ describe('CatalogHomeSummary', () => {
       />
     );
 
-    expect(screen.getByText('5 items need attention')).toBeInTheDocument();
-    expect(screen.getByText('1 catalog issue · 4 lost runtimes')).toBeInTheDocument();
-    expect(screen.getByText('Resume saved session')).toBeInTheDocument();
-    expect(screen.getAllByText('Restart as new session')).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: 'Recover' })).toHaveLength(3);
+    const trigger = screen.getByRole('button', {
+      name: 'Show what needs attention'
+    });
+    expect(trigger).toHaveTextContent('5 items need attention');
+    // The card carries the count only; naming each kind is what grew it.
+    expect(screen.queryByText(/catalog issue/)).toBeNull();
+    expect(screen.queryByText(/lost runtime/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recover' })).toBeNull();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Recover' })[0]!);
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Needs attention' });
+    expect(within(dialog).getByText('One source is invalid.')).toBeVisible();
+    expect(within(dialog).getByText('Refresh the catalog.')).toBeVisible();
+    expect(within(dialog).getByText('Resume saved session')).toBeVisible();
+    // Every lost runtime is listed, not the three the card had room for.
+    expect(within(dialog).getAllByText('Restart as new session')).toHaveLength(3);
+    expect(
+      within(dialog).getAllByRole('button', { name: 'Recover' })
+    ).toHaveLength(4);
+
+    fireEvent.click(
+      within(dialog).getAllByRole('button', { name: 'Recover' })[0]!
+    );
     expect(onRecover).toHaveBeenCalledWith(lost[0]);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('counts agents running in the Unified UI alongside terminal agents', () => {

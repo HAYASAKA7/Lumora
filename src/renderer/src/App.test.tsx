@@ -3459,7 +3459,14 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Recover' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show what needs attention' })
+    );
+    fireEvent.click(
+      within(
+        screen.getByRole('dialog', { name: 'Needs attention' })
+      ).getByRole('button', { name: 'Recover' })
+    );
     const dialog = await screen.findByRole('dialog', {
       name: 'Recover lost runtime'
     });
@@ -3483,8 +3490,16 @@ describe('App', () => {
     expect(startRuntime).toHaveBeenCalledWith(preview.launchToken);
 
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
-    expect(await screen.findByText(/1 lost runtime/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Recover' })).toBeInTheDocument();
+    const attention = await screen.findByRole('button', {
+      name: 'Show what needs attention'
+    });
+    expect(attention).toHaveTextContent('1 item needs attention');
+    fireEvent.click(attention);
+    expect(
+      within(
+        screen.getByRole('dialog', { name: 'Needs attention' })
+      ).getByRole('button', { name: 'Recover' })
+    ).toBeInTheDocument();
   });
 
   it('shows New session in the top command bar only on Home and Workspaces', async () => {

@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Move the detail out of the **Needs attention** card on Home. The card named
+  each kind of problem and listed the lost runtimes under it, so it grew every
+  time one appeared. It now carries the count alone, and selecting the count
+  opens a dialog with each catalog issue, what it affects and how to clear it,
+  and every lost runtime with its recovery action. The catalog issues were not
+  visible anywhere before.
+
 ### Fixed
 
 - Stop an abandoned session from resuming. Clicking one session and immediately

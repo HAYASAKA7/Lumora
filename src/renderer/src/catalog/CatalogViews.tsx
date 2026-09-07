@@ -10,6 +10,7 @@ import type {
   RuntimeSummary,
   WorkspaceSummary
 } from '../../../shared/contracts';
+import { AttentionDialog } from './AttentionDialog';
 import { resolveSessionResumeDisabledReason } from './session-resume';
 import {
   ProgressiveListControl,
@@ -647,6 +648,7 @@ export function CatalogHomeSummary({
 }): ReactNode {
   const { formatNumber, t } = useLocalization();
   const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
+  const [attentionOpen, setAttentionOpen] = useState(false);
   if (status.state === 'loading') {
     return (
       <div className="catalog-state" role="status">
@@ -701,53 +703,38 @@ export function CatalogHomeSummary({
       <article className="dashboard-card catalog-metric-card">
         <p className="card-label">{t('catalog.home.diagnostics-label')}</p>
         <h2>{t('catalog.home.needs-attention')}</h2>
-        <strong className="metric-value">
-          {lostRuntimes.length === 0
-            ? t('catalog.home.catalog-issues', { count: snapshot.diagnostics.length })
-            : t('catalog.home.attention-items', { count: attentionCount })}
-        </strong>
+        {/*
+          * The count is the whole summary. Naming each kind on the card, and
+          * listing the lost runtimes under it, grew the card every time a new
+          * problem appeared.
+          */}
+        {attentionCount === 0 ? (
+          <strong className="metric-value">
+            {t('catalog.home.attention-none')}
+          </strong>
+        ) : (
+          <button
+            aria-label={t('catalog.home.attention-details-label')}
+            className="metric-value attention-open"
+            data-lumora-command
+            onClick={() => setAttentionOpen(true)}
+            tabIndex={-1}
+            type="button"
+          >
+            {t('catalog.home.attention-items', { count: attentionCount })}
+          </button>
+        )}
         <p className="card-description">
-          {lostRuntimes.length === 0
-            ? t('catalog.home.diagnostic-description')
-            : t('catalog.home.diagnostic-breakdown', {
-                catalogCount: snapshot.diagnostics.length,
-                runtimeCount: lostRuntimes.length
-              })}
+          {t('catalog.home.diagnostic-description')}
         </p>
-        {lostRuntimes.length === 0 ? null : (
-          <ul className="runtime-recovery-list">
-            {lostRuntimes.slice(0, 3).map((runtime) => {
-              const recovery = resolveRuntimeRecovery(
-                runtime,
-                snapshot.sessions
-              );
-              return (
-                <li className="runtime-recovery-item" key={runtime.id}>
-                  <span className="runtime-recovery-message">
-                    <strong>
-                      {providerDefinition(runtime.provider).displayName}
-                    </strong>
-                    <small>
-                      {recovery?.strategy === 'resume'
-                        ? t('catalog.home.resume-saved-session')
-                        : t('catalog.home.restart-new-session')}
-                    </small>
-                  </span>
-                  {onRecover === undefined ? null : (
-                    <button
-                      className="text-button"
-                      onClick={() => onRecover(runtime)}
-                      data-lumora-command
-                      tabIndex={-1}
-                      type="button"
-                    >
-                      {t('catalog.home.recover')}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        {!attentionOpen ? null : (
+          <AttentionDialog
+            diagnostics={snapshot.diagnostics}
+            lostRuntimes={lostRuntimes}
+            onClose={() => setAttentionOpen(false)}
+            onRecover={onRecover}
+            sessions={snapshot.sessions}
+          />
         )}
       </article>
 

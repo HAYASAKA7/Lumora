@@ -3418,6 +3418,79 @@ button {
   opacity: 0.48;
 }
 
+/*
+ * The attention count is the card's only control, so it has to read as one
+ * while keeping the metric's size and weight.
+ */
+.attention-open {
+  padding: 0;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.attention-open:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.attention-open:focus-visible {
+  outline: 2px solid var(--card-focus-outline);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.attention-dialog {
+  width: min(620px, 100%);
+}
+
+.attention-group + .attention-group {
+  margin-top: 18px;
+}
+
+.attention-group h3 {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.attention-list {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-issue {
+  padding-top: 9px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.attention-issue-message {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.attention-issue-recovery {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.attention-dialog .runtime-recovery-list {
+  margin-top: 10px;
+}
+
 .runtime-recovery-list {
   display: grid;
   gap: 8px;
