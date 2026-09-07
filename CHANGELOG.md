@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-09-07
+
 ### Changed
 
 - Move the detail out of the **Needs attention** card on Home. The card named

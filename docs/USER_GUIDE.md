@@ -29,6 +29,10 @@ healthy providers from working.
 Home summarizes running agents, recent provider-owned sessions, catalog
 health, and provider updates that need attention.
 
+**Needs attention** reports one count. **View details** beside it opens a
+dialog listing each catalog issue with what it affects and how to clear it,
+and every lost runtime with its recovery action.
+
 <p align="center">
   <img src="screenshots/0.5/core/home.png" alt="Lumora 0.5 Home with running and recent sessions in the expanded sidebar" width="1100">
 </p>

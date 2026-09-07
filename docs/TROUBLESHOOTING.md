@@ -288,7 +288,8 @@ terminal.
 **Likely cause:** Generic PTY processes cannot be reattached after the Lumora
 application process exits.
 
-**Resolution:** Use Lumora's recovery action to resume the provider-owned
+**Resolution:** Open **View details** on the Home **Needs attention** card and
+use the recovery action beside the lost runtime to resume the provider-owned
 session or start it again. This limitation is tracked for future work.
 
 ### The terminal bottom is clipped or does not resize correctly
