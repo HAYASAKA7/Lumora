@@ -300,10 +300,11 @@ window size or sidebar state.
 **Likely cause:** Terminal viewport sizing remains a known MVP issue on some
 layouts.
 
-**Resolution:** Resize the window once or switch away from and back to the
-terminal. Do not terminate a running provider solely to refresh the view. If the
-problem is reproducible, include the window size and sidebar state in the issue
-report.
+**Resolution:** Resize the window once. Switching away from a terminal and back
+no longer re-measures it: a terminal is measured only when its box has actually
+changed, so switching between terminals stays free and shows no resize. Do not
+terminate a running provider solely to refresh the view. If the problem is
+reproducible, include the window size and sidebar state in the issue report.
 
 ### Codex Shift+Enter does not create a new line
 

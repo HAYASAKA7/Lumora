@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-09-08
+
 ### Fixed
 
 - Stop terminals resizing when you switch between them. Lumora keeps every
