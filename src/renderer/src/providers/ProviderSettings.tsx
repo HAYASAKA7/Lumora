@@ -483,35 +483,34 @@ export function ProviderSettings({
         </div>
         <div className="provider-panel-actions">
           <IconButton
-            busy={refreshing}
+            busy={
+              refreshing ||
+              updatesRefreshing ||
+              updatesStatus.state === 'loading'
+            }
             disabled={
               status.state === 'loading' ||
-              updatingProvider !== null ||
-              installingProviders.size > 0
-            }
-            label={t('providers.settings.refresh')}
-            onClick={() => {
-              void onRefresh();
-            }}
-          >
-            <RefreshIcon />
-          </IconButton>
-          <button
-            aria-label={t('providers.settings.check-updates-label')}
-            className="secondary-button"
-            disabled={
               updatesStatus.state === 'loading' ||
               updatesRefreshing ||
               updatingProvider !== null ||
               installingProviders.size > 0
             }
+            label={t('providers.settings.refresh')}
             onClick={() => {
-              void onRefreshUpdates();
+              /*
+               * Rescanning and checking for releases were two buttons, and
+               * checking releases against a stale scan is not useful. The scan
+               * runs first so the release check sees what is actually
+               * installed.
+               */
+              void (async () => {
+                await onRefresh();
+                await onRefreshUpdates();
+              })();
             }}
-            type="button"
           >
-            {t('providers.settings.check-updates')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
         </div>
       </div>
 

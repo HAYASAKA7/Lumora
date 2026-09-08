@@ -87,7 +87,8 @@ version it will move to, rather than expanding the card.
 
 **Refresh** re-probes every enabled provider rather than reusing the last
 result, so a provider that failed to be detected once can be re-checked without
-restarting Lumora.
+restarting Lumora. It then checks for new releases, because a release check
+against a stale scan tells you about versions you may no longer have.
 
 <p align="center">
   <img src="screenshots/0.5/settings/settings_providers.png" alt="Lumora Providers settings with one card per provider, versions, switches, and Details" width="1100">

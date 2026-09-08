@@ -79,8 +79,6 @@
     "registry-description-local": "Lumora reads the effective PATH and checks public release metadata. It only modifies a provider after you explicitly confirm an action.",
     "registry-description-remote": "Lumora reads the remote effective PATH and checks public release metadata. It only modifies a provider after you explicitly confirm an action.",
     "refresh": "Refresh",
-    "check-updates-label": "Check for provider updates",
-    "check-updates": "Check for updates",
     "scanning": "Scanning provider installations",
     "details-unavailable": "Provider details are unavailable",
     "scan-failed": "The scan could not be completed. Refresh to try again.",

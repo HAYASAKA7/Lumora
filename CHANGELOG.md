@@ -13,6 +13,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Fold **Check for updates** into **Refresh** on **Settings → Providers**. They
+  were two buttons doing halves of one job, and checking for releases against a
+  stale scan reports on versions you may no longer have installed. Refreshing
+  now re-probes the providers and then checks their releases, in that order.
 - Replace the word on a repeated utility action with the icon for what it
   does. Reloading a list — the catalog on **Workspaces** and **All sessions**, a
   workspace's own sessions, diagnostics, terminal profiles, theme packs, font

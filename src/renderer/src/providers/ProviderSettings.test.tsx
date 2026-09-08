@@ -409,7 +409,7 @@ describe('ProviderSettings', () => {
     expect(onSaveEnabledProviders.mock.calls[0]![0]).not.toContain('codex');
   });
 
-  it('keeps releases idle and delegates manual checks when automatic checks are disabled', async () => {
+  it('delegates the release check on refresh when automatic checks are off', async () => {
     const lumora = setLumora();
     const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
     render(
@@ -429,10 +429,10 @@ describe('ProviderSettings', () => {
     expect(await screen.findByText('Updates not checked')).toBeVisible();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Check for provider updates' })
-    );
-    expect(onRefreshUpdates).toHaveBeenCalledOnce();
+    // Refreshing is a deliberate act, so it still checks releases even when
+    // Lumora is not checking them on its own.
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(onRefreshUpdates).toHaveBeenCalledOnce());
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
 
@@ -563,7 +563,7 @@ describe('ProviderSettings', () => {
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
 
-  it('uses shared update state and delegates refresh without checking twice', async () => {
+  it('uses shared update state and checks releases only through its owner', async () => {
     const lumora = setLumora();
     const onRefreshUpdates = vi.fn().mockResolvedValue(undefined);
 
@@ -580,10 +580,8 @@ describe('ProviderSettings', () => {
     expect(await screen.findByText('Update available · 1.1.0')).toBeVisible();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Check for provider updates' })
-    );
-    expect(onRefreshUpdates).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(onRefreshUpdates).toHaveBeenCalledOnce());
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
 
@@ -663,7 +661,7 @@ describe('ProviderSettings', () => {
     expect(updateProvider).toHaveBeenCalledWith('codex');
   });
 
-  it('shows update failures and keeps discovery refresh separate from release checks', async () => {
+  it('shows update failures and rescans and checks releases from one refresh', async () => {
     const checkProviderUpdates = vi.fn().mockResolvedValue(availableUpdates);
     setLumora({
       checkProviderUpdates,
@@ -686,13 +684,12 @@ describe('ProviderSettings', () => {
       await screen.findByText('Codex could not be updated. Run codex update manually or try again.')
     ).toBeVisible();
 
+    // One button now does both, and the scan runs before the release check so
+    // the check sees what is actually installed.
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(onRefresh).toHaveBeenCalledOnce();
-    expect(checkProviderUpdates).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Check for provider updates' })
-    );
     await waitFor(() => expect(onRefreshUpdates).toHaveBeenCalledOnce());
+    expect(checkProviderUpdates).not.toHaveBeenCalled();
   });
 
   it('confirms allowlisted installs and opens guides for other providers', async () => {

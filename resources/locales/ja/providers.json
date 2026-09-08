@@ -79,8 +79,6 @@
     "registry-description-local": "Lumora は有効な PATH を読み取り、公開されているリリース情報を確認します。明示的に操作を確認した場合にのみプロバイダーを変更します。",
     "registry-description-remote": "Lumora はリモート環境で有効な PATH を読み取り、公開されているリリース情報を確認します。明示的に操作を確認した場合にのみプロバイダーを変更します。",
     "refresh": "再読み込み",
-    "check-updates-label": "プロバイダーの更新を確認",
-    "check-updates": "更新を確認",
     "scanning": "プロバイダーのインストール状況をスキャン中",
     "details-unavailable": "プロバイダーの詳細を取得できません",
     "scan-failed": "スキャンを完了できませんでした。再読み込みしてもう一度お試しください。",

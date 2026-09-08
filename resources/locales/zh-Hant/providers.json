@@ -79,8 +79,6 @@
     "registry-description-local": "Lumora 會讀取實際生效的 PATH，並檢查公開的版本資訊。只有在您明確確認後，Lumora 才會修改提供者。",
     "registry-description-remote": "Lumora 會讀取遠端環境中實際生效的 PATH，並檢查公開的版本資訊。只有在您明確確認後，Lumora 才會修改提供者。",
     "refresh": "重新整理",
-    "check-updates-label": "檢查提供者更新",
-    "check-updates": "檢查更新",
     "scanning": "正在掃描提供者安裝狀態",
     "details-unavailable": "無法取得提供者詳細資料",
     "scan-failed": "無法完成掃描。請重新整理後再試一次。",
