@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { CrossIcon } from './CrossIcon';
 import { Tooltip } from './Tooltip';
 import { useLocalization } from '../localization/useLocalization';
 
@@ -36,17 +37,7 @@ export function CloseButton({
         {...(tabIndex === undefined ? {} : { tabIndex })}
         type="button"
       >
-        <svg
-          aria-hidden="true"
-          className="icon"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="1.7"
-          viewBox="0 0 20 20"
-        >
-          <path d="M6 6l8 8M14 6l-8 8" />
-        </svg>
+        <CrossIcon />
       </button>
     </Tooltip>
   );

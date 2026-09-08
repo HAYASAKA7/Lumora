@@ -11,6 +11,7 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { AttentionDialog } from './AttentionDialog';
+import { CrossIcon } from '../ui/CrossIcon';
 import { resolveSessionResumeDisabledReason } from './session-resume';
 import {
   ProgressiveListControl,
@@ -548,7 +549,7 @@ export function SessionsView({
                   tabIndex={-1}
                   type="button"
                 >
-                  <span aria-hidden="true">×</span>
+                  <CrossIcon />
                 </button>
               </Tooltip>
             </div>

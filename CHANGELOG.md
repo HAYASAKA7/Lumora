@@ -13,6 +13,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Draw every cross the same way. A session warning was dismissed with a typed
+  × character, which took its weight from whichever font was loaded and never
+  matched the stroked icons beside it. It now uses the same drawn cross as a
+  dialog's close control.
 - Close a dialog with a cross instead of the word **Close**. Every dialog
   header now carries the same small cross in its corner, with the name of what
   it closes in a tooltip rather than on the button. The header keeps the same
