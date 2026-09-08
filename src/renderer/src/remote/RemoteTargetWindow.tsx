@@ -45,6 +45,8 @@ import {
   type CatalogViewStatus
 } from '../catalog/CatalogViews';
 import { CloseButton } from '../ui/CloseButton';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
 import { HiddenWorkspacesDialog } from '../catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from '../catalog/HideWorkspaceDialog';
@@ -1330,13 +1332,14 @@ export function RemoteTargetWindow({
           <h2>{t('settings.tabs.environment')}</h2>
           <p>{t('remote.environment.description')}</p>
         </div>
-        <button
-          className="refresh-button"
+        <IconButton
+          busy={discovery.state === 'loading'}
           disabled={!discoverySupported || discovery.state === 'loading'}
+          label={t('common.actions.refresh')}
           onClick={() => void refreshDiscovery()}
         >
-          {t(discovery.state === 'loading' ? 'remote.environment.scanning' : 'common.actions.refresh')}
-        </button>
+          <RefreshIcon />
+        </IconButton>
       </div>
       {discovery.state === 'loading' && (
         <p className="remote-discovery-message" aria-live="polite">

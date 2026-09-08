@@ -4312,9 +4312,13 @@ describe('App', () => {
     renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
     expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Refreshing catalog' })
-    ).toBeDisabled();
+    /*
+     * The button keeps one name so it stays findable; that it is working shows
+     * in `aria-busy` and in the turning icon.
+     */
+    const refreshButton = screen.getByRole('button', { name: 'Refresh catalog' });
+    expect(refreshButton).toBeDisabled();
+    expect(refreshButton).toHaveAttribute('aria-busy', 'true');
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'new query' }
@@ -4322,8 +4326,8 @@ describe('App', () => {
     expect(await screen.findByText('No sessions match these filters')).toBeInTheDocument();
     expect(getCatalog).toHaveBeenCalledTimes(1);
     expect(
-      screen.getByRole('button', { name: 'Refreshing catalog' })
-    ).toBeDisabled();
+      screen.getByRole('button', { name: 'Refresh catalog' })
+    ).toHaveAttribute('aria-busy', 'true');
   });
 
   it('releases startup from cached catalog data while the fresh scan continues', async () => {

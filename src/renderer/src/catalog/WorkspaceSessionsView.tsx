@@ -246,9 +246,7 @@ export function WorkspaceSessionsView({
           <IconButton
             busy={isRefreshing}
             disabled={isRefreshing}
-            label={t(isRefreshing
-              ? 'catalog.workspaces.refreshing-sessions'
-              : 'catalog.workspaces.refresh-sessions')}
+            label={t('catalog.workspaces.refresh-sessions')}
             onClick={onRefresh}
             tabIndex={-1}
           >

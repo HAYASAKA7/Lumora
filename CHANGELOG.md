@@ -16,10 +16,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Replace the word on a repeated utility action with the icon for what it
   does. Reloading a list — the catalog on **Workspaces** and **All sessions**, a
   workspace's own sessions, diagnostics, terminal profiles, theme packs, font
-  presets, language packs — is a circular arrow in the header instead of a
-  button spelling it out, and a remote computer's row carries a pencil and a bin
-  rather than **Edit** and **Delete**. A refresh that is running turns its arrow
-  while it works, and says so in its tooltip. Each keeps its full name in a
+  presets, language packs, the developer environment and its remote twin, the
+  provider registry — is a circular arrow in the header instead of a button
+  spelling it out, and a remote computer's row carries a pencil and a bin rather
+  than **Edit** and **Delete**. A refresh that is running turns its arrow while
+  it works; its name stays put, so it is still the same button to come back to. Each keeps its full name in a
   tooltip and for screen readers, so a row still says "Delete *name*" rather
   than "Delete". Buttons that finish a flow, that sit among worded choices, or
   that name which of several folders they open keep their words.

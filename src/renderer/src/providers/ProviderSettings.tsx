@@ -27,6 +27,8 @@ import {
 import type { ProviderUpdatesStatus } from './useProviderUpdates';
 import { STRUCTURED_PREFERENCES_CHANGED_EVENT } from '../catalog/SessionRouteChoiceContext';
 import { CloseButton } from '../ui/CloseButton';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 
 export type ProviderScanStatus =
@@ -73,23 +75,6 @@ const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   not_found: 'providers.states.not-found',
   probe_failed: 'providers.states.probe-failed'
 };
-
-function ScanIcon(): ReactNode {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon"
-      fill="none"
-      viewBox="0 0 20 20"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-    >
-      <path d="M3 7V4a1 1 0 0 1 1-1h3m6 0h3a1 1 0 0 1 1 1v3m0 6v3a1 1 0 0 1-1 1h-3m-6 0H4a1 1 0 0 1-1-1v-3M6 10h8" />
-    </svg>
-  );
-}
 
 
 export function ProviderSettings({
@@ -497,21 +482,20 @@ export function ProviderSettings({
           <p>{t(scope === 'remote' ? 'providers.settings.registry-description-remote' : 'providers.settings.registry-description-local')}</p>
         </div>
         <div className="provider-panel-actions">
-          <button
-            className="refresh-button"
+          <IconButton
+            busy={refreshing}
             disabled={
               status.state === 'loading' ||
               updatingProvider !== null ||
               installingProviders.size > 0
             }
+            label={t('providers.settings.refresh')}
             onClick={() => {
               void onRefresh();
             }}
-            type="button"
           >
-            <ScanIcon />
-            {t(refreshing ? 'providers.settings.refreshing' : 'providers.settings.refresh')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
           <button
             aria-label={t('providers.settings.check-updates-label')}
             className="secondary-button"

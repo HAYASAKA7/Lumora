@@ -20,7 +20,11 @@ export function IconButton({
   tabIndex,
   tone = 'normal'
 }: {
-  /** Turns the icon while the action runs, since there is no word to change. */
+  /**
+   * Turns the icon and announces the work through `aria-busy`. The name is
+   * deliberately left alone: it identifies the control, and a name that
+   * changes mid-action makes the button hard to find again.
+   */
   busy?: boolean;
   children: ReactNode;
   className?: string;
@@ -41,6 +45,7 @@ export function IconButton({
   return (
     <Tooltip content={label}>
       <button
+        aria-busy={busy}
         aria-label={label}
         className={classes}
         data-lumora-command

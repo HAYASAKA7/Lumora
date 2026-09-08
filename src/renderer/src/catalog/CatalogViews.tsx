@@ -209,9 +209,7 @@ export function WorkspacesView({
           <IconButton
             busy={isRefreshing}
             disabled={isRefreshing}
-            label={t(isRefreshing
-              ? 'catalog.workspaces.refreshing'
-              : 'catalog.workspaces.refresh')}
+            label={t('catalog.workspaces.refresh')}
             onClick={onRefresh}
             tabIndex={-1}
           >
@@ -515,9 +513,7 @@ export function SessionsView({
         <IconButton
           busy={isRefreshing}
           disabled={isRefreshing}
-          label={t(isRefreshing
-            ? 'catalog.workspaces.refreshing'
-            : 'catalog.workspaces.refresh')}
+          label={t('catalog.workspaces.refresh')}
           onClick={onRefresh}
           tabIndex={-1}
         >

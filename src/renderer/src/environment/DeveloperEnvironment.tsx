@@ -5,6 +5,8 @@ import type {
   DeveloperToolStatus
 } from '../../../shared/contracts';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { useLocalization, type TranslationValues } from '../localization/useLocalization';
 
 export type DeveloperEnvironmentStatus =
@@ -208,14 +210,13 @@ export function DeveloperEnvironmentPanel({
           <h2 id="developer-tools-title">{t('providers.environment.tools-title')}</h2>
           <p>{t('providers.environment.tools-description')}</p>
         </div>
-        <button
-          aria-label={t('providers.environment.refresh-label')}
-          className="refresh-button"
+        <IconButton
+          busy={refreshing}
+          label={t('providers.environment.refresh-label')}
           onClick={onRefresh}
-          type="button"
         >
-          {t(refreshing ? 'providers.environment.refreshing' : 'providers.environment.refresh')}
-        </button>
+          <RefreshIcon />
+        </IconButton>
       </div>
 
       {status.state === 'loading' ? (
