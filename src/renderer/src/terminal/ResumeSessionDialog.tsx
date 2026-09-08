@@ -23,6 +23,7 @@ import {
 import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 interface ResumeSessionDialogProps {
@@ -302,14 +303,10 @@ export function ResumeSessionDialog({
             </p>
             <h2 id="resume-session-title">{t('terminal.actions.resume-session')}</h2>
           </div>
-          <button
-            aria-label={t('terminal.resume.close-label')}
-            className="text-button"
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+          <CloseButton
+            label={t('terminal.resume.close-label')}
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body">

@@ -8,6 +8,7 @@ import type {
   RemoteHostKeyObservation,
   RemoteTargetSummary
 } from '../../../shared/contracts';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
 
@@ -327,7 +328,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <p className="card-label">{t('remote.profile.eyebrow')}</p>
                 <h2>{t(editingId === null ? 'remote.targets.add' : 'remote.targets.edit')}</h2>
               </div>
-              <button aria-label={t('remote.profile.close-dialog')} className="text-button" onClick={() => setForm(null)} type="button">{t('common.actions.close')}</button>
+              <CloseButton label={t('remote.profile.close-dialog')} onClose={() => setForm(null)} />
             </header>
             <div className="dialog-body remote-profile-dialog-body" data-testid="remote-profile-dialog-body">
               <div className="remote-profile-fields">
@@ -389,13 +390,11 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <p className="card-label">{t('remote.profile.eyebrow')}</p>
                 <h2>{t('remote.targets.delete-title')}</h2>
               </div>
-              <button
-                aria-label={t('remote.targets.close-delete')}
-                className="text-button"
+              <CloseButton
                 disabled={busyId === deleting.target.id}
-                onClick={() => setDeleting(null)}
-                type="button"
-              >{t('common.actions.close')}</button>
+                label={t('remote.targets.close-delete')}
+                onClose={() => setDeleting(null)}
+              />
             </header>
             <div className="dialog-body remote-delete-dialog-body">
               <p>{t('remote.targets.delete-confirm', { name: deleting.target.displayName })}</p>
@@ -429,7 +428,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 <p className="card-label">{t('remote.targets.security')}</p>
                 <h2>{t('remote.targets.verify')}</h2>
               </div>
-              <button aria-label={t('remote.targets.close-verification')} className="text-button" onClick={() => setObservation(null)} type="button">{t('common.actions.close')}</button>
+              <CloseButton label={t('remote.targets.close-verification')} onClose={() => setObservation(null)} />
             </header>
             <div className="dialog-body remote-fingerprint-dialog-body">
               <p>{t('remote.targets.fingerprint-help')}</p>

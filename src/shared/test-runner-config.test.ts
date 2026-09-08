@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveTestMaxWorkers } from '../../vitest.config';
+import vitestConfig, { resolveTestMaxWorkers } from '../../vitest.config';
 import {
   resolveAsyncUtilTimeout,
   resolveTestTimeouts
@@ -57,6 +57,22 @@ describe('local test worker configuration', () => {
     for (const ci of [undefined, 'true']) {
       expect(resolveTestTimeouts(ci).testTimeout)
         .toBeGreaterThan(resolveAsyncUtilTimeout(ci));
+    }
+  });
+
+  /**
+   * A Vitest project does not inherit the root test options, so a timeout set
+   * once at the root silently left every project on the built-in five seconds.
+   */
+  it('gives every project the timeout rather than only the root', () => {
+    const projects = (vitestConfig as {
+      test?: { projects?: { test?: { testTimeout?: number } }[] };
+    }).test?.projects ?? [];
+    const expected = resolveTestTimeouts(process.env.CI).testTimeout;
+
+    expect(projects.length).toBeGreaterThan(1);
+    for (const project of projects) {
+      expect(project.test?.testTimeout).toBe(expected);
     }
   });
 

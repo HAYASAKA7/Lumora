@@ -26,6 +26,7 @@ import {
 } from '../../../shared/provider-definitions';
 import type { ProviderUpdatesStatus } from './useProviderUpdates';
 import { STRUCTURED_PREFERENCES_CHANGED_EVENT } from '../catalog/SessionRouteChoiceContext';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 export type ProviderScanStatus =
@@ -647,15 +648,10 @@ export function ProviderSettings({
                   {t('providers.settings.unified-details-title')}
                 </h2>
               </div>
-              <button
-                aria-label={t('providers.settings.unified-details-close-aria')}
-                className="text-button"
-                data-lumora-command
-                onClick={closeStructuredDialog}
-                type="button"
-              >
-                {t('common.actions.close')}
-              </button>
+              <CloseButton
+                label={t('providers.settings.unified-details-close-aria')}
+                onClose={closeStructuredDialog}
+              />
             </header>
             <div className="dialog-body structured-provider-settings-dialog-body">
               <div className="structured-provider-dialog-actions">

@@ -28,13 +28,20 @@ const maxWorkers = resolveTestMaxWorkers(
   availableParallelism()
 );
 
+/**
+ * Timeouts belong to each project: a project does not inherit the root test
+ * options, so setting them once at the root left every project on Vitest's
+ * own five seconds.
+ */
+const timeouts = resolveTestTimeouts(process.env.CI);
+
 export default defineConfig({
   test: {
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
-    ...resolveTestTimeouts(process.env.CI),
     projects: [
       {
         test: {
+          ...timeouts,
           name: 'node',
           environment: 'node',
           include: [
@@ -46,6 +53,7 @@ export default defineConfig({
       {
         plugins: [react()],
         test: {
+          ...timeouts,
           name: 'renderer',
           environment: 'jsdom',
           include: ['src/renderer/**/*.test.tsx'],

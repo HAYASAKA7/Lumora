@@ -17,6 +17,7 @@ import { hasVerifiedStartPromptSupport } from '../../../shared/provider-definiti
 import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 interface NewSessionDialogProps {
@@ -220,7 +221,7 @@ export function NewSessionDialog({
             <p className="card-label">{t('terminal.new.launch-label')}</p>
             <h2 id="new-session-title">{t('terminal.actions.new-session')}</h2>
           </div>
-          <button aria-label={t('terminal.new.close-label')} className="text-button" onClick={onClose} type="button">{t('common.actions.close')}</button>
+          <CloseButton label={t('terminal.new.close-label')} onClose={onClose} />
         </header>
 
         <div className="dialog-body">

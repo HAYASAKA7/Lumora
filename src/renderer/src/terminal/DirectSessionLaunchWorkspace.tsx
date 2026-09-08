@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 import type { DirectSessionLaunchState } from './useDirectSessionLaunch';
 
@@ -37,15 +38,7 @@ export function DirectSessionLaunchWorkspace({
           </p>
           <h2>{launch.session.title}</h2>
         </div>
-        <button
-          className="secondary-button"
-          data-lumora-command
-          onClick={onClose}
-          tabIndex={-1}
-          type="button"
-        >
-          {t('common.actions.close')}
-        </button>
+        <CloseButton onClose={onClose} tabIndex={-1} />
       </header>
 
       <div className="structured-agent-body direct-session-launch-body">

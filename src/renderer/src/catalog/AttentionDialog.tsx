@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
@@ -43,14 +44,9 @@ export function AttentionDialog({
             <p className="card-label">{t('catalog.home.diagnostics-label')}</p>
             <h2 id="attention-title">{t('catalog.home.needs-attention')}</h2>
           </div>
-          <button
-            className="text-button"
-            data-lumora-command
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+          <CloseButton
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body">

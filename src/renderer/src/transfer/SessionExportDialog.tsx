@@ -7,6 +7,7 @@ import type {
   SessionTransferResult
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 interface SessionExportDialogProps {
@@ -147,15 +148,11 @@ export function SessionExportDialog({
             <p className="card-label">{t('transfer.export.cross-device')}</p>
             <h2 id="session-export-title">{title}</h2>
           </div>
-          <button
-            aria-label={t('transfer.export.close-label')}
-            className="text-button"
+          <CloseButton
             disabled={step === 'progress'}
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+            label={t('transfer.export.close-label')}
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body">

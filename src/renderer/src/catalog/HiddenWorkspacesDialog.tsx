@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 
 import type { HiddenWorkspaceEntry } from './catalog-visibility';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 interface HiddenWorkspacesDialogProps {
@@ -80,15 +81,11 @@ export function HiddenWorkspacesDialog({
             <p className="card-label">{t('catalog.workspaces.visibility-label')}</p>
             <h2 id={titleId}>{t('catalog.workspaces.hidden-title')}</h2>
           </div>
-          <button
-            aria-label={t('catalog.workspaces.close-hidden-label')}
-            className="text-button"
+          <CloseButton
             disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+            label={t('catalog.workspaces.close-hidden-label')}
+            onClose={onClose}
+          />
         </header>
         <div className="dialog-body">
           <label className="search-control hidden-workspace-search">

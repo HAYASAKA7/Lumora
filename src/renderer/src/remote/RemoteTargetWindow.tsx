@@ -44,6 +44,7 @@ import {
   WorkspacesView,
   type CatalogViewStatus
 } from '../catalog/CatalogViews';
+import { CloseButton } from '../ui/CloseButton';
 import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
 import { HiddenWorkspacesDialog } from '../catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from '../catalog/HideWorkspaceDialog';
@@ -2006,13 +2007,11 @@ export function RemoteTargetWindow({
                 <p className="card-label">{t('remote.helper.eyebrow')}</p>
                 <h2>{t('remote.helper.install-lumora')}</h2>
               </div>
-              <button
-                aria-label={t('remote.helper.close-installation')}
-                className="text-button"
+              <CloseButton
                 disabled={busy}
-                onClick={() => setShowHelperInstall(false)}
-                type="button"
-              >{t('common.actions.close')}</button>
+                label={t('remote.helper.close-installation')}
+                onClose={() => setShowHelperInstall(false)}
+              />
             </header>
             <div className="dialog-body remote-helper-dialog-body">
               <p>{t('remote.helper.install-description', { target: summary.target.displayName })}</p>

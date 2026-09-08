@@ -13,6 +13,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Close a dialog with a cross instead of the word **Close**. Every dialog
+  header now carries the same small cross in its corner, with the name of what
+  it closes in a tooltip rather than on the button. The header keeps the same
+  width in every language, and screen readers still hear the full name — "Close
+  Unified UI settings" rather than a bare "Close". The **Close** in a footer
+  row, where it sits beside other worded actions, stays a word.
 
 ## [0.5.7] - 2026-09-08
 

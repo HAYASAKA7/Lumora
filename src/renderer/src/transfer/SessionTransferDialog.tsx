@@ -20,6 +20,7 @@ import {
   reduceImportFlow
 } from './session-transfer-state';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { CloseButton } from '../ui/CloseButton';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization, type TranslationValues } from '../localization/useLocalization';
 
@@ -249,15 +250,11 @@ export function SessionTransferDialog({
             <p className="card-label">{t('transfer.import.cross-device')}</p>
             <h2 id="session-transfer-title">{title}</h2>
           </div>
-          <button
-            aria-label={t('transfer.import.close-label')}
-            className="text-button"
+          <CloseButton
             disabled={!canClose}
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+            label={t('transfer.import.close-label')}
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body session-transfer-dialog-body">

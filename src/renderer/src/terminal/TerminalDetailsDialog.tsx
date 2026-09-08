@@ -6,6 +6,7 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 const IDENTITY_MATCH_KEYS: Record<
@@ -52,14 +53,10 @@ export function TerminalDetailsDialog({
             <p className="card-label">{t('terminal.details.metadata-label')}</p>
             <h2 id="terminal-details-title">{t('terminal.details.title')}</h2>
           </div>
-          <button
-            aria-label={t('terminal.details.close-label')}
-            className="text-button"
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+          <CloseButton
+            label={t('terminal.details.close-label')}
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body">

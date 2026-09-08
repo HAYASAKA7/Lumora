@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { StructuredAgentRuntimeSummary } from '../../../shared/contracts';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 import type { StructuredAgentViewState } from './structured-agent-state';
 
@@ -51,15 +52,10 @@ export function StructuredSessionDetailsDialog({
               {t('terminal.unified.details.title')}
             </h2>
           </div>
-          <button
-            aria-label={t('terminal.unified.details.close-label')}
-            className="text-button"
-            data-lumora-command
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+          <CloseButton
+            label={t('terminal.unified.details.close-label')}
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body structured-session-details-body">

@@ -6,6 +6,7 @@ import type {
   ProviderUpdateStatus
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
@@ -57,14 +58,9 @@ export function ProviderDetailsDialog({
               {t('providers.settings.details-title')}
             </h2>
           </div>
-          <button
-            className="text-button"
-            data-lumora-command
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+          <CloseButton
+            onClose={onClose}
+          />
         </header>
 
         <div className="dialog-body">

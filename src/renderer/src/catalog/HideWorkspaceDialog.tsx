@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { OverflowTooltip } from '../ui/Tooltip';
+import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 
 interface HideWorkspaceDialogProps {
@@ -53,15 +54,11 @@ export function HideWorkspaceDialog({
             <p className="card-label">{t('catalog.workspaces.visibility-label')}</p>
             <h2 id={titleId}>{t('catalog.workspaces.hide-title', { workspace: workspace.displayName })}</h2>
           </div>
-          <button
-            aria-label={t('catalog.workspaces.close-visibility-label')}
-            className="text-button"
+          <CloseButton
             disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            {t('common.actions.close')}
-          </button>
+            label={t('catalog.workspaces.close-visibility-label')}
+            onClose={onClose}
+          />
         </header>
         <div className="dialog-body">
           <div className="workspace-visibility-summary">

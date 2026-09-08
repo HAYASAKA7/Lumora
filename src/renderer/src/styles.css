@@ -4049,6 +4049,46 @@ button {
   border-radius: 8px;
 }
 
+/*
+ * The dismiss control in a dialog header. A cross keeps the header the same
+ * width in every language, and its name lives in the tooltip and the
+ * accessible name rather than in the button.
+ */
+.close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.close-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--control-surface);
+}
+
+.close-button:focus-visible {
+  outline: 2px solid var(--card-focus-outline);
+  outline-offset: 2px;
+}
+
+.close-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.close-button .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .text-button {
   padding: 4px;
   color: var(--blue);
