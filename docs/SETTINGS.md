@@ -93,8 +93,8 @@ restarting Lumora.
   <img src="screenshots/0.5/settings/settings_providers.png" alt="Lumora Providers settings with one card per provider, versions, switches, and Details" width="1100">
 </p>
 
-The local Providers page also contains the Unified UI master switch and its
-detailed capability dialog. See the [Unified UI guide](UNIFIED_UI.md#enable-unified-ui)
+The local Providers page also contains the Unified UI master switch, which is
+off by default, and its detailed capability dialog. See the [Unified UI guide](UNIFIED_UI.md#enable-unified-ui)
 and [provider support matrix](PROVIDER_SUPPORT.md).
 
 An update in progress can be cancelled, which stops the package manager

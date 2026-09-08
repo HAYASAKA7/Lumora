@@ -7,6 +7,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Turn the **Unified agent interface** off by default. A new install now runs
+  every agent in the native terminal until you turn the master switch on under
+  **Settings → Providers**. Anyone who has already made a choice keeps it; only
+  settings that never carried the switch take the new default.
+
 ## [0.5.7] - 2026-09-08
 
 ### Fixed

@@ -206,9 +206,10 @@ describe('ProviderSettings', () => {
       installationsHeading.compareDocumentPosition(unifiedHeading) &
       Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0);
+    // The master switch is off out of the box.
     expect(screen.getByRole('checkbox', {
       name: 'Use Unified UI when available'
-    })).toBeChecked();
+    })).not.toBeChecked();
     expect(screen.queryByRole('checkbox', {
       name: 'Use unified interface for Codex when verified'
     })).not.toBeInTheDocument();
@@ -325,7 +326,8 @@ describe('ProviderSettings', () => {
 
     render(<ProviderSettings generalSettings={{
       ...DEFAULT_GENERAL_SETTINGS,
-      enabledProviders: ['codex']
+      enabledProviders: ['codex'],
+      unifiedAgentUiEnabled: true
     }} />);
 
     const detailsButton = await screen.findByRole('button', {
@@ -356,7 +358,7 @@ describe('ProviderSettings', () => {
     }));
     expect(onGeneralSettingsChange).toHaveBeenCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
-      unifiedAgentUiEnabled: false
+      unifiedAgentUiEnabled: true
     });
   });
 

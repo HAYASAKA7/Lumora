@@ -1542,7 +1542,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   warnBeforeRemoteDisconnect: true,
   crossAgentWorkflowEnabled: false,
   crossAgentHandoffRetentionDays: 30,
-  unifiedAgentUiEnabled: true,
+  unifiedAgentUiEnabled: false,
   enabledProviders: [...PROVIDER_IDS],
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
@@ -1687,7 +1687,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
     return GeneralSettingsSchema.parse({
       ...versionThirteen.data,
       version: 14,
-      unifiedAgentUiEnabled: true
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled
     });
   }
 
@@ -1697,7 +1697,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
       ...versionTwelve.data,
       version: 14,
       autoTrustWorkspaces: false,
-      unifiedAgentUiEnabled: true
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled
     });
   }
 
@@ -1707,7 +1707,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
       ...versionEleven.data,
       version: 14,
       autoTrustWorkspaces: false,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled,
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionEleven.data.appearance
@@ -1721,7 +1721,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
       ...versionTen.data,
       version: 14,
       autoTrustWorkspaces: false,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled,
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
         ...versionTen.data.appearance
@@ -1735,7 +1735,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
       ...versionNine.data,
       version: 14,
       autoTrustWorkspaces: false,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled,
       languagePreference: 'system',
       appearance: {
         ...DEFAULT_APPEARANCE_SETTINGS,
@@ -1750,7 +1750,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
       ...versionEight.data,
       version: 14,
       autoTrustWorkspaces: false,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled,
       languagePreference: 'system',
       warnBeforeApplicationQuit: true,
       warnBeforeRemoteDisconnect: true,

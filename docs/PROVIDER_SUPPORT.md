@@ -50,9 +50,10 @@ launch-only catalog providers, so their verified ACP routes can create Unified
 UI sessions but Lumora does not present provider-owned saved sessions for exact
 resume. Antigravity, Amp, Crush, and Aider remain PTY-only because Lumora does
 not have a provider-owned structured protocol for them.
-Settings presents one target-scoped Unified UI master switch. Turning it off
-forces automatic launches through the native PTY without deleting the saved
-per-provider choices. The detailed settings dialog contains capability status,
+Settings presents one target-scoped Unified UI master switch, off by default.
+Every launch therefore uses the native PTY until it is turned on, and turning it
+off again forces automatic launches back through the native PTY without deleting
+the saved per-provider choices. The detailed settings dialog contains capability status,
 individual provider switches, and fallback guidance; provider start commands
 remain configured once in the installation cards. Opening detailed settings is
 what triggers a status refresh. When the master and provider choice are enabled

@@ -31,8 +31,9 @@ check. An installed command name alone does not verify a structured route.
 
 ## Enable Unified UI
 
-Open **Settings > Providers** and turn on the target-scoped **Unified agent
-interface** master switch.
+The **Unified agent interface** master switch is off out of the box. Open
+**Settings > Providers** and turn on the target-scoped switch to use it. The
+switch belongs to one target, so a remote computer is turned on separately.
 
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_settings.png" alt="Lumora Providers settings with the Unified agent interface master switch" width="1100">

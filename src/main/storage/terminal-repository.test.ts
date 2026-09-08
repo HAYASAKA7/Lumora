@@ -460,7 +460,7 @@ describe('TerminalRepository', () => {
     expect(remoteRepository.getGeneralSettings()).toMatchObject({
       languagePreference: 'zh-Hans',
       autoTrustWorkspaces: true,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: false,
       enabledProviders: [...PROVIDER_IDS]
     });
 

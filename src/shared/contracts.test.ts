@@ -1784,7 +1784,7 @@ describe('managed terminal contracts', () => {
       warnBeforeRemoteDisconnect: true,
       crossAgentWorkflowEnabled: false,
       crossAgentHandoffRetentionDays: 30,
-      unifiedAgentUiEnabled: true,
+      unifiedAgentUiEnabled: false,
       enabledProviders: [...PROVIDER_IDS],
       appearance: {
         theme: 'lumora',

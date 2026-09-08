@@ -89,7 +89,11 @@ function MenuHarness({
 
 function setup(options: { enabled?: boolean; resumeSession?: boolean } = {}) {
   const api = {
-    getGeneralSettings: vi.fn().mockResolvedValue(DEFAULT_GENERAL_SETTINGS),
+    getGeneralSettings: vi.fn().mockResolvedValue({
+      ...DEFAULT_GENERAL_SETTINGS,
+      // These choices sit behind the master switch, which defaults to off.
+      unifiedAgentUiEnabled: true
+    }),
     getStructuredProviderPreferences: vi.fn().mockResolvedValue([{
       providerId: 'codex',
       useUnifiedWhenAvailable: options.enabled ?? true,
