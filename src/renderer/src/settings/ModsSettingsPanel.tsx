@@ -6,6 +6,8 @@ import type {
   ModsSettings
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 
 type ModsApi = Pick<
   LumoraApi,
@@ -213,10 +215,9 @@ export function ModsSettingsPanel({
                 >
                   {t('settings.mods.open-language-packs')}
                 </button>
-                <button
-                  className="secondary-button"
-                  data-lumora-command
+                <IconButton
                   disabled={busy}
+                  label={t('settings.mods.reload-language-packs')}
                   onClick={() => void update(async () => {
                     const result = await api.reloadLocalization();
                     setNotice(result.rejectedUserPacks === 0
@@ -227,10 +228,9 @@ export function ModsSettingsPanel({
                     return null;
                   })}
                   tabIndex={-1}
-                  type="button"
                 >
-                  {t('settings.mods.reload-language-packs')}
-                </button>
+                  <RefreshIcon />
+                </IconButton>
               </div>
             </div>
           </div>

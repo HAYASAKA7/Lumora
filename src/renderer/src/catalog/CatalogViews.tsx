@@ -11,7 +11,7 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { AttentionDialog } from './AttentionDialog';
-import { CrossIcon } from '../ui/CrossIcon';
+import { CrossIcon } from '../ui/icons';
 import { resolveSessionResumeDisabledReason } from './session-resume';
 import {
   ProgressiveListControl,

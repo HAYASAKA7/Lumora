@@ -4052,6 +4052,52 @@ button {
 }
 
 /*
+ * A button that shows only its icon: the utility actions in a panel header and
+ * the repeated actions in a row. Its name lives in the tooltip and the
+ * accessible name rather than in the button, which keeps a row the same width
+ * in every language.
+ */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.icon-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--control-surface);
+}
+
+.icon-button-danger:hover:not(:disabled) {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--card-focus-outline);
+  outline-offset: 2px;
+}
+
+.icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon-button .icon {
+  width: 17px;
+  height: 17px;
+}
+
+/*
  * The dismiss control in a dialog header. A cross keeps the header the same
  * width in every language, and its name lives in the tooltip and the
  * accessible name rather than in the button.

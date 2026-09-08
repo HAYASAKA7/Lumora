@@ -6,6 +6,8 @@ import type {
   LumoraApi
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 
 type DiagnosticApi = Pick<
   LumoraApi,
@@ -134,14 +136,13 @@ export function DiagnosticsPanel({
           <p>{t('settings.diagnostics.description')}</p>
         </div>
         <div className="diagnostics-panel-actions">
-          <button
-            className="secondary-button"
+          <IconButton
             disabled={status.state === 'loading'}
+            label={t('settings.diagnostics.refresh')}
             onClick={() => void refresh()}
-            type="button"
           >
-            {t('settings.diagnostics.refresh')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
           <button
             className="refresh-button"
             disabled={exporting}

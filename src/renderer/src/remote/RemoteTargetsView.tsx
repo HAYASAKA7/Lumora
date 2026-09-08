@@ -11,6 +11,8 @@ import type {
 import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
+import { IconButton } from '../ui/IconButton';
+import { EditIcon, TrashIcon } from '../ui/icons';
 
 interface RemoteTargetFormState {
   displayName: string;
@@ -291,28 +293,26 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                       {t(busyId === item.target.id ? 'remote.targets.checking' : 'remote.targets.verify')}
                     </button>
                   )}
-                  <button
-                    aria-label={t('remote.targets.edit-named', { name: item.target.displayName })}
-                    className="secondary-button"
+                  <IconButton
+                    label={t('remote.targets.edit-named', { name: item.target.displayName })}
                     onClick={() => {
                       setEditingId(item.target.id);
                       setFormError(null);
                       setForm(formFrom(item));
                     }}
                   >
-                    {t('common.actions.edit')}
-                  </button>
-                  <button
-                    aria-label={t('remote.targets.delete-named', { name: item.target.displayName })}
-                    className="text-button danger-text"
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    label={t('remote.targets.delete-named', { name: item.target.displayName })}
                     onClick={() => {
                       setDeleteError(null);
                       setDeleting(item);
                     }}
-                    type="button"
+                    tone="danger"
                   >
-                    {t('common.actions.delete')}
-                  </button>
+                    <TrashIcon />
+                  </IconButton>
                 </div>
               </article>
             );

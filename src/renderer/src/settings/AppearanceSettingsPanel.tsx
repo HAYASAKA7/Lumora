@@ -25,6 +25,8 @@ import {
   type AppearanceSectionPreferenceHost,
   type AppearanceSections
 } from './appearance-section-preference';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import {
   resolveInterfaceFontFamily,
@@ -333,16 +335,14 @@ export function AppearanceSettingsPanel({
           >
             {t('settings.appearance.apply-theme-pack')}
           </button>
-          <button
-            className="secondary-button"
-            data-lumora-command
+          <IconButton
             disabled={themePresetsBusy}
+            label={t('settings.appearance.reload-theme-packs')}
             onClick={onRefreshThemePresets}
             tabIndex={-1}
-            type="button"
           >
-            {t('settings.appearance.reload-theme-packs')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
           <button
             className="secondary-button"
             data-lumora-command
@@ -555,14 +555,13 @@ export function AppearanceSettingsPanel({
             >
               {t('settings.appearance.apply-font-preset')}
             </button>
-            <button
-              className="secondary-button"
+            <IconButton
               disabled={fontPresetsBusy}
+              label={t('settings.appearance.refresh-font-presets')}
               onClick={() => void loadFontPresets()}
-              type="button"
             >
-              {t('settings.appearance.refresh-font-presets')}
-            </button>
+              <RefreshIcon />
+            </IconButton>
           </div>
         </div>
         {rejectedFontPresets > 0 ? (

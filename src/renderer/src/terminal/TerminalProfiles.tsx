@@ -6,6 +6,8 @@ import type {
 } from '../../../shared/contracts';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization } from '../localization/useLocalization';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon, TrashIcon } from '../ui/icons';
 
 type ProfileStatus =
   | { state: 'loading' }
@@ -102,9 +104,9 @@ export function TerminalProfiles({
             <p className="card-label">{t('terminal.profiles.local-detection')}</p>
             <h2 id="profile-list-title">{t('terminal.profiles.available')}</h2>
           </div>
-          <button className="secondary-button" onClick={load} type="button">
-            {t('terminal.profiles.refresh')}
-          </button>
+          <IconButton label={t('terminal.profiles.refresh')} onClick={load}>
+            <RefreshIcon />
+          </IconButton>
         </div>
 
         {status.state === 'loading' ? (
@@ -143,13 +145,13 @@ export function TerminalProfiles({
                     : profile.args.join(' · ')}
                 </p>
                 {profile.kind === 'custom' ? (
-                  <button
-                    className="text-button danger-text"
+                  <IconButton
+                    label={t('terminal.profiles.delete-custom')}
                     onClick={() => remove(profile.id)}
-                    type="button"
+                    tone="danger"
                   >
-                    {t('terminal.profiles.delete-custom')}
-                  </button>
+                    <TrashIcon />
+                  </IconButton>
                 ) : null}
               </article>
             ))}

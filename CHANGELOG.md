@@ -13,6 +13,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Replace the word on a repeated utility action with the icon for what it
+  does. Reloading a list — diagnostics, terminal profiles, theme packs, font
+  presets, language packs — is a circular arrow in the panel's header instead
+  of a button spelling it out, and a remote computer's row carries a pencil and
+  a bin rather than **Edit** and **Delete**. Each keeps its full name in a
+  tooltip and for screen readers, so a row still says "Delete *name*" rather
+  than "Delete". Buttons that finish a flow, that sit among worded choices, or
+  that name which of several folders they open keep their words.
 - Draw every cross the same way. A session warning was dismissed with a typed
   × character, which took its weight from whichever font was loaded and never
   matched the stroked icons beside it. It now uses the same drawn cross as a

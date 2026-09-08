@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-import { CrossIcon } from './CrossIcon';
-import { Tooltip } from './Tooltip';
+import { CrossIcon } from './icons';
+import { IconButton } from './IconButton';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
@@ -24,21 +24,16 @@ export function CloseButton({
   tabIndex?: number | undefined;
 }): ReactNode {
   const { t } = useLocalization();
-  const name = label ?? t('common.actions.close');
 
   return (
-    <Tooltip content={name}>
-      <button
-        aria-label={name}
-        className="close-button"
-        data-lumora-command
-        disabled={disabled}
-        onClick={onClose}
-        {...(tabIndex === undefined ? {} : { tabIndex })}
-        type="button"
-      >
-        <CrossIcon />
-      </button>
-    </Tooltip>
+    <IconButton
+      className="close-button"
+      disabled={disabled}
+      label={label ?? t('common.actions.close')}
+      onClick={onClose}
+      tabIndex={tabIndex}
+    >
+      <CrossIcon />
+    </IconButton>
   );
 }
