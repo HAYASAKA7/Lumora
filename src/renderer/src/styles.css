@@ -4097,6 +4097,21 @@ button {
   height: 17px;
 }
 
+/* There is no word to change to "Refreshing", so the icon turns instead. */
+.icon-button-busy .icon {
+  animation: icon-button-spin 900ms linear infinite;
+}
+
+@keyframes icon-button-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-button-busy .icon {
+    animation: none;
+  }
+}
+
 /*
  * The dismiss control in a dialog header. A cross keeps the header the same
  * width in every language, and its name lives in the tooltip and the

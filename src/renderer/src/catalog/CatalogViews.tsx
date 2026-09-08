@@ -11,7 +11,8 @@ import type {
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { AttentionDialog } from './AttentionDialog';
-import { CrossIcon } from '../ui/icons';
+import { IconButton } from '../ui/IconButton';
+import { CrossIcon, RefreshIcon } from '../ui/icons';
 import { resolveSessionResumeDisabledReason } from './session-resume';
 import {
   ProgressiveListControl,
@@ -205,16 +206,17 @@ export function WorkspacesView({
               {t('catalog.workspaces.hidden-count', { count: hiddenWorkspaceCount })}
             </button>
           )}
-          <button
-            className="secondary-button"
+          <IconButton
+            busy={isRefreshing}
             disabled={isRefreshing}
+            label={t(isRefreshing
+              ? 'catalog.workspaces.refreshing'
+              : 'catalog.workspaces.refresh')}
             onClick={onRefresh}
-            data-lumora-command
             tabIndex={-1}
-            type="button"
           >
-            {t(isRefreshing ? 'catalog.workspaces.refreshing' : 'catalog.workspaces.refresh')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
           {onAddWorkspace === undefined ? null : (
             <button
               className="refresh-button"
@@ -510,16 +512,17 @@ export function SessionsView({
             value={provider ?? ''}
           />
         </div>
-        <button
-          className="secondary-button"
+        <IconButton
+          busy={isRefreshing}
           disabled={isRefreshing}
+          label={t(isRefreshing
+            ? 'catalog.workspaces.refreshing'
+            : 'catalog.workspaces.refresh')}
           onClick={onRefresh}
-          data-lumora-command
           tabIndex={-1}
-          type="button"
         >
-          {t(isRefreshing ? 'catalog.workspaces.refreshing' : 'catalog.workspaces.refresh')}
-        </button>
+          <RefreshIcon />
+        </IconButton>
 
       </div>
 

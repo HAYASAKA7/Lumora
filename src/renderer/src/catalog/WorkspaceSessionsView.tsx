@@ -17,6 +17,8 @@ import {
   providerDefinition
 } from '../../../shared/provider-definitions';
 import { Tooltip } from '../ui/Tooltip';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 
@@ -241,16 +243,17 @@ export function WorkspaceSessionsView({
           <span className={`origin-badge origin-${workspace.origin}`}>
             {t(`catalog.workspaces.origin-${workspace.origin}`)}
           </span>
-          <button
-            className="secondary-button"
+          <IconButton
+            busy={isRefreshing}
             disabled={isRefreshing}
+            label={t(isRefreshing
+              ? 'catalog.workspaces.refreshing-sessions'
+              : 'catalog.workspaces.refresh-sessions')}
             onClick={onRefresh}
-            data-lumora-command
             tabIndex={-1}
-            type="button"
           >
-            {t(isRefreshing ? 'catalog.workspaces.refreshing-sessions' : 'catalog.workspaces.refresh-sessions')}
-          </button>
+            <RefreshIcon />
+          </IconButton>
 
         </div>
       </div>

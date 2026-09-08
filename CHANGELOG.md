@@ -14,10 +14,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
 - Replace the word on a repeated utility action with the icon for what it
-  does. Reloading a list — diagnostics, terminal profiles, theme packs, font
-  presets, language packs — is a circular arrow in the panel's header instead
-  of a button spelling it out, and a remote computer's row carries a pencil and
-  a bin rather than **Edit** and **Delete**. Each keeps its full name in a
+  does. Reloading a list — the catalog on **Workspaces** and **All sessions**, a
+  workspace's own sessions, diagnostics, terminal profiles, theme packs, font
+  presets, language packs — is a circular arrow in the header instead of a
+  button spelling it out, and a remote computer's row carries a pencil and a bin
+  rather than **Edit** and **Delete**. A refresh that is running turns its arrow
+  while it works, and says so in its tooltip. Each keeps its full name in a
   tooltip and for screen readers, so a row still says "Delete *name*" rather
   than "Delete". Buttons that finish a flow, that sit among worded choices, or
   that name which of several folders they open keep their words.

@@ -11,6 +11,7 @@ import { Tooltip } from './Tooltip';
  * flow, or that sits among worded choices, keeps its word.
  */
 export function IconButton({
+  busy = false,
   children,
   className = '',
   disabled = false,
@@ -19,6 +20,8 @@ export function IconButton({
   tabIndex,
   tone = 'normal'
 }: {
+  /** Turns the icon while the action runs, since there is no word to change. */
+  busy?: boolean;
   children: ReactNode;
   className?: string;
   disabled?: boolean;
@@ -31,6 +34,7 @@ export function IconButton({
   const classes = [
     'icon-button',
     tone === 'danger' ? 'icon-button-danger' : '',
+    busy ? 'icon-button-busy' : '',
     className
   ].filter((entry) => entry !== '').join(' ');
 
