@@ -1,5 +1,6 @@
 const LOCAL_ASYNC_UTIL_TIMEOUT_MS = 1_000;
 const CI_ASYNC_UTIL_TIMEOUT_MS = 5_000;
+const LOCAL_TEST_TIMEOUT_MS = 15_000;
 const CI_TEST_TIMEOUT_MS = 30_000;
 
 /**
@@ -20,12 +21,14 @@ export function resolveAsyncUtilTimeout(ci: string | undefined): number {
 /**
  * A test has to outlive the query it is waiting on, otherwise a slow machine
  * reports an opaque test timeout instead of the query failure and the rendered
- * markup that explains it.
+ * markup that explains it. Vitest's own five seconds is not enough for the
+ * heaviest renderer tests while the rest of the suite runs beside them: one of
+ * them was measured at 6992ms on a run where the whole suite took 146s, and it
+ * failed with a bare timeout rather than anything about the test.
  */
 export function resolveTestTimeouts(
   ci: string | undefined
-): { testTimeout?: number; hookTimeout?: number } {
-  return ci
-    ? { testTimeout: CI_TEST_TIMEOUT_MS, hookTimeout: CI_TEST_TIMEOUT_MS }
-    : {};
+): { testTimeout: number; hookTimeout: number } {
+  const timeout = ci ? CI_TEST_TIMEOUT_MS : LOCAL_TEST_TIMEOUT_MS;
+  return { testTimeout: timeout, hookTimeout: timeout };
 }

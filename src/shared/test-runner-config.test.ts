@@ -46,13 +46,18 @@ describe('local test worker configuration', () => {
   });
 
   it('keeps a test alive longer than the query it is waiting on', () => {
-    expect(resolveTestTimeouts(undefined)).toEqual({});
+    expect(resolveTestTimeouts(undefined)).toEqual({
+      testTimeout: 15_000,
+      hookTimeout: 15_000
+    });
     expect(resolveTestTimeouts('true')).toEqual({
       testTimeout: 30_000,
       hookTimeout: 30_000
     });
-    expect(resolveTestTimeouts('true').testTimeout!)
-      .toBeGreaterThan(resolveAsyncUtilTimeout('true'));
+    for (const ci of [undefined, 'true']) {
+      expect(resolveTestTimeouts(ci).testTimeout)
+        .toBeGreaterThan(resolveAsyncUtilTimeout(ci));
+    }
   });
 
   it('applies the query headroom to every renderer test', () => {
