@@ -597,24 +597,31 @@ export function ProviderSettings({
               </span>
             </label>
           </div>
-          <div className="structured-provider-panel-actions">
-            <button
-              aria-label={t('providers.settings.unified-details-open-aria')}
-              className="secondary-button"
-              data-lumora-command
-              onClick={() => {
-                setStructuredDialogOpen(true);
-                refreshStructuredProviders(false);
-              }}
-              ref={structuredDetailsButtonRef}
-              type="button"
-            >
-              {t('providers.settings.unified-details-open')}
-            </button>
-          </div>
+          {/* Everything in the detailed settings applies only while the
+              interface is on, and the check behind them launches every
+              provider's CLI, so neither is offered until then. */}
+          {!generalSettings.unifiedAgentUiEnabled ? null : (
+            <div className="structured-provider-panel-actions">
+              <button
+                aria-label={t('providers.settings.unified-details-open-aria')}
+                className="secondary-button"
+                data-lumora-command
+                onClick={() => {
+                  setStructuredDialogOpen(true);
+                  refreshStructuredProviders(false);
+                }}
+                ref={structuredDetailsButtonRef}
+                type="button"
+              >
+                {t('providers.settings.unified-details-open')}
+              </button>
+            </div>
+          )}
         </section>
       )}
-      {!structuredDialogOpen ? null : createPortal(
+      {!structuredDialogOpen || !generalSettings.unifiedAgentUiEnabled
+        ? null
+        : createPortal(
         <div className="dialog-backdrop" role="presentation">
           <section
             aria-labelledby="structured-provider-dialog-title"

@@ -193,7 +193,10 @@ describe('ProviderSettings', () => {
       saveStructuredProviderPreference
     });
 
-    render(<ProviderSettings />);
+    render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      unifiedAgentUiEnabled: true
+    }} />);
 
     const unifiedHeading = await screen.findByRole('heading', {
       name: 'Unified agent interface'
@@ -206,10 +209,9 @@ describe('ProviderSettings', () => {
       installationsHeading.compareDocumentPosition(unifiedHeading) &
       Node.DOCUMENT_POSITION_FOLLOWING
     ).not.toBe(0);
-    // The master switch is off out of the box.
     expect(screen.getByRole('checkbox', {
       name: 'Use Unified UI when available'
-    })).not.toBeChecked();
+    })).toBeChecked();
     expect(screen.queryByRole('checkbox', {
       name: 'Use unified interface for Codex when verified'
     })).not.toBeInTheDocument();
@@ -275,7 +277,8 @@ describe('ProviderSettings', () => {
 
     render(<ProviderSettings generalSettings={{
       ...DEFAULT_GENERAL_SETTINGS,
-      enabledProviders: ['codex']
+      enabledProviders: ['codex'],
+      unifiedAgentUiEnabled: true
     }} />);
 
     fireEvent.click(await screen.findByRole('button', {
@@ -301,7 +304,8 @@ describe('ProviderSettings', () => {
 
     render(<ProviderSettings generalSettings={{
       ...DEFAULT_GENERAL_SETTINGS,
-      enabledProviders: ['codex']
+      enabledProviders: ['codex'],
+      unifiedAgentUiEnabled: true
     }} />);
 
     fireEvent.click(await screen.findByRole('button', {
@@ -313,6 +317,40 @@ describe('ProviderSettings', () => {
     expect(screen.queryByRole('textbox', {
       name: 'Codex structured executable path'
     })).not.toBeInTheDocument();
+  });
+
+  it('offers the detailed settings only once the unified interface is on', async () => {
+    const scanStructuredProviderCapabilities = vi.fn().mockResolvedValue([]);
+    setLumora({
+      getStructuredProviderPreferences: vi.fn().mockResolvedValue([]),
+      scanStructuredProviderCapabilities,
+      saveStructuredProviderPreference: vi.fn()
+    });
+
+    const { rerender } = render(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex']
+    }} />);
+
+    // With the interface off, nothing behind the master switch applies, and
+    // the check behind it is worth nothing either.
+    expect(await screen.findByRole('checkbox', {
+      name: 'Use Unified UI when available'
+    })).not.toBeChecked();
+    expect(screen.queryByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    })).not.toBeInTheDocument();
+    expect(scanStructuredProviderCapabilities).not.toHaveBeenCalled();
+
+    rerender(<ProviderSettings generalSettings={{
+      ...DEFAULT_GENERAL_SETTINGS,
+      enabledProviders: ['codex'],
+      unifiedAgentUiEnabled: true
+    }} />);
+
+    expect(await screen.findByRole('button', {
+      name: 'Open detailed Unified UI settings'
+    })).toBeInTheDocument();
   });
 
   it('closes Unified UI settings while a capability check is pending', async () => {
@@ -375,7 +413,8 @@ describe('ProviderSettings', () => {
 
     render(<ProviderSettings generalSettings={{
       ...DEFAULT_GENERAL_SETTINGS,
-      enabledProviders: ['codex']
+      enabledProviders: ['codex'],
+      unifiedAgentUiEnabled: true
     }} />);
 
     fireEvent.click(await screen.findByRole('button', {
