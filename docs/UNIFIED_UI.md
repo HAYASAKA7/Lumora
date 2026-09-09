@@ -39,9 +39,18 @@ switch belongs to one target, so a remote computer is turned on separately.
   <img src="screenshots/0.5/unified-ui/unified_ui_settings.png" alt="Lumora Providers settings with the Unified agent interface master switch" width="1100">
 </p>
 
-Select **Detailed settings** to check the installed interfaces and choose
-providers individually. Provider start commands remain in their installation
+With the switch on, select **Detailed settings** to check the installed
+interfaces and choose providers individually. The entry appears only while the
+master switch is on, because everything inside it applies to an interface that
+is otherwise not in use. Provider start commands remain in their installation
 cards; Lumora does not duplicate them in the Unified UI dialog.
+
+Opening the dialog reads the providers Lumora has already detected and asks
+each one that is turned on what it supports, by launching its own interface and
+holding a short conversation with it. Results are reused for five minutes;
+**Check interfaces** discards them and looks again from scratch. A provider
+turned off here is not asked at all, and reports **Native terminal fallback**
+until you turn it on.
 
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_switch_dialog.png" alt="Lumora Unified UI detailed settings with per-provider capability results" width="920">

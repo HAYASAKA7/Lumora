@@ -280,6 +280,20 @@ when its managed provider process exits and refreshes the catalog.
 **Resolution:** Resume the saved session or start a new one if more work is
 needed. Report the problem only if the provider process is still running.
 
+### A provider process is still running after Lumora closes
+
+**Symptom:** An agent process — `node` running gemini, codex or another CLI —
+is still in Task Manager after Lumora has exited.
+
+**Likely cause:** Fixed in 0.5.8. On Windows an agent installed by npm starts
+through a `.cmd` shim, so earlier versions ended the shim and left the agent it
+had launched running. A capability check that failed or timed out was the usual
+way to produce one.
+
+**Resolution:** End the process once from Task Manager; 0.5.8 and later take
+down everything a provider started. If a new one appears on 0.5.8 or later,
+report it with the provider name and how the session or check ended.
+
 ### A runtime cannot be restored after restarting Lumora
 
 **Symptom:** Lumora reports a lost runtime instead of reconnecting its previous

@@ -7,8 +7,28 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-09-09
+
 ### Changed
 
+- Offer **Detailed settings** under **Unified agent interface** only while the
+  master switch is on. Everything inside it applies to an interface that is
+  turned off, and opening it launched every installed agent to ask what it
+  supports. With the switch off, nothing behind it runs at all.
+- Check the installed interfaces against the discovery Lumora already has
+  rather than repeating it, and ask only the providers that are turned on for
+  the unified interface. Opening **Detailed settings** re-detected every
+  provider first, so the list took about two seconds to appear every time; it
+  now opens from what the provider cards are already showing, and **Check
+  interfaces** remains the way to look again from scratch. Choosing Unified UI
+  for one session still asks that provider, whatever its automatic preference
+  says.
+- Open every folder from one mark. **Open Mods folder**, the theme pack, font
+  preset and language pack folders under **Settings → Mods**, and **Open themes
+  folder** under **Settings → Appearance** are now a folder icon with the full
+  name in a tooltip. The row already names the folder and shows its path, and
+  the mark is drawn as a folder rather than the arrow that means going to
+  something inside Lumora.
 - Turn the **Unified agent interface** off by default. A new install now runs
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
@@ -58,6 +78,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   width in every language, and screen readers still hear the full name — "Close
   Unified UI settings" rather than a bare "Close". The **Close** in a footer
   row, where it sits beside other worded actions, stays a word.
+
+### Fixed
+
+- Stop a provider that is not installed from shortening the detection cache.
+  A scan that missed anything was kept for ten seconds instead of five minutes,
+  so on a machine where any enabled provider is absent — an agent you have not
+  installed, and never intend to — every reader of that cache paid for a fresh
+  scan of the filesystem. Only a provider whose version probe *failed* now
+  shortens the term, because that is the miss that can correct itself; one that
+  is simply not installed will not appear ten seconds later.
+- Stop a provider process outliving Lumora on Windows. An agent installed by
+  npm is started through a `.cmd` shim, so Lumora was ending the shim and
+  leaving the agent it had launched running. A capability check that failed or
+  timed out left an agent process resident until the machine was restarted.
+  Ending a provider now takes down everything it started.
 
 ## [0.5.7] - 2026-09-08
 
