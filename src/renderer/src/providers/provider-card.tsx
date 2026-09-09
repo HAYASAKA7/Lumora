@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useLocalization } from '../localization/useLocalization';
 import { ProviderDetailsDialog } from './ProviderDetailsDialog';
 import { IconButton } from '../ui/IconButton';
-import { DownloadIcon, InfoIcon } from '../ui/icons';
+import { DownloadIcon, InfoIcon, UpdateIcon } from '../ui/icons';
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   ready: 'providers.states.detected',
@@ -125,7 +125,7 @@ export function ProviderCard({
             }}
             tone="primary"
           >
-            <DownloadIcon />
+            <UpdateIcon />
           </IconButton>
         ) : ready ? null : definition.npmPackage === null ? (
           <button
@@ -138,18 +138,15 @@ export function ProviderCard({
             {t('providers.settings.installation-guide')}
           </button>
         ) : (
-          <button
-            aria-label={t('providers.settings.install-label', label)}
-            className="refresh-button"
-            data-lumora-command
+          <IconButton
+            busy={installing}
             disabled={installing}
+            label={t('providers.settings.install-label', label)}
             onClick={() => setConfirmingInstall(true)}
-            type="button"
+            tone="primary"
           >
-            {t(installing
-              ? 'providers.states.installing'
-              : 'common.actions.install')}
-          </button>
+            <DownloadIcon />
+          </IconButton>
         )}
 
         {!updating ? null : (

@@ -13,6 +13,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Tell installing and updating apart on a provider card. Fetching a provider
+  that is not here yet is a downward arrow; raising one that is already here to
+  a newer version is a pair of upward chevrons. **Install** is now its mark
+  alone, like the rest.
 - Reduce the action a card or a row is there for to its mark. **Update
   available**, **Open** on a remote computer, and **Resume** on a recent session
   are now an icon with the name in a tooltip. Updating and opening keep their

@@ -3869,7 +3869,14 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
-    expect(await screen.findByText('2.3.4 (Claude Code)')).toBeInTheDocument();
+    /*
+     * Refreshing now rescans and then checks releases, so this waits on two
+     * chained round trips rather than one. The default second is enough on an
+     * idle machine and not always enough beside the rest of the suite.
+     */
+    expect(
+      await screen.findByText('2.3.4 (Claude Code)', undefined, { timeout: 4_000 })
+    ).toBeInTheDocument();
     expect(scanProviders).toHaveBeenCalledTimes(2);
     expect(scanDeveloperEnvironment).toHaveBeenCalledTimes(1);
   });

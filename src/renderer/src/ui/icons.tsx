@@ -44,9 +44,18 @@ export function InfoIcon(): ReactNode {
   return <Glyph path="M10 2.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4M10 9v4.6M10 6.4v.1" />;
 }
 
-/** Installs a newer version of something. */
+/** Fetches something that is not here yet. */
 export function DownloadIcon(): ReactNode {
   return <Glyph path="M10 3.5v8m0 0 3.2-3.2M10 11.5 6.8 8.3M3.8 13.5v2a1 1 0 0 0 1 1h10.4a1 1 0 0 0 1-1v-2" />;
+}
+
+/**
+ * Raises something already here to a newer version. Two chevrons rather than a
+ * turning arrow, which already means "read it again", or a downward arrow,
+ * which already means "fetch what is missing".
+ */
+export function UpdateIcon(): ReactNode {
+  return <Glyph path="M5.6 14.4 10 10l4.4 4.4M5.6 9.4 10 5l4.4 4.4" />;
 }
 
 /** Starts a stopped session. */
