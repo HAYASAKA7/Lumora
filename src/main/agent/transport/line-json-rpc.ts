@@ -33,6 +33,7 @@ export interface JsonRpcLineProcess {
     listener: (code: number | null, signal: NodeJS.Signals | null) => void
   ): unknown;
   kill(): boolean;
+  readonly pid?: number | undefined;
 }
 
 export interface JsonRpcNotification {
@@ -57,6 +58,12 @@ export interface CreateLineJsonRpcTransportOptions {
   maxFrameBytes?: number;
   closeGraceMs?: number;
   handleRequest?: (request: JsonRpcProviderRequest) => Promise<unknown>;
+  /**
+   * How to end the process. Signalling it directly is right for a process
+   * Lumora spawned itself, and wrong for one behind a shim that spawned the
+   * agent in turn, so the caller that knows which it is supplies this.
+   */
+  terminate?: (target: JsonRpcLineProcess) => void;
 }
 
 interface PendingRequest {
@@ -188,7 +195,7 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
         resolve();
       };
       const timer = setTimeout(() => {
-        if (!this.exited) this.process.kill();
+        if (!this.exited) this.options.terminate(this.process);
         finish();
       }, this.options.closeGraceMs);
       this.process.once('exit', finish);
@@ -374,7 +381,7 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
     const listeners = [...this.exitListeners];
     this.exitListeners.clear();
     for (const listener of listeners) listener(error);
-    if (!this.exited && !this.closing) this.process.kill();
+    if (!this.exited && !this.closing) this.options.terminate(this.process);
   }
 }
 
@@ -383,6 +390,7 @@ export function createLineJsonRpcTransport(
   options: CreateLineJsonRpcTransportOptions = {}
 ): LineJsonRpcTransport {
   return new JsonRpcLineTransport(process, {
+    terminate: options.terminate ?? ((target) => { target.kill(); }),
     requestTimeoutMs: options.requestTimeoutMs ?? 10_000,
     maxFrameBytes: options.maxFrameBytes ?? 1024 * 1024,
     closeGraceMs: options.closeGraceMs ?? 1_000,

@@ -40,6 +40,41 @@ function readLines(stream: PassThrough, accept: (message: unknown) => void): voi
 }
 
 describe('line JSON-RPC transport', () => {
+  it('ends the process through the terminator when a request times out', async () => {
+    // The transport must not decide for itself how to end a process: on
+    // Windows the thing it spawned is only a shim in front of the agent.
+    const process = new FakeLineProcess();
+    const terminate = vi.fn();
+    const transport = createLineJsonRpcTransport(process, {
+      requestTimeoutMs: 5,
+      terminate
+    });
+
+    await expect(transport.request('initialize', {})).rejects.toMatchObject({
+      code: 'STRUCTURED_TRANSPORT_TIMEOUT'
+    });
+
+    expect(terminate).toHaveBeenCalledWith(process);
+    expect(process.kill).not.toHaveBeenCalled();
+  });
+
+  it('ends the process through the terminator when the close grace runs out', async () => {
+    const process = new FakeLineProcess();
+    // A provider that ignores the closed pipe has to be taken down.
+    process.stdin.removeAllListeners('finish');
+    const terminate = vi.fn();
+    const transport = createLineJsonRpcTransport(process, {
+      closeGraceMs: 5,
+      terminate
+    });
+
+    await transport.close();
+
+    expect(terminate).toHaveBeenCalledWith(process);
+    expect(process.kill).not.toHaveBeenCalled();
+  });
+
+
   it('exchanges requests and delivers notifications', async () => {
     const process = new FakeLineProcess();
     readLines(process.stdin, (message) => {

@@ -7,6 +7,7 @@ import {
   type CreateLineJsonRpcTransportOptions,
   type LineJsonRpcTransport
 } from './line-json-rpc';
+import { createProcessTerminator } from './terminate-process';
 
 type SupportedPlatform = SystemInfo['platform'];
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -95,6 +96,9 @@ export function spawnStructuredLineTransport(
     windowsVerbatimArguments: invocation.windowsVerbatimArguments
   });
   return createLineJsonRpcTransport(child, {
+    // What was spawned may be the shim in front of the agent rather than the
+    // agent, so ending it has to reach everything it started.
+    terminate: createProcessTerminator({ platform: options.platform }),
     ...(options.requestTimeoutMs === undefined
       ? {}
       : { requestTimeoutMs: options.requestTimeoutMs }),
