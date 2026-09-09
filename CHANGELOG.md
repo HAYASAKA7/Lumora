@@ -88,6 +88,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scan of the filesystem. Only a provider whose version probe *failed* now
   shortens the term, because that is the miss that can correct itself; one that
   is simply not installed will not appear ten seconds later.
+- Stop a slow Windows machine from losing the providers npm installed. Reading
+  npm's global prefix runs through the same `.cmd` bridge as a version probe,
+  which pays PowerShell's startup before npm begins, and it was given two
+  seconds — a budget a cold or loaded machine can exceed. When it expired the
+  npm global directory was dropped from the search paths, and the providers
+  installed there were reported as not found. It now gets the four seconds a
+  version probe already had.
 - Stop a provider process outliving Lumora on Windows. An agent installed by
   npm is started through a `.cmd` shim, so Lumora was ending the shim and
   leaving the agent it had launched running. A capability check that failed or
