@@ -13,6 +13,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Group a row's marks together and its words together, with a wider gap where
+  the two meet. A mark set between two labels read as punctuation between them
+  rather than as a control of its own; **Workspaces** and the theme pack row
+  both did this.
 - Tell installing and updating apart on a provider card. Fetching a provider
   that is not here yet is a downward arrow; raising one that is already here to
   a newer version is a pair of upward chevrons. **Install** is now its mark

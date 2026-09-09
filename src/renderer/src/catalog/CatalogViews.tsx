@@ -206,15 +206,6 @@ export function WorkspacesView({
               {t('catalog.workspaces.hidden-count', { count: hiddenWorkspaceCount })}
             </button>
           )}
-          <IconButton
-            busy={isRefreshing}
-            disabled={isRefreshing}
-            label={t('catalog.workspaces.refresh')}
-            onClick={onRefresh}
-            tabIndex={-1}
-          >
-            <RefreshIcon />
-          </IconButton>
           {onAddWorkspace === undefined ? null : (
             <button
               className="refresh-button"
@@ -226,6 +217,15 @@ export function WorkspacesView({
               {t('catalog.workspaces.add')}
             </button>
           )}
+          <IconButton
+            busy={isRefreshing}
+            disabled={isRefreshing}
+            label={t('catalog.workspaces.refresh')}
+            onClick={onRefresh}
+            tabIndex={-1}
+          >
+            <RefreshIcon />
+          </IconButton>
         </div>
       </div>
 

@@ -335,14 +335,6 @@ export function AppearanceSettingsPanel({
           >
             {t('settings.appearance.apply-theme-pack')}
           </button>
-          <IconButton
-            disabled={themePresetsBusy}
-            label={t('settings.appearance.reload-theme-packs')}
-            onClick={onRefreshThemePresets}
-            tabIndex={-1}
-          >
-            <RefreshIcon />
-          </IconButton>
           <button
             className="secondary-button"
             data-lumora-command
@@ -371,6 +363,14 @@ export function AppearanceSettingsPanel({
           >
             {t('settings.appearance.reset-theme')}
           </button>
+          <IconButton
+            disabled={themePresetsBusy}
+            label={t('settings.appearance.reload-theme-packs')}
+            onClick={onRefreshThemePresets}
+            tabIndex={-1}
+          >
+            <RefreshIcon />
+          </IconButton>
         </div>
         {themePresets.rejectedCount > 0 ? (
           <p className="general-setting-error" role="status">

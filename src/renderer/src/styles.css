@@ -4074,6 +4074,25 @@ button {
 }
 
 /*
+ * Where a row holds both kinds of button, the words group together and the
+ * marks group together, with a wider gap at the seam. Interleaving them makes
+ * a mark read as punctuation between two labels rather than as its own
+ * control.
+ */
+.provider-panel-actions > :not(.icon-button) + .icon-button,
+.provider-panel-actions > .icon-button + :not(.icon-button),
+.provider-card-actions > :not(.icon-button) + .icon-button,
+.provider-card-actions > .icon-button + :not(.icon-button),
+.remote-target-actions > :not(.icon-button) + .icon-button,
+.remote-target-actions > .icon-button + :not(.icon-button),
+.diagnostics-panel-actions > :not(.icon-button) + .icon-button,
+.diagnostics-panel-actions > .icon-button + :not(.icon-button),
+.catalog-actions > :not(.icon-button) + .icon-button,
+.catalog-actions > .icon-button + :not(.icon-button) {
+  margin-left: 8px;
+}
+
+/*
  * A button that shows only its icon: the utility actions in a panel header and
  * the repeated actions in a row. Its name lives in the tooltip and the
  * accessible name rather than in the button, which keeps a row the same width
