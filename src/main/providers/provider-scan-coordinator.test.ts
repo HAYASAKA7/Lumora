@@ -25,6 +25,25 @@ function result(providers: readonly ProviderId[]): ProviderScanResult {
   };
 }
 
+function probeFailedResult(providers: readonly ProviderId[]): ProviderScanResult {
+  return {
+    scannedAt: '2026-07-23T07:30:00.000Z',
+    providers: providers.map((provider) => ({
+      provider,
+      displayName: provider,
+      state: 'probe_failed' as const,
+      executablePath: `/usr/bin/${provider}`,
+      version: null,
+      issue: {
+        code: 'PROVIDER_VERSION_PROBE_FAILED' as const,
+        message: 'could not read version',
+        recovery: 'retry',
+        retryable: true
+      }
+    }))
+  };
+}
+
 function readyResult(providers: readonly ProviderId[]): ProviderScanResult {
   return {
     scannedAt: '2026-07-23T07:30:00.000Z',
@@ -127,10 +146,10 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
-  it('lets a scan that missed a provider expire early', async () => {
+  it('lets a scan whose probe failed expire early', async () => {
     let elapsed = 100;
     const scan = vi.fn(async (providers: readonly ProviderId[]) =>
-      result(providers)
+      probeFailedResult(providers)
     );
     const coordinator = new ProviderScanCoordinator(scan, {
       cacheTtlMs: 300_000,
@@ -146,6 +165,30 @@ describe('ProviderScanCoordinator', () => {
     // Well inside the 300s term a healthy scan would have kept, but past the
     // shortened one a miss gets.
     elapsed = 10_101;
+    await coordinator.scan(['codex']);
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a scan that found a provider absent for the full term', async () => {
+    let elapsed = 100;
+    const scan = vi.fn(async (providers: readonly ProviderId[]) =>
+      result(providers)
+    );
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 300_000,
+      failedCacheTtlMs: 10_000,
+      monotonicClock: () => elapsed
+    });
+
+    const first = await coordinator.scan(['codex']);
+
+    // A CLI that is not installed will not appear ten seconds later, so the
+    // absence is worth the same term as a healthy scan.
+    elapsed = 10_101;
+    expect(await coordinator.scan(['codex'])).toBe(first);
+    expect(scan).toHaveBeenCalledOnce();
+
+    elapsed = 300_101;
     await coordinator.scan(['codex']);
     expect(scan).toHaveBeenCalledTimes(2);
   });

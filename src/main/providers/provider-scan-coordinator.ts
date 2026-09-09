@@ -35,16 +35,17 @@ interface ProviderScanCoordinatorOptions {
   onSettled?: (measurement: ProviderScanMeasurement) => void;
   cacheTtlMs?: number;
   /**
-   * How long a scan that missed at least one provider may be reused. A miss is
-   * often transient — a busy machine, a slow CLI — and caching it for the full
-   * term leaves the provider marked absent long after it came back.
+   * How long a scan whose probe failed may be reused. That miss is often
+   * transient — a busy machine, a slow CLI — and caching it for the full term
+   * leaves the provider marked broken long after it recovered.
    */
   failedCacheTtlMs?: number;
 }
 
 /**
  * Long enough to still absorb the burst of scans the catalog, the terminal and
- * the launch gate fire at each other, short enough that a miss clears itself.
+ * the launch gate fire at each other, short enough that a broken install
+ * clears itself.
  */
 const DEFAULT_FAILED_CACHE_TTL_MS = 10_000;
 
@@ -186,7 +187,11 @@ export class ProviderScanCoordinator {
       try {
         const result = await this.scanProviders(selectedProviders);
         states = countStates(result);
-        const ttl = states.ready === result.providers.length
+        // Only a failed probe is worth retrying soon. A provider that is
+        // simply not installed will not appear ten seconds later, and letting
+        // its absence shorten the term made every reader of this cache pay for
+        // a rescan whenever one uninstalled CLI was enabled.
+        const ttl = states.probeFailed === 0
           ? this.cacheTtlMs
           : this.failedCacheTtlMs;
         if (ttl > 0) {
