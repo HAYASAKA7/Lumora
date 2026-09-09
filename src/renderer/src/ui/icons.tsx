@@ -44,6 +44,21 @@ export function InfoIcon(): ReactNode {
   return <Glyph path="M10 2.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4M10 9v4.6M10 6.4v.1" />;
 }
 
+/** Installs a newer version of something. */
+export function DownloadIcon(): ReactNode {
+  return <Glyph path="M10 3.5v8m0 0 3.2-3.2M10 11.5 6.8 8.3M3.8 13.5v2a1 1 0 0 0 1 1h10.4a1 1 0 0 0 1-1v-2" />;
+}
+
+/** Starts a stopped session. */
+export function PlayIcon(): ReactNode {
+  return <Glyph path="M7 4.6v10.8l9-5.4z" />;
+}
+
+/** Goes to something that is already there. */
+export function OpenIcon(): ReactNode {
+  return <Glyph path="M11 3.5h5.5V9M16.5 3.5 9.5 10.5M15 12v3.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1H8" />;
+}
+
 /** Opens something for editing. */
 export function EditIcon(): ReactNode {
   return (

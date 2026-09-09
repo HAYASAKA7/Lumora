@@ -4052,6 +4052,28 @@ button {
 }
 
 /*
+ * A worded button that leads with its icon. The primary action in a card or a
+ * row keeps its word — losing it would lose the signal that there is an update
+ * at all — and takes the icon to make it findable at a glance.
+ */
+.refresh-button .icon,
+.text-button .icon,
+.secondary-button .icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.refresh-button,
+.text-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+/*
  * A button that shows only its icon: the utility actions in a panel header and
  * the repeated actions in a row. Its name lives in the tooltip and the
  * accessible name rather than in the button, which keeps a row the same width

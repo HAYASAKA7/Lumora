@@ -12,7 +12,7 @@ import { CloseButton } from '../ui/CloseButton';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
 import { IconButton } from '../ui/IconButton';
-import { EditIcon, TrashIcon } from '../ui/icons';
+import { EditIcon, OpenIcon, TrashIcon } from '../ui/icons';
 
 interface RemoteTargetFormState {
   displayName: string;
@@ -282,6 +282,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                       className="refresh-button"
                       onClick={() => void api.openRemoteTargetWindow(item.target.id)}
                     >
+                      <OpenIcon />
                       {t('remote.targets.open')}
                     </button>
                   ) : (

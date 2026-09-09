@@ -13,6 +13,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Put a mark on the action a card or a row is there for. **Update available**,
+  **Open** on a remote computer, and **Resume** on a recent session now lead
+  with an icon and keep their word: the icon finds them at a glance, and the
+  word is what tells you an update exists at all, or which of two neighbouring
+  actions is the safe one. A session that is already running shows the
+  going-to mark rather than the starting one.
 - Open a provider card's, a terminal's and a Unified UI session's detail from
   the same mark. All three said **Details** in three different wordings; they
   now carry one icon, which also gives a provider card back the width its

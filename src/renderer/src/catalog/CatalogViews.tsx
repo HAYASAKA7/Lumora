@@ -12,7 +12,7 @@ import type {
 } from '../../../shared/contracts';
 import { AttentionDialog } from './AttentionDialog';
 import { IconButton } from '../ui/IconButton';
-import { CrossIcon, RefreshIcon } from '../ui/icons';
+import { CrossIcon, OpenIcon, PlayIcon, RefreshIcon } from '../ui/icons';
 import { resolveSessionResumeDisabledReason } from './session-resume';
 import {
   ProgressiveListControl,
@@ -826,6 +826,7 @@ export function CatalogHomeSummary({
                         tabIndex={-1}
                         type="button"
                       >
+                        {running ? <OpenIcon /> : <PlayIcon />}
                         {t(running ? 'common.actions.open' : 'common.actions.resume')}
                       </button>
                     </Tooltip>

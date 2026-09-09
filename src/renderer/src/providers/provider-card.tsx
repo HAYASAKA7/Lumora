@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useLocalization } from '../localization/useLocalization';
 import { ProviderDetailsDialog } from './ProviderDetailsDialog';
 import { IconButton } from '../ui/IconButton';
-import { InfoIcon } from '../ui/icons';
+import { DownloadIcon, InfoIcon } from '../ui/icons';
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   ready: 'providers.states.detected',
@@ -128,6 +128,7 @@ export function ProviderCard({
             }}
             type="button"
           >
+            <DownloadIcon />
             {t(updating
               ? 'providers.states.updating'
               : 'providers.settings.update-available')}
