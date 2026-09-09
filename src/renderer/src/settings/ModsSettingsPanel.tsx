@@ -7,7 +7,7 @@ import type {
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { FolderIcon, RefreshIcon } from '../ui/icons';
 
 type ModsApi = Pick<
   LumoraApi,
@@ -136,19 +136,17 @@ export function ModsSettingsPanel({
                 >
                   {t('settings.mods.restore-default')}
                 </button>
-                <button
-                  className="secondary-button"
-                  data-lumora-command
+                <IconButton
                   disabled={busy}
+                  label={t('settings.mods.open-root')}
                   onClick={() => void update(async () => {
                     await api.openModsRoot();
                     return null;
                   })}
                   tabIndex={-1}
-                  type="button"
                 >
-                  {t('settings.mods.open-root')}
-                </button>
+                  <FolderIcon />
+                </IconButton>
               </div>
             </div>
             <div className="general-setting-row general-setting-row-control mods-setting-row">
@@ -158,19 +156,17 @@ export function ModsSettingsPanel({
                 <span>{t('settings.mods.theme-packs-description')}</span>
               </span>
               <div className="provider-panel-actions">
-                <button
-                  className="secondary-button"
-                  data-lumora-command
+                <IconButton
                   disabled={busy}
+                  label={t('settings.mods.open-theme-packs')}
                   onClick={() => void update(async () => {
                     await api.openThemePresetFolder();
                     return null;
                   })}
                   tabIndex={-1}
-                  type="button"
                 >
-                  {t('settings.mods.open-theme-packs')}
-                </button>
+                  <FolderIcon />
+                </IconButton>
               </div>
             </div>
             <div className="general-setting-row general-setting-row-control mods-setting-row">
@@ -180,19 +176,17 @@ export function ModsSettingsPanel({
                 <span>{t('settings.mods.font-presets-description')}</span>
               </span>
               <div className="provider-panel-actions">
-                <button
-                  className="secondary-button"
-                  data-lumora-command
+                <IconButton
                   disabled={busy}
+                  label={t('settings.mods.open-font-presets')}
                   onClick={() => void update(async () => {
                     await api.openFontPresetFolder();
                     return null;
                   })}
                   tabIndex={-1}
-                  type="button"
                 >
-                  {t('settings.mods.open-font-presets')}
-                </button>
+                  <FolderIcon />
+                </IconButton>
               </div>
             </div>
             <div className="general-setting-row general-setting-row-control mods-setting-row">
@@ -202,19 +196,17 @@ export function ModsSettingsPanel({
                 <span>{t('settings.mods.language-packs-description')}</span>
               </span>
               <div className="provider-panel-actions">
-                <button
-                  className="secondary-button"
-                  data-lumora-command
+                <IconButton
                   disabled={busy}
+                  label={t('settings.mods.open-language-packs')}
                   onClick={() => void update(async () => {
                     await api.openUserLocaleFolder();
                     return null;
                   })}
                   tabIndex={-1}
-                  type="button"
                 >
-                  {t('settings.mods.open-language-packs')}
-                </button>
+                  <FolderIcon />
+                </IconButton>
                 <IconButton
                   disabled={busy}
                   label={t('settings.mods.reload-language-packs')}

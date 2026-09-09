@@ -68,6 +68,16 @@ export function OpenIcon(): ReactNode {
   return <Glyph path="M11 3.5h5.5V9M16.5 3.5 9.5 10.5M15 12v3.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1H8" />;
 }
 
+/**
+ * Shows a folder in the desktop's file manager. A plain folder rather than the
+ * arrow of "go to something already there", which leaves the window.
+ */
+export function FolderIcon(): ReactNode {
+  return (
+    <Glyph path="M3.2 15V5.6a1 1 0 0 1 1-1h3.1l1.5 1.8h6a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H4.2a1 1 0 0 1-1-1z" />
+  );
+}
+
 /** Opens something for editing. */
 export function EditIcon(): ReactNode {
   return (

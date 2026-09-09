@@ -26,7 +26,7 @@ import {
   type AppearanceSections
 } from './appearance-section-preference';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { FolderIcon, RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import {
   resolveInterfaceFontFamily,
@@ -338,21 +338,6 @@ export function AppearanceSettingsPanel({
           <button
             className="secondary-button"
             data-lumora-command
-            disabled={themePresetsBusy}
-            onClick={() => {
-              setThemeFolderError(false);
-              void api.openThemePresetFolder().catch(() => {
-                setThemeFolderError(true);
-              });
-            }}
-            tabIndex={-1}
-            type="button"
-          >
-            {t('settings.appearance.open-theme-packs')}
-          </button>
-          <button
-            className="secondary-button"
-            data-lumora-command
             disabled={saving || settings.appearance.themePresetId === null}
             onClick={() => updateAppearance({
               theme: 'lumora',
@@ -363,6 +348,19 @@ export function AppearanceSettingsPanel({
           >
             {t('settings.appearance.reset-theme')}
           </button>
+          <IconButton
+            disabled={themePresetsBusy}
+            label={t('settings.appearance.open-theme-packs')}
+            onClick={() => {
+              setThemeFolderError(false);
+              void api.openThemePresetFolder().catch(() => {
+                setThemeFolderError(true);
+              });
+            }}
+            tabIndex={-1}
+          >
+            <FolderIcon />
+          </IconButton>
           <IconButton
             disabled={themePresetsBusy}
             label={t('settings.appearance.reload-theme-packs')}
