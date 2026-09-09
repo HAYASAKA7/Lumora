@@ -3,7 +3,12 @@ import type { ReactNode } from 'react';
 /**
  * The application's icon set. One file so every glyph shares a viewBox, a
  * stroke weight and a cap style: an icon drawn to different rules reads as a
- * different control even when it sits in the same row.
+ * different control even when it sits in the same row. The measurements match
+ * the shell's navigation icons, so a header icon and a sidebar icon are
+ * visibly the same hand.
+ *
+ * One glyph means one action. An icon reused for a second, different action
+ * stops being a word people can learn.
  */
 function Glyph({ path }: { path: string }): ReactNode {
   return (
@@ -14,7 +19,7 @@ function Glyph({ path }: { path: string }): ReactNode {
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth="1.7"
+      strokeWidth="1.55"
       viewBox="0 0 20 20"
     >
       <path d={path} />
@@ -32,6 +37,11 @@ export function RefreshIcon(): ReactNode {
   return (
     <Glyph path="M16.5 8.5A6.5 6.5 0 1 0 15 14M16.5 4v4.5H12" />
   );
+}
+
+/** Opens the detail behind a summary. */
+export function InfoIcon(): ReactNode {
+  return <Glyph path="M10 2.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4M10 9v4.6M10 6.4v.1" />;
 }
 
 /** Opens something for editing. */

@@ -11,6 +11,8 @@ import {
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useLocalization } from '../localization/useLocalization';
 import { ProviderDetailsDialog } from './ProviderDetailsDialog';
+import { IconButton } from '../ui/IconButton';
+import { InfoIcon } from '../ui/icons';
 
 const PROVIDER_STATE_LABELS: Record<ProviderInstallation['state'], string> = {
   ready: 'providers.states.detected',
@@ -102,15 +104,12 @@ export function ProviderCard({
       {/* Details is the one action every provider always has, so it leads and
           the situational buttons follow it. */}
       <div className="provider-card-actions">
-        <button
-          aria-label={t('providers.settings.details-label', label)}
-          className="secondary-button"
-          data-lumora-command
+        <IconButton
+          label={t('providers.settings.details-label', label)}
           onClick={() => setDetailsOpen(true)}
-          type="button"
         >
-          {t('providers.settings.details')}
-        </button>
+          <InfoIcon />
+        </IconButton>
 
         {available !== null ? (
           <button

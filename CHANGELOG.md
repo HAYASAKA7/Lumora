@@ -13,6 +13,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every agent in the native terminal until you turn the master switch on under
   **Settings → Providers**. Anyone who has already made a choice keeps it; only
   settings that never carried the switch take the new default.
+- Open a provider card's, a terminal's and a Unified UI session's detail from
+  the same mark. All three said **Details** in three different wordings; they
+  now carry one icon, which also gives a provider card back the width its
+  update button was competing for.
 - Fold **Check for updates** into **Refresh** on **Settings → Providers**. They
   were two buttons doing halves of one job, and checking for releases against a
   stale scan reports on versions you may no longer have installed. Refreshing

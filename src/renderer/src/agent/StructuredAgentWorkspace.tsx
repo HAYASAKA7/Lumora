@@ -29,6 +29,8 @@ import {
 import { nextStructuredHistoryVisibleCount } from './structured-history-window';
 import { StructuredDiff } from './StructuredDiff';
 import { StructuredSessionDetailsDialog } from './StructuredSessionDetailsDialog';
+import { IconButton } from '../ui/IconButton';
+import { InfoIcon } from '../ui/icons';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
@@ -473,14 +475,12 @@ export function StructuredAgentWorkspace({
           <h2>{runtime.title}</h2>
         </div>
         <div className="catalog-actions">
-          <button
-            className="secondary-button"
-            data-lumora-command
+          <IconButton
+            label={t('terminal.unified.details.title')}
             onClick={openDetails}
-            type="button"
           >
-            {t('terminal.unified.details.title')}
-          </button>
+            <InfoIcon />
+          </IconButton>
           {runtime.state === 'failed' ? (
             <button className="secondary-button" data-lumora-command onClick={() => onReconnect(runtime.connectionId)} type="button">
               {t('terminal.unified.reconnect')}

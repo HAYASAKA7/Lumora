@@ -23,6 +23,8 @@ import { OverflowTooltip } from '../ui/Tooltip';
 import { useLocalization } from '../localization/useLocalization';
 import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
 import { DEFAULT_TERMINAL_FONT_SIZE } from '../../../shared/contracts';
+import { IconButton } from '../ui/IconButton';
+import { InfoIcon } from '../ui/icons';
 
 const runtimeStateMessageKeys: Record<RuntimeState, string> = {
   launching: 'terminal.runtime.state-launching',
@@ -340,13 +342,12 @@ export function TerminalWorkspace({
         </div>
         <div className="catalog-actions">
           <span className={`runtime-state runtime-${runtime.state}`}>{t(runtimeStateMessageKeys[runtime.state])}</span>
-          <button
-            className="secondary-button"
+          <IconButton
+            label={t('terminal.actions.terminal-details')}
             onClick={() => setDetailsOpen(true)}
-            type="button"
           >
-            {t('terminal.actions.terminal-details')}
-          </button>
+            <InfoIcon />
+          </IconButton>
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
             {stopping ? t('terminal.runtime.state-stopping') : t('common.actions.stop')}
           </button>
