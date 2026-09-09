@@ -15,8 +15,14 @@ import (
 )
 
 const (
-	probeTimeout   = 4 * time.Second
-	pathTimeout    = 2 * time.Second
+	probeTimeout = 4 * time.Second
+	// Reading npm's global prefix runs through the same Windows `.cmd` bridge
+	// as a version probe, so PowerShell's startup is paid before npm begins.
+	// Measured warm on a developer machine that call takes 0.9-1.2s, and CI has
+	// seen a bridged run pass two seconds outright. Losing this to a timeout
+	// drops the npm global directory from the search paths, which is where the
+	// providers installed by npm live, so the budget matches a version probe's.
+	pathTimeout    = 4 * time.Second
 	maxProbeOutput = 64 * 1024
 	pathSentinel   = "__LUMORA_PATH__"
 )

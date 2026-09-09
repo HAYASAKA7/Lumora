@@ -290,7 +290,11 @@ func TestRunBoundedMakesExecutableCompanionsAvailableOnPath(t *testing.T) {
 		t.Fatalf("create companion fixture: %v", err)
 	}
 
-	output, err := runBounded(context.Background(), probe, nil, 2*time.Second)
+	// This asserts that the companion resolves on PATH, not how fast it does.
+	// On Windows the probe runs through the PowerShell bridge, whose startup
+	// alone can outlast a tight budget on a cold or loaded machine, so the
+	// budget here is generous rather than borrowed from what discovery allows.
+	output, err := runBounded(context.Background(), probe, nil, 30*time.Second)
 	if err != nil {
 		t.Fatalf("probe could not resolve its companion: %v", err)
 	}
