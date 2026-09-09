@@ -193,6 +193,28 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
+  it('hands back the last completed scan without starting another', async () => {
+    let elapsed = 100;
+    const scan = vi.fn(async (providers: readonly ProviderId[]) =>
+      readyResult(providers)
+    );
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 300_000,
+      monotonicClock: () => elapsed
+    });
+
+    expect(coordinator.lastScan(['codex'])).toBeNull();
+
+    const first = await coordinator.scan(['codex']);
+    expect(coordinator.lastScan(['codex'])).toBe(first);
+
+    // A reader that only wants to know what discovery already found must not
+    // start discovery of its own, even once the cache term has passed.
+    elapsed = 300_101;
+    expect(coordinator.lastScan(['codex'])).toBe(first);
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
   it('counts what each scan actually found', async () => {
     const onSettled = vi.fn();
     const coordinator = new ProviderScanCoordinator(

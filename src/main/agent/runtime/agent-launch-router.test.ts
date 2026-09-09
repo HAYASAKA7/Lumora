@@ -82,6 +82,11 @@ function harness(options: {
   const scanCapabilities = vi.fn(async () => options.capability === null
     ? []
     : [options.capability ?? report('verified')]);
+  // Main probes a provider the automatic preference turned off only when the
+  // launch asks for it by name, so the two scans can answer differently.
+  const scanCapabilitiesIncluding = vi.fn(async () => options.capability === null
+    ? []
+    : [options.capability ?? report('verified')]);
   const listPreferences = vi.fn(() => [{
     providerId: 'codex',
     useUnifiedWhenAvailable: options.preferenceEnabled ?? true,
@@ -102,6 +107,7 @@ function harness(options: {
     terminatePty,
     launchStructured,
     scanCapabilities,
+    scanCapabilitiesIncluding,
     listPreferences,
     isUnifiedUiEnabled
   });
@@ -112,6 +118,7 @@ function harness(options: {
     terminatePty,
     launchStructured,
     scanCapabilities,
+    scanCapabilitiesIncluding,
     listPreferences,
     isUnifiedUiEnabled
   };
@@ -240,6 +247,35 @@ describe('AgentLaunchRouter', () => {
     expect(launchStructured).not.toHaveBeenCalled();
   });
 
+  it('reads a provider turned off as disabled rather than unchecked', async () => {
+    // Turned off, it is never probed, so no report comes back for it. That
+    // silence means "not asked", and must not be reported as a failed check.
+    const { router, startPty, launchStructured } = harness({
+      capability: null,
+      preferenceEnabled: false
+    });
+
+    await expect(router.start('operation-1', 'launch-token')).resolves.toEqual({
+      mode: 'pty',
+      routeReason: 'disabled',
+      runtime: ptyRuntime
+    });
+    expect(startPty).toHaveBeenCalledWith(spec);
+    expect(launchStructured).not.toHaveBeenCalled();
+  });
+
+  it('asks for the named provider when Unified UI is forced', async () => {
+    const { router, scanCapabilities, scanCapabilitiesIncluding } = harness({
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec,
+      preferenceEnabled: false
+    });
+
+    await expect(router.start('operation-unified', 'launch-token')).resolves
+      .toMatchObject({ mode: 'structured' });
+    expect(scanCapabilitiesIncluding).toHaveBeenCalledWith('codex');
+    expect(scanCapabilities).not.toHaveBeenCalled();
+  });
+
   it('uses PTY without attempting a structured resume the provider did not advertise', async () => {
     const capability = report('verified');
     if (capability.state !== 'verified') throw new Error('invalid test fixture');
@@ -311,6 +347,7 @@ describe('AgentLaunchRouter', () => {
       terminatePty: vi.fn(async () => undefined),
       launchStructured,
       scanCapabilities: vi.fn(async () => [report('verified')]),
+      scanCapabilitiesIncluding: vi.fn(async () => [report('verified')]),
       listPreferences: vi.fn(() => [{
         providerId: 'codex' as const,
         useUnifiedWhenAvailable: true,
@@ -344,6 +381,7 @@ describe('AgentLaunchRouter', () => {
       terminatePty,
       launchStructured: vi.fn(async () => structuredRuntime),
       scanCapabilities: vi.fn(async () => []),
+      scanCapabilitiesIncluding: vi.fn(async () => []),
       listPreferences: vi.fn(() => []),
       isUnifiedUiEnabled: vi.fn(() => true)
     });

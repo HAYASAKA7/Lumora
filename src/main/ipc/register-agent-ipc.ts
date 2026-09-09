@@ -122,8 +122,10 @@ export function registerAgentIpc({
     authorizeLocal(event, authorize);
     return protectedOperation(async () => {
       const request = StructuredAgentCapabilityScanRequestSchema.parse(input);
+      // A provider turned off for the unified interface is not probed, so the
+      // list is a subset rather than one entry per provider.
       return StructuredProviderCapabilityReportSchema.array()
-        .length(STRUCTURED_AGENT_PROVIDER_IDS.length).parse(
+        .max(STRUCTURED_AGENT_PROVIDER_IDS.length).parse(
         await scanCapabilities(request.fresh)
       );
     });

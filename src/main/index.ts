@@ -31,6 +31,7 @@ import {
 import { configureApplicationMenu } from './application-menu';
 import { createStructuredAgentAdapterFactory } from './agent/adapters/structured-agent-adapter-factory';
 import { createLocalStructuredProviderProbe } from './agent/probes/local-structured-provider-probes';
+import { createStructuredCapabilityScan } from './agent/probes/structured-capability-scan';
 import { resolveStructuredProviderInstallations } from './agent/probes/structured-provider-installations';
 import { StructuredProviderProbeCoordinator } from './agent/probes/structured-provider-probe-coordinator';
 import { StructuredAgentRuntimeHost } from './agent/runtime/structured-agent-runtime-host';
@@ -843,20 +844,24 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       clientVersion: app.getVersion()
     })
   });
-  const scanStructuredCapabilities = async (
+  const runStructuredCapabilityScan = createStructuredCapabilityScan({
+    lastScan: () => providerScanCoordinator.lastScan(providerPolicy.providers()),
+    scan: scanEnabledProviders,
+    scanFresh: () => providerScanCoordinator.scanFresh(providerPolicy.providers()),
+    resolveInstallations: ({ scan, preferences }) =>
+      resolveStructuredProviderInstallations({
+        scan,
+        preferences,
+        probeVersion: providerDependencies.probeVersion
+      }),
+    probe: (installations, fresh) => fresh
+      ? structuredProviderProbe.scanFresh(installations)
+      : structuredProviderProbe.scan(installations)
+  });
+  const scanStructuredCapabilities = (
     fresh: boolean,
     preferences = terminalRuntime!.getStructuredProviderPreferences()
-  ) => {
-    const scan = await scanEnabledProviders();
-    const installations = await resolveStructuredProviderInstallations({
-      scan,
-      preferences,
-      probeVersion: providerDependencies.probeVersion
-    });
-    return fresh
-      ? structuredProviderProbe.scanFresh(installations)
-      : structuredProviderProbe.scan(installations);
-  };
+  ) => runStructuredCapabilityScan(fresh, preferences);
   structuredAgentRuntime = new StructuredAgentRuntimeHost({
     resolveLaunch: (request) => terminalRuntime!.resolveStructuredLaunch(request),
     createAdapter: createStructuredAgentAdapterFactory(),
@@ -870,6 +875,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     launchStructured: (request, signal) =>
       structuredAgentRuntime!.launch(request, signal),
     scanCapabilities: () => scanStructuredCapabilities(false),
+    scanCapabilitiesIncluding: (providerId) => runStructuredCapabilityScan(
+      false,
+      terminalRuntime!.getStructuredProviderPreferences().map((preference) =>
+        preference.providerId === providerId
+          ? { ...preference, useUnifiedWhenAvailable: true }
+          : preference)
+    ),
     listPreferences: () => terminalRuntime!.getStructuredProviderPreferences(),
     isUnifiedUiEnabled: () =>
       terminalRuntime!.getGeneralSettings().unifiedAgentUiEnabled

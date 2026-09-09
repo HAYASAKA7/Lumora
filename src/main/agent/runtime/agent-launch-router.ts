@@ -41,7 +41,16 @@ interface AgentLaunchRouterDependencies {
     request: StructuredAgentLaunchRequest,
     signal: AbortSignal
   ): Promise<StructuredAgentRuntimeSummary>;
+  /** Reports for the providers that can route there on their own. */
   scanCapabilities(): Promise<readonly StructuredProviderCapabilityReport[]>;
+  /**
+   * The same, plus the named provider even when its automatic preference is
+   * off: choosing Unified UI for one session overrides that preference, so the
+   * provider still has to be asked what it supports.
+   */
+  scanCapabilitiesIncluding(
+    providerId: StructuredAgentProviderId
+  ): Promise<readonly StructuredProviderCapabilityReport[]>;
   listPreferences(): readonly StructuredProviderPreference[];
   isUnifiedUiEnabled(): boolean;
 }
@@ -184,7 +193,9 @@ export class AgentLaunchRouter {
       return this.startPty(spec, 'unsupported_launch', signal);
     }
     if (spec.interactionRoute === 'unified') {
-      const reports = await this.dependencies.scanCapabilities();
+      const reports = await this.dependencies.scanCapabilitiesIncluding(
+        request.providerId
+      );
       throwIfCancelled(signal);
       const report = reports.find(
         (candidate) => candidate.providerId === request.providerId
@@ -221,6 +232,11 @@ export class AgentLaunchRouter {
     const preference = preferences.find(
       (candidate) => candidate.providerId === request.providerId
     );
+    // Read the preference before the report: a provider turned off is never
+    // probed, and its missing report means "not asked", not "unavailable".
+    if (preference?.useUnifiedWhenAvailable === false) {
+      return this.startPty(spec, 'disabled', signal);
+    }
     if (report === undefined) {
       return this.startPty(spec, 'unavailable', signal);
     }

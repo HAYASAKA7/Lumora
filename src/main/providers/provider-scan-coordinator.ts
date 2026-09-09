@@ -81,6 +81,7 @@ export class ProviderScanCoordinator {
   private readonly active = new Map<string, ActiveScan>();
   private readonly pendingFresh = new Map<string, PendingFreshScan>();
   private readonly cache = new Map<string, CachedScan>();
+  private readonly completed = new Map<string, ProviderScanResult>();
   private readonly monotonicClock: () => number;
   private readonly cacheTtlMs: number;
   private readonly failedCacheTtlMs: number;
@@ -123,6 +124,16 @@ export class ProviderScanCoordinator {
       this.cache.delete(key);
     }
     return this.startScan(key, providers);
+  }
+
+  /**
+   * What discovery last found, with no scan of its own. A reader that only
+   * needs the picture the rest of the app is already showing — the capability
+   * check behind the interface list, say — should not walk the filesystem
+   * again to draw it.
+   */
+  lastScan(providers: readonly ProviderId[]): ProviderScanResult | null {
+    return this.completed.get(this.keyOf(providers)) ?? null;
   }
 
   scanFresh(providers: readonly ProviderId[]): Promise<ProviderScanResult> {
@@ -187,6 +198,7 @@ export class ProviderScanCoordinator {
       try {
         const result = await this.scanProviders(selectedProviders);
         states = countStates(result);
+        this.completed.set(key, result);
         // Only a failed probe is worth retrying soon. A provider that is
         // simply not installed will not appear ten seconds later, and letting
         // its absence shorten the term made every reader of this cache pay for
