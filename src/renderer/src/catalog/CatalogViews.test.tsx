@@ -1149,10 +1149,13 @@ describe('CatalogHomeSummary', () => {
     );
 
     expect(screen.getByText('Running')).toBeInTheDocument();
-    expect(screen.getByRole('button', {
+    // The action carries its mark and its name, and no longer its word.
+    const openRunning = screen.getByRole('button', {
       name: 'Open running terminal Catalog implementation'
-    })).toHaveTextContent('Open');
-    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(2);
+    });
+    expect(openRunning).toHaveTextContent('');
+    expect(openRunning.querySelector('svg')).not.toBeNull();
+    expect(screen.getAllByRole('button', { name: /^Resume / })).toHaveLength(2);
   });
 
   it('shows persisted counts, diagnostics, and recent normalized sessions', () => {
@@ -1198,7 +1201,7 @@ describe('CatalogHomeSummary', () => {
       />
     );
 
-    const actions = screen.getAllByRole('button', { name: 'Resume' });
+    const actions = screen.getAllByRole('button', { name: /^Resume / });
     expect(actions).toHaveLength(3);
     expect(actions[0]).toHaveAttribute('aria-description', 'Resume this session');
     expect(actions[0]).toBeEnabled();

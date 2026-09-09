@@ -278,13 +278,13 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
                 </dl>
                 <div className="remote-target-actions">
                   {trusted ? (
-                    <button
-                      className="refresh-button"
+                    <IconButton
+                      label={t('remote.targets.open')}
                       onClick={() => void api.openRemoteTargetWindow(item.target.id)}
+                      tone="primary"
                     >
                       <OpenIcon />
-                      {t('remote.targets.open')}
-                    </button>
+                    </IconButton>
                   ) : (
                     <button
                       className="refresh-button"

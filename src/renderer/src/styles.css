@@ -4099,6 +4099,19 @@ button {
   background: var(--control-surface);
 }
 
+/* The action a card exists for keeps its emphasis after losing its word. */
+.icon-button-primary {
+  color: var(--on-accent);
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.icon-button-primary:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
 .icon-button-danger:hover:not(:disabled) {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 12%, transparent);

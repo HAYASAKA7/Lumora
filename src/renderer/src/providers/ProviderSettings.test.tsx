@@ -556,9 +556,12 @@ describe('ProviderSettings', () => {
     expect(
       screen.getByRole('button', { name: 'Update Codex with npm' })
     ).toBeVisible();
-    expect(
-      screen.getByRole('button', { name: 'Update Codex with npm' })
-    ).toHaveTextContent('Update available');
+    // The update action is now its mark alone; its name carries the meaning.
+    const updateCodex = screen.getByRole('button', {
+      name: 'Update Codex with npm'
+    });
+    expect(updateCodex).toHaveTextContent('');
+    expect(updateCodex.querySelector('svg')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /Update Claude/ })).toBeNull();
     expect(lumora.checkProviderUpdates).not.toHaveBeenCalled();
   });
@@ -650,7 +653,12 @@ describe('ProviderSettings', () => {
       screen.getByRole('button', { name: 'Update Codex with npm' })
     );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm update' }));
-    expect(screen.getByRole('button', { name: 'Updating Codex' })).toBeDisabled();
+    // The name stays put while it works; `aria-busy` reports the work.
+    const updating = screen.getByRole('button', {
+      name: 'Update Codex with npm'
+    });
+    expect(updating).toBeDisabled();
+    expect(updating).toHaveAttribute('aria-busy', 'true');
     // One provider updating must not lock another's card.
     expect(screen.getByRole('button', { name: 'Claude Code details' }))
       .toBeEnabled();

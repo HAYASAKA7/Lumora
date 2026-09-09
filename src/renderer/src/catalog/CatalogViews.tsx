@@ -810,10 +810,12 @@ export function CatalogHomeSummary({
                         aria-description={disabledReason ?? (
                           running ? t('catalog.sessions.open-running') : t('catalog.sessions.resume')
                         )}
-                        aria-label={running
-                          ? t('catalog.sessions.open-running-label', { session: session.title })
-                          : undefined}
-                        className="text-button recent-session-resume"
+                        aria-label={t(running
+                          ? 'catalog.sessions.open-running-label'
+                          : 'catalog.sessions.resume-label', {
+                            session: session.title
+                          })}
+                        className="icon-button recent-session-resume"
                         disabled={disabledReason !== null}
                         onClick={() => onResume(session)}
                         onKeyDown={(event) => resumeMenu.openFromKeyboard(
@@ -827,7 +829,6 @@ export function CatalogHomeSummary({
                         type="button"
                       >
                         {running ? <OpenIcon /> : <PlayIcon />}
-                        {t(running ? 'common.actions.open' : 'common.actions.resume')}
                       </button>
                     </Tooltip>
                   )}

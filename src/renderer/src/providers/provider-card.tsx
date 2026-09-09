@@ -112,13 +112,10 @@ export function ProviderCard({
         </IconButton>
 
         {available !== null ? (
-          <button
-            aria-label={updating
-              ? t('providers.settings.updating-label', label)
-              : t('providers.settings.update-label', label)}
-            className="refresh-button"
-            data-lumora-command
+          <IconButton
+            busy={updating}
             disabled={updating}
+            label={t('providers.settings.update-label', label)}
             onClick={() => {
               if (supportsManagedProviderUpdate(installation.provider)) {
                 setConfirmingUpdate(true);
@@ -126,13 +123,10 @@ export function ProviderCard({
               }
               onOpenGuide();
             }}
-            type="button"
+            tone="primary"
           >
             <DownloadIcon />
-            {t(updating
-              ? 'providers.states.updating'
-              : 'providers.settings.update-available')}
-          </button>
+          </IconButton>
         ) : ready ? null : definition.npmPackage === null ? (
           <button
             aria-label={t('providers.settings.open-guide-label', label)}

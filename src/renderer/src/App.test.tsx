@@ -1594,9 +1594,10 @@ describe('App', () => {
     expect(within(screen.getByRole('region', { name: 'Recent sessions' }))
       .getByText(linkedSession.title)).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', {
-      name: new RegExp(otherSession.title)
-    }));
+    // The resume action names its session too now, so say which list this is.
+    fireEvent.click(within(
+      screen.getByRole('region', { name: 'Recent sessions' })
+    ).getByRole('button', { name: new RegExp(otherSession.title) }));
     expect(await screen.findByRole('region', {
       name: `Starting ${otherSession.title}`
     }))
@@ -2785,7 +2786,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    const resumeButton = await screen.findByRole('button', { name: /^Resume / });
     fireEvent.click(resumeButton);
 
     expect(await screen.findByRole('region', {
@@ -2822,7 +2823,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    const resumeButton = await screen.findByRole('button', { name: /^Resume / });
     fireEvent.contextMenu(resumeButton, { clientX: 120, clientY: 120 });
     fireEvent.click(await screen.findByRole('menuitem', {
       name: 'Open in native terminal'
@@ -2851,7 +2852,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
     expect(await screen.findByRole('region', {
       name: 'Starting Catalog implementation'
     })).toBeInTheDocument();
@@ -2863,7 +2864,7 @@ describe('App', () => {
     })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Home' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
     expect(screen.getByRole('region', {
       name: 'Starting Catalog implementation'
     })).toBeInTheDocument();
@@ -2888,7 +2889,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
     expect(await screen.findByRole('region', {
       name: 'Starting Catalog implementation'
     })).toBeInTheDocument();
@@ -2919,7 +2920,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Resume / }));
     expect(await screen.findByRole('region', {
       name: 'Starting Catalog implementation'
     })).toBeInTheDocument();
@@ -3002,7 +3003,7 @@ describe('App', () => {
     });
     renderWithLocalization(<App />);
 
-    const resumeButton = await screen.findByRole('button', { name: 'Resume' });
+    const resumeButton = await screen.findByRole('button', { name: /^Resume / });
     refreshCatalog.mockClear();
     fireEvent.click(resumeButton);
 
@@ -3189,7 +3190,7 @@ describe('App', () => {
       })
     });
     renderWithLocalization(<App />);
-    await screen.findByRole('button', { name: 'Resume' });
+    await screen.findByRole('button', { name: /^Resume / });
 
     act(() => requestResume(readyCatalog.sessions[0]!.id));
 

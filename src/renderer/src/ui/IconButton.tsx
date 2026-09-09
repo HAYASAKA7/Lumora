@@ -33,11 +33,12 @@ export function IconButton({
   label: string;
   onClick(): void;
   tabIndex?: number | undefined;
-  tone?: 'normal' | 'danger';
+  tone?: 'normal' | 'danger' | 'primary';
 }): ReactNode {
   const classes = [
     'icon-button',
     tone === 'danger' ? 'icon-button-danger' : '',
+    tone === 'primary' ? 'icon-button-primary' : '',
     busy ? 'icon-button-busy' : '',
     className
   ].filter((entry) => entry !== '').join(' ');

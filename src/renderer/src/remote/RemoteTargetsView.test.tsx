@@ -189,7 +189,7 @@ describe('RemoteTargetsView', () => {
     const openRemote = await screen.findByRole('button', {
       name: 'Open remote Lumora'
     });
-    expect(openRemote).toHaveClass('refresh-button');
+    expect(openRemote).toHaveClass('icon-button-primary');
     fireEvent.click(openRemote);
 
     expect(api.trustRemoteHost).toHaveBeenCalledWith({
