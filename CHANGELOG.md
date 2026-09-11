@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Refuse every web permission Lumora's windows ask for. With no rule of its own,
+  Electron granted Lumora's pages the microphone, camera, location,
+  notifications and clipboard without asking anyone — measured in the running
+  app. Lumora needs none of them, because its clipboard already goes through
+  the main process. Every request is now refused, in every window, including
+  windows a later feature might open in a session of its own.
+
 ## [0.5.9] - 2026-09-11
 
 ### Fixed

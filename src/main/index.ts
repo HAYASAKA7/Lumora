@@ -14,6 +14,7 @@ import {
   protocol,
   safeStorage,
   screen,
+  session,
   shell,
   Tray
 } from 'electron';
@@ -119,6 +120,7 @@ import {
 } from './transfer/session-transfer-runtime';
 import {
   createSecureWindowOptions,
+  installPermissionGuards,
   installWindowGuards,
   resolveAppearanceBackgroundRequest,
   resolveRendererAssetPath
@@ -697,7 +699,12 @@ if (!hasSingleInstanceLock) {
   });
 }
 
+// A session created later — a partition, a webview — starts guarded too.
+app.on('session-created', installPermissionGuards);
+
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
+  // First, before any window loads a page that could ask.
+  installPermissionGuards(session.defaultSession);
   const userDataDirectory = app.getPath('userData');
   applicationReleaseRuntime = createApplicationReleaseRuntime({
     databasePath: join(userDataDirectory, 'lumora.db'),

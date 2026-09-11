@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   createSecureWindowOptions,
+  installPermissionGuards,
   installWindowGuards,
   isTrustedRendererUrl,
   resolveAppearanceBackgroundRequest,
@@ -109,6 +111,71 @@ describe('installWindowGuards', () => {
       'app://lumora/settings'
     );
     expect(trustedNavigationPrevented).toBe(false);
+  });
+});
+
+describe('installPermissionGuards', () => {
+  it('refuses every permission a renderer could ask for', () => {
+    let requestHandler:
+      | ((
+          webContents: unknown,
+          permission: string,
+          callback: (granted: boolean) => void
+        ) => void)
+      | undefined;
+    let checkHandler:
+      | ((webContents: unknown, permission: string) => boolean)
+      | undefined;
+    let deviceHandler: ((details: unknown) => boolean) | undefined;
+
+    installPermissionGuards({
+      setPermissionRequestHandler(handler) {
+        requestHandler = handler;
+      },
+      setPermissionCheckHandler(handler) {
+        checkHandler = handler;
+      },
+      setDevicePermissionHandler(handler) {
+        deviceHandler = handler;
+      }
+    });
+
+    // Measured in the running app before this guard existed: with no handler,
+    // Electron granted the renderer all of these without asking anyone.
+    for (const permission of [
+      'media',
+      'geolocation',
+      'notifications',
+      'clipboard-read',
+      'clipboard-sanitized-write',
+      'display-capture',
+      'openExternal',
+      'fullscreen',
+      'midi',
+      'unknown'
+    ]) {
+      let granted: boolean | undefined;
+      requestHandler?.(null, permission, (value) => {
+        granted = value;
+      });
+      expect(granted, permission).toBe(false);
+      expect(checkHandler?.(null, permission), permission).toBe(false);
+    }
+    expect(deviceHandler?.({ deviceType: 'hid' })).toBe(false);
+  });
+});
+
+describe('permission guard wiring', () => {
+  it('guards the default session and every session created after it', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src', 'main', 'index.ts'),
+      'utf8'
+    );
+
+    // The guard only helps if it is installed before a page can ask, and on
+    // any session a later feature creates, not just the one that exists today.
+    expect(source).toContain('installPermissionGuards(session.defaultSession)');
+    expect(source).toContain("app.on('session-created', installPermissionGuards)");
   });
 });
 

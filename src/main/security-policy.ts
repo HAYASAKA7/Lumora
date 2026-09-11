@@ -9,6 +9,20 @@ interface GuardedWebContents {
   ): unknown;
 }
 
+interface PermissionGuardedSession {
+  setPermissionRequestHandler(
+    handler: (
+      webContents: unknown,
+      permission: string,
+      callback: (granted: boolean) => void
+    ) => void
+  ): void;
+  setPermissionCheckHandler(
+    handler: (webContents: unknown, permission: string) => boolean
+  ): void;
+  setDevicePermissionHandler(handler: (details: unknown) => boolean): void;
+}
+
 export function createSecureWindowOptions(
   preloadPath: string,
   iconPath?: string
@@ -76,6 +90,26 @@ export function installWindowGuards(
       event.preventDefault();
     }
   });
+}
+
+/**
+ * Refuses every web permission a renderer asks for, or asks about.
+ *
+ * With no handler of its own, Electron grants them all — the microphone,
+ * camera, location, notifications and the clipboard — without anyone being
+ * asked. Lumora's renderer needs none of them: the clipboard goes through the
+ * main process and links open over IPC. A feature that genuinely needs one
+ * should grant exactly that permission, to the trusted renderer only, when the
+ * user asks for it.
+ */
+export function installPermissionGuards(
+  session: PermissionGuardedSession
+): void {
+  session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+  session.setPermissionCheckHandler(() => false);
+  session.setDevicePermissionHandler(() => false);
 }
 
 export function resolveRendererAssetPath(

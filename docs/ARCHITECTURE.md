@@ -37,7 +37,10 @@ runs it with:
 - sandboxing enabled;
 - context isolation enabled;
 - Node.js integration disabled;
-- a restrictive content security policy.
+- a restrictive content security policy;
+- every web permission refused — microphone, camera, location, notifications,
+  clipboard and device access — on the default session and on any session
+  created later. The clipboard goes through the main process instead.
 
 The renderer keeps active terminal components mounted while application routes
 change. This preserves PTY attachments and avoids recreating terminal views on
