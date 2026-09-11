@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { LoadingIcon } from './icons';
 import { Tooltip } from './Tooltip';
 
 /**
@@ -21,9 +22,10 @@ export function IconButton({
   tone = 'normal'
 }: {
   /**
-   * Turns the icon and announces the work through `aria-busy`. The name is
-   * deliberately left alone: it identifies the control, and a name that
-   * changes mid-action makes the button hard to find again.
+   * Replaces the icon with the loading mark and announces the work through
+   * `aria-busy`. The name is deliberately left alone: it identifies the
+   * control, and a name that changes mid-action makes the button hard to find
+   * again.
    */
   busy?: boolean;
   children: ReactNode;
@@ -55,7 +57,7 @@ export function IconButton({
         {...(tabIndex === undefined ? {} : { tabIndex })}
         type="button"
       >
-        {children}
+        {busy ? <LoadingIcon /> : children}
       </button>
     </Tooltip>
   );

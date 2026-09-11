@@ -4152,17 +4152,26 @@ button {
   height: 17px;
 }
 
-/* There is no word to change to "Refreshing", so the icon turns instead. */
-.icon-button-busy .icon {
-  animation: icon-button-spin 900ms linear infinite;
+/*
+ * A working button shows the loading mark in place of its own, turning at the
+ * pace of Lumora's other spinners. With reduced motion it holds still, and
+ * still reads as waiting because it is a different mark rather than the same
+ * one at rest.
+ */
+.icon-loading {
+  animation: icon-loading-spin 800ms linear infinite;
 }
 
-@keyframes icon-button-spin {
+.icon-loading-track {
+  opacity: 0.28;
+}
+
+@keyframes icon-loading-spin {
   to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .icon-button-busy .icon {
+  .icon-loading {
     animation: none;
   }
 }

@@ -104,7 +104,12 @@ export function TerminalProfiles({
             <p className="card-label">{t('terminal.profiles.local-detection')}</p>
             <h2 id="profile-list-title">{t('terminal.profiles.available')}</h2>
           </div>
-          <IconButton label={t('terminal.profiles.refresh')} onClick={load}>
+          <IconButton
+            busy={status.state === 'loading'}
+            disabled={status.state === 'loading'}
+            label={t('terminal.profiles.refresh')}
+            onClick={load}
+          >
             <RefreshIcon />
           </IconButton>
         </div>

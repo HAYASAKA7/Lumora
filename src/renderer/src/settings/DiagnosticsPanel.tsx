@@ -137,6 +137,7 @@ export function DiagnosticsPanel({
         </div>
         <div className="diagnostics-panel-actions">
           <IconButton
+            busy={status.state === 'loading'}
             disabled={status.state === 'loading'}
             label={t('settings.diagnostics.refresh')}
             onClick={() => void refresh()}

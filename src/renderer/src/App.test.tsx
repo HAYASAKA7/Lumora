@@ -4322,11 +4322,12 @@ describe('App', () => {
     expect(await within(screen.getByRole('main')).findByText('Catalog implementation')).toBeInTheDocument();
     /*
      * The button keeps one name so it stays findable; that it is working shows
-     * in `aria-busy` and in the turning icon.
+     * in `aria-busy` and in the loading mark that stands in for its icon.
      */
     const refreshButton = screen.getByRole('button', { name: 'Refresh catalog' });
     expect(refreshButton).toBeDisabled();
     expect(refreshButton).toHaveAttribute('aria-busy', 'true');
+    expect(refreshButton.querySelector('.icon-loading')).not.toBeNull();
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search sessions' }), {
       target: { value: 'new query' }

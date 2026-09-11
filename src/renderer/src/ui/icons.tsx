@@ -27,6 +27,31 @@ function Glyph({ path }: { path: string }): ReactNode {
   );
 }
 
+/**
+ * Work in progress. A faint ring with one bright arc, the shape Lumora's other
+ * spinners already draw, so waiting looks the same wherever it happens. It
+ * stands in for a button's own mark while the button works: turning the mark
+ * itself would make a pair of chevrons or a download arrow look like the
+ * action repeating.
+ */
+export function LoadingIcon(): ReactNode {
+  return (
+    <svg
+      aria-hidden="true"
+      className="icon icon-loading"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 20 20"
+    >
+      <circle className="icon-loading-track" cx="10" cy="10" r="6.5" />
+      <path d="M10 3.5a6.5 6.5 0 0 1 6.5 6.5" />
+    </svg>
+  );
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;

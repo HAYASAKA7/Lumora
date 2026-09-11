@@ -31,6 +31,9 @@ export function ModsSettingsPanel({
   const { snapshot, t } = useLocalization();
   const [settings, setSettings] = useState<ModsSettings | null>(null);
   const [busy, setBusy] = useState(false);
+  // `busy` covers every Mods operation, opening a folder included; only a
+  // reload is work worth showing on the reload button.
+  const [reloading, setReloading] = useState(false);
   const [error, setError] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -208,17 +211,21 @@ export function ModsSettingsPanel({
                   <FolderIcon />
                 </IconButton>
                 <IconButton
+                  busy={reloading}
                   disabled={busy}
                   label={t('settings.mods.reload-language-packs')}
-                  onClick={() => void update(async () => {
-                    const result = await api.reloadLocalization();
-                    setNotice(result.rejectedUserPacks === 0
-                      ? t('settings.mods.reload-complete')
-                      : t('settings.mods.reload-rejected', {
-                          count: result.rejectedUserPacks
-                        }));
-                    return null;
-                  })}
+                  onClick={() => {
+                    setReloading(true);
+                    void update(async () => {
+                      const result = await api.reloadLocalization();
+                      setNotice(result.rejectedUserPacks === 0
+                        ? t('settings.mods.reload-complete')
+                        : t('settings.mods.reload-rejected', {
+                            count: result.rejectedUserPacks
+                          }));
+                      return null;
+                    }).finally(() => setReloading(false));
+                  }}
                   tabIndex={-1}
                 >
                   <RefreshIcon />

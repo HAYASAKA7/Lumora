@@ -7,6 +7,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Show a loading mark while a button works instead of turning its own. A
+  refresh, update or install in progress spun its icon, so a pair of
+  chevrons or a download arrow turned in place and read as the action
+  repeating rather than as waiting. The button now shows the ring with one
+  bright arc that Lumora's other spinners already draw, in place of its own
+  mark, and keeps its name. With reduced motion the ring holds still, and
+  still reads as waiting because it is a different mark rather than the same
+  one at rest.
+- Show that work is running on the refresh buttons that gave no sign of it:
+  diagnostics, terminal profiles, theme packs, font presets and language
+  packs. Terminal profiles could also be refreshed again while a refresh was
+  still running; that button now waits for the first one to finish.
+
 ## [0.5.8] - 2026-09-09
 
 ### Changed
