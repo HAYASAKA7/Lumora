@@ -46,8 +46,14 @@ ordinary navigation.
 A renderer-root tooltip provider owns one portal-based hover surface. Tooltip
 placement is clamped to the viewport, uses semantic appearance tokens, and
 supports delayed pointer intent, deliberate keyboard focus, shortcut labels,
-and overflow-only disclosure. Renderer JSX is contract-tested to reject native
-`title` attributes so browser-owned hover bubbles cannot silently return.
+and overflow-only disclosure. The bubble is measured with the whole viewport
+free before it is placed, so a long label is never wrapped by wherever the
+previous bubble stood, and an open bubble takes new content in place: an icon
+button that starts or finishes its work while hovered says so without its
+tooltip closing. Renderer JSX is contract-tested to reject native `title`
+attributes so browser-owned hover bubbles cannot silently return, and icon
+buttons that draw a refresh, update or install mark are contract-tested to
+declare a busy state and the text their tooltip shows while it runs.
 
 App-style focus handling is scoped to navigation, catalog cards, and page
 commands. Those controls leave the browser Tab cycle and release stale pointer

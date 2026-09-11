@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-09-11
+
 ### Fixed
 
 - Show a loading mark while a button works instead of turning its own. A
