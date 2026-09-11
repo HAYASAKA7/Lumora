@@ -1202,7 +1202,7 @@ describe('RemoteTargetWindow', () => {
     render(<RemoteTargetWindow executionTargetId={TARGET_ID} api={api} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'OpenCode details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'OpenCode details' }));
     const command = await screen.findByLabelText('OpenCode start command');
     fireEvent.change(command, { target: { value: 'opencode --remote' } });
     fireEvent.click(screen.getByRole('button', {
