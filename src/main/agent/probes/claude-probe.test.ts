@@ -25,7 +25,7 @@ describe('Claude structured capability probe', () => {
       integration: 'claude_agent_sdk',
       state: 'verified',
       version: '2.1.239 (Claude Code)',
-      capabilities: { attachments: false }
+      capabilities: { attachments: true }
     });
   });
 

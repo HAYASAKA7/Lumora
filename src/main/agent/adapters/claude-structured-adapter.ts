@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { win32 } from 'node:path';
 
 import type {
@@ -670,11 +670,24 @@ export function createClaudeStructuredAdapter(
 
   const submitPrompt = async (text: string, attachmentTokens: readonly string[]): Promise<void> => {
     if (nativeSessionId === null) throw new Error('Claude is not ready.');
-    if (attachmentTokens.length > 0) {
-      throw new Error('Claude structured attachments are not available yet.');
+    const images = attachmentTokens.length === 0
+      ? []
+      : context.resolveImages?.(attachmentTokens) ?? [];
+    if (images.length !== attachmentTokens.length) {
+      throw new Error('Claude images are not available for this session.');
     }
-    if (text.trim().length === 0) return;
+    if (text.trim().length === 0 && images.length === 0) return;
     if (currentTurnId !== null) throw new Error('Claude is already processing a prompt.');
+    // Read every image before the turn begins, so a missing file fails the
+    // prompt instead of leaving a turn started with nothing sent.
+    const imageBlocks = await Promise.all(images.map(async (image) => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: image.mimeType,
+        data: (await readFile(image.path)).toString('base64')
+      }
+    })));
     startQuery();
     for (let index = pendingResultTurnIds.length - 1; index >= 0; index -= 1) {
       if (completedTurnStates.has(pendingResultTurnIds[index]!)) {
@@ -697,11 +710,19 @@ export function createClaudeStructuredAdapter(
       turnId: currentTurnId,
       parentEventId: null,
       kind: 'user.message',
-      payload: { text: bounded(text) }
+      payload: images.length === 0
+        ? { text: bounded(text) }
+        : { text: text.trim() === '' ? '' : bounded(text), imageCount: images.length }
     });
     input!.push({
       type: 'user',
-      message: { role: 'user', content: text },
+      message: {
+        role: 'user',
+        // Images before the text, as Claude reads them best.
+        content: images.length === 0
+          ? text
+          : [...imageBlocks, ...(text.trim() === '' ? [] : [{ type: 'text', text }])]
+      },
       parent_tool_use_id: null,
       session_id: nativeSessionId,
       uuid: userMessageUuid
@@ -726,7 +747,8 @@ export function createClaudeStructuredAdapter(
       return {
         nativeSessionId,
         commands,
-        initialEvents: historyEvents(history)
+        initialEvents: historyEvents(history),
+        acceptsImages: true
       };
     },
 

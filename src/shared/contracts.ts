@@ -26,7 +26,9 @@ import {
   type StructuredAgentEvent,
   type StructuredAgentLaunchRequest,
   type StructuredAgentRuntimeSnapshot,
-  type StructuredAgentRuntimeSummary
+  type StructuredAgentRuntimeSummary,
+  type StructuredImageStageRequest,
+  type StructuredImageStageResult
 } from './agent/contracts';
 import type {
   StructuredProviderCapabilityReport,
@@ -2435,6 +2437,7 @@ export const IPC_CHANNELS = {
   structuredRuntimeList: 'lumora:agent:runtime:list',
   structuredRuntimeSnapshot: 'lumora:agent:runtime:snapshot',
   structuredRuntimeAction: 'lumora:agent:runtime:action',
+  structuredImageStage: 'lumora:agent:image:stage',
   structuredRuntimeReconnect: 'lumora:agent:runtime:reconnect',
   structuredRuntimeClose: 'lumora:agent:runtime:close',
   structuredRuntimeEvent: 'lumora:agent:runtime:event',
@@ -2618,6 +2621,9 @@ export interface LumoraApi {
     connectionId: string
   ): Promise<StructuredAgentRuntimeSnapshot>;
   dispatchStructuredAgentAction(action: StructuredAgentAction): Promise<void>;
+  stageStructuredImage(
+    input: StructuredImageStageRequest
+  ): Promise<StructuredImageStageResult>;
   reconnectStructuredRuntime(
     connectionId: string
   ): Promise<StructuredAgentRuntimeSummary>;

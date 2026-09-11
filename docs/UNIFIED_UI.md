@@ -99,6 +99,19 @@ place. Long sessions initially load a small, content-bounded recent window;
 scrolling upward progressively requests earlier turns instead of rendering the
 entire transcript at once.
 
+### Images
+
+When the agent reads images, the composer shows an image button. Paste a
+screenshot, drop pictures on the message box, or pick them from a file dialog.
+Up to eight go with one message, and a message can be images alone. Lumora
+accepts PNG, JPEG, GIF, and WebP. It scales each image so its longest side is at
+most 2048 pixels, then sends it as PNG, or as JPEG when a photo would be too
+large as PNG. Each thumbnail can be removed before sending. The conversation
+records how many images a message carried; it does not keep the pictures.
+
+Codex and Claude accept images. An ACP agent accepts them only when it says so
+at startup, as Gemini CLI does; for any other agent the button does not appear.
+
 ## Commands and models
 
 Type `/` to open the provider's available command list. Lumora shows commands
@@ -171,3 +184,9 @@ behind schema-validated IPC, bounded transports, expiring launch tokens,
 capability checks, workspace trust, workspace-confined file access, and
 one-writer session ownership. The sandboxed renderer receives normalized
 events rather than direct process or filesystem access.
+
+Images reach the main process as bytes, and it checks them again. It stores only
+a PNG or JPEG that decodes and fits the size limits, in a temporary folder of
+the session's own, and removes that folder when the session closes. The renderer
+holds an opaque token for each stored image, never a path, and only the session
+that stored an image can send it.

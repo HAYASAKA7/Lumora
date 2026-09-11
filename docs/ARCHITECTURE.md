@@ -237,6 +237,28 @@ provider SDK, process handle, raw filesystem capability, or general-purpose RPC
 transport. Runtime identity is indexed with PTY identity so direct resume
 activates an existing owner instead of launching a duplicate.
 
+Image input keeps the same boundary. The renderer decodes a pasted, dropped, or
+picked image, bounds its longest edge, and re-encodes it as PNG or JPEG. The
+main process then:
+
+- checks the file signature;
+- decodes it again with `nativeImage`;
+- enforces the per-image and per-session limits;
+- writes it with owner-only permissions under a per-connection temporary
+  directory.
+
+The renderer gets back an opaque token, and the prompt carries that token rather
+than a path. The runtime host resolves a token only for the connection that
+staged it. Each adapter then turns it into its provider's own input:
+
+- a `localImage` path for Codex;
+- base64 image blocks for the Claude Agent SDK;
+- ACP image blocks, when the agent advertises `promptCapabilities.image`.
+
+Staging is refused for a session that did not report image support. A
+connection's directory is removed when its runtime closes. Directories an
+earlier run left behind are removed at startup once they are stale.
+
 Conversation state is bounded for presentation. The renderer initially shows
 at most five recent turns within a render budget and loads older pages on
 upward scroll. This limits initial DOM and Markdown work without deleting or

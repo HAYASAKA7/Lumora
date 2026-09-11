@@ -4,6 +4,7 @@ import type {
   StructuredAgentLaunchRequest,
   StructuredAgentProviderId
 } from '../../../shared/agent/contracts';
+import type { ResolvedStructuredImage } from '../attachments/structured-image-store';
 import type { StructuredAgentEventDraft } from '../runtime/event-sequencer';
 
 export interface ResolvedStructuredAgentLaunch {
@@ -29,6 +30,11 @@ export interface StructuredAgentAdapterContext {
   clientVersion?: string;
   launch: ResolvedStructuredAgentLaunch;
   callbacks: StructuredAgentAdapterCallbacks;
+  /**
+   * Resolves the image tokens a prompt carries to the files staged for this
+   * session. Throws for a token staged for any other session.
+   */
+  resolveImages?(tokens: readonly string[]): readonly ResolvedStructuredImage[];
 }
 
 export interface StructuredAgentAdapter {
@@ -36,6 +42,8 @@ export interface StructuredAgentAdapter {
     nativeSessionId: string;
     initialEvents?: readonly StructuredAgentEventDraft[];
     commands?: readonly StructuredAgentCommand[];
+    /** Whether the agent takes images in a prompt. */
+    acceptsImages?: boolean;
   }>;
   activate?(): Promise<void>;
   dispatch(action: StructuredAgentAction): Promise<void>;

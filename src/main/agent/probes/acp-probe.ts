@@ -95,7 +95,7 @@ export async function probeAcpStructuredProvider({
       approvals: true,
       cancellation: true,
       usage: false,
-      attachments: false
+      attachments: parsed.data.agentCapabilities.promptCapabilities.image
     });
   } catch {
     return failedReport(identity);

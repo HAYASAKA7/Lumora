@@ -32,6 +32,7 @@ import {
 import { configureApplicationMenu } from './application-menu';
 import { createStructuredAgentAdapterFactory } from './agent/adapters/structured-agent-adapter-factory';
 import { createLocalStructuredProviderProbe } from './agent/probes/local-structured-provider-probes';
+import { StructuredImageStore } from './agent/attachments/structured-image-store';
 import { createStructuredCapabilityScan } from './agent/probes/structured-capability-scan';
 import { resolveStructuredProviderInstallations } from './agent/probes/structured-provider-installations';
 import { StructuredProviderProbeCoordinator } from './agent/probes/structured-provider-probe-coordinator';
@@ -869,11 +870,22 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     fresh: boolean,
     preferences = terminalRuntime!.getStructuredProviderPreferences()
   ) => runStructuredCapabilityScan(fresh, preferences);
+  // The images a Unified UI prompt carries: staged once from the renderer's
+  // bytes, proven to be images by Electron's decoder, and read by the adapter.
+  const structuredImageStore = new StructuredImageStore({
+    rootDirectory: join(app.getPath('temp'), 'Lumora', 'structured-images'),
+    decode: (data) => {
+      const image = nativeImage.createFromBuffer(Buffer.from(data));
+      return image.isEmpty() ? null : image.getSize();
+    }
+  });
+  void structuredImageStore.cleanupStale({ maxDirectories: 100 }).catch(() => undefined);
   structuredAgentRuntime = new StructuredAgentRuntimeHost({
     resolveLaunch: (request) => terminalRuntime!.resolveStructuredLaunch(request),
     createAdapter: createStructuredAgentAdapterFactory(),
     sessionGuard: structuredSessionGuard,
-    clientVersion: app.getVersion()
+    clientVersion: app.getVersion(),
+    images: structuredImageStore
   });
   const agentLaunchRouter = new AgentLaunchRouter({
     consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
@@ -1373,6 +1385,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
     runtime: structuredAgentRuntime,
+    stageImage: async (request) => {
+      if (structuredAgentRuntime?.acceptsImages(request.connectionId) !== true) {
+        throw new Error('This session does not accept images.');
+      }
+      return structuredImageStore.stage(request);
+    },
     scanCapabilities: scanStructuredCapabilities,
     preferences: {
       list: () => terminalRuntime!.getStructuredProviderPreferences(),

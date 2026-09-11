@@ -166,7 +166,8 @@ describe('Gemini structured adapter', () => {
 
     await expect(adapter.open()).resolves.toEqual({
       nativeSessionId: 'gemini-native-1',
-      initialEvents: []
+      initialEvents: [],
+      acceptsImages: false
     });
     expect(transport.request).toHaveBeenCalledWith('session/new', {
       cwd: 'C:\\workspace', mcpServers: []

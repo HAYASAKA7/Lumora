@@ -767,7 +767,7 @@ describe('Codex structured adapter', () => {
     }));
   });
 
-  it('ignores unknown notifications and rejects unsupported attachments safely', async () => {
+  it('ignores unknown notifications and refuses images the session never staged', async () => {
     const transport = new FakeTransport();
     const current = context();
     const adapter = createCodexStructuredAdapter(current.value, {
@@ -783,7 +783,8 @@ describe('Codex structured adapter', () => {
       connectionId: 'connection-1',
       text: 'With attachment',
       attachmentTokens: ['attachment-1']
-    })).rejects.toThrow('attachments');
+    })).rejects.toThrow('images are not available');
+    expect(transport.request).not.toHaveBeenCalledWith('turn/start', expect.anything());
   });
 
   it('executes native Codex commands without submitting fake prompt text', async () => {
@@ -1013,5 +1014,62 @@ describe('Codex structured adapter', () => {
       'thread/settings/update',
       expect.objectContaining({ permissions: 'blocked-profile' })
     );
+  });
+
+  it('sends attached images to Codex as local image inputs before the text', async () => {
+    const transport = new FakeTransport();
+    const current = context();
+    const adapter = createCodexStructuredAdapter({
+      ...current.value,
+      resolveImages: (tokens) => tokens.map((token) => ({
+        path: `/images/${token}.png`, mimeType: 'image/png' as const, width: 10, height: 10, bytes: 100
+      }))
+    }, { createTransport: async () => transport });
+    await expect(adapter.open()).resolves.toMatchObject({ acceptsImages: true });
+    await adapter.activate?.();
+
+    await adapter.dispatch({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: 'What is this?',
+      attachmentTokens: ['image-1', 'image-2']
+    });
+
+    expect(transport.request).toHaveBeenCalledWith('turn/start', {
+      threadId: '019c-native-thread',
+      input: [
+        { type: 'localImage', path: '/images/image-1.png' },
+        { type: 'localImage', path: '/images/image-2.png' },
+        { type: 'text', text: 'What is this?', text_elements: [] }
+      ]
+    });
+    expect(current.events).toContainEqual(expect.objectContaining({
+      kind: 'user.message', payload: { text: 'What is this?', imageCount: 2 }
+    }));
+  });
+
+  it('sends an image-only prompt without an empty text input', async () => {
+    const transport = new FakeTransport();
+    const current = context();
+    const adapter = createCodexStructuredAdapter({
+      ...current.value,
+      resolveImages: () => [{
+        path: '/images/image-1.png', mimeType: 'image/png', width: 10, height: 10, bytes: 100
+      }]
+    }, { createTransport: async () => transport });
+    await adapter.open();
+    await adapter.activate?.();
+
+    await adapter.dispatch({
+      kind: 'prompt.submit', connectionId: 'connection-1', text: '', attachmentTokens: ['image-1']
+    });
+
+    expect(transport.request).toHaveBeenCalledWith('turn/start', {
+      threadId: '019c-native-thread',
+      input: [{ type: 'localImage', path: '/images/image-1.png' }]
+    });
+    expect(current.events).toContainEqual(expect.objectContaining({
+      kind: 'user.message', payload: { text: '', imageCount: 1 }
+    }));
   });
 });

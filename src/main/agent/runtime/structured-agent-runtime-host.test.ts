@@ -518,4 +518,76 @@ describe('StructuredAgentRuntimeHost', () => {
     expect(second.state).toBe('closed');
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it('reports whether a session takes images and clears them when it closes', async () => {
+    const cleanupConnection = vi.fn(async () => undefined);
+    const resolve = vi.fn((_connectionId: string, tokens: readonly string[]) =>
+      tokens.map((token) => ({
+        path: `/images/${token}.png`, mimeType: 'image/png' as const, width: 1, height: 1, bytes: 1
+      })));
+    const contexts: StructuredAgentAdapterContext[] = [];
+    let eventNumber = 0;
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: (context) => {
+        contexts.push(context);
+        return {
+          open: async () => ({ nativeSessionId: 'native-1', acceptsImages: true }),
+          dispatch: async () => undefined,
+          close: async () => undefined
+        };
+      },
+      sessionGuard: new StructuredSessionGuard(),
+      createConnectionId: () => 'connection-1',
+      createEventId: () => `event-${++eventNumber}`,
+      images: { resolve, cleanupConnection }
+    });
+
+    const summary = await host.launch(newRequest);
+
+    expect(summary.acceptsImages).toBe(true);
+    expect(host.acceptsImages('connection-1')).toBe(true);
+    // An adapter resolves tokens only through its own session.
+    expect(contexts[0]?.resolveImages?.(['image-1'])).toEqual([
+      expect.objectContaining({ path: '/images/image-1.png' })
+    ]);
+    expect(resolve).toHaveBeenCalledWith('connection-1', ['image-1']);
+
+    await host.close('connection-1');
+
+    expect(host.acceptsImages('connection-1')).toBe(false);
+    expect(cleanupConnection).toHaveBeenCalledWith('connection-1');
+  });
+
+  it('keeps a failed session’s images for a reconnect and clears them when it is closed', async () => {
+    const cleanupConnection = vi.fn(async () => undefined);
+    const contexts: StructuredAgentAdapterContext[] = [];
+    let eventNumber = 0;
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: (context) => {
+        contexts.push(context);
+        return {
+          open: async () => ({ nativeSessionId: 'native-1', acceptsImages: true }),
+          dispatch: async () => undefined,
+          close: async () => undefined
+        };
+      },
+      sessionGuard: new StructuredSessionGuard(),
+      createConnectionId: () => 'connection-1',
+      createEventId: () => `event-${++eventNumber}`,
+      images: { resolve: () => [], cleanupConnection }
+    });
+    await host.launch(newRequest);
+
+    contexts[0]!.callbacks.exited(new Error('provider stopped'));
+
+    expect(host.snapshot('connection-1').runtime.state).toBe('failed');
+    expect(host.acceptsImages('connection-1')).toBe(false);
+    expect(cleanupConnection).not.toHaveBeenCalled();
+
+    await host.close('connection-1');
+
+    expect(cleanupConnection).toHaveBeenCalledWith('connection-1');
+  });
 });

@@ -51,7 +51,7 @@ describe('Gemini structured capability probe', () => {
       state: 'verified',
       capabilities: {
         resumeSession: true,
-        attachments: false,
+        attachments: true,
         usage: false
       }
     });

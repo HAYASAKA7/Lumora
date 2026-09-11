@@ -7,6 +7,18 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Send images to an agent in the unified interface. Paste a screenshot, drop
+  a picture on the message box, or pick one with the new image button; up to
+  eight go with a message, and an image can be sent without any text. Lumora
+  scales each one to at most 2048 pixels on its longest side and sends it as
+  PNG, or as JPEG when a photo would be too large, so a phone photo does not
+  exhaust the agent's context. Codex, Claude and any ACP agent that says it
+  reads images (such as Gemini) accept them; the button stays hidden for an
+  agent that does not. The conversation notes how many images a message
+  carried.
+
 ### Security
 
 - Refuse every web permission Lumora's windows ask for. With no rule of its own,

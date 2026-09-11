@@ -59,7 +59,7 @@ export async function probeCodexStructuredProvider({
       approvals: true,
       cancellation: true,
       usage: true,
-      attachments: false
+      attachments: true
     });
   } catch {
     return failedReport(identity);

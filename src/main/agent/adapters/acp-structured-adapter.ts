@@ -39,7 +39,10 @@ const InitializeSchema = z.object({
     id: z.string().trim().min(1).max(128)
   }).passthrough()).optional().default([]),
   agentCapabilities: z.object({
-    loadSession: z.boolean().optional().default(false)
+    loadSession: z.boolean().optional().default(false),
+    promptCapabilities: z.object({
+      image: z.boolean().optional()
+    }).passthrough().optional()
   }).passthrough()
 }).passthrough();
 
@@ -219,6 +222,8 @@ export function createAcpStructuredAdapter(
   let closed = false;
   let initialPromptSent = false;
   let commands: StructuredAgentCommand[] = [];
+  // Only an agent that says so at startup is sent images.
+  let acceptsImages = false;
   let providerCommands: StructuredAgentCommand[] = [];
   let modelCommand: StructuredAgentCommand | null = null;
   let modelConfigId: string | null = null;
@@ -560,12 +565,12 @@ export function createAcpStructuredAdapter(
     }
   };
 
-  const runPrompt = async (text: string, attachmentTokens: readonly string[]): Promise<void> => {
+  const runPrompt = async (
+    text: string,
+    imageBlocks: readonly Record<string, unknown>[]
+  ): Promise<void> => {
     if (transport === null || nativeSessionId === null) throw new Error(`${providerName} is not ready.`);
-    if (attachmentTokens.length > 0) {
-      throw new Error(`${providerName} structured attachments are not available yet.`);
-    }
-    if (text.trim().length === 0) return;
+    if (text.trim().length === 0 && imageBlocks.length === 0) return;
     if (currentTurnId !== null) throw new Error(`${providerName} is already processing a prompt.`);
     turnNumber += 1;
     const turnId = `${providerKey}-turn-${turnNumber}`;
@@ -576,12 +581,14 @@ export function createAcpStructuredAdapter(
     });
     deliver({
       turnId, parentEventId: null, kind: 'user.message',
-      payload: { text: bounded(text) }
+      payload: imageBlocks.length === 0
+        ? { text: bounded(text) }
+        : { text: text.trim() === '' ? '' : bounded(text), imageCount: imageBlocks.length }
     });
     try {
       const response = PromptResponseSchema.parse(await transport.request('session/prompt', {
         sessionId: nativeSessionId,
-        prompt: [{ type: 'text', text }]
+        prompt: [...imageBlocks, ...(text.trim() === '' ? [] : [{ type: 'text', text }])]
       }));
       const usage = PromptUsageSchema.safeParse(response.usage);
       if (usage.success) {
@@ -650,6 +657,7 @@ export function createAcpStructuredAdapter(
           terminal: false
         }
       }));
+      acceptsImages = initialized.agentCapabilities.promptCapabilities?.image === true;
       const authenticationMethod = profile.authentication === 'gemini_configured'
         ? (await resolveAuthenticationMethod?.()) ?? null
         : initialized.authMethods[0]?.id ?? null;
@@ -692,7 +700,8 @@ export function createAcpStructuredAdapter(
       return {
         nativeSessionId,
         ...(commands.length === 0 ? {} : { commands }),
-        initialEvents: initialEvents.splice(0)
+        initialEvents: initialEvents.splice(0),
+        acceptsImages
       };
     },
 
@@ -749,14 +758,27 @@ export function createAcpStructuredAdapter(
         return;
       }
       if (action.kind === 'prompt.submit') {
-        if (action.text.trim().length === 0) return;
-        if (action.attachmentTokens.length > 0) {
-          throw new Error(`${providerName} structured attachments are not available yet.`);
+        if (action.attachmentTokens.length > 0 && !acceptsImages) {
+          throw new Error(`${providerName} does not accept images.`);
         }
+        const images = action.attachmentTokens.length === 0
+          ? []
+          : context.resolveImages?.(action.attachmentTokens) ?? [];
+        if (images.length !== action.attachmentTokens.length) {
+          throw new Error(`${providerName} images are not available for this session.`);
+        }
+        if (action.text.trim().length === 0 && images.length === 0) return;
         if (currentTurnId !== null) {
           throw new Error(`${providerName} is already processing a prompt.`);
         }
-        void runPrompt(action.text, action.attachmentTokens);
+        // Read the images here, where a failure still reaches the caller;
+        // the turn itself runs detached once it starts.
+        const imageBlocks = await Promise.all(images.map(async (image) => ({
+          type: 'image',
+          mimeType: image.mimeType,
+          data: (await readFile(image.path)).toString('base64')
+        })));
+        void runPrompt(action.text, imageBlocks);
         return;
       }
       if (action.kind === 'turn.cancel') {

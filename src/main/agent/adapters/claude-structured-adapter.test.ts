@@ -1,3 +1,6 @@
+import * as nodeFs from 'node:fs/promises';
+import * as nodeOs from 'node:os';
+import * as nodePath from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { StructuredAgentAdapterContext } from './structured-agent-adapter';
@@ -774,5 +777,55 @@ describe('Claude structured adapter', () => {
       behavior: 'allow',
       updatedPermissions: expect.any(Array)
     });
+  });
+
+  it('sends attached images to Claude as base64 blocks before the text', async () => {
+    const directory = await nodeFs.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'lumora-claude-images-'));
+    const path = nodePath.join(directory, 'image-1.png');
+    await nodeFs.writeFile(path, Buffer.from([1, 2, 3]));
+    try {
+      const query = new FakeQuery([{
+        type: 'system', subtype: 'init', session_id: 'claude-native-2'
+      }]);
+      let input: AsyncIterable<unknown> | undefined;
+      const current = context();
+      const adapter = createClaudeStructuredAdapter({
+        ...current.value,
+        resolveImages: () => [{ path, mimeType: 'image/png', width: 10, height: 10, bytes: 3 }]
+      }, {
+        createQuery: (options) => {
+          input = options.input;
+          return query;
+        },
+        loadHistory: async () => [],
+        createNativeSessionId: () => 'claude-native-2'
+      });
+      await expect(adapter.open()).resolves.toMatchObject({ acceptsImages: true });
+      await adapter.activate?.();
+
+      await adapter.dispatch({
+        kind: 'prompt.submit',
+        connectionId: 'connection-claude',
+        text: 'What is this?',
+        attachmentTokens: ['image-1']
+      });
+
+      const sent = await input?.[Symbol.asyncIterator]().next();
+      expect(sent?.value).toMatchObject({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AQID' } },
+            { type: 'text', text: 'What is this?' }
+          ]
+        }
+      });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'user.message', payload: { text: 'What is this?', imageCount: 1 }
+      }));
+    } finally {
+      await nodeFs.rm(directory, { recursive: true, force: true });
+    }
   });
 });

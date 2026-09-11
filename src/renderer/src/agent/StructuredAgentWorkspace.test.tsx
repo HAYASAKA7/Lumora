@@ -8,6 +8,20 @@ import type {
 import { renderWithLocalization } from '../test/render-with-localization';
 import { StructuredAgentWorkspace } from './StructuredAgentWorkspace';
 
+// jsdom cannot decode or draw an image; stand in for the canvas step, and
+// treat an empty file as one that does not decode.
+vi.mock('./structured-image-attachments', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./structured-image-attachments')>(),
+  prepareImage: vi.fn(async (file: Blob) => {
+    if (file.size === 0) throw new Error('not an image');
+    return {
+      mimeType: 'image/png',
+      data: new Uint8Array([1, 2, 3]),
+      previewUrl: 'data:image/png;base64,AQID'
+    };
+  })
+}));
+
 const snapshot: StructuredAgentRuntimeSnapshot = {
   runtime: {
     connectionId: 'connection-1',
@@ -80,6 +94,39 @@ function renderWorkspace() {
     />
   );
   return { dispatchStructuredAgentAction, onClose };
+}
+
+function imageFile(name = 'screenshot.png', type = 'image/png', bytes = [1]): File {
+  return new File([new Uint8Array(bytes)], name, { type });
+}
+
+function renderImageWorkspace(events: StructuredAgentRuntimeSnapshot['events'] = []) {
+  const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+  let staged = 0;
+  const stageStructuredImage = vi.fn(async () => {
+    staged += 1;
+    return { token: `image-${staged}`, width: 10, height: 8, bytes: 3 };
+  });
+  const api = { dispatchStructuredAgentAction, stageStructuredImage } as unknown as LumoraApi;
+  renderWithLocalization(
+    <StructuredAgentWorkspace
+      activeConnectionId="connection-1"
+      api={api}
+      onActivate={vi.fn()}
+      onClose={vi.fn()}
+      onReconnect={vi.fn()}
+      snapshots={[{
+        ...snapshot,
+        runtime: { ...snapshot.runtime, acceptsImages: true },
+        events
+      }]}
+    />
+  );
+  const composer = screen.getByRole('textbox');
+  const paste = (files: File[], text = '') => fireEvent.paste(composer, {
+    clipboardData: { files, getData: () => text }
+  });
+  return { composer, dispatchStructuredAgentAction, paste, stageStructuredImage };
 }
 
 describe('StructuredAgentWorkspace', () => {
@@ -978,5 +1025,130 @@ describe('StructuredAgentWorkspace', () => {
 
     fireEvent.change(composer, { target: { value: '/model ' } });
     expect(screen.getByRole('option', { name: 'GPT-5.6 Sol' })).toBeInTheDocument();
+  });
+
+  it('offers images only to a session that accepts them', () => {
+    renderWorkspace();
+
+    expect(screen.queryByRole('button', { name: 'Attach images' })).toBeNull();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('stages a pasted image and sends it on its own, without text', async () => {
+    const { dispatchStructuredAgentAction, paste, stageStructuredImage } = renderImageWorkspace();
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+
+    paste([imageFile()]);
+
+    expect(await screen.findByRole('img', { name: 'Attached image 1' })).toBeTruthy();
+    expect(stageStructuredImage).toHaveBeenCalledWith(expect.objectContaining({
+      connectionId: 'connection-1',
+      mimeType: 'image/png'
+    }));
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: '',
+      attachmentTokens: ['image-1']
+    });
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Attached image 1' })).toBeNull());
+  });
+
+  it('sends the text and the images of one message together', async () => {
+    const { composer, dispatchStructuredAgentAction, paste } = renderImageWorkspace();
+
+    paste([imageFile('a.png'), imageFile('b.jpg', 'image/jpeg')]);
+    fireEvent.change(composer, { target: { value: 'What changed between these?' } });
+    await screen.findByRole('img', { name: 'Attached image 2' });
+    await waitFor(() => expect(
+      (screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled
+    ).toBe(false));
+    fireEvent.keyDown(composer, { key: 'Enter' });
+
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: 'What changed between these?',
+      attachmentTokens: ['image-1', 'image-2']
+    });
+  });
+
+  it('leaves a pasted picture with words as text as well', async () => {
+    const { composer, paste } = renderImageWorkspace();
+
+    const event = paste([imageFile()], 'Copied words');
+
+    // fireEvent returns false only when the default was prevented.
+    expect(event).toBe(true);
+    expect(await screen.findByRole('img', { name: 'Attached image 1' })).toBeTruthy();
+    expect(composer).toBeTruthy();
+  });
+
+  it('removes an image before it is sent', async () => {
+    const { paste } = renderImageWorkspace();
+
+    paste([imageFile()]);
+    await screen.findByRole('img', { name: 'Attached image 1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image 1' }));
+
+    expect(screen.queryByRole('img', { name: 'Attached image 1' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('says why an image could not be attached, and stages nothing for it', async () => {
+    const { paste, stageStructuredImage } = renderImageWorkspace();
+
+    paste([imageFile('drawing.svg', 'image/svg+xml')]);
+    expect(await screen.findByText(
+      'Lumora could not attach that image. Use a PNG, JPEG, GIF or WebP image.'
+    )).toBeTruthy();
+
+    paste([imageFile('broken.png', 'image/png', [])]);
+    await waitFor(() => expect(screen.queryByRole('listitem')).toBeNull());
+    expect(screen.getByRole('alert').textContent).toContain('could not attach');
+    expect(stageStructuredImage).not.toHaveBeenCalled();
+  });
+
+  it('holds a message to eight images', async () => {
+    const { paste, stageStructuredImage } = renderImageWorkspace();
+
+    paste(Array.from({ length: 9 }, (_, index) => imageFile(`shot-${index}.png`)));
+
+    expect(await screen.findByText('A message can carry up to 8 images.')).toBeTruthy();
+    await waitFor(() => expect(stageStructuredImage).toHaveBeenCalledTimes(8));
+    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    expect((screen.getByRole('button', { name: 'Attach images' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('attaches images dropped on the composer or picked from the file dialog', async () => {
+    const { composer, stageStructuredImage } = renderImageWorkspace();
+    const surface = composer.closest('.structured-composer-surface')!;
+
+    fireEvent.dragOver(surface, { dataTransfer: { types: ['Files'], files: [] } });
+    expect(surface.classList.contains('is-receiving-drop')).toBe(true);
+    fireEvent.drop(surface, { dataTransfer: { types: ['Files'], files: [imageFile()] } });
+    expect(surface.classList.contains('is-receiving-drop')).toBe(false);
+    await screen.findByRole('img', { name: 'Attached image 1' });
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [imageFile('picked.png')] }
+    });
+    await screen.findByRole('img', { name: 'Attached image 2' });
+    await waitFor(() => expect(stageStructuredImage).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows how many images a sent message carried', () => {
+    renderImageWorkspace([{
+      connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+      turnId: 'turn-1', eventId: 'event-1', parentEventId: null, sequence: 1,
+      generation: 1, timestamp: '2026-08-27T00:00:01.000Z', kind: 'user.message',
+      payload: { text: '', imageCount: 2 }
+    }]);
+
+    expect(screen.getByText('2 images')).toBeTruthy();
   });
 });

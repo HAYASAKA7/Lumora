@@ -52,6 +52,13 @@ export function LoadingIcon(): ReactNode {
   );
 }
 
+/** Attaches images to a message: a framed picture. */
+export function ImageIcon(): ReactNode {
+  return (
+    <Glyph path="M4.5 4.5h11a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM3.8 13.4l3.7-3.7 3 3 1.8-1.8 3.9 3.9M12.8 7.6v.1" />
+  );
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;

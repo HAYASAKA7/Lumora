@@ -1,3 +1,6 @@
+import * as nodeFs from 'node:fs/promises';
+import * as nodeOs from 'node:os';
+import * as nodePath from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -15,12 +18,18 @@ import {
 
 class FakeAcpTransport implements LineJsonRpcTransport {
   authMethods: Array<{ id: string }> = [];
+  promptCapabilities: unknown = undefined;
   promptResponse: unknown = { stopReason: 'end_turn' };
   readonly request = vi.fn(async (method: string) => {
     if (method === 'initialize') {
       return {
         protocolVersion: 1,
-        agentCapabilities: { loadSession: true },
+        agentCapabilities: {
+          loadSession: true,
+          ...(this.promptCapabilities === undefined
+            ? {}
+            : { promptCapabilities: this.promptCapabilities })
+        },
         authMethods: this.authMethods
       };
     }
@@ -148,5 +157,63 @@ describe('generic ACP structured adapter', () => {
         payload: expect.objectContaining({ state: 'completed' })
       })
     ));
+  });
+
+  it('sends images to an agent that advertises them, before the text', async () => {
+    const directory = await nodeFs.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'lumora-acp-images-'));
+    const path = nodePath.join(directory, 'image-1.png');
+    await nodeFs.writeFile(path, Buffer.from([1, 2, 3]));
+    try {
+      const transport = new FakeAcpTransport();
+      transport.promptCapabilities = { image: true };
+      const current: StructuredAgentAdapterContext = {
+        ...context(),
+        resolveImages: () => [{ path, mimeType: 'image/png', width: 1, height: 1, bytes: 3 }]
+      };
+      const adapter = createAcpStructuredAdapter(
+        current,
+        acpProviderProfile('opencode'),
+        { createTransport: async () => transport }
+      );
+      await expect(adapter.open()).resolves.toMatchObject({ acceptsImages: true });
+      await adapter.activate?.();
+
+      await adapter.dispatch({
+        kind: 'prompt.submit',
+        connectionId: current.connectionId,
+        text: 'What is this?',
+        attachmentTokens: ['image-1']
+      });
+
+      await vi.waitFor(() => expect(transport.request).toHaveBeenCalledWith('session/prompt', {
+        sessionId: 'opencode-native-1',
+        prompt: [
+          { type: 'image', mimeType: 'image/png', data: 'AQID' },
+          { type: 'text', text: 'What is this?' }
+        ]
+      }));
+    } finally {
+      await nodeFs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses images for an agent that does not advertise them', async () => {
+    const transport = new FakeAcpTransport();
+    const current = context();
+    const adapter = createAcpStructuredAdapter(
+      current,
+      acpProviderProfile('opencode'),
+      { createTransport: async () => transport }
+    );
+    await expect(adapter.open()).resolves.toMatchObject({ acceptsImages: false });
+    await adapter.activate?.();
+
+    await expect(adapter.dispatch({
+      kind: 'prompt.submit',
+      connectionId: current.connectionId,
+      text: 'What is this?',
+      attachmentTokens: ['image-1']
+    })).rejects.toThrow('does not accept images');
+    expect(transport.request).not.toHaveBeenCalledWith('session/prompt', expect.anything());
   });
 });

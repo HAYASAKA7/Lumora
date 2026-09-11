@@ -34,7 +34,9 @@ function runtimeSummary() {
   };
 }
 
-function harness() {
+function harness(
+  overrides: Partial<Parameters<typeof registerAgentIpc>[0]> = {}
+) {
   const handlers = new Map<string, Handler>();
   const authorize = vi.fn(() => ({
     mode: 'local' as const,
@@ -89,7 +91,8 @@ function harness() {
     preferences,
     startPrepared,
     cancelPrepared,
-    sendEvent
+    sendEvent,
+    ...overrides
   });
   return {
     handlers,
@@ -230,5 +233,39 @@ describe('registerAgentIpc', () => {
     expect(current.sendEvent).toHaveBeenCalledWith(value);
     current.dispose();
     expect(current.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('stages an image for a session and returns only its token and size', async () => {
+    const stageImage = vi.fn(async () => ({ token: 'image-1', width: 10, height: 8, bytes: 3 }));
+    const current = harness({ stageImage });
+    const stage = current.handlers.get(IPC_CHANNELS.structuredImageStage)!;
+
+    await expect(stage(event(), {
+      connectionId: 'connection-1',
+      mimeType: 'image/png',
+      data: new Uint8Array([1, 2, 3])
+    })).resolves.toEqual({ token: 'image-1', width: 10, height: 8, bytes: 3 });
+    expect(stageImage).toHaveBeenCalledWith(expect.objectContaining({
+      connectionId: 'connection-1',
+      mimeType: 'image/png'
+    }));
+  });
+
+  it('refuses a malformed image before anything is staged', async () => {
+    const stageImage = vi.fn(async () => ({ token: 'image-1', width: 10, height: 8, bytes: 3 }));
+    const current = harness({ stageImage });
+    const stage = current.handlers.get(IPC_CHANNELS.structuredImageStage)!;
+
+    await expect(stage(event(), {
+      connectionId: 'connection-1',
+      mimeType: 'image/gif',
+      data: new Uint8Array([1, 2, 3])
+    })).rejects.toThrow();
+    await expect(stage(event(), {
+      connectionId: 'connection-1',
+      mimeType: 'image/png',
+      data: 'not bytes'
+    })).rejects.toThrow();
+    expect(stageImage).not.toHaveBeenCalled();
   });
 });

@@ -37,6 +37,8 @@ export interface StructuredAgentTurnView {
   id: string;
   status: TurnState;
   userText: string;
+  /** Images the user's message carried. The images themselves are not kept. */
+  userImageCount: number;
   assistantText: string;
   reasoning: readonly string[];
   activities: readonly StructuredAgentActivityView[];
@@ -89,6 +91,7 @@ function emptyTurn(id: string): StructuredAgentTurnView {
     id,
     status: 'idle',
     userText: '',
+    userImageCount: 0,
     assistantText: '',
     reasoning: [],
     activities: [],
@@ -147,7 +150,8 @@ export function reduceStructuredAgentEvent(
     case 'user.message':
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,
-        userText: event.payload.text
+        userText: event.payload.text,
+        userImageCount: event.payload.imageCount ?? 0
       }));
     case 'assistant.delta':
       return updateTurn(next, event.turnId, (turn) => ({

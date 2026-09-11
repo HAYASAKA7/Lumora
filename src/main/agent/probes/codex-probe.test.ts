@@ -42,7 +42,7 @@ describe('Codex structured capability probe', () => {
       integration: 'codex_app_server',
       state: 'verified',
       version: 'codex-cli 0.149.1',
-      capabilities: { attachments: false }
+      capabilities: { attachments: true }
     });
     expect(transport.calls.map(({ method }) => method)).toEqual([
       'initialize',

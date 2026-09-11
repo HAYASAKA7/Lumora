@@ -98,6 +98,8 @@ import {
   StructuredAgentActionSchema,
   StructuredAgentCapabilityScanRequestSchema,
   StructuredAgentCommandResultSchema,
+  StructuredImageStageRequestSchema,
+  StructuredImageStageResultSchema,
   StructuredAgentConnectionRequestSchema,
   StructuredAgentEventSchema,
   StructuredAgentLaunchRequestSchema,
@@ -666,6 +668,11 @@ export function createLumoraApi(
       const action = StructuredAgentActionSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.structuredRuntimeAction, action);
       StructuredAgentCommandResultSchema.parse(value);
+    },
+    async stageStructuredImage(input) {
+      const request = StructuredImageStageRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.structuredImageStage, request);
+      return StructuredImageStageResultSchema.parse(value);
     },
     async reconnectStructuredRuntime(connectionId) {
       const request = StructuredAgentConnectionRequestSchema.parse({ connectionId });

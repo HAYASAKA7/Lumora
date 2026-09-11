@@ -1,3 +1,4 @@
+import type { ResolvedStructuredImage } from '../attachments/structured-image-store';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -43,6 +44,14 @@ interface StructuredAgentRuntimeHostOptions {
   maxTailEvents?: number;
   maxTailBytes?: number;
   clientVersion?: string;
+  /** Resolves, and cleans up, the images a session's prompts carry. */
+  images?: {
+    resolve(
+      connectionId: string,
+      tokens: readonly string[]
+    ): readonly ResolvedStructuredImage[];
+    cleanupConnection(connectionId: string): Promise<void>;
+  };
 }
 
 export interface StructuredCatalogSessionIdentity {
@@ -231,7 +240,8 @@ export class StructuredAgentRuntimeHost {
       this.updateSummary(runtime, {
         nativeSessionId: opened.nativeSessionId,
         state: 'ready',
-        error: null
+        error: null,
+        acceptsImages: opened.acceptsImages === true
       });
       const initialEvents = opened.initialEvents ?? [];
       for (const event of initialEvents.slice(-this.maxTailEvents)) {
@@ -403,7 +413,11 @@ export class StructuredAgentRuntimeHost {
         await adapter.close().catch(() => undefined);
         throw new Error('The provider returned a different native session.');
       }
-      this.updateSummary(runtime, { state: 'ready', error: null });
+      this.updateSummary(runtime, {
+        state: 'ready',
+        error: null,
+        acceptsImages: opened.acceptsImages === true
+      });
       this.emitStatus(runtime, generation, 'ready', null);
       return runtime.summary;
     } catch {
@@ -416,11 +430,24 @@ export class StructuredAgentRuntimeHost {
     const runtime = this.requireRuntime(connectionId);
     if (runtime.closePromise !== null) return runtime.closePromise;
     if (runtime.summary.state === 'closed' || runtime.summary.state === 'failed') {
+      // A failed session keeps its images for a reconnect; closing it is when
+      // they can no longer be sent.
+      if (runtime.summary.state === 'failed') {
+        void this.options.images?.cleanupConnection(connectionId);
+      }
       return Promise.resolve(runtime.summary);
     }
     const closing = this.closeOwned(runtime);
     runtime.closePromise = closing;
     return closing;
+  }
+
+  /** Whether a ready session can take images in its next prompt. */
+  acceptsImages(connectionId: string): boolean {
+    const runtime = this.live.get(connectionId);
+    return runtime !== undefined &&
+      runtime.summary.state === 'ready' &&
+      runtime.summary.acceptsImages === true;
   }
 
   shutdown(): Promise<void> {
@@ -449,6 +476,12 @@ export class StructuredAgentRuntimeHost {
         ? {}
         : { clientVersion: this.options.clientVersion }),
       launch: runtime.launch,
+      resolveImages: (tokens) => {
+        if (this.options.images === undefined) {
+          throw new Error('Images are not available for structured sessions.');
+        }
+        return this.options.images.resolve(runtime.summary.connectionId, tokens);
+      },
       callbacks: {
         emit: (event) => this.acceptAdapterEvent(runtime, generation, event),
         commandsChanged: (commands) => {
@@ -552,6 +585,7 @@ export class StructuredAgentRuntimeHost {
       | 'state'
       | 'generation'
       | 'error'
+      | 'acceptsImages'
     >>
   ): void {
     runtime.summary = StructuredAgentRuntimeSummarySchema.parse({
@@ -600,6 +634,7 @@ export class StructuredAgentRuntimeHost {
     this.updateSummary(runtime, { state: 'closed', error: null });
     this.emitStatus(runtime, generation, 'closed', null);
     this.guard.release(runtime.summary.connectionId);
+    void this.options.images?.cleanupConnection(runtime.summary.connectionId);
   }
 
   private requireRuntime(connectionId: string): LiveStructuredRuntime {

@@ -14,10 +14,14 @@ import {
   StructuredAgentRuntimeListSchema,
   StructuredAgentRuntimeSnapshotSchema,
   StructuredAgentRuntimeSummarySchema,
+  StructuredImageStageRequestSchema,
+  StructuredImageStageResultSchema,
   StructuredProviderCapabilityReportSchema,
   StructuredProviderPreferenceInputSchema,
   StructuredProviderPreferenceListSchema,
   type StructuredAgentEvent,
+  type StructuredImageStageRequest,
+  type StructuredImageStageResult,
   type StructuredProviderCapabilityReport,
   type StructuredProviderPreference
 } from '../../shared/contracts';
@@ -59,6 +63,8 @@ interface RegisterAgentIpcOptions {
   startPrepared(operationId: string, launchToken: string): Promise<unknown>;
   cancelPrepared(operationId: string): Promise<void>;
   sendEvent(event: StructuredAgentEvent): void;
+  /** Stages an image for a session that can take one. */
+  stageImage?(request: StructuredImageStageRequest): Promise<StructuredImageStageResult>;
 }
 
 class StructuredAgentIpcError extends Error {
@@ -99,7 +105,8 @@ export function registerAgentIpc({
   preferences,
   startPrepared,
   cancelPrepared,
-  sendEvent
+  sendEvent,
+  stageImage
 }: RegisterAgentIpcOptions): () => void {
   ipc.handle(IPC_CHANNELS.agentRuntimeStart, async (event, input) => {
     authorizeLocal(event, authorize);
@@ -171,6 +178,14 @@ export function registerAgentIpc({
       const action = StructuredAgentActionSchema.parse(input);
       await runtime.dispatch(action);
       return StructuredAgentCommandResultSchema.parse({ accepted: true });
+    });
+  });
+  ipc.handle(IPC_CHANNELS.structuredImageStage, async (event, input) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(async () => {
+      const request = StructuredImageStageRequestSchema.parse(input);
+      if (stageImage === undefined) throw new Error('Image staging is unavailable.');
+      return StructuredImageStageResultSchema.parse(await stageImage(request));
     });
   });
   ipc.handle(IPC_CHANNELS.structuredRuntimeReconnect, async (event, input) => {

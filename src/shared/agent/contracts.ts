@@ -65,7 +65,14 @@ const RuntimeCommandsEventSchema = z.strictObject({
 const UserMessageEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.literal('user.message'),
-  payload: z.strictObject({ text: EventTextSchema })
+  payload: z.strictObject({
+    text: z.string().max(65_536),
+    // Set when the message carried images; the text may then be empty.
+    imageCount: z.number().int().min(1).max(16).optional()
+  }).refine(
+    (payload) => payload.text.length > 0 || payload.imageCount !== undefined,
+    'A user message needs text or images.'
+  )
 });
 
 const AssistantDeltaEventSchema = z.strictObject({
@@ -270,9 +277,12 @@ export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
 const PromptSubmitActionSchema = z.strictObject({
   kind: z.literal('prompt.submit'),
   connectionId: OpaqueIdSchema,
-  text: z.string().min(1).max(131_072),
+  text: z.string().max(131_072),
   attachmentTokens: z.array(OpaqueIdSchema).max(16).default([])
-});
+}).refine(
+  (action) => action.text.trim().length > 0 || action.attachmentTokens.length > 0,
+  'A prompt needs text or an image.'
+);
 
 const ApprovalRespondActionSchema = z.strictObject({
   kind: z.literal('approval.respond'),
@@ -297,6 +307,39 @@ const RefreshSessionDetailsActionSchema = z.strictObject({
   kind: z.literal('session.details.refresh'),
   connectionId: OpaqueIdSchema
 });
+
+/**
+ * Images a Unified UI message can carry. The renderer scales and encodes them
+ * before sending: the longest side fits within the dimension limit, and a
+ * large photo is sent as JPEG so it stays within the smallest per-image limit
+ * among the agents (Claude's 5 MB).
+ */
+export const STRUCTURED_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const STRUCTURED_IMAGE_MAX_DIMENSION = 2_048;
+export const STRUCTURED_IMAGES_PER_MESSAGE = 8;
+export const STRUCTURED_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg'] as const;
+
+export const StructuredImageMimeTypeSchema = z.enum(STRUCTURED_IMAGE_MIME_TYPES);
+
+export const StructuredImageStageRequestSchema = z.strictObject({
+  connectionId: OpaqueIdSchema,
+  mimeType: StructuredImageMimeTypeSchema,
+  data: z.instanceof(Uint8Array).refine(
+    (data) => data.byteLength > 0 && data.byteLength <= STRUCTURED_IMAGE_MAX_BYTES,
+    'The image is empty or too large.'
+  )
+});
+
+export const StructuredImageStageResultSchema = z.strictObject({
+  token: OpaqueIdSchema,
+  width: z.number().int().positive().max(STRUCTURED_IMAGE_MAX_DIMENSION),
+  height: z.number().int().positive().max(STRUCTURED_IMAGE_MAX_DIMENSION),
+  bytes: z.number().int().positive().max(STRUCTURED_IMAGE_MAX_BYTES)
+});
+
+export type StructuredImageMimeType = z.infer<typeof StructuredImageMimeTypeSchema>;
+export type StructuredImageStageRequest = z.infer<typeof StructuredImageStageRequestSchema>;
+export type StructuredImageStageResult = z.infer<typeof StructuredImageStageResultSchema>;
 
 export const StructuredAgentActionSchema = z.discriminatedUnion('kind', [
   PromptSubmitActionSchema,
@@ -360,7 +403,9 @@ export const StructuredAgentRuntimeSummarySchema = z.strictObject({
     code: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
     message: z.string().trim().min(1).max(512),
     retryable: z.boolean()
-  }).nullable()
+  }).nullable(),
+  /** Whether this session's agent takes images in a prompt. */
+  acceptsImages: z.boolean().optional()
 });
 
 export const StructuredAgentCommandSchema = z.strictObject({

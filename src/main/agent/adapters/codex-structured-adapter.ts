@@ -730,7 +730,8 @@ export function createCodexStructuredAdapter(
 
   const startTurn = async (
     input: readonly Record<string, unknown>[],
-    displayText: string
+    displayText: string,
+    imageCount = 0
   ): Promise<void> => {
     if (transport === null || nativeSessionId === null) throw new Error('Codex is not ready.');
     const parsed = TurnStartResponseSchema.parse(await transport.request('turn/start', {
@@ -742,16 +743,29 @@ export function createCodexStructuredAdapter(
       turnId: parsed.turn.id,
       parentEventId: null,
       kind: 'user.message',
-      payload: { text: bounded(displayText, 65_536) }
+      payload: imageCount === 0
+        ? { text: bounded(displayText, 65_536) }
+        : {
+            text: displayText.trim() === '' ? '' : bounded(displayText, 65_536),
+            imageCount
+          }
     });
   };
 
   const submitPrompt = async (text: string, attachmentTokens: readonly string[]): Promise<void> => {
-    if (attachmentTokens.length > 0) {
-      throw new Error('Codex structured attachments are not available yet.');
+    const images = attachmentTokens.length === 0
+      ? []
+      : context.resolveImages?.(attachmentTokens) ?? [];
+    if (images.length !== attachmentTokens.length) {
+      throw new Error('Codex images are not available for this session.');
     }
-    if (text.trim().length === 0) return;
-    await startTurn([{ type: 'text', text, text_elements: [] }], text);
+    if (text.trim().length === 0 && images.length === 0) return;
+    // Codex reads a local image from disk itself. The images go first, the
+    // way a person pastes them before asking about them.
+    await startTurn([
+      ...images.map((image) => ({ type: 'localImage', path: image.path })),
+      ...(text.trim().length === 0 ? [] : [{ type: 'text', text, text_elements: [] }])
+    ], text, images.length);
   };
 
   return {
@@ -840,7 +854,8 @@ export function createCodexStructuredAdapter(
       return {
         nativeSessionId,
         commands: initialCommands,
-        initialEvents: historyEvents(history)
+        initialEvents: historyEvents(history),
+        acceptsImages: true
       };
     },
 

@@ -6,7 +6,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type CompositionEvent,
+  type DragEvent,
   type KeyboardEvent,
   type ReactNode
 } from 'react';
@@ -16,6 +18,7 @@ import type {
   StructuredAgentApprovalDecision,
   StructuredAgentRuntimeSnapshot
 } from '../../../shared/contracts';
+import { STRUCTURED_IMAGES_PER_MESSAGE } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -29,8 +32,13 @@ import {
 import { nextStructuredHistoryVisibleCount } from './structured-history-window';
 import { StructuredDiff } from './StructuredDiff';
 import { StructuredSessionDetailsDialog } from './StructuredSessionDetailsDialog';
+import {
+  ACCEPTED_IMAGE_TYPES,
+  isAcceptedImage,
+  prepareImage
+} from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
-import { InfoIcon } from '../ui/icons';
+import { CrossIcon, ImageIcon, InfoIcon } from '../ui/icons';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
@@ -56,6 +64,16 @@ const AgentMarkdown = lazy(async () => {
 
 const maximumCachedTurnCount = 200;
 const earlierTurnLoadThreshold = 48;
+
+/**
+ * An image waiting in the composer. It shows as soon as it is added, gets its
+ * preview once it has been read, and can be sent once it has a token.
+ */
+interface ComposerImage {
+  id: number;
+  previewUrl: string | null;
+  token: string | null;
+}
 
 function reduceSnapshotIntoCache(
   cached: StructuredAgentViewState,
@@ -102,6 +120,16 @@ export function StructuredAgentWorkspace({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsRefreshFailed, setDetailsRefreshFailed] = useState(false);
+  const [composerImages, setComposerImages] = useState<
+    Readonly<Record<string, readonly ComposerImage[]>>
+  >({});
+  const [imageProblem, setImageProblem] = useState<{
+    connectionId: string;
+    problem: 'failed' | 'limit';
+  } | null>(null);
+  const [receivingDrop, setReceivingDrop] = useState(false);
+  const imagePicker = useRef<HTMLInputElement | null>(null);
+  const nextImageId = useRef(0);
   const viewStateCache = useRef(new Map<string, StructuredAgentViewState>());
   const composing = useRef(false);
   const composer = useRef<HTMLTextAreaElement | null>(null);
@@ -156,6 +184,13 @@ export function StructuredAgentWorkspace({
         Object.entries(current).filter(([connectionId]) => activeConnectionIds.has(connectionId))
       );
     });
+    setComposerImages((current) => (
+      Object.keys(current).every((connectionId) => activeConnectionIds.has(connectionId))
+        ? current
+        : Object.fromEntries(
+          Object.entries(current).filter(([connectionId]) => activeConnectionIds.has(connectionId))
+        )
+    ));
   }, [snapshots]);
   useEffect(() => {
     const connectionId = snapshot?.runtime.connectionId;
@@ -200,6 +235,73 @@ export function StructuredAgentWorkspace({
     ...current,
     [runtime.connectionId]: value
   }));
+  const images = composerImages[runtime.connectionId] ?? [];
+  const imagesStaging = images.some(({ token }) => token === null);
+  const acceptsImages = runtime.acceptsImages === true;
+  const canAttachImages = acceptsImages && runtime.state === 'ready' && !sending;
+  const visibleImageProblem = imageProblem?.connectionId === runtime.connectionId
+    ? imageProblem.problem
+    : null;
+  const updateImages = (
+    connectionId: string,
+    update: (current: readonly ComposerImage[]) => readonly ComposerImage[]
+  ) => setComposerImages((current) => ({
+    ...current,
+    [connectionId]: update(current[connectionId] ?? [])
+  }));
+  const attachImages = (files: readonly File[]) => {
+    if (!canAttachImages || files.length === 0) return;
+    const connectionId = runtime.connectionId;
+    const accepted = files.filter(isAcceptedImage);
+    const room = Math.max(0, STRUCTURED_IMAGES_PER_MESSAGE - images.length);
+    setImageProblem(
+      accepted.length > room
+        ? { connectionId, problem: 'limit' }
+        : accepted.length < files.length
+          ? { connectionId, problem: 'failed' }
+          : null
+    );
+    for (const file of accepted.slice(0, room)) {
+      nextImageId.current += 1;
+      const id = nextImageId.current;
+      // Take its place at once, so a second paste counts it against the limit.
+      updateImages(connectionId, (current) => [...current, { id, previewUrl: null, token: null }]);
+      void prepareImage(file).then(async (prepared) => {
+        updateImages(connectionId, (current) => current.map((image) => (
+          image.id === id ? { ...image, previewUrl: prepared.previewUrl } : image
+        )));
+        const staged = await api.stageStructuredImage({
+          connectionId,
+          mimeType: prepared.mimeType,
+          data: prepared.data
+        });
+        updateImages(connectionId, (current) => current.map((image) => (
+          image.id === id ? { ...image, token: staged.token } : image
+        )));
+      }).catch(() => {
+        updateImages(connectionId, (current) => current.filter((image) => image.id !== id));
+        setImageProblem({ connectionId, problem: 'failed' });
+      });
+    }
+  };
+  const removeImage = (id: number) => {
+    updateImages(runtime.connectionId, (current) => current.filter((image) => image.id !== id));
+    setImageProblem(null);
+    composer.current?.focus();
+  };
+  const onComposerPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!acceptsImages) return;
+    const files = Array.from(event.clipboardData.files).filter(({ type }) => (
+      type.startsWith('image/')
+    ));
+    if (files.length === 0) return;
+    // Copying from a page can bring its words along with the picture; keep them.
+    if (event.clipboardData.getData('text/plain') === '') event.preventDefault();
+    attachImages(files);
+  };
+  const carriesFiles = (event: DragEvent<HTMLElement>) => (
+    canAttachImages && Array.from(event.dataTransfer.types).includes('Files')
+  );
   const providerName = providerDefinition(runtime.providerId).displayName;
   const commands = snapshotCommands;
   const modelCommand = advertisedModelCommand;
@@ -353,7 +455,8 @@ export function StructuredAgentWorkspace({
   const submit = () => {
     const text = draft.trim();
     if (
-      text === '' ||
+      (text === '' && images.length === 0) ||
+      imagesStaging ||
       sending ||
       runningTurn ||
       runtime.state !== 'ready'
@@ -378,12 +481,16 @@ export function StructuredAgentWorkspace({
       kind: 'prompt.submit',
       connectionId: runtime.connectionId,
       text,
-      attachmentTokens: []
+      attachmentTokens: images.flatMap(({ token }) => token === null ? [] : [token])
     }).then(
-      () => setDrafts((current) => ({
-        ...current,
-        [runtime.connectionId]: ''
-      })),
+      () => {
+        setDrafts((current) => ({
+          ...current,
+          [runtime.connectionId]: ''
+        }));
+        updateImages(runtime.connectionId, () => []);
+        setImageProblem(null);
+      },
       () => undefined
     ).finally(() => setSending(false));
   };
@@ -510,9 +617,14 @@ export function StructuredAgentWorkspace({
         <div className="structured-conversation" aria-live="polite">
           {visibleTurns.map((turn) => (
             <article className="structured-turn" key={turn.id}>
-              {turn.userText === '' ? null : (
+              {turn.userText === '' && turn.userImageCount === 0 ? null : (
                 <section className="structured-message structured-message-user">
-                  <p>{turn.userText}</p>
+                  {turn.userText === '' ? null : <p>{turn.userText}</p>}
+                  {turn.userImageCount === 0 ? null : (
+                    <p className="structured-message-images">
+                      {t('terminal.unified.image-count', { count: turn.userImageCount })}
+                    </p>
+                  )}
                 </section>
               )}
               {turn.reasoning.length === 0 &&
@@ -643,7 +755,28 @@ export function StructuredAgentWorkspace({
       </div>
 
       <footer className="structured-composer">
-        <div className="structured-composer-surface">
+        <div
+          className={`structured-composer-surface${receivingDrop ? ' is-receiving-drop' : ''}`}
+          onDragLeave={(event) => {
+            if (
+              event.relatedTarget instanceof Node &&
+              event.currentTarget.contains(event.relatedTarget)
+            ) return;
+            setReceivingDrop(false);
+          }}
+          onDragOver={(event) => {
+            if (!carriesFiles(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+            setReceivingDrop(true);
+          }}
+          onDrop={(event) => {
+            setReceivingDrop(false);
+            if (!carriesFiles(event)) return;
+            event.preventDefault();
+            attachImages(Array.from(event.dataTransfer.files));
+          }}
+        >
           {commandListOpen ? (
             <div
               aria-label={t('common.labels.command')}
@@ -683,6 +816,33 @@ export function StructuredAgentWorkspace({
               ))}
             </div>
           ) : null}
+          {images.length === 0 ? null : (
+            <ul
+              aria-label={t('terminal.unified.attached-images')}
+              className="structured-composer-images"
+            >
+              {images.map((image, index) => (
+                <li
+                  aria-busy={image.token === null}
+                  className="structured-composer-image"
+                  key={image.id}
+                >
+                  {image.previewUrl === null ? null : (
+                    <img
+                      alt={t('terminal.unified.attached-image', { index: index + 1 })}
+                      src={image.previewUrl}
+                    />
+                  )}
+                  <IconButton
+                    label={t('terminal.unified.remove-image', { index: index + 1 })}
+                    onClick={() => removeImage(image.id)}
+                  >
+                    <CrossIcon />
+                  </IconButton>
+                </li>
+              ))}
+            </ul>
+          )}
           <textarea
             aria-label={t('terminal.unified.message-label', { provider: providerName })}
             disabled={runtime.state !== 'ready' || sending}
@@ -693,12 +853,37 @@ export function StructuredAgentWorkspace({
             onCompositionEnd={onComposition}
             onCompositionStart={onComposition}
             onKeyDown={onComposerKeyDown}
+            onPaste={onComposerPaste}
             placeholder={t('terminal.unified.message-placeholder', { provider: providerName })}
             ref={composer}
             rows={3}
             value={draft}
           />
           <div className="structured-composer-actions">
+            {acceptsImages ? (
+              <>
+                <IconButton
+                  className="structured-composer-attach"
+                  disabled={!canAttachImages || images.length >= STRUCTURED_IMAGES_PER_MESSAGE}
+                  label={t('terminal.unified.attach-images')}
+                  onClick={() => imagePicker.current?.click()}
+                >
+                  <ImageIcon />
+                </IconButton>
+                <input
+                  accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                  hidden
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = '';
+                    attachImages(files);
+                  }}
+                  ref={imagePicker}
+                  type="file"
+                />
+              </>
+            ) : null}
             {modelCommand === undefined || selectedModel === undefined ? null : (
               <SelectMenu
                 className="structured-model-select"
@@ -727,7 +912,7 @@ export function StructuredAgentWorkspace({
                 aria-label={t('terminal.unified.send')}
                 className="structured-composer-action structured-composer-action-send"
                 data-lumora-command
-                disabled={draft.trim() === '' || sending}
+                disabled={(draft.trim() === '' && images.length === 0) || imagesStaging || sending}
                 onClick={submit}
                 type="button"
               >
@@ -738,6 +923,13 @@ export function StructuredAgentWorkspace({
             )}
           </div>
         </div>
+        {visibleImageProblem === null ? null : (
+          <p className="structured-composer-error" role="alert">
+            {visibleImageProblem === 'limit'
+              ? t('terminal.unified.image-limit', { count: STRUCTURED_IMAGES_PER_MESSAGE })
+              : t('terminal.unified.image-attach-failed')}
+          </p>
+        )}
       </footer>
       {pendingLink === null ? null : (
         <ConfirmDialog
