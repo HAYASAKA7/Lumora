@@ -106,6 +106,7 @@ export function TerminalProfiles({
           </div>
           <IconButton
             busy={status.state === 'loading'}
+            busyLabel={t('terminal.profiles.loading')}
             disabled={status.state === 'loading'}
             label={t('terminal.profiles.refresh')}
             onClick={load}

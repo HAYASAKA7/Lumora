@@ -219,6 +219,7 @@ export function WorkspacesView({
           )}
           <IconButton
             busy={isRefreshing}
+            busyLabel={t('catalog.loading.scanning')}
             disabled={isRefreshing}
             label={t('catalog.workspaces.refresh')}
             onClick={onRefresh}
@@ -512,6 +513,7 @@ export function SessionsView({
         </div>
         <IconButton
           busy={isRefreshing}
+          busyLabel={t('catalog.loading.scanning')}
           disabled={isRefreshing}
           label={t('catalog.workspaces.refresh')}
           onClick={onRefresh}

@@ -38,6 +38,8 @@
     "confirm-install-label": "Confirm install {provider}",
     "confirm-install": "Confirm install",
     "install-label": "Install {provider}",
+    "installing-label": "Installing {provider}",
+    "refreshing": "Checking providers and their latest versions…",
     "updates-not-checked": "Updates not checked",
     "checking-latest": "Checking latest version…",
     "latest-unavailable": "Latest version unavailable",

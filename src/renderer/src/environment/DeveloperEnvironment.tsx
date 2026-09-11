@@ -212,6 +212,7 @@ export function DeveloperEnvironmentPanel({
         </div>
         <IconButton
           busy={refreshing}
+          busyLabel={t('providers.environment.checking')}
           label={t('providers.environment.refresh-label')}
           onClick={onRefresh}
         >

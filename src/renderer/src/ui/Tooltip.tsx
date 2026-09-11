@@ -43,12 +43,14 @@ interface TooltipContextValue {
   activeId: string | null;
   close: (id?: string) => void;
   open: (request: OpenTooltipRequest) => void;
+  update: (id: string, content: ReactNode) => void;
 }
 
 const TooltipContext = createContext<TooltipContextValue>({
   activeId: null,
   close: () => undefined,
-  open: () => undefined
+  open: () => undefined,
+  update: () => undefined
 });
 
 export interface TooltipProviderProps {
@@ -138,6 +140,14 @@ export function TooltipProvider({
     [clearOpenTimer]
   );
 
+  const update = useCallback((id: string, content: ReactNode) => {
+    setActive((current) =>
+      current === null || current.id !== id || current.content === content
+        ? current
+        : { ...current, content }
+    );
+  }, []);
+
   useEffect(() => {
     const pointer = () => {
       inputModality.current = 'pointer';
@@ -169,7 +179,17 @@ export function TooltipProvider({
       return;
     }
     const trigger = active.trigger.getBoundingClientRect();
-    const bubble = bubbleRef.current.getBoundingClientRect();
+    const bubbleElement = bubbleRef.current;
+    // Measure the bubble with the whole viewport free. It first renders where
+    // the last one was placed, and a fixed element near an edge wraps into the
+    // room it has left: measured there, a long label reads narrower than it is
+    // and ends up squeezed onto extra lines against the edge.
+    const { left: renderedLeft, top: renderedTop } = bubbleElement.style;
+    bubbleElement.style.left = '0px';
+    bubbleElement.style.top = '0px';
+    const bubble = bubbleElement.getBoundingClientRect();
+    bubbleElement.style.left = renderedLeft;
+    bubbleElement.style.top = renderedTop;
     setPlacement(
       placeTooltip({
         trigger,
@@ -180,8 +200,8 @@ export function TooltipProvider({
   }, [active, close]);
 
   const value = useMemo<TooltipContextValue>(
-    () => ({ activeId: active?.id ?? null, close, open }),
-    [active?.id, close, open]
+    () => ({ activeId: active?.id ?? null, close, open, update }),
+    [active?.id, close, open, update]
   );
 
   return (
@@ -251,13 +271,20 @@ export function Tooltip({
     throw new Error('Tooltip requires one element child.'); // i18n-ignore: developer invariant
   }
 
-  const { activeId, close, open: requestOpen } = context;
+  const { activeId, close, open: requestOpen, update } = context;
   const generatedId = useId();
   const tooltipId = `lumora-tooltip-${generatedId.replaceAll(':', '')}`;
   const triggerRef = useRef<HTMLElement | null>(null);
   const childProps = children.props;
 
   useEffect(() => () => close(tooltipId), [close, tooltipId]);
+
+  // An open bubble takes new text in place. Pressing a button while
+  // hovering it is the usual way to start its work, and the tooltip should
+  // say what is happening without closing and waiting to reopen.
+  useEffect(() => {
+    if (activeId === tooltipId && content !== null) update(tooltipId, content);
+  }, [activeId, content, tooltipId, update]);
 
   const setRef = useCallback(
     (node: HTMLElement | null) => {

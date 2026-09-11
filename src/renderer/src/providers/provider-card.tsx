@@ -114,6 +114,7 @@ export function ProviderCard({
         {available !== null ? (
           <IconButton
             busy={updating}
+            busyLabel={t('providers.settings.updating-label', label)}
             disabled={updating}
             label={t('providers.settings.update-label', label)}
             onClick={() => {
@@ -140,6 +141,7 @@ export function ProviderCard({
         ) : (
           <IconButton
             busy={installing}
+            busyLabel={t('providers.settings.installing-label', label)}
             disabled={installing}
             label={t('providers.settings.install-label', label)}
             onClick={() => setConfirmingInstall(true)}

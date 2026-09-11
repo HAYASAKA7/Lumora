@@ -245,6 +245,7 @@ export function WorkspaceSessionsView({
           </span>
           <IconButton
             busy={isRefreshing}
+            busyLabel={t('catalog.workspaces.loading-sessions')}
             disabled={isRefreshing}
             label={t('catalog.workspaces.refresh-sessions')}
             onClick={onRefresh}

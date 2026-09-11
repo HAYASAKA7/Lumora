@@ -212,6 +212,7 @@ export function ModsSettingsPanel({
                 </IconButton>
                 <IconButton
                   busy={reloading}
+                  busyLabel={t('settings.mods.reloading-language-packs')}
                   disabled={busy}
                   label={t('settings.mods.reload-language-packs')}
                   onClick={() => {

@@ -1334,6 +1334,7 @@ export function RemoteTargetWindow({
         </div>
         <IconButton
           busy={discovery.state === 'loading'}
+          busyLabel={t('remote.environment.scanning-environment')}
           disabled={!discoverySupported || discovery.state === 'loading'}
           label={t('common.actions.refresh')}
           onClick={() => void refreshDiscovery()}

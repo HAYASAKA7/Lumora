@@ -38,6 +38,8 @@
     "confirm-install-label": "{provider} 설치 확인",
     "confirm-install": "설치 확인",
     "install-label": "{provider} 설치",
+    "installing-label": "{provider} 설치 중",
+    "refreshing": "제공자와 최신 버전 확인 중…",
     "updates-not-checked": "업데이트를 확인하지 않음",
     "checking-latest": "최신 버전 확인 중…",
     "latest-unavailable": "최신 버전을 확인할 수 없음",

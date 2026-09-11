@@ -38,6 +38,8 @@
     "confirm-install-label": "確認安裝 {provider}",
     "confirm-install": "確認安裝",
     "install-label": "安裝 {provider}",
+    "installing-label": "正在安裝 {provider}",
+    "refreshing": "正在檢查提供者及其最新版本…",
     "updates-not-checked": "尚未檢查更新",
     "checking-latest": "正在檢查最新版本…",
     "latest-unavailable": "無法取得最新版本",

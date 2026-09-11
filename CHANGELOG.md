@@ -21,6 +21,19 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   diagnostics, terminal profiles, theme packs, font presets and language
   packs. Terminal profiles could also be refreshed again while a refresh was
   still running; that button now waits for the first one to finish.
+- Say what a working button is doing in its tooltip. While a provider
+  updated, the tooltip on its update button still offered to start the
+  update; it now reads **Updating Codex**. Installing does the same, and so
+  does every refresh and reload while it runs: **Checking providers and their
+  latest versions…**, **Scanning sessions…**, **Loading diagnostics…** and
+  the rest. The button keeps its name for screen readers, which already hear
+  that it is busy, and a tooltip that is already open takes the new text in
+  place rather than closing and waiting to reopen.
+- Keep a long tooltip on one line near the edge of the window. A tooltip was
+  measured where the previous one had been shown, and near the right edge a
+  bubble wraps into the room it has left, so a longer label measured narrow,
+  came out on two lines and ended flush against the window with no margin.
+  It is now measured with the whole window free, then placed.
 
 ## [0.5.8] - 2026-09-09
 

@@ -168,4 +168,79 @@ describe('Tooltip', () => {
       screen.getByTestId('shell')
     );
   });
+
+  it('follows its content while it is open', () => {
+    vi.useFakeTimers();
+    const view = render(
+      <TooltipProvider>
+        <Tooltip content="Update Codex">
+          <button type="button">update</button>
+        </Tooltip>
+      </TooltipProvider>
+    );
+    fireEvent.pointerEnter(screen.getByRole('button'));
+    act(() => vi.advanceTimersByTime(450));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Update Codex');
+
+    // Pressing a button while hovering it is the usual way to start its work,
+    // so the bubble that is already open has to take the new text.
+    view.rerender(
+      <TooltipProvider>
+        <Tooltip content="Updating Codex">
+          <button type="button">update</button>
+        </Tooltip>
+      </TooltipProvider>
+    );
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Updating Codex');
+    vi.useRealTimers();
+  });
+
+  it('measures a bubble with the viewport free before placing it', () => {
+    vi.useFakeTimers();
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1536 });
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      if (this.getAttribute('role') === 'tooltip') {
+        const natural = this.textContent === 'Refresh' ? 59 : 247;
+        const left = Number.parseFloat(this.style.left || '0');
+        // A fixed bubble near the right edge wraps into the room it has left,
+        // which makes it measure narrower than it really is.
+        const width = Math.min(natural, Math.max(0, 1536 - left));
+        return { x: left, y: 0, left, top: 0, right: left + width, bottom: 30,
+          width, height: 30, toJSON: () => ({}) } as DOMRect;
+      }
+      const x = Number(this.dataset.x ?? 0);
+      return { x, y: 400, left: x, top: 400, right: x + 32, bottom: 432,
+        width: 32, height: 32, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      render(
+        <TooltipProvider>
+          <Tooltip content="Refresh">
+            <button data-x="1404" type="button">first</button>
+          </Tooltip>
+          <Tooltip content="Checking providers and their latest versions…">
+            <button data-x="1404" type="button">second</button>
+          </Tooltip>
+        </TooltipProvider>
+      );
+      const [first, second] = screen.getAllByRole('button');
+      fireEvent.pointerEnter(first!);
+      act(() => vi.advanceTimersByTime(450));
+      fireEvent.pointerLeave(first!);
+
+      // The next bubble first appears where the last one stood, near the edge.
+      fireEvent.pointerEnter(second!);
+      act(() => vi.advanceTimersByTime(450));
+
+      // Measured at full width it keeps to one line, held one margin inside
+      // the window rather than squeezed against its edge.
+      expect(screen.getByRole('tooltip').style.left).toBe(`${1536 - 247 - 8}px`);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+      vi.useRealTimers();
+    }
+  });
 });

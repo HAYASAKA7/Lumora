@@ -91,6 +91,7 @@
     "language-packs-description": "将通过验证的语言包放入此 locales 文件夹。",
     "open-language-packs": "打开 locales 文件夹",
     "reload-language-packs": "重新加载语言",
+    "reloading-language-packs": "正在重新加载语言…",
     "reload-complete": "语言包已重新加载。",
     "reload-rejected": "语言包已重新加载，但{count, plural, one {有 # 个语言包无法加载} other {有 # 个语言包无法加载}}。",
     "operation-failed": "Lumora 无法完成 Mods 操作。请检查文件夹是否可用且可写。"
@@ -114,6 +115,7 @@
     "choose-theme-pack": "选择主题包",
     "apply-theme-pack": "应用主题包",
     "reload-theme-packs": "重新加载主题包",
+    "reloading-theme-packs": "正在重新加载主题包…",
     "open-theme-packs": "打开 themes 文件夹",
     "reset-theme": "使用 Lumora mixed",
     "theme-preview": "{theme} 配色预览",
@@ -149,6 +151,7 @@
     "choose-font-preset": "选择预设",
     "apply-font-preset": "应用字体预设",
     "refresh-font-presets": "刷新字体预设",
+    "refreshing-font-presets": "正在刷新字体预设…",
     "font-presets-rejected": "{count, plural, one {有 # 个字体预设无法加载。} other {有 # 个字体预设无法加载。}}",
     "font-presets-error": "Lumora 无法从 Mods 文件夹加载字体预设。",
     "background": "自定义背景",

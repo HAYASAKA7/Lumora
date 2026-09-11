@@ -35,6 +35,13 @@ function drawsWorkingMark(element: ts.JsxElement): boolean {
   return found;
 }
 
+function declares(element: ts.JsxElement, name: string): boolean {
+  return element.openingElement.attributes.properties.some(
+    (attribute) =>
+      ts.isJsxAttribute(attribute) && attribute.name.getText() === name
+  );
+}
+
 function declaresBusy(element: ts.JsxElement): boolean {
   return element.openingElement.attributes.properties.some(
     (attribute) =>
@@ -71,6 +78,42 @@ describe('renderer busy contract', () => {
           missing.push(
             `${relative(rendererRoot, path).replaceAll('\\', '/')}:${line}`
           );
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sourceFile);
+    }
+
+    expect(missing).toEqual([]);
+  });
+
+  /**
+   * While a button works its tooltip should say what it is doing: the name of
+   * the action it will start is the wrong thing to show once it has started.
+   */
+  it('gives every busy button a description of the work', () => {
+    const missing: string[] = [];
+
+    for (const path of rendererTsxFiles(rendererRoot)) {
+      const sourceFile = ts.createSourceFile(
+        path,
+        readFileSync(path, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TSX
+      );
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isJsxElement(node) &&
+          node.openingElement.tagName.getText() === 'IconButton' &&
+          declaresBusy(node) &&
+          !declares(node, 'busyLabel')
+        ) {
+          const line =
+            sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+          const file = relative(rendererRoot, path)
+            .split(String.fromCharCode(92)).join('/');
+          missing.push(`${file}:${line}`);
         }
         ts.forEachChild(node, visit);
       };

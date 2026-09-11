@@ -13,6 +13,7 @@ import { Tooltip } from './Tooltip';
  */
 export function IconButton({
   busy = false,
+  busyLabel,
   children,
   className = '',
   disabled = false,
@@ -28,6 +29,12 @@ export function IconButton({
    * again.
    */
   busy?: boolean;
+  /**
+   * What the tooltip says while the button works, such as "Updating
+   * Codex". Only the tooltip changes: the accessible name stays the name of
+   * the action, and `aria-busy` carries the state.
+   */
+  busyLabel?: string | undefined;
   children: ReactNode;
   className?: string;
   disabled?: boolean;
@@ -46,7 +53,7 @@ export function IconButton({
   ].filter((entry) => entry !== '').join(' ');
 
   return (
-    <Tooltip content={label}>
+    <Tooltip content={busy && busyLabel !== undefined ? busyLabel : label}>
       <button
         aria-busy={busy}
         aria-label={label}

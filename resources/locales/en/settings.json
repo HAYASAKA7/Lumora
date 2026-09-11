@@ -91,6 +91,7 @@
     "language-packs-description": "Add validated language packs to this locales folder.",
     "open-language-packs": "Open locales folder",
     "reload-language-packs": "Reload languages",
+    "reloading-language-packs": "Reloading languages…",
     "reload-complete": "Language packs reloaded.",
     "reload-rejected": "Language packs reloaded, but {count, plural, one {# pack could not be loaded} other {# packs could not be loaded}}.",
     "operation-failed": "Lumora could not complete the Mods operation. Check that the folder is available and writable."
@@ -114,6 +115,7 @@
     "choose-theme-pack": "Choose a theme pack",
     "apply-theme-pack": "Apply theme pack",
     "reload-theme-packs": "Reload theme packs",
+    "reloading-theme-packs": "Reloading theme packs…",
     "open-theme-packs": "Open themes folder",
     "reset-theme": "Use Lumora mixed",
     "theme-preview": "{theme} color preview",
@@ -149,6 +151,7 @@
     "choose-font-preset": "Choose a preset",
     "apply-font-preset": "Apply font preset",
     "refresh-font-presets": "Refresh font presets",
+    "refreshing-font-presets": "Refreshing font presets…",
     "font-presets-rejected": "{count, plural, one {# font preset could not be loaded.} other {# font presets could not be loaded.}}",
     "font-presets-error": "Lumora could not load font presets from the Mods folder.",
     "background": "Custom background",

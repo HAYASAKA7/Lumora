@@ -488,6 +488,7 @@ export function ProviderSettings({
               updatesRefreshing ||
               updatesStatus.state === 'loading'
             }
+            busyLabel={t('providers.settings.refreshing')}
             disabled={
               status.state === 'loading' ||
               updatesStatus.state === 'loading' ||

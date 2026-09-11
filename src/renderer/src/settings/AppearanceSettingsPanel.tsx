@@ -363,6 +363,7 @@ export function AppearanceSettingsPanel({
           </IconButton>
           <IconButton
             busy={themePresetsBusy}
+            busyLabel={t('settings.appearance.reloading-theme-packs')}
             disabled={themePresetsBusy}
             label={t('settings.appearance.reload-theme-packs')}
             onClick={onRefreshThemePresets}
@@ -556,6 +557,7 @@ export function AppearanceSettingsPanel({
             </button>
             <IconButton
               busy={fontPresetsBusy}
+              busyLabel={t('settings.appearance.refreshing-font-presets')}
               disabled={fontPresetsBusy}
               label={t('settings.appearance.refresh-font-presets')}
               onClick={() => void loadFontPresets()}

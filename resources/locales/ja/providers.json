@@ -38,6 +38,8 @@
     "confirm-install-label": "{provider} のインストールを確認",
     "confirm-install": "インストールを確認",
     "install-label": "{provider} をインストール",
+    "installing-label": "{provider} をインストール中",
+    "refreshing": "プロバイダーと最新バージョンを確認中…",
     "updates-not-checked": "更新は未確認です",
     "checking-latest": "最新バージョンを確認中…",
     "latest-unavailable": "最新バージョンを取得できません",
