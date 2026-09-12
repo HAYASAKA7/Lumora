@@ -142,7 +142,8 @@ been explicitly enabled and confirmed.
 Lumora 0.5 offers a local chat-style interface for verified structured
 provider integrations. It supports streamed Markdown, provider commands and
 models, tool activity, approvals, file changes, cancellation, progressive
-history, and session details when the provider exposes them.
+history, and session details when the provider exposes them. A message can
+carry images and point the agent at files on disk.
 
 See the complete [Unified UI guide](UNIFIED_UI.md).
 

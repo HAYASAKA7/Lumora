@@ -120,7 +120,8 @@ goose through their provider-owned structured integrations.
 
 Depending on the provider, it can show streamed Markdown, commands, models,
 tool and process activity, approvals, file changes, cancellation, progressively
-loaded history, tokens, and account limits. Every route is capability checked.
+loaded history, tokens, and account limits. A message can carry images and
+point the agent at files on disk. Every route is capability checked.
 Unavailable or failed integrations fall back to the existing native terminal.
 
 Select a session normally to resume it directly. If the session already runs

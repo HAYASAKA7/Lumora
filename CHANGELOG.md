@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-09-12
+
 ### Added
 
 - Send images to an agent in the unified interface. Paste a screenshot, drop
