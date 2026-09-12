@@ -5703,13 +5703,24 @@ button {
   margin-top: 6px;
 }
 
+/* Attaching sits at the left edge of the box; sending stays at the right. */
+.structured-composer-attachments {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .structured-composer-actions {
   position: absolute;
   right: 10px;
   bottom: 10px;
   z-index: 2;
   display: flex;
-  width: min(276px, calc(100% - 20px));
+  width: min(276px, calc(100% - 92px));
   min-width: 0;
   gap: 8px;
   align-items: center;

@@ -956,7 +956,7 @@ export function StructuredAgentWorkspace({
             rows={3}
             value={draft}
           />
-          <div className="structured-composer-actions">
+          <div className="structured-composer-attachments">
             {acceptsImages ? (
               <>
                 <IconButton
@@ -993,6 +993,8 @@ export function StructuredAgentWorkspace({
             >
               <FileIcon />
             </IconButton>
+          </div>
+          <div className="structured-composer-actions">
             {modelCommand === undefined || selectedModel === undefined ? null : (
               <SelectMenu
                 className="structured-model-select"
