@@ -228,6 +228,7 @@
     "message-label": "Message {provider}",
     "message-placeholder": "Send a message to {provider}",
     "attach-images": "Attach images",
+    "attach": "Attach",
     "attached-images": "Attached images",
     "attached-image": "Attached image {index}",
     "remove-image": "Remove image {index}",

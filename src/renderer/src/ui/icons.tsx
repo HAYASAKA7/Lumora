@@ -59,6 +59,13 @@ export function ImageIcon(): ReactNode {
   );
 }
 
+/** Attaches something to a message: a paperclip. */
+export function PaperclipIcon(): ReactNode {
+  return (
+    <Glyph path="M15.5 9.5l-5.8 5.8a3.2 3.2 0 0 1-4.5-4.5l6.4-6.4a2.1 2.1 0 0 1 3 3l-6.4 6.4a1 1 0 0 1-1.4-1.4l5.7-5.7" />
+  );
+}
+
 /** Points at a file on disk: a page with its corner turned. */
 export function FileIcon(): ReactNode {
   return (

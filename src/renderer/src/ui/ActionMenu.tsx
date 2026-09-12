@@ -17,6 +17,12 @@ export interface ActionMenuItem<Id extends string> {
 }
 
 interface ActionMenuProps<Id extends string> {
+  /**
+   * Which edge of the trigger the menu lines up with. A menu at the right of
+   * a row hangs from its right edge; one at the left edge of a box hangs
+   * from its left, so it does not reach across what it belongs to.
+   */
+  align?: 'start' | 'end';
   children: ReactNode;
   items: readonly ActionMenuItem<Id>[];
   label: string;
@@ -26,6 +32,7 @@ interface ActionMenuProps<Id extends string> {
 }
 
 export function ActionMenu<Id extends string>({
+  align = 'end',
   children,
   className,
   disabled = false,
@@ -90,7 +97,10 @@ export function ActionMenu<Id extends string>({
         window.innerHeight - rect.bottom - gap - margin < estimatedHeight &&
         rect.top - gap - margin > window.innerHeight - rect.bottom - gap - margin;
       setOverlayStyle({
-        left: Math.max(margin, Math.min(rect.right - width, window.innerWidth - width - margin)),
+        left: Math.max(margin, Math.min(
+          align === 'start' ? rect.left : rect.right - width,
+          window.innerWidth - width - margin
+        )),
         maxHeight: Math.max(72, Math.min(220, openAbove
           ? rect.top - gap - margin
           : window.innerHeight - rect.bottom - gap - margin)),
@@ -108,7 +118,7 @@ export function ActionMenu<Id extends string>({
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [items.length, open]);
+  }, [align, items.length, open]);
 
   const choose = (index: number) => {
     const item = items[index];

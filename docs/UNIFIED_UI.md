@@ -101,9 +101,13 @@ entire transcript at once.
 
 ### Images
 
-When the agent reads images, the composer shows an image button. Paste a
-screenshot, drop pictures on the message box, or pick them from a file dialog.
-Up to eight go with one message, and a message can be images alone. Lumora
+One attach control sits at the left of the message box. For an agent that
+reads images it opens a menu offering **Attach images** or **Attach files**;
+for one that does not, it goes straight to files.
+
+Paste a screenshot, drop pictures on the message box, or choose **Attach
+images**. Up to eight go with one message, and a message can be images
+alone. Lumora
 accepts PNG, JPEG, GIF, and WebP. It scales each image so its longest side is at
 most 2048 pixels, then sends it as PNG, or as JPEG when a photo would be too
 large as PNG. Each thumbnail can be removed before sending. The conversation
@@ -114,7 +118,7 @@ at startup, as Gemini CLI does; for any other agent the button does not appear.
 
 ### Files
 
-Every session has a file button, and the message box takes dropped files. A
+Every session can attach files, and the message box takes dropped files. A
 file goes to the agent as its path, not its contents: agents read files with
 their own tools, so a path lets the agent open what it needs, search a large
 file, or come back to it later, and it costs nothing until the agent reads it.

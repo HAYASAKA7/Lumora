@@ -1075,7 +1075,8 @@ describe('StructuredAgentWorkspace', () => {
   it('offers images only to a session that accepts them', () => {
     renderWorkspace();
 
-    expect(screen.queryByRole('button', { name: 'Attach images' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Attach' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeTruthy();
     expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 
@@ -1166,7 +1167,10 @@ describe('StructuredAgentWorkspace', () => {
     expect(await screen.findByText('A message can carry up to 8 images.')).toBeTruthy();
     await waitFor(() => expect(stageStructuredImage).toHaveBeenCalledTimes(8));
     expect(screen.getAllByRole('listitem')).toHaveLength(8);
-    expect((screen.getByRole('button', { name: 'Attach images' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Attach' }));
+    expect(
+      (screen.getByRole('menuitem', { name: 'Attach images' }) as HTMLButtonElement).disabled
+    ).toBe(true);
   });
 
   it('attaches images dropped on the composer or picked from the file dialog', async () => {
@@ -1295,5 +1299,28 @@ describe('StructuredAgentWorkspace', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(8);
     fireEvent.click(screen.getByRole('button', { name: 'Remove file-0.txt' }));
     expect(screen.getAllByRole('listitem')).toHaveLength(7);
+  });
+
+  it('offers images and files from one attach entry', async () => {
+    const picker = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    try {
+      const { chooseStructuredFiles } = renderFileWorkspace({
+        acceptsImages: true,
+        files: [{ name: 'notes.md', path: '/work/notes.md' }]
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Attach' }));
+      expect(screen.getByRole('menuitem', { name: 'Attach images' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Attach files' }));
+
+      expect(chooseStructuredFiles).toHaveBeenCalledWith({ connectionId: 'connection-1' });
+      expect(await screen.findByText('notes.md')).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Attach' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Attach images' }));
+      expect(picker).toHaveBeenCalled();
+    } finally {
+      picker.mockRestore();
+    }
   });
 });

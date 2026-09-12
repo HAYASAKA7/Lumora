@@ -5703,6 +5703,13 @@ button {
   margin-top: 6px;
 }
 
+/* The attach menu trigger carries the same mark as any icon button. */
+.structured-composer-attach-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Attaching sits at the left edge of the box; sending stays at the right. */
 .structured-composer-attachments {
   position: absolute;

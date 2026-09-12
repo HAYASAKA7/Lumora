@@ -23,7 +23,8 @@ import {
   STRUCTURED_IMAGES_PER_MESSAGE
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
-import { OverflowTooltip } from '../ui/Tooltip';
+import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
+import { ActionMenu } from '../ui/ActionMenu';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization } from '../localization/useLocalization';
@@ -41,7 +42,7 @@ import {
   prepareImage
 } from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
-import { CrossIcon, FileIcon, ImageIcon, InfoIcon } from '../ui/icons';
+import { CrossIcon, FileIcon, InfoIcon, PaperclipIcon } from '../ui/icons';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
@@ -958,41 +959,63 @@ export function StructuredAgentWorkspace({
           />
           <div className="structured-composer-attachments">
             {acceptsImages ? (
-              <>
-                <IconButton
-                  className="structured-composer-attach"
-                  disabled={!canAttachImages || images.length >= STRUCTURED_IMAGES_PER_MESSAGE}
-                  label={t('terminal.unified.attach-images')}
-                  onClick={() => imagePicker.current?.click()}
-                >
-                  <ImageIcon />
-                </IconButton>
-                <input
-                  accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                  hidden
-                  multiple
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files ?? []);
-                    event.currentTarget.value = '';
-                    attachImages(files);
-                  }}
-                  ref={imagePicker}
-                  type="file"
-                />
-              </>
+              <ActionMenu
+                align="start"
+                className="icon-button structured-composer-attach"
+                disabled={runtime.state !== 'ready' || sending}
+                items={[
+                  {
+                    id: 'images',
+                    label: t('terminal.unified.attach-images'),
+                    disabled: images.length >= STRUCTURED_IMAGES_PER_MESSAGE
+                  },
+                  {
+                    id: 'files',
+                    label: t('terminal.unified.attach-files'),
+                    disabled: files.length >= STRUCTURED_FILES_PER_MESSAGE
+                  }
+                ]}
+                label={t('terminal.unified.attach')}
+                onSelect={(id) => {
+                  if (id === 'images') imagePicker.current?.click();
+                  else chooseFiles();
+                }}
+              >
+                <Tooltip content={t('terminal.unified.attach')}>
+                  <span className="structured-composer-attach-glyph">
+                    <PaperclipIcon />
+                  </span>
+                </Tooltip>
+              </ActionMenu>
+            ) : (
+              // With no images to offer there is nothing to choose between.
+              <IconButton
+                className="structured-composer-attach"
+                disabled={
+                  runtime.state !== 'ready' ||
+                  sending ||
+                  files.length >= STRUCTURED_FILES_PER_MESSAGE
+                }
+                label={t('terminal.unified.attach-files')}
+                onClick={chooseFiles}
+              >
+                <PaperclipIcon />
+              </IconButton>
+            )}
+            {acceptsImages ? (
+              <input
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                hidden
+                multiple
+                onChange={(event) => {
+                  const files = Array.from(event.currentTarget.files ?? []);
+                  event.currentTarget.value = '';
+                  attachImages(files);
+                }}
+                ref={imagePicker}
+                type="file"
+              />
             ) : null}
-            <IconButton
-              className="structured-composer-attach"
-              disabled={
-                runtime.state !== 'ready' ||
-                sending ||
-                files.length >= STRUCTURED_FILES_PER_MESSAGE
-              }
-              label={t('terminal.unified.attach-files')}
-              onClick={chooseFiles}
-            >
-              <FileIcon />
-            </IconButton>
           </div>
           <div className="structured-composer-actions">
             {modelCommand === undefined || selectedModel === undefined ? null : (
