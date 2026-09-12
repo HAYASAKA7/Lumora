@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import { createLumoraApi } from './api';
 
@@ -10,7 +10,8 @@ const api = createLumoraApi(
     };
     ipcRenderer.on(channel, wrapped);
     return () => ipcRenderer.removeListener(channel, wrapped);
-  }
+  },
+  (file) => webUtils.getPathForFile(file)
 );
 
 contextBridge.exposeInMainWorld('lumora', api);

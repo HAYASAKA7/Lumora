@@ -341,6 +341,31 @@ export type StructuredImageMimeType = z.infer<typeof StructuredImageMimeTypeSche
 export type StructuredImageStageRequest = z.infer<typeof StructuredImageStageRequestSchema>;
 export type StructuredImageStageResult = z.infer<typeof StructuredImageStageResultSchema>;
 
+/**
+ * Files a Unified UI message points the agent at. Lumora sends the path
+ * rather than the bytes: every agent reads files with its own tools, and a
+ * path costs nothing until the agent opens it. Whether it can open a file at
+ * all is its own business, and its workspace rules decide.
+ */
+export const STRUCTURED_FILES_PER_MESSAGE = 8;
+
+export const StructuredFileReferenceSchema = z.strictObject({
+  name: z.string().min(1).max(255),
+  path: z.string().min(1).max(4_096)
+});
+
+export const StructuredFileChooseRequestSchema = z.strictObject({
+  connectionId: OpaqueIdSchema
+});
+
+export const StructuredFileChooseResultSchema = z.strictObject({
+  files: z.array(StructuredFileReferenceSchema).max(STRUCTURED_FILES_PER_MESSAGE)
+});
+
+export type StructuredFileReference = z.infer<typeof StructuredFileReferenceSchema>;
+export type StructuredFileChooseRequest = z.infer<typeof StructuredFileChooseRequestSchema>;
+export type StructuredFileChooseResult = z.infer<typeof StructuredFileChooseResultSchema>;
+
 export const StructuredAgentActionSchema = z.discriminatedUnion('kind', [
   PromptSubmitActionSchema,
   ApprovalRespondActionSchema,

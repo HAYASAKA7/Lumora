@@ -18,6 +18,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reads images (such as Gemini) accept them; the button stays hidden for an
   agent that does not. The conversation notes how many images a message
   carried.
+- Point an agent at files from the unified interface. Every session has a file
+  button, and the message box takes dropped files. A file travels as its path,
+  which is what an agent needs: it reads files itself, so it can open what it
+  needs and search a large one instead of being handed the whole thing. Up to
+  eight files go with a message, and a message can be files alone. The paths
+  are part of the message, so the conversation shows what the agent was told.
 
 ### Security
 

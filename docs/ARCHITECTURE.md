@@ -259,6 +259,13 @@ Staging is refused for a session that did not report image support. A
 connection's directory is removed when its runtime closes. Directories an
 earlier run left behind are removed at startup once they are stale.
 
+Files take the opposite route, because agents already read files. The main
+process owns the file dialog and returns only what the user picked, and a
+dropped file is resolved to its path through the preload bridge; the renderer
+puts those paths in the message text. Nothing is copied, staged, or read by
+Lumora, no capability is granted by the path itself, and the agent's own
+workspace rules decide whether it can open the file.
+
 Conversation state is bounded for presentation. The renderer initially shows
 at most five recent turns within a render budget and loads older pages on
 upward scroll. This limits initial DOM and Markdown work without deleting or

@@ -18,7 +18,10 @@ import type {
   StructuredAgentApprovalDecision,
   StructuredAgentRuntimeSnapshot
 } from '../../../shared/contracts';
-import { STRUCTURED_IMAGES_PER_MESSAGE } from '../../../shared/contracts';
+import {
+  STRUCTURED_FILES_PER_MESSAGE,
+  STRUCTURED_IMAGES_PER_MESSAGE
+} from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -38,7 +41,7 @@ import {
   prepareImage
 } from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
-import { CrossIcon, ImageIcon, InfoIcon } from '../ui/icons';
+import { CrossIcon, FileIcon, ImageIcon, InfoIcon } from '../ui/icons';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
@@ -63,6 +66,7 @@ const AgentMarkdown = lazy(async () => {
 });
 
 const maximumCachedTurnCount = 200;
+const lineBreak = String.fromCharCode(10);
 const earlierTurnLoadThreshold = 48;
 
 /**
@@ -73,6 +77,13 @@ interface ComposerImage {
   id: number;
   previewUrl: string | null;
   token: string | null;
+}
+
+/** A file the message points the agent at: its path travels, not its bytes. */
+interface ComposerFile {
+  id: number;
+  name: string;
+  path: string;
 }
 
 function reduceSnapshotIntoCache(
@@ -123,9 +134,12 @@ export function StructuredAgentWorkspace({
   const [composerImages, setComposerImages] = useState<
     Readonly<Record<string, readonly ComposerImage[]>>
   >({});
-  const [imageProblem, setImageProblem] = useState<{
+  const [composerFiles, setComposerFiles] = useState<
+    Readonly<Record<string, readonly ComposerFile[]>>
+  >({});
+  const [composerProblem, setComposerProblem] = useState<{
     connectionId: string;
-    problem: 'failed' | 'limit';
+    problem: 'image-failed' | 'image-limit' | 'file-limit' | 'file-path';
   } | null>(null);
   const [receivingDrop, setReceivingDrop] = useState(false);
   const imagePicker = useRef<HTMLInputElement | null>(null);
@@ -184,13 +198,15 @@ export function StructuredAgentWorkspace({
         Object.entries(current).filter(([connectionId]) => activeConnectionIds.has(connectionId))
       );
     });
-    setComposerImages((current) => (
+    const onlyActive = <T,>(current: Readonly<Record<string, T>>) => (
       Object.keys(current).every((connectionId) => activeConnectionIds.has(connectionId))
         ? current
         : Object.fromEntries(
           Object.entries(current).filter(([connectionId]) => activeConnectionIds.has(connectionId))
         )
-    ));
+    );
+    setComposerImages(onlyActive);
+    setComposerFiles(onlyActive);
   }, [snapshots]);
   useEffect(() => {
     const connectionId = snapshot?.runtime.connectionId;
@@ -236,11 +252,12 @@ export function StructuredAgentWorkspace({
     [runtime.connectionId]: value
   }));
   const images = composerImages[runtime.connectionId] ?? [];
+  const files = composerFiles[runtime.connectionId] ?? [];
   const imagesStaging = images.some(({ token }) => token === null);
   const acceptsImages = runtime.acceptsImages === true;
   const canAttachImages = acceptsImages && runtime.state === 'ready' && !sending;
-  const visibleImageProblem = imageProblem?.connectionId === runtime.connectionId
-    ? imageProblem.problem
+  const visibleProblem = composerProblem?.connectionId === runtime.connectionId
+    ? composerProblem.problem
     : null;
   const updateImages = (
     connectionId: string,
@@ -254,11 +271,11 @@ export function StructuredAgentWorkspace({
     const connectionId = runtime.connectionId;
     const accepted = files.filter(isAcceptedImage);
     const room = Math.max(0, STRUCTURED_IMAGES_PER_MESSAGE - images.length);
-    setImageProblem(
+    setComposerProblem(
       accepted.length > room
-        ? { connectionId, problem: 'limit' }
+        ? { connectionId, problem: 'image-limit' }
         : accepted.length < files.length
-          ? { connectionId, problem: 'failed' }
+          ? { connectionId, problem: 'image-failed' }
           : null
     );
     for (const file of accepted.slice(0, room)) {
@@ -280,14 +297,66 @@ export function StructuredAgentWorkspace({
         )));
       }).catch(() => {
         updateImages(connectionId, (current) => current.filter((image) => image.id !== id));
-        setImageProblem({ connectionId, problem: 'failed' });
+        setComposerProblem({ connectionId, problem: 'image-failed' });
       });
     }
   };
   const removeImage = (id: number) => {
     updateImages(runtime.connectionId, (current) => current.filter((image) => image.id !== id));
-    setImageProblem(null);
+    setComposerProblem(null);
     composer.current?.focus();
+  };
+  const attachFiles = (chosen: readonly { name: string; path: string }[]) => {
+    if (chosen.length === 0) return;
+    const connectionId = runtime.connectionId;
+    const held = files;
+    const fresh = chosen.filter(({ path }) => !held.some((file) => file.path === path));
+    const room = Math.max(0, STRUCTURED_FILES_PER_MESSAGE - held.length);
+    setComposerProblem(
+      fresh.length > room ? { connectionId, problem: 'file-limit' } : null
+    );
+    const added = fresh.slice(0, room).map((file) => {
+      nextImageId.current += 1;
+      return { id: nextImageId.current, name: file.name, path: file.path };
+    });
+    if (added.length === 0) return;
+    setComposerFiles((current) => ({
+      ...current,
+      [connectionId]: [...(current[connectionId] ?? []), ...added]
+    }));
+  };
+  const chooseFiles = () => {
+    void api.chooseStructuredFiles({ connectionId: runtime.connectionId })
+      .then((result) => attachFiles(result.files))
+      .catch(() => setActionError(true));
+  };
+  const removeFile = (id: number) => {
+    const connectionId = runtime.connectionId;
+    setComposerFiles((current) => ({
+      ...current,
+      [connectionId]: (current[connectionId] ?? []).filter((file) => file.id !== id)
+    }));
+    setComposerProblem(null);
+    composer.current?.focus();
+  };
+  /**
+   * Dropped files split two ways: a picture an agent can read travels as an
+   * image, and everything else as the path the agent opens itself.
+   */
+  const attachDropped = (dropped: readonly File[]) => {
+    const pictures = canAttachImages ? dropped.filter((file) => isAcceptedImage(file)) : [];
+    const rest = dropped.filter((file) => !pictures.includes(file));
+    if (pictures.length > 0) attachImages(pictures);
+    if (rest.length === 0) return;
+    const resolved = rest.map((file) => ({
+      name: file.name,
+      path: api.droppedFilePath(file) ?? ''
+    }));
+    const withPaths = resolved.filter(({ path }) => path !== '');
+    if (withPaths.length < resolved.length) {
+      setComposerProblem({ connectionId: runtime.connectionId, problem: 'file-path' });
+    }
+    attachFiles(withPaths);
   };
   const onComposerPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     if (!acceptsImages) return;
@@ -300,7 +369,9 @@ export function StructuredAgentWorkspace({
     attachImages(files);
   };
   const carriesFiles = (event: DragEvent<HTMLElement>) => (
-    canAttachImages && Array.from(event.dataTransfer.types).includes('Files')
+    runtime.state === 'ready' &&
+    !sending &&
+    Array.from(event.dataTransfer.types).includes('Files')
   );
   const providerName = providerDefinition(runtime.providerId).displayName;
   const commands = snapshotCommands;
@@ -455,7 +526,7 @@ export function StructuredAgentWorkspace({
   const submit = () => {
     const text = draft.trim();
     if (
-      (text === '' && images.length === 0) ||
+      (text === '' && images.length === 0 && files.length === 0) ||
       imagesStaging ||
       sending ||
       runningTurn ||
@@ -477,10 +548,14 @@ export function StructuredAgentWorkspace({
     }
     restoreComposerFocus.current = true;
     setSending(true);
+    // The agent reads a file itself, so the message carries paths, not bytes.
+    const note = files.length === 0
+      ? ''
+      : [t('terminal.unified.file-note'), ...files.map(({ path }) => path)].join(lineBreak);
     void dispatch({
       kind: 'prompt.submit',
       connectionId: runtime.connectionId,
-      text,
+      text: [text, note].filter((part) => part !== '').join(lineBreak + lineBreak),
       attachmentTokens: images.flatMap(({ token }) => token === null ? [] : [token])
     }).then(
       () => {
@@ -489,7 +564,8 @@ export function StructuredAgentWorkspace({
           [runtime.connectionId]: ''
         }));
         updateImages(runtime.connectionId, () => []);
-        setImageProblem(null);
+        setComposerFiles((current) => ({ ...current, [runtime.connectionId]: [] }));
+        setComposerProblem(null);
       },
       () => undefined
     ).finally(() => setSending(false));
@@ -774,7 +850,7 @@ export function StructuredAgentWorkspace({
             setReceivingDrop(false);
             if (!carriesFiles(event)) return;
             event.preventDefault();
-            attachImages(Array.from(event.dataTransfer.files));
+            attachDropped(Array.from(event.dataTransfer.files));
           }}
         >
           {commandListOpen ? (
@@ -843,6 +919,27 @@ export function StructuredAgentWorkspace({
               ))}
             </ul>
           )}
+          {files.length === 0 ? null : (
+            <ul
+              aria-label={t('terminal.unified.attached-files')}
+              className="structured-composer-files"
+            >
+              {files.map((file) => (
+                <li className="structured-composer-file" key={file.id}>
+                  <FileIcon />
+                  <OverflowTooltip content={file.path}>
+                    <span className="structured-composer-file-name">{file.name}</span>
+                  </OverflowTooltip>
+                  <IconButton
+                    label={t('terminal.unified.remove-file', { name: file.name })}
+                    onClick={() => removeFile(file.id)}
+                  >
+                    <CrossIcon />
+                  </IconButton>
+                </li>
+              ))}
+            </ul>
+          )}
           <textarea
             aria-label={t('terminal.unified.message-label', { provider: providerName })}
             disabled={runtime.state !== 'ready' || sending}
@@ -884,6 +981,18 @@ export function StructuredAgentWorkspace({
                 />
               </>
             ) : null}
+            <IconButton
+              className="structured-composer-attach"
+              disabled={
+                runtime.state !== 'ready' ||
+                sending ||
+                files.length >= STRUCTURED_FILES_PER_MESSAGE
+              }
+              label={t('terminal.unified.attach-files')}
+              onClick={chooseFiles}
+            >
+              <FileIcon />
+            </IconButton>
             {modelCommand === undefined || selectedModel === undefined ? null : (
               <SelectMenu
                 className="structured-model-select"
@@ -912,7 +1021,11 @@ export function StructuredAgentWorkspace({
                 aria-label={t('terminal.unified.send')}
                 className="structured-composer-action structured-composer-action-send"
                 data-lumora-command
-                disabled={(draft.trim() === '' && images.length === 0) || imagesStaging || sending}
+                disabled={
+                  (draft.trim() === '' && images.length === 0 && files.length === 0) ||
+                  imagesStaging ||
+                  sending
+                }
                 onClick={submit}
                 type="button"
               >
@@ -923,11 +1036,15 @@ export function StructuredAgentWorkspace({
             )}
           </div>
         </div>
-        {visibleImageProblem === null ? null : (
+        {visibleProblem === null ? null : (
           <p className="structured-composer-error" role="alert">
-            {visibleImageProblem === 'limit'
+            {visibleProblem === 'image-limit'
               ? t('terminal.unified.image-limit', { count: STRUCTURED_IMAGES_PER_MESSAGE })
-              : t('terminal.unified.image-attach-failed')}
+              : visibleProblem === 'file-limit'
+                ? t('terminal.unified.file-limit', { count: STRUCTURED_FILES_PER_MESSAGE })
+                : visibleProblem === 'file-path'
+                  ? t('terminal.unified.file-path-missing')
+                  : t('terminal.unified.image-attach-failed')}
           </p>
         )}
       </footer>

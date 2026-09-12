@@ -27,6 +27,8 @@ import {
   type StructuredAgentLaunchRequest,
   type StructuredAgentRuntimeSnapshot,
   type StructuredAgentRuntimeSummary,
+  type StructuredFileChooseRequest,
+  type StructuredFileChooseResult,
   type StructuredImageStageRequest,
   type StructuredImageStageResult
 } from './agent/contracts';
@@ -2438,6 +2440,7 @@ export const IPC_CHANNELS = {
   structuredRuntimeSnapshot: 'lumora:agent:runtime:snapshot',
   structuredRuntimeAction: 'lumora:agent:runtime:action',
   structuredImageStage: 'lumora:agent:image:stage',
+  structuredFileChoose: 'lumora:agent:file:choose',
   structuredRuntimeReconnect: 'lumora:agent:runtime:reconnect',
   structuredRuntimeClose: 'lumora:agent:runtime:close',
   structuredRuntimeEvent: 'lumora:agent:runtime:event',
@@ -2624,6 +2627,12 @@ export interface LumoraApi {
   stageStructuredImage(
     input: StructuredImageStageRequest
   ): Promise<StructuredImageStageResult>;
+  /** Asks the user for files to point this session's agent at. */
+  chooseStructuredFiles(
+    input: StructuredFileChooseRequest
+  ): Promise<StructuredFileChooseResult>;
+  /** The path of a file dropped on Lumora, or null when it has none. */
+  droppedFilePath(file: File): string | null;
   reconnectStructuredRuntime(
     connectionId: string
   ): Promise<StructuredAgentRuntimeSummary>;

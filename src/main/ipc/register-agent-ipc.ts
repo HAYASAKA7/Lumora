@@ -14,12 +14,16 @@ import {
   StructuredAgentRuntimeListSchema,
   StructuredAgentRuntimeSnapshotSchema,
   StructuredAgentRuntimeSummarySchema,
+  StructuredFileChooseRequestSchema,
+  StructuredFileChooseResultSchema,
   StructuredImageStageRequestSchema,
   StructuredImageStageResultSchema,
   StructuredProviderCapabilityReportSchema,
   StructuredProviderPreferenceInputSchema,
   StructuredProviderPreferenceListSchema,
   type StructuredAgentEvent,
+  type StructuredFileChooseRequest,
+  type StructuredFileChooseResult,
   type StructuredImageStageRequest,
   type StructuredImageStageResult,
   type StructuredProviderCapabilityReport,
@@ -65,6 +69,7 @@ interface RegisterAgentIpcOptions {
   sendEvent(event: StructuredAgentEvent): void;
   /** Stages an image for a session that can take one. */
   stageImage?(request: StructuredImageStageRequest): Promise<StructuredImageStageResult>;
+  chooseFiles?(request: StructuredFileChooseRequest): Promise<StructuredFileChooseResult>;
 }
 
 class StructuredAgentIpcError extends Error {
@@ -106,7 +111,8 @@ export function registerAgentIpc({
   startPrepared,
   cancelPrepared,
   sendEvent,
-  stageImage
+  stageImage,
+  chooseFiles
 }: RegisterAgentIpcOptions): () => void {
   ipc.handle(IPC_CHANNELS.agentRuntimeStart, async (event, input) => {
     authorizeLocal(event, authorize);
@@ -186,6 +192,16 @@ export function registerAgentIpc({
       const request = StructuredImageStageRequestSchema.parse(input);
       if (stageImage === undefined) throw new Error('Image staging is unavailable.');
       return StructuredImageStageResultSchema.parse(await stageImage(request));
+    });
+  });
+  ipc.handle(IPC_CHANNELS.structuredFileChoose, async (event, input) => {
+    authorizeLocal(event, authorize);
+    return protectedOperation(async () => {
+      const request = StructuredFileChooseRequestSchema.parse(input);
+      if (chooseFiles === undefined) throw new Error('Choosing files is unavailable.');
+      // A dialog opens only for a session that exists.
+      runtime.snapshot(request.connectionId);
+      return StructuredFileChooseResultSchema.parse(await chooseFiles(request));
     });
   });
   ipc.handle(IPC_CHANNELS.structuredRuntimeReconnect, async (event, input) => {

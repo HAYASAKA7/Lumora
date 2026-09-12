@@ -268,4 +268,25 @@ describe('registerAgentIpc', () => {
     })).rejects.toThrow();
     expect(stageImage).not.toHaveBeenCalled();
   });
+
+  it('opens the file chooser for a live session and returns what was picked', async () => {
+    const chooseFiles = vi.fn(async () => ({
+      files: [{ name: 'notes.md', path: '/work/notes.md' }]
+    }));
+    const current = harness({ chooseFiles });
+    const choose = current.handlers.get(IPC_CHANNELS.structuredFileChoose)!;
+
+    await expect(choose(event(), { connectionId: 'connection-1' })).resolves.toEqual({
+      files: [{ name: 'notes.md', path: '/work/notes.md' }]
+    });
+  });
+
+  it('refuses a malformed file request before any dialog opens', async () => {
+    const chooseFiles = vi.fn(async () => ({ files: [] }));
+    const current = harness({ chooseFiles });
+    const choose = current.handlers.get(IPC_CHANNELS.structuredFileChoose)!;
+
+    await expect(choose(event(), { connectionId: '' })).rejects.toThrow();
+    expect(chooseFiles).not.toHaveBeenCalled();
+  });
 });

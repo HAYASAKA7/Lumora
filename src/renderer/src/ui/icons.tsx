@@ -59,6 +59,13 @@ export function ImageIcon(): ReactNode {
   );
 }
 
+/** Points at a file on disk: a page with its corner turned. */
+export function FileIcon(): ReactNode {
+  return (
+    <Glyph path="M11.5 3.5H6a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7m-3.5-3.5L15 7m-3.5-3.5V7H15" />
+  );
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;

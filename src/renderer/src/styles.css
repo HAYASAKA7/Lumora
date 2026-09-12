@@ -5638,6 +5638,50 @@ button {
   height: 13px;
 }
 
+/* Files the message points at: a name apiece and no bytes. */
+.structured-composer-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 0;
+  list-style: none;
+}
+
+.structured-composer-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 4px 4px 4px 8px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.structured-composer-file .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+.structured-composer-file-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.structured-composer-file .icon-button {
+  width: 20px;
+  height: 20px;
+}
+
+.structured-composer-file .icon-button .icon {
+  width: 12px;
+  height: 12px;
+}
+
 .structured-composer-surface.is-receiving-drop {
   border-color: var(--blue);
   box-shadow: 0 0 0 2px var(--focus-outline);

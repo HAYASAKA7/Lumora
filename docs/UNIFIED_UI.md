@@ -112,6 +112,19 @@ records how many images a message carried; it does not keep the pictures.
 Codex and Claude accept images. An ACP agent accepts them only when it says so
 at startup, as Gemini CLI does; for any other agent the button does not appear.
 
+### Files
+
+Every session has a file button, and the message box takes dropped files. A
+file goes to the agent as its path, not its contents: agents read files with
+their own tools, so a path lets the agent open what it needs, search a large
+file, or come back to it later, and it costs nothing until the agent reads it.
+Up to eight files go with one message, and a message can be files alone.
+
+The paths are part of the message, so the conversation shows exactly what the
+agent was told. Whether the agent can open a file is its own decision: a file
+in the session's workspace is ordinary, while one outside it follows the
+agent's own rules and may raise an approval request or be refused.
+
 ## Commands and models
 
 Type `/` to open the provider's available command list. Lumora shows commands

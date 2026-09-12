@@ -98,6 +98,8 @@ import {
   StructuredAgentActionSchema,
   StructuredAgentCapabilityScanRequestSchema,
   StructuredAgentCommandResultSchema,
+  StructuredFileChooseRequestSchema,
+  StructuredFileChooseResultSchema,
   StructuredImageStageRequestSchema,
   StructuredImageStageResultSchema,
   StructuredAgentConnectionRequestSchema,
@@ -136,7 +138,9 @@ const EMPTY_CATALOG_QUERY = { text: '', provider: null } as const;
 
 export function createLumoraApi(
   invoke: Invoke,
-  subscribe: Subscribe = () => () => undefined
+  subscribe: Subscribe = () => () => undefined,
+  /** Electron resolves a dropped file to its path; the web File cannot. */
+  filePath: (file: File) => string = () => ''
 ): LumoraApi {
   let startupPresentationClaim: Promise<boolean> | null = null;
   const api: LumoraApi = {
@@ -673,6 +677,15 @@ export function createLumoraApi(
       const request = StructuredImageStageRequestSchema.parse(input);
       const value = await invoke(IPC_CHANNELS.structuredImageStage, request);
       return StructuredImageStageResultSchema.parse(value);
+    },
+    async chooseStructuredFiles(input) {
+      const request = StructuredFileChooseRequestSchema.parse(input);
+      const value = await invoke(IPC_CHANNELS.structuredFileChoose, request);
+      return StructuredFileChooseResultSchema.parse(value);
+    },
+    droppedFilePath(file) {
+      const path = filePath(file);
+      return path === '' ? null : path;
     },
     async reconnectStructuredRuntime(connectionId) {
       const request = StructuredAgentConnectionRequestSchema.parse({ connectionId });

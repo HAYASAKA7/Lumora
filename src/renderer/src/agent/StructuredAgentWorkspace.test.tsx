@@ -129,6 +129,51 @@ function renderImageWorkspace(events: StructuredAgentRuntimeSnapshot['events'] =
   return { composer, dispatchStructuredAgentAction, paste, stageStructuredImage };
 }
 
+function renderFileWorkspace(options: {
+  acceptsImages?: boolean;
+  files?: Array<{ name: string; path: string }>;
+  droppedPath?: string | null;
+} = {}) {
+  const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+  const chooseStructuredFiles = vi.fn(async () => ({ files: options.files ?? [] }));
+  const droppedFilePath = vi.fn(() => options.droppedPath ?? null);
+  let staged = 0;
+  const stageStructuredImage = vi.fn(async () => {
+    staged += 1;
+    return { token: `image-${staged}`, width: 10, height: 8, bytes: 3 };
+  });
+  const api = {
+    dispatchStructuredAgentAction,
+    chooseStructuredFiles,
+    droppedFilePath,
+    stageStructuredImage
+  } as unknown as LumoraApi;
+  renderWithLocalization(
+    <StructuredAgentWorkspace
+      activeConnectionId="connection-1"
+      api={api}
+      onActivate={vi.fn()}
+      onClose={vi.fn()}
+      onReconnect={vi.fn()}
+      snapshots={[{
+        ...snapshot,
+        runtime: {
+          ...snapshot.runtime,
+          ...(options.acceptsImages === true ? { acceptsImages: true } : {})
+        },
+        events: []
+      }]}
+    />
+  );
+  return {
+    composer: screen.getByRole('textbox'),
+    chooseStructuredFiles,
+    dispatchStructuredAgentAction,
+    droppedFilePath,
+    stageStructuredImage
+  };
+}
+
 describe('StructuredAgentWorkspace', () => {
   it('exposes a close control for the active structured session', () => {
     const { onClose } = renderWorkspace();
@@ -1150,5 +1195,105 @@ describe('StructuredAgentWorkspace', () => {
     }]);
 
     expect(screen.getByText('2 images')).toBeTruthy();
+  });
+
+  it('offers files to every session, and images only where they are read', () => {
+    renderFileWorkspace();
+
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Attach images' })).toBeNull();
+  });
+
+  it('sends chosen files as paths for the agent to open itself', async () => {
+    const { composer, dispatchStructuredAgentAction } = renderFileWorkspace({
+      files: [
+        { name: 'notes.md', path: '/work/notes.md' },
+        { name: 'run.log', path: '/work/run.log' }
+      ]
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+    expect(await screen.findByText('notes.md')).toBeTruthy();
+    fireEvent.change(composer, { target: { value: 'Compare these' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: [
+        'Compare these',
+        '',
+        'Attached files:',
+        '/work/notes.md',
+        '/work/run.log'
+      ].join(String.fromCharCode(10)),
+      attachmentTokens: []
+    });
+    await waitFor(() => expect(screen.queryByText('notes.md')).toBeNull());
+  });
+
+  it('sends a file on its own, and drops one it cannot place on disk', async () => {
+    const { dispatchStructuredAgentAction } = renderFileWorkspace({
+      files: [{ name: 'report.pdf', path: '/work/report.pdf' }]
+    });
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+    await screen.findByText('report.pdf');
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith(expect.objectContaining({
+      text: ['Attached files:', '/work/report.pdf'].join(String.fromCharCode(10))
+    }));
+  });
+
+  it('takes a dropped picture as an image and a dropped file as a path', async () => {
+    const { composer, droppedFilePath, stageStructuredImage } = renderFileWorkspace({
+      acceptsImages: true,
+      droppedPath: '/work/plan.txt'
+    });
+    const surface = composer.closest('.structured-composer-surface')!;
+
+    fireEvent.drop(surface, {
+      dataTransfer: {
+        types: ['Files'],
+        files: [imageFile('shot.png'), imageFile('plan.txt', 'text/plain')]
+      }
+    });
+
+    expect(await screen.findByText('plan.txt')).toBeTruthy();
+    expect(droppedFilePath).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(stageStructuredImage).toHaveBeenCalledTimes(1));
+  });
+
+  it('says when a dropped item has no place on disk', async () => {
+    const { composer } = renderFileWorkspace({ droppedPath: null });
+    const surface = composer.closest('.structured-composer-surface')!;
+
+    fireEvent.drop(surface, {
+      dataTransfer: { types: ['Files'], files: [imageFile('dragged.txt', 'text/plain')] }
+    });
+
+    expect(await screen.findByText(
+      'Lumora could not find where that file lives. Choose it with the file button instead.'
+    )).toBeTruthy();
+  });
+
+  it('holds a message to eight files and lets one go again', async () => {
+    renderFileWorkspace({
+      files: Array.from({ length: 9 }, (_, index) => ({
+        name: `file-${index}.txt`,
+        path: `/work/file-${index}.txt`
+      }))
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+
+    expect(await screen.findByText('A message can point to up to 8 files.')).toBeTruthy();
+    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove file-0.txt' }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(7);
   });
 });

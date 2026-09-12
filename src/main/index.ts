@@ -32,6 +32,7 @@ import {
 import { configureApplicationMenu } from './application-menu';
 import { createStructuredAgentAdapterFactory } from './agent/adapters/structured-agent-adapter-factory';
 import { createLocalStructuredProviderProbe } from './agent/probes/local-structured-provider-probes';
+import { chooseAgentFiles } from './agent/attachments/choose-agent-files';
 import { StructuredImageStore } from './agent/attachments/structured-image-store';
 import { createStructuredCapabilityScan } from './agent/probes/structured-capability-scan';
 import { resolveStructuredProviderInstallations } from './agent/probes/structured-provider-installations';
@@ -1391,6 +1392,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       }
       return structuredImageStore.stage(request);
     },
+    chooseFiles: () => chooseAgentFiles((options) => dialog.showOpenDialog(options)),
     scanCapabilities: scanStructuredCapabilities,
     preferences: {
       list: () => terminalRuntime!.getStructuredProviderPreferences(),
