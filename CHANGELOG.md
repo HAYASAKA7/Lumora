@@ -12,20 +12,20 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Send images to an agent in the unified interface. Paste a screenshot, drop
-  a picture on the message box, or pick one from the new attach control at
-  the left of the message box; up to
-  eight go with a message, and an image can be sent without any text. Lumora
+  a picture on the message box, or pick one from the new attach control at the
+  left of the message box. Up to eight go with a message, and an image can be
+  sent without any text. Lumora
   scales each one to at most 2048 pixels on its longest side and sends it as
   PNG, or as JPEG when a photo would be too large, so a phone photo does not
   exhaust the agent's context. Codex, Claude and any ACP agent that says it
   reads images (such as Gemini) accept them; the button stays hidden for an
   agent that does not. The conversation notes how many images a message
   carried.
-- Point an agent at files from the unified interface. The attach control
-  offers files to every session, and the message box takes dropped files. A
-  file travels as its path,
-  which is what an agent needs: it reads files itself, so it can open what it
-  needs and search a large one instead of being handed the whole thing. Up to
+- Point an agent at files from the unified interface. The attach control offers
+  files to every session, and the message box takes dropped files. A file
+  travels as its path, which is what an agent needs: it reads files itself, so
+  it can open what it needs and search a large one instead of being handed the
+  whole thing. Up to
   eight files go with a message, and a message can be files alone. The paths
   are part of the message, so the conversation shows what the agent was told.
 
