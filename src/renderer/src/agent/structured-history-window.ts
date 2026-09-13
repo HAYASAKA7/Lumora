@@ -39,8 +39,17 @@ export function estimateStructuredTurnRenderCost(
     (total, item) => total + 128 + item.text.length,
     0
   );
+  const questionCost = turn.questions.reduce(
+    (total, request) => total + richBlockCost + optionalTextCost(request.message) +
+      request.questions.reduce(
+        (questionTotal, question) => questionTotal + richBlockCost + question.prompt.length +
+          question.options.length * 128,
+        0
+      ),
+    0
+  );
   return baseTurnCost + turn.userText.length + turn.assistantText.length +
-    reasoningCost + activityCost + diffCost + approvalCost + planCost;
+    reasoningCost + activityCost + diffCost + approvalCost + planCost + questionCost;
 }
 
 export function nextStructuredHistoryVisibleCount(

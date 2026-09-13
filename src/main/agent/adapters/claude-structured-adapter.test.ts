@@ -828,4 +828,192 @@ describe('Claude structured adapter', () => {
       await nodeFs.rm(directory, { recursive: true, force: true });
     }
   });
+
+  describe('questions Claude asks the user', () => {
+    async function openWithHooks() {
+      const query = new FakeQuery([{
+        type: 'system', subtype: 'init', session_id: 'claude-native-3'
+      }]);
+      let hooks: Parameters<ClaudeStructuredQueryFactory>[0] | undefined;
+      const current = context();
+      const adapter = createClaudeStructuredAdapter(current.value, {
+        createQuery: (options) => {
+          hooks = options;
+          return query;
+        },
+        loadHistory: async () => [],
+        createNativeSessionId: () => 'claude-native-3'
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      return { adapter, current, hooks: () => hooks! };
+    }
+
+    const askInput = {
+      questions: [
+        {
+          question: 'Which library should we use?',
+          header: 'Library',
+          multiSelect: false,
+          options: [
+            { label: 'date-fns', description: 'Small and modular' },
+            { label: 'Luxon', description: 'Time zones built in' }
+          ]
+        },
+        {
+          question: 'Which checks should run?',
+          header: 'Checks',
+          multiSelect: true,
+          options: [
+            { label: 'Lint', description: '' },
+            { label: 'Tests', description: '' }
+          ]
+        }
+      ]
+    };
+
+    it('shows AskUserQuestion as questions and answers under the question text', async () => {
+      const { adapter, current, hooks } = await openWithHooks();
+
+      const decision = hooks().canUseTool('AskUserQuestion', askInput, {
+        toolUseID: 'tool-ask',
+        requestId: 'request-ask'
+      });
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.requested',
+        payload: expect.objectContaining({
+          requestId: 'claude-question-tool-ask',
+          source: 'agent',
+          questions: [
+            expect.objectContaining({
+              id: 'question-0',
+              header: 'Library',
+              prompt: 'Which library should we use?',
+              answer: 'choice',
+              options: [
+                { label: 'date-fns', description: 'Small and modular' },
+                { label: 'Luxon', description: 'Time zones built in' }
+              ],
+              multiSelect: false,
+              allowOther: true
+            }),
+            expect.objectContaining({ id: 'question-1', multiSelect: true })
+          ]
+        })
+      })));
+      // It is a question to answer, not a permission to allow.
+      expect(current.events).not.toContainEqual(expect.objectContaining({ kind: 'approval.requested' }));
+
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-claude',
+        requestId: 'claude-question-tool-ask',
+        outcome: 'answer',
+        answers: { 'question-0': ['Luxon'], 'question-1': ['Lint', 'Tests'] }
+      });
+
+      await expect(decision).resolves.toEqual({
+        behavior: 'allow',
+        updatedInput: {
+          ...askInput,
+          answers: {
+            'Which library should we use?': 'Luxon',
+            'Which checks should run?': 'Lint, Tests'
+          }
+        }
+      });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.resolved',
+        payload: { requestId: 'claude-question-tool-ask', outcome: 'answered' }
+      }));
+    });
+
+    it('denies the question when declined, and lets go of it when Claude withdraws it', async () => {
+      const { adapter, current, hooks } = await openWithHooks();
+
+      const declined = hooks().canUseTool('AskUserQuestion', askInput, {
+        toolUseID: 'tool-decline',
+        requestId: 'request-decline'
+      });
+      await vi.waitFor(() => expect(current.events).toContainEqual(
+        expect.objectContaining({ kind: 'question.requested' })
+      ));
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-claude',
+        requestId: 'claude-question-tool-decline',
+        outcome: 'decline',
+        answers: {}
+      });
+      await expect(declined).resolves.toMatchObject({ behavior: 'deny' });
+
+      const controller = new AbortController();
+      const withdrawn = hooks().canUseTool('AskUserQuestion', askInput, {
+        toolUseID: 'tool-withdrawn',
+        requestId: 'request-withdrawn',
+        signal: controller.signal
+      });
+      await vi.waitFor(() => expect(current.events.filter((event) => (
+        (event as { kind?: string }).kind === 'question.requested'
+      ))).toHaveLength(2));
+      controller.abort();
+
+      await expect(withdrawn).resolves.toMatchObject({ behavior: 'deny' });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.resolved',
+        payload: { requestId: 'claude-question-tool-withdrawn', outcome: 'cancelled' }
+      }));
+    });
+
+    it('falls back to a plain approval when AskUserQuestion input is not the expected shape', async () => {
+      const { current, hooks } = await openWithHooks();
+
+      void hooks().canUseTool('AskUserQuestion', { questions: 'not a list' }, {
+        toolUseID: 'tool-odd',
+        requestId: 'request-odd'
+      });
+
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'approval.requested',
+        payload: expect.objectContaining({ approvalId: 'claude-tool-odd' })
+      })));
+    });
+
+    it('fills in an MCP form through Claude, and declines one it cannot show', async () => {
+      const { adapter, current, hooks } = await openWithHooks();
+
+      const reply = hooks().onElicitation({
+        serverName: 'deploy-server',
+        message: 'Confirm the rollout.',
+        mode: 'form',
+        requestedSchema: {
+          type: 'object',
+          properties: { notify: { type: 'boolean', title: 'Notify the team' } }
+        }
+      }, { signal: new AbortController().signal });
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.requested',
+        payload: expect.objectContaining({ source: 'mcp', serverName: 'deploy-server' })
+      })));
+      const requested = current.events.find((event) => (
+        (event as { kind?: string }).kind === 'question.requested'
+      )) as { payload: { requestId: string } };
+
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-claude',
+        requestId: requested.payload.requestId,
+        outcome: 'answer',
+        answers: { 'field-0': ['true'] }
+      });
+      await expect(reply).resolves.toEqual({ action: 'accept', content: { notify: true } });
+
+      await expect(hooks().onElicitation({
+        serverName: 'deploy-server',
+        message: 'Nested',
+        mode: 'form',
+        requestedSchema: { type: 'object', properties: { address: { type: 'object' } } }
+      }, { signal: new AbortController().signal })).resolves.toEqual({ action: 'decline' });
+    });
+  });
 });

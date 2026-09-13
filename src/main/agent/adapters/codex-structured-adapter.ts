@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-import type {
-  StructuredAgentAction
+import {
+  STRUCTURED_QUESTION_OPTIONS,
+  STRUCTURED_QUESTIONS_PER_REQUEST,
+  type StructuredAgentAction,
+  type StructuredQuestion
 } from '../../../shared/agent/contracts';
 import type { StructuredAgentEventDraft } from '../runtime/event-sequencer';
 import { parseGitUnifiedDiff } from '../diff/unified-diff';
@@ -17,6 +20,11 @@ import type {
   StructuredAgentAdapter,
   StructuredAgentAdapterContext
 } from './structured-agent-adapter';
+import {
+  mcpFormContent,
+  mcpFormQuestions,
+  type McpQuestionForm
+} from './structured-questions';
 import {
   buildCodexCommands,
   CodexMcpStatusListSchema,
@@ -179,7 +187,125 @@ type ApprovalDecision = 'allow_once' | 'allow_session' | 'deny';
 interface PendingApproval {
   method: string;
   turnId: string;
+  /** What a permissions request asked for, granted back as-is when allowed. */
+  permissions?: Record<string, unknown>;
   resolve(value: unknown): void;
+}
+
+type PendingQuestion =
+  | {
+    kind: 'user-input';
+    turnId: string;
+    /** Lumora's question id to the id Codex asked it under. */
+    codexIds: ReadonlyMap<string, string>;
+    resolve(value: unknown): void;
+  }
+  | {
+    kind: 'elicitation';
+    turnId: string;
+    /** Null for a page the user visits rather than a form they fill in. */
+    form: McpQuestionForm | null;
+    resolve(value: unknown): void;
+  };
+
+const UserInputRequestSchema = z.object({
+  threadId: z.string().min(1),
+  turnId: z.string().min(1),
+  questions: z.array(z.object({
+    id: z.string().min(1),
+    header: z.string(),
+    question: z.string().trim().min(1),
+    isOther: z.boolean(),
+    isSecret: z.boolean(),
+    options: z.array(z.object({
+      label: z.string().trim().min(1),
+      description: z.string()
+    })).nullable()
+  })).min(1).max(STRUCTURED_QUESTIONS_PER_REQUEST)
+});
+
+const ElicitationRequestSchema = z.object({
+  threadId: z.string().min(1),
+  turnId: z.string().min(1).nullable().optional(),
+  serverName: z.string().trim().min(1),
+  mode: z.string(),
+  message: z.string(),
+  requestedSchema: z.unknown().optional(),
+  url: z.string().optional()
+});
+
+const PermissionsRequestSchema = z.object({
+  threadId: z.string().min(1),
+  turnId: z.string().min(1),
+  reason: z.string().nullable().optional(),
+  permissions: z.object({
+    network: z.object({ enabled: z.boolean().nullable() }).passthrough().nullable().optional(),
+    fileSystem: z.object({
+      read: z.array(z.string()).nullable().optional(),
+      write: z.array(z.string()).nullable().optional(),
+      entries: z.array(z.object({
+        path: z.unknown(),
+        access: z.string()
+      }).passthrough()).optional()
+    }).passthrough().nullable().optional()
+  }).passthrough()
+});
+
+const DECLINED_ELICITATION = { action: 'decline', content: null, _meta: null } as const;
+
+function userInputQuestions(
+  questions: z.infer<typeof UserInputRequestSchema>['questions']
+): StructuredQuestion[] {
+  return questions.map((question, index) => {
+    const options = (question.options ?? []).slice(0, STRUCTURED_QUESTION_OPTIONS);
+    const header = question.header.trim();
+    return {
+      id: `question-${index}`,
+      header: header === '' ? null : header.slice(0, 128),
+      prompt: question.question.slice(0, 4_096),
+      answer: options.length > 0 ? 'choice' : 'text',
+      options: options.map((option) => ({
+        label: option.label.slice(0, 512),
+        description: option.description.trim() === '' ? null : option.description.trim().slice(0, 2_048)
+      })),
+      multiSelect: false,
+      allowOther: options.length > 0 && question.isOther,
+      secret: question.isSecret,
+      required: true
+    };
+  });
+}
+
+/** Names the place a file system entry covers: a path, a pattern, or a special location. */
+function describeEntryPath(path: unknown): string {
+  const value = path !== null && typeof path === 'object' ? path as Record<string, unknown> : null;
+  if (value?.type === 'path' && typeof value.path === 'string') return value.path;
+  if (value?.type === 'glob_pattern' && typeof value.pattern === 'string') return value.pattern;
+  return JSON.stringify(value?.type === 'special' ? value.value : path);
+}
+
+/**
+ * Says in words what a permissions request is asking to be allowed. Whatever
+ * it cannot put into words it shows as the request itself, so nothing is
+ * granted that the person approving it did not see.
+ */
+function describePermissions(
+  permissions: z.infer<typeof PermissionsRequestSchema>['permissions'],
+  reason: string | null | undefined
+): string {
+  const grants: string[] = [];
+  if (permissions.network?.enabled === true) grants.push('Network access');
+  const read = permissions.fileSystem?.read ?? [];
+  const write = permissions.fileSystem?.write ?? [];
+  if (read.length > 0) grants.push(`Read: ${read.join(', ')}`);
+  if (write.length > 0) grants.push(`Write: ${write.join(', ')}`);
+  for (const entry of permissions.fileSystem?.entries ?? []) {
+    const access = entry.access.charAt(0).toUpperCase() + entry.access.slice(1);
+    grants.push(`${access}: ${describeEntryPath(entry.path)}`);
+  }
+  if (grants.length === 0) grants.push(`Requested: ${JSON.stringify(permissions).slice(0, 2_048)}`);
+  const said = reason === null || reason === undefined ? '' : reason.trim();
+  return [...(said === '' ? [] : [said]), ...grants].join('\n');
 }
 
 export interface CodexStructuredTransportFactoryOptions {
@@ -433,6 +559,7 @@ export function createCodexStructuredAdapter(
   }
   const createTransport = options.createTransport ?? defaultTransportFactory;
   const pendingApprovals = new Map<string, PendingApproval>();
+  const pendingQuestions = new Map<string, PendingQuestion>();
   let transport: LineJsonRpcTransport | null = null;
   let nativeSessionId = context.launch.nativeSessionId;
   let currentTurnId: string | null = null;
@@ -538,7 +665,100 @@ export function createCodexStructuredAdapter(
     );
   };
 
+  const askUserInput = (request: JsonRpcProviderRequest): Promise<unknown> => {
+    const parsed = UserInputRequestSchema.safeParse(request.params);
+    if (!parsed.success || parsed.data.threadId !== nativeSessionId) {
+      throw new Error('Invalid Codex input request.');
+    }
+    const requestId = `codex-question-${String(request.id)}`.slice(0, 256);
+    const questions = userInputQuestions(parsed.data.questions);
+    emit({
+      turnId: parsed.data.turnId,
+      parentEventId: null,
+      kind: 'question.requested',
+      payload: { requestId, source: 'agent', serverName: null, message: null, link: null, questions }
+    });
+    return new Promise((resolve) => {
+      pendingQuestions.set(requestId, {
+        kind: 'user-input',
+        turnId: parsed.data.turnId,
+        codexIds: new Map(questions.map((question, index) => [
+          question.id,
+          parsed.data.questions[index]!.id
+        ])),
+        resolve
+      });
+    });
+  };
+
+  const askElicitation = async (request: JsonRpcProviderRequest): Promise<unknown> => {
+    const parsed = ElicitationRequestSchema.safeParse(request.params);
+    if (!parsed.success || parsed.data.threadId !== nativeSessionId) return DECLINED_ELICITATION;
+    // A form turns into questions; a page to visit becomes a link. Anything
+    // else, or a form Lumora cannot show faithfully, is declined outright.
+    const form = parsed.data.mode === 'form' ? mcpFormQuestions(parsed.data.requestedSchema) : null;
+    const link = parsed.data.mode === 'url' && /^https?:\/\//iu.test(parsed.data.url ?? '')
+      ? parsed.data.url!.slice(0, 4_096)
+      : null;
+    const turnId = parsed.data.turnId ?? currentTurnId;
+    if ((form === null && link === null) || turnId === null) return DECLINED_ELICITATION;
+    const message = parsed.data.message.trim();
+    const requestId = `codex-form-${String(request.id)}`.slice(0, 256);
+    emit({
+      turnId,
+      parentEventId: null,
+      kind: 'question.requested',
+      payload: {
+        requestId,
+        source: 'mcp',
+        serverName: parsed.data.serverName.slice(0, 256),
+        message: message === '' ? null : message.slice(0, 8_192),
+        link,
+        questions: form?.questions ?? []
+      }
+    });
+    return new Promise((resolve) => {
+      pendingQuestions.set(requestId, { kind: 'elicitation', turnId, form, resolve });
+    });
+  };
+
+  const askPermissions = (request: JsonRpcProviderRequest): Promise<unknown> => {
+    const parsed = PermissionsRequestSchema.safeParse(request.params);
+    if (!parsed.success || parsed.data.threadId !== nativeSessionId) {
+      throw new Error('Invalid Codex permissions request.');
+    }
+    const approvalId = `codex-approval-${String(request.id)}`;
+    emit({
+      turnId: parsed.data.turnId,
+      parentEventId: null,
+      kind: 'approval.requested',
+      payload: {
+        approvalId,
+        title: 'Grant additional permissions',
+        detail: bounded(describePermissions(parsed.data.permissions, parsed.data.reason), 8_192),
+        choices: ['allow_once', 'allow_session', 'deny']
+      }
+    });
+    const { network, fileSystem } = parsed.data.permissions;
+    return new Promise((resolve) => {
+      pendingApprovals.set(approvalId, {
+        method: request.method,
+        turnId: parsed.data.turnId,
+        permissions: {
+          ...(network === null || network === undefined ? {} : { network }),
+          ...(fileSystem === null || fileSystem === undefined ? {} : { fileSystem })
+        },
+        resolve
+      });
+    });
+  };
+
   const handleRequest = async (request: JsonRpcProviderRequest): Promise<unknown> => {
+    if (request.method === 'item/tool/requestUserInput') return askUserInput(request);
+    if (request.method === 'mcpServer/elicitation/request') return askElicitation(request);
+    if (request.method === 'item/permissions/requestApproval') return askPermissions(request);
+    // Dynamic tool calls, ChatGPT token refresh and attestation belong to clients
+    // that registered for them; Lumora never does, so it refuses them.
     if (
       request.method !== 'item/commandExecution/requestApproval' &&
       request.method !== 'item/fileChange/requestApproval'
@@ -578,6 +798,27 @@ export function createCodexStructuredAdapter(
         resolve
       });
     });
+  };
+
+  /**
+   * Answers every question still open, for one turn or for all of them, with
+   * the reply that means nobody answered: the turn ended or the session closed.
+   */
+  const settleQuestions = (turnId: string | null): void => {
+    for (const [requestId, pending] of pendingQuestions) {
+      if (turnId !== null && pending.turnId !== turnId) continue;
+      pendingQuestions.delete(requestId);
+      pending.resolve(pending.kind === 'user-input'
+        ? { answers: {} }
+        : { action: 'cancel', content: null, _meta: null });
+      if (closed) continue;
+      emit({
+        turnId: pending.turnId,
+        parentEventId: null,
+        kind: 'question.resolved',
+        payload: { requestId, outcome: 'cancelled' }
+      });
+    }
   };
 
   const acceptNotification = (notification: JsonRpcNotification): void => {
@@ -623,6 +864,7 @@ export function createCodexStructuredAdapter(
       const turn = TurnLifecycleSchema.safeParse(params.turn);
       if (!turn.success) return;
       if (currentTurnId === turn.data.id) currentTurnId = null;
+      settleQuestions(turn.data.id);
       emit({
         turnId: turn.data.id,
         parentEventId: null,
@@ -1259,14 +1501,56 @@ export function createCodexStructuredAdapter(
         }
         return;
       }
+      if (action.kind === 'question.respond') {
+        const question = pendingQuestions.get(action.requestId);
+        if (question === undefined) throw new Error('The Codex question is no longer pending.');
+        let reply: unknown;
+        if (question.kind === 'user-input') {
+          reply = {
+            answers: action.outcome === 'decline'
+              ? {}
+              : Object.fromEntries([...question.codexIds].map(([id, codexId]) => [
+                codexId,
+                { answers: [...(action.answers[id] ?? [])] }
+              ]))
+          };
+        } else if (action.outcome === 'decline') {
+          reply = DECLINED_ELICITATION;
+        } else {
+          // Checked before the question is let go, so a bad answer can be fixed.
+          const content = question.form === null ? null : mcpFormContent(question.form, action.answers);
+          reply = { action: 'accept', content, _meta: null };
+        }
+        pendingQuestions.delete(action.requestId);
+        question.resolve(reply);
+        emit({
+          turnId: question.turnId,
+          parentEventId: null,
+          kind: 'question.resolved',
+          payload: {
+            requestId: action.requestId,
+            outcome: action.outcome === 'decline' ? 'declined' : 'answered'
+          }
+        });
+        return;
+      }
       const pending = pendingApprovals.get(action.approvalId);
       if (pending === undefined) throw new Error('The Codex approval is no longer pending.');
       pendingApprovals.delete(action.approvalId);
       const decision: ApprovalDecision = action.decision;
-      const codexDecision = decision === 'allow_once' ? 'accept'
-        : decision === 'allow_session' ? 'acceptForSession'
-          : 'decline';
-      pending.resolve({ decision: codexDecision });
+      if (pending.method === 'item/permissions/requestApproval') {
+        pending.resolve(decision === 'deny'
+          ? { permissions: {}, scope: 'turn' }
+          : {
+            permissions: pending.permissions ?? {},
+            scope: decision === 'allow_session' ? 'session' : 'turn'
+          });
+      } else {
+        const codexDecision = decision === 'allow_once' ? 'accept'
+          : decision === 'allow_session' ? 'acceptForSession'
+            : 'decline';
+        pending.resolve({ decision: codexDecision });
+      }
       emit({
         turnId: pending.turnId,
         parentEventId: null,
@@ -1279,9 +1563,12 @@ export function createCodexStructuredAdapter(
       if (closed) return;
       closed = true;
       for (const pending of pendingApprovals.values()) {
-        pending.resolve({ decision: 'cancel' });
+        pending.resolve(pending.method === 'item/permissions/requestApproval'
+          ? { permissions: {}, scope: 'turn' }
+          : { decision: 'cancel' });
       }
       pendingApprovals.clear();
+      settleQuestions(null);
       await transport?.close();
       transport = null;
     }

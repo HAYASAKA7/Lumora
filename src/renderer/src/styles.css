@@ -5120,6 +5120,114 @@ button {
   white-space: pre-wrap;
 }
 
+/* A question the agent asked: answered in place and settled to one line. */
+.structured-question {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--blue);
+  border-radius: 10px;
+}
+
+.structured-question-settled {
+  gap: 4px;
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.structured-question p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.structured-question-outcome {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.structured-question-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.structured-question-item legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  padding: 0;
+}
+
+.structured-question-header {
+  padding: 1px 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  background: var(--surface-subtle);
+  border-radius: 999px;
+}
+
+.structured-question-optional {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.structured-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.structured-question-option {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 12px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.structured-question-option small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.structured-question-option[aria-pressed="true"] {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 1px var(--blue);
+}
+
+.structured-question-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.structured-question-input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.structured-question-link {
+  justify-self: start;
+}
+
 .structured-message-user {
   justify-self: end;
   margin-left: 0;

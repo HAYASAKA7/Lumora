@@ -237,6 +237,21 @@ provider SDK, process handle, raw filesystem capability, or general-purpose RPC
 transport. Runtime identity is indexed with PTY identity so direct resume
 activates an existing owner instead of launching a duplicate.
 
+Requests an agent sends to Lumora mid-turn are answered, not refused. Codex's
+user-input request, Claude's AskUserQuestion tool, and MCP elicitation from
+either become one `question.requested` event: a list of questions, each a
+choice, free text, a number, or yes or no, or a page to visit. The renderer
+answers with a `question.respond` action, and the adapter writes the answer
+in the protocol's own shape — keyed by Codex question id, by Claude question
+text, or typed to the MCP form's schema, which is checked before the question
+is released. The answer travels in the action only; the event stream records
+`question.resolved` with an outcome, so an answer never enters session
+history. A question is settled as cancelled when its turn ends, when the
+provider withdraws it, or when the session closes. Codex permission requests
+reuse the approval events and grant back exactly the requested profile.
+Dynamic tool calls, ChatGPT token refresh, and attestation belong to clients
+that register for them, and Lumora still refuses them.
+
 Image input keeps the same boundary. The renderer decodes a pasted, dropped, or
 picked image, bounds its longest edge, and re-encodes it as PNG or JPEG. The
 main process then:

@@ -1,6 +1,7 @@
 import type {
   StructuredAgentApprovalDecision,
-  StructuredAgentEvent
+  StructuredAgentEvent,
+  StructuredQuestion
 } from '../../../shared/contracts';
 
 type TurnState = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -20,6 +21,20 @@ export interface StructuredAgentApprovalView {
   detail: string;
   choices: readonly StructuredAgentApprovalDecision[];
   decision: StructuredAgentApprovalDecision | null;
+}
+
+/**
+ * Questions the agent asked during a turn. Only the outcome is kept: the
+ * answers went to the agent and are not part of the conversation.
+ */
+export interface StructuredAgentQuestionView {
+  id: string;
+  source: 'agent' | 'mcp';
+  serverName: string | null;
+  message: string | null;
+  link: string | null;
+  questions: readonly StructuredQuestion[];
+  outcome: 'answered' | 'declined' | 'cancelled' | null;
 }
 
 export interface StructuredAgentDiffView {
@@ -44,6 +59,7 @@ export interface StructuredAgentTurnView {
   activities: readonly StructuredAgentActivityView[];
   diffs: readonly StructuredAgentDiffView[];
   approvals: readonly StructuredAgentApprovalView[];
+  questions: readonly StructuredAgentQuestionView[];
   plan: readonly {
     id: string;
     text: string;
@@ -97,6 +113,7 @@ function emptyTurn(id: string): StructuredAgentTurnView {
     activities: [],
     diffs: [],
     approvals: [],
+    questions: [],
     plan: []
   };
 }
@@ -256,6 +273,31 @@ export function reduceStructuredAgentEvent(
           approval.id === event.payload.approvalId
             ? { ...approval, decision: event.payload.decision }
             : approval
+        )
+      }));
+    case 'question.requested':
+      return updateTurn(next, event.turnId, (turn) => ({
+        ...turn,
+        // A replayed request is the same question, not a second one.
+        questions: turn.questions.some((question) => question.id === event.payload.requestId)
+          ? turn.questions
+          : [...turn.questions, {
+            id: event.payload.requestId,
+            source: event.payload.source,
+            serverName: event.payload.serverName,
+            message: event.payload.message,
+            link: event.payload.link,
+            questions: event.payload.questions,
+            outcome: null
+          }]
+      }));
+    case 'question.resolved':
+      return updateTurn(next, event.turnId, (turn) => ({
+        ...turn,
+        questions: turn.questions.map((question) =>
+          question.id === event.payload.requestId
+            ? { ...question, outcome: event.payload.outcome }
+            : question
         )
       }));
     case 'plan.updated':

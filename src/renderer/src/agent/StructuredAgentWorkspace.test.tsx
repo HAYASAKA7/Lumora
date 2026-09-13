@@ -1323,4 +1323,51 @@ describe('StructuredAgentWorkspace', () => {
       picker.mockRestore();
     }
   });
+
+  it('shows a question the agent asked and sends the answer back through the runtime', async () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    const api = { dispatchStructuredAgentAction } as unknown as LumoraApi;
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={api}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[{
+          ...snapshot,
+          events: [{
+            connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+            turnId: 'turn-1', eventId: 'event-1', parentEventId: null, sequence: 1,
+            generation: 1, timestamp: '2026-08-27T00:00:01.000Z', kind: 'question.requested',
+            payload: {
+              requestId: 'codex-question-7',
+              source: 'agent',
+              serverName: null,
+              message: null,
+              link: null,
+              questions: [{
+                id: 'question-0', header: 'Target', prompt: 'Where should this deploy?',
+                answer: 'choice',
+                options: [{ label: 'Staging', description: null }, { label: 'Production', description: null }],
+                multiSelect: false, allowOther: false, secret: false, required: true
+              }]
+            }
+          }]
+        }]}
+      />
+    );
+
+    expect(screen.getByText('Codex is asking')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Production' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Answer' }));
+
+    await waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'question.respond',
+      connectionId: 'connection-1',
+      requestId: 'codex-question-7',
+      outcome: 'answer',
+      answers: { 'question-0': ['Production'] }
+    }));
+  });
 });

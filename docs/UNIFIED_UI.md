@@ -166,6 +166,25 @@ changes and diffs without reading arbitrary workspace files from the renderer.
 Approval requests stay associated with the provider turn and must be answered
 before the provider continues.
 
+### Questions from the agent
+
+An agent sometimes needs something from you before it can go on: Codex asking
+which option you want, Claude Code's multiple-choice questions, or an MCP
+server that needs a short form filled in or a sign-in page visited. Lumora
+shows the question in the conversation. Choose an option, type an answer, or
+open the page, then select **Answer** (or **Done**) or **Decline**.
+
+Answers go only to the agent. The conversation records that a question was
+answered or declined, never the answer itself, so a token you paste stays out
+of the session history, and a secret field hides what you type. A question the
+agent no longer needs — its turn ended, or it withdrew the question — closes on
+its own. A form Lumora cannot show faithfully, such as one with nested fields,
+is declined for you rather than half-answered.
+
+When Codex asks for more permissions than its sandbox gives, such as network
+access or another folder, the request uses the same approval buttons as a
+command, and allowing it grants exactly what was asked.
+
 ## Session details
 
 Select **Session details** to inspect normalized metadata such as provider,

@@ -35,6 +35,7 @@ import {
 } from './structured-agent-state';
 import { nextStructuredHistoryVisibleCount } from './structured-history-window';
 import { StructuredDiff } from './StructuredDiff';
+import { StructuredQuestionCard } from './StructuredQuestionCard';
 import { StructuredSessionDetailsDialog } from './StructuredSessionDetailsDialog';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -784,6 +785,22 @@ export function StructuredAgentWorkspace({
                     </div>
                   ) : null}
                 </section>
+              ))}
+              {turn.questions.map((request) => (
+                <StructuredQuestionCard
+                  disabled={runtime.state !== 'ready'}
+                  key={request.id}
+                  onOpenLink={setPendingLink}
+                  onRespond={(outcome, answers) => dispatch({
+                    kind: 'question.respond',
+                    connectionId: runtime.connectionId,
+                    requestId: request.id,
+                    outcome,
+                    answers
+                  })}
+                  providerName={providerName}
+                  request={request}
+                />
               ))}
               {turn.assistantText === '' && turn.status !== 'running' ? null : (
                 <section className="structured-message structured-message-assistant">

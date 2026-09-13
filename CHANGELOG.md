@@ -7,6 +7,25 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Answer an agent's questions in the unified interface. When Codex asks which
+  option you want, when Claude Code puts a multiple-choice question to you, or
+  when an MCP server needs a short form or a sign-in page, the question appears
+  in the conversation with its choices, a place to type, or a link to open.
+  Answers go only to the agent: the conversation notes that a question was
+  answered or declined, never what you answered, and a secret field hides what
+  you type. A question the agent no longer needs closes on its own.
+
+### Fixed
+
+- Stop a question from an agent ending its turn. Codex's requests for input,
+  for an MCP form, and for extra permissions were refused, so the agent failed
+  without saying why. Claude Code's questions appeared as a permission to allow
+  or deny with no way to answer them, and a form an MCP server asked Claude for
+  was declined without being shown. Each is now shown and answered, and Codex's
+  permission requests use the approval buttons its commands already use.
+
 ## [0.5.10] - 2026-09-12
 
 ### Added

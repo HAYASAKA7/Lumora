@@ -184,6 +184,63 @@ const ApprovalResolvedEventSchema = z.strictObject({
   })
 });
 
+/**
+ * A question an agent puts to the user during a turn: Codex asking for input,
+ * Claude's AskUserQuestion, or a form an MCP server needs filled in. Answers
+ * travel back to the agent in the respond action only; the transcript records
+ * that a question was answered, never what the answer was, so a secret stays
+ * out of the session history.
+ */
+export const STRUCTURED_QUESTIONS_PER_REQUEST = 8;
+export const STRUCTURED_QUESTION_OPTIONS = 16;
+
+const StructuredQuestionOptionSchema = z.strictObject({
+  label: z.string().trim().min(1).max(512),
+  description: z.string().trim().max(2_048).nullable()
+});
+
+export const StructuredQuestionSchema = z.strictObject({
+  id: OpaqueIdSchema,
+  header: z.string().trim().max(128).nullable(),
+  prompt: z.string().trim().min(1).max(4_096),
+  answer: z.enum(['choice', 'text', 'number', 'boolean']),
+  options: z.array(StructuredQuestionOptionSchema).max(STRUCTURED_QUESTION_OPTIONS),
+  multiSelect: z.boolean(),
+  /** A choice that also takes a typed answer of the user's own. */
+  allowOther: z.boolean(),
+  secret: z.boolean(),
+  required: z.boolean()
+}).refine(
+  (question) => question.answer !== 'choice' || question.options.length > 0,
+  'A choice needs options.'
+);
+
+const QuestionRequestedEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('question.requested'),
+  payload: z.strictObject({
+    requestId: OpaqueIdSchema,
+    source: z.enum(['agent', 'mcp']),
+    serverName: z.string().trim().min(1).max(256).nullable(),
+    message: z.string().trim().min(1).max(8_192).nullable(),
+    /** An MCP server that needs the user to visit a page, such as a sign-in. */
+    link: z.string().trim().min(1).max(4_096).nullable(),
+    questions: z.array(StructuredQuestionSchema).max(STRUCTURED_QUESTIONS_PER_REQUEST)
+  }).refine(
+    (payload) => payload.questions.length > 0 || payload.link !== null,
+    'A question needs something to answer or a link to open.'
+  )
+});
+
+const QuestionResolvedEventSchema = z.strictObject({
+  ...EventEnvelopeFields,
+  kind: z.literal('question.resolved'),
+  payload: z.strictObject({
+    requestId: OpaqueIdSchema,
+    outcome: z.enum(['answered', 'declined', 'cancelled'])
+  })
+});
+
 const PlanUpdatedEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.literal('plan.updated'),
@@ -256,6 +313,8 @@ export const StructuredAgentEventSchema = z.discriminatedUnion('kind', [
   DiffUpdatedEventSchema,
   ApprovalRequestedEventSchema,
   ApprovalResolvedEventSchema,
+  QuestionRequestedEventSchema,
+  QuestionResolvedEventSchema,
   PlanUpdatedEventSchema,
   UsageUpdatedEventSchema,
   AccountUsageUpdatedEventSchema,
@@ -289,6 +348,21 @@ const ApprovalRespondActionSchema = z.strictObject({
   connectionId: OpaqueIdSchema,
   approvalId: OpaqueIdSchema,
   decision: StructuredAgentApprovalDecisionSchema
+});
+
+const QuestionRespondActionSchema = z.strictObject({
+  kind: z.literal('question.respond'),
+  connectionId: OpaqueIdSchema,
+  requestId: OpaqueIdSchema,
+  outcome: z.enum(['answer', 'decline']),
+  /** Keyed by question id: the chosen labels, or the one typed value. */
+  answers: z.record(
+    z.string().min(1).max(256),
+    z.array(z.string().max(8_192)).max(STRUCTURED_QUESTION_OPTIONS)
+  ).refine(
+    (answers) => Object.keys(answers).length <= STRUCTURED_QUESTIONS_PER_REQUEST,
+    'Too many answers.'
+  ).default({})
 });
 
 const CancelTurnActionSchema = z.strictObject({
@@ -365,10 +439,12 @@ export const StructuredFileChooseResultSchema = z.strictObject({
 export type StructuredFileReference = z.infer<typeof StructuredFileReferenceSchema>;
 export type StructuredFileChooseRequest = z.infer<typeof StructuredFileChooseRequestSchema>;
 export type StructuredFileChooseResult = z.infer<typeof StructuredFileChooseResultSchema>;
+export type StructuredQuestion = z.infer<typeof StructuredQuestionSchema>;
 
 export const StructuredAgentActionSchema = z.discriminatedUnion('kind', [
   PromptSubmitActionSchema,
   ApprovalRespondActionSchema,
+  QuestionRespondActionSchema,
   CancelTurnActionSchema,
   ExecuteCommandActionSchema,
   RefreshSessionDetailsActionSchema

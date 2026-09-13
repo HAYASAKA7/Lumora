@@ -1072,4 +1072,333 @@ describe('Codex structured adapter', () => {
       kind: 'user.message', payload: { text: '', imageCount: 1 }
     }));
   });
+
+  describe('questions Codex asks the user', () => {
+    async function openWithRequests() {
+      const transport = new FakeTransport();
+      let handleRequest: ((request: JsonRpcProviderRequest) => Promise<unknown>) | undefined;
+      const current = context();
+      const adapter = createCodexStructuredAdapter(current.value, {
+        createTransport: async (options) => {
+          handleRequest = options.handleRequest;
+          return transport;
+        }
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      return {
+        adapter,
+        current,
+        transport,
+        ask: (method: string, params: Record<string, unknown>, id = 7) =>
+          handleRequest!({ id, method, params: { threadId: '019c-native-thread', ...params } })
+      };
+    }
+
+    const deployQuestion = {
+      turnId: 'turn-live',
+      itemId: 'item-ask',
+      isBlocking: true,
+      autoResolutionMs: null,
+      questions: [
+        {
+          id: 'environment',
+          header: 'Target',
+          question: 'Where should this deploy?',
+          isOther: true,
+          isSecret: false,
+          options: [
+            { label: 'Staging', description: 'Safe to break' },
+            { label: 'Production', description: '' }
+          ]
+        },
+        {
+          id: 'token',
+          header: '',
+          question: 'Paste the deploy token.',
+          isOther: false,
+          isSecret: true,
+          options: null
+        }
+      ]
+    };
+
+    it('shows a question with its choices and returns the answer under Codex ids', async () => {
+      const { adapter, ask, current } = await openWithRequests();
+
+      const reply = ask('item/tool/requestUserInput', deployQuestion);
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.requested',
+        turnId: 'turn-live',
+        payload: {
+          requestId: 'codex-question-7',
+          source: 'agent',
+          serverName: null,
+          message: null,
+          link: null,
+          questions: [
+            {
+              id: 'question-0',
+              header: 'Target',
+              prompt: 'Where should this deploy?',
+              answer: 'choice',
+              options: [
+                { label: 'Staging', description: 'Safe to break' },
+                { label: 'Production', description: null }
+              ],
+              multiSelect: false,
+              allowOther: true,
+              secret: false,
+              required: true
+            },
+            {
+              id: 'question-1',
+              header: null,
+              prompt: 'Paste the deploy token.',
+              answer: 'text',
+              options: [],
+              multiSelect: false,
+              allowOther: false,
+              secret: true,
+              required: true
+            }
+          ]
+        }
+      })));
+
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-1',
+        requestId: 'codex-question-7',
+        outcome: 'answer',
+        answers: { 'question-0': ['Staging'], 'question-1': ['s3cret'] }
+      });
+
+      await expect(reply).resolves.toEqual({
+        answers: {
+          environment: { answers: ['Staging'] },
+          token: { answers: ['s3cret'] }
+        }
+      });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.resolved',
+        payload: { requestId: 'codex-question-7', outcome: 'answered' }
+      }));
+      // The answer went to Codex; nothing in the transcript repeats it.
+      expect(JSON.stringify(current.events)).not.toContain('s3cret');
+    });
+
+    it('declines a question with no answers, and lets go of it when its turn ends', async () => {
+      const { adapter, ask, current, transport } = await openWithRequests();
+
+      const declined = ask('item/tool/requestUserInput', deployQuestion, 8);
+      await vi.waitFor(() => expect(current.events).toContainEqual(
+        expect.objectContaining({ kind: 'question.requested' })
+      ));
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-1',
+        requestId: 'codex-question-8',
+        outcome: 'decline',
+        answers: {}
+      });
+      await expect(declined).resolves.toEqual({ answers: {} });
+
+      const abandoned = ask('item/tool/requestUserInput', deployQuestion, 9);
+      await vi.waitFor(() => expect(current.events.filter((event) => (
+        (event as { kind?: string }).kind === 'question.requested'
+      ))).toHaveLength(2));
+      transport.emit('turn/completed', {
+        threadId: '019c-native-thread',
+        turn: { id: 'turn-live', status: 'completed', items: [] }
+      });
+
+      await expect(abandoned).resolves.toEqual({ answers: {} });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.resolved',
+        payload: { requestId: 'codex-question-9', outcome: 'cancelled' }
+      }));
+      await expect(adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-1',
+        requestId: 'codex-question-9',
+        outcome: 'answer',
+        answers: {}
+      })).rejects.toThrow('no longer pending');
+    });
+
+    it('fills in an MCP form, and refuses an answer the form cannot take without losing the question', async () => {
+      const { adapter, ask, current } = await openWithRequests();
+
+      const reply = ask('mcpServer/elicitation/request', {
+        turnId: 'turn-live',
+        serverName: 'deploy-server',
+        mode: 'form',
+        _meta: null,
+        message: 'Confirm the rollout.',
+        requestedSchema: {
+          type: 'object',
+          properties: { replicas: { type: 'integer', title: 'Replicas' } },
+          required: ['replicas']
+        }
+      });
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.requested',
+        payload: expect.objectContaining({
+          requestId: 'codex-form-7',
+          source: 'mcp',
+          serverName: 'deploy-server',
+          message: 'Confirm the rollout.'
+        })
+      })));
+
+      await expect(adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-1',
+        requestId: 'codex-form-7',
+        outcome: 'answer',
+        answers: { 'field-0': ['many'] }
+      })).rejects.toThrow('replicas needs a number');
+
+      await adapter.dispatch({
+        kind: 'question.respond',
+        connectionId: 'connection-1',
+        requestId: 'codex-form-7',
+        outcome: 'answer',
+        answers: { 'field-0': ['3'] }
+      });
+      await expect(reply).resolves.toEqual({ action: 'accept', content: { replicas: 3 }, _meta: null });
+    });
+
+    it('offers a sign-in page as a link, and declines a form it cannot show without asking', async () => {
+      const { ask, current } = await openWithRequests();
+
+      void ask('mcpServer/elicitation/request', {
+        turnId: 'turn-live',
+        serverName: 'docs-server',
+        mode: 'url',
+        _meta: null,
+        message: 'Sign in to continue.',
+        url: 'https://example.com/sign-in',
+        elicitationId: 'sign-in-1'
+      }, 11);
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'question.requested',
+        payload: expect.objectContaining({ link: 'https://example.com/sign-in', questions: [] })
+      })));
+
+      await expect(ask('mcpServer/elicitation/request', {
+        turnId: 'turn-live',
+        serverName: 'docs-server',
+        mode: 'openaiForm',
+        _meta: null,
+        message: 'Something custom',
+        requestedSchema: {}
+      }, 12)).resolves.toEqual({ action: 'decline', content: null, _meta: null });
+      expect(current.events.filter((event) => (
+        (event as { kind?: string }).kind === 'question.requested'
+      ))).toHaveLength(1);
+    });
+
+    it('asks before granting extra permissions, and grants exactly what was asked', async () => {
+      const { adapter, ask, current } = await openWithRequests();
+      const request = {
+        turnId: 'turn-live',
+        itemId: 'item-permissions',
+        environmentId: null,
+        startedAtMs: 1,
+        cwd: '/work',
+        reason: 'Fetch dependencies',
+        permissions: { network: { enabled: true }, fileSystem: null }
+      };
+
+      const granted = ask('item/permissions/requestApproval', request, 21);
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'approval.requested',
+        payload: expect.objectContaining({
+          approvalId: 'codex-approval-21',
+          title: 'Grant additional permissions',
+          detail: expect.stringContaining('Network access')
+        })
+      })));
+      await adapter.dispatch({
+        kind: 'approval.respond',
+        connectionId: 'connection-1',
+        approvalId: 'codex-approval-21',
+        decision: 'allow_session'
+      });
+      await expect(granted).resolves.toEqual({
+        permissions: { network: { enabled: true } },
+        scope: 'session'
+      });
+
+      const refused = ask('item/permissions/requestApproval', request, 22);
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'approval.requested',
+        payload: expect.objectContaining({ approvalId: 'codex-approval-22' })
+      })));
+      await adapter.dispatch({
+        kind: 'approval.respond',
+        connectionId: 'connection-1',
+        approvalId: 'codex-approval-22',
+        decision: 'deny'
+      });
+      await expect(refused).resolves.toEqual({ permissions: {}, scope: 'turn' });
+    });
+
+    it('describes every place a permissions request covers, and shows what it cannot describe', async () => {
+      const { ask, current } = await openWithRequests();
+
+      void ask('item/permissions/requestApproval', {
+        turnId: 'turn-live',
+        itemId: 'item-entries',
+        environmentId: null,
+        startedAtMs: 1,
+        cwd: '/work',
+        reason: null,
+        permissions: {
+          network: null,
+          fileSystem: {
+            read: null,
+            write: null,
+            entries: [
+              { path: { type: 'path', path: '/work/docs' }, access: 'read' },
+              { path: { type: 'glob_pattern', pattern: '/work/**/*.log' }, access: 'write' }
+            ]
+          }
+        }
+      }, 31);
+      void ask('item/permissions/requestApproval', {
+        turnId: 'turn-live',
+        itemId: 'item-future',
+        environmentId: null,
+        startedAtMs: 1,
+        cwd: '/work',
+        reason: null,
+        permissions: { network: null, fileSystem: null, devices: { camera: true } }
+      }, 32);
+
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'approval.requested',
+        payload: expect.objectContaining({
+          approvalId: 'codex-approval-31',
+          detail: ['Read: /work/docs', 'Write: /work/**/*.log'].join(String.fromCharCode(10))
+        })
+      })));
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'approval.requested',
+        payload: expect.objectContaining({
+          approvalId: 'codex-approval-32',
+          detail: expect.stringContaining('camera')
+        })
+      })));
+    });
+
+    it('still refuses requests meant for clients that registered for them', async () => {
+      const { ask } = await openWithRequests();
+
+      await expect(ask('item/tool/call', { turnId: 'turn-live' })).rejects.toThrow('Unsupported Codex request');
+      await expect(ask('attestation/generate', {})).rejects.toThrow('Unsupported Codex request');
+    });
+  });
 });

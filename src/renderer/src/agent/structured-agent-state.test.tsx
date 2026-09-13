@@ -192,4 +192,33 @@ describe('structured agent view state', () => {
       }
     ]);
   });
+
+  it('adds a question to its turn once, and settles it to an outcome', () => {
+    const asked = event(2, 'question.requested', {
+      requestId: 'codex-question-7',
+      source: 'agent',
+      serverName: null,
+      message: null,
+      link: null,
+      questions: [{
+        id: 'question-0', header: null, prompt: 'Which one?', answer: 'choice',
+        options: [{ label: 'A', description: null }], multiSelect: false,
+        allowOther: false, secret: false, required: true
+      }]
+    });
+    const replayed = { ...asked, eventId: 'event-2-replayed', sequence: 3 } as StructuredAgentEvent;
+    const settled = event(4, 'question.resolved', {
+      requestId: 'codex-question-7', outcome: 'answered'
+    });
+
+    const open = [asked, replayed].reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+    expect(open.turns[0]?.questions).toEqual([expect.objectContaining({
+      id: 'codex-question-7', outcome: null
+    })]);
+
+    const closed = reduceStructuredAgentEvent(open, settled);
+    expect(closed.turns[0]?.questions).toEqual([expect.objectContaining({
+      id: 'codex-question-7', outcome: 'answered'
+    })]);
+  });
 });

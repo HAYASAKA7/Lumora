@@ -787,6 +787,10 @@ export function createAcpStructuredAdapter(
         }
         return;
       }
+      if (action.kind === 'question.respond') {
+        // ACP asks through permission requests only; there is no question to answer.
+        throw new Error(`The ${providerName} question is no longer pending.`);
+      }
       const pending = pendingPermissions.get(action.approvalId);
       if (pending === undefined) {
         throw new Error(`The ${providerName} permission is no longer pending.`);

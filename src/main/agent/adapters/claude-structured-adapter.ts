@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { win32 } from 'node:path';
 
-import type {
-  StructuredAgentAction,
-  StructuredAgentCommand,
-  StructuredAgentDiffFile
+import { z } from 'zod';
+
+import {
+  STRUCTURED_QUESTION_OPTIONS,
+  STRUCTURED_QUESTIONS_PER_REQUEST,
+  type StructuredAgentAction,
+  type StructuredAgentCommand,
+  type StructuredAgentDiffFile,
+  type StructuredQuestion
 } from '../../../shared/agent/contracts';
 import type { StructuredAgentEventDraft } from '../runtime/event-sequencer';
 import { createFullTextUnifiedDiff } from '../diff/unified-diff';
@@ -13,6 +18,11 @@ import type {
   StructuredAgentAdapter,
   StructuredAgentAdapterContext
 } from './structured-agent-adapter';
+import {
+  mcpFormContent,
+  mcpFormQuestions,
+  type McpQuestionForm
+} from './structured-questions';
 
 export interface ClaudeQueryLike extends AsyncIterable<unknown> {
   interrupt(): Promise<unknown>;
@@ -40,6 +50,8 @@ export interface ClaudePermissionOptions {
   description?: string;
   decisionReason?: string;
   suggestions?: unknown[];
+  /** Aborted when Claude no longer needs the answer, such as a cancelled turn. */
+  signal?: AbortSignal;
 }
 
 export type ClaudeCanUseTool = (
@@ -47,6 +59,24 @@ export type ClaudeCanUseTool = (
   input: Record<string, unknown>,
   options: ClaudePermissionOptions
 ) => Promise<unknown>;
+
+/** An MCP server asking, through Claude, for a form or a visit to a page. */
+export interface ClaudeElicitationRequest {
+  serverName: string;
+  message: string;
+  mode?: 'form' | 'url';
+  url?: string;
+  requestedSchema?: Record<string, unknown>;
+}
+
+export type ClaudeElicitationReply =
+  | { action: 'accept'; content?: Record<string, unknown> }
+  | { action: 'decline' | 'cancel' };
+
+export type ClaudeElicitationHandler = (
+  request: ClaudeElicitationRequest,
+  options: { signal: AbortSignal }
+) => Promise<ClaudeElicitationReply>;
 
 export interface ClaudeStructuredQueryFactoryOptions {
   executablePath: string;
@@ -56,6 +86,7 @@ export interface ClaudeStructuredQueryFactoryOptions {
   settingSources: readonly ['user', 'project', 'local'];
   input: AsyncIterable<unknown>;
   canUseTool: ClaudeCanUseTool;
+  onElicitation: ClaudeElicitationHandler;
 }
 
 export type ClaudeStructuredQueryFactory = (
@@ -110,6 +141,34 @@ interface PendingPermission {
   suggestions: unknown[];
   resolve(value: unknown): void;
 }
+
+type PendingQuestion =
+  | {
+    kind: 'ask';
+    turnId: string;
+    input: Record<string, unknown>;
+    /** Lumora's question id to the question text Claude keys its answers by. */
+    prompts: ReadonlyMap<string, string>;
+    resolve(value: unknown): void;
+  }
+  | {
+    kind: 'elicitation';
+    turnId: string;
+    form: McpQuestionForm | null;
+    resolve(value: unknown): void;
+  };
+
+const AskUserQuestionSchema = z.object({
+  questions: z.array(z.object({
+    question: z.string().trim().min(1),
+    header: z.string(),
+    options: z.array(z.object({
+      label: z.string().trim().min(1),
+      description: z.string().optional()
+    })).min(1).max(STRUCTURED_QUESTION_OPTIONS),
+    multiSelect: z.boolean().optional()
+  })).min(1).max(STRUCTURED_QUESTIONS_PER_REQUEST)
+});
 
 class AsyncInputQueue implements AsyncIterable<unknown> {
   private readonly values: unknown[] = [];
@@ -212,6 +271,9 @@ async function loadDefaultDependencies(): Promise<{
         canUseTool: options.canUseTool as NonNullable<
           NonNullable<Parameters<typeof sdk.query>[0]['options']>['canUseTool']
         >,
+        onElicitation: options.onElicitation as NonNullable<
+          NonNullable<Parameters<typeof sdk.query>[0]['options']>['onElicitation']
+        >,
         ...(options.resumeSessionId === null
           ? options.newSessionId === null
             ? {}
@@ -234,6 +296,7 @@ export function createClaudeStructuredAdapter(
     throw new Error('The Claude adapter requires a Claude context.');
   }
   const pendingPermissions = new Map<string, PendingPermission>();
+  const pendingQuestions = new Map<string, PendingQuestion>();
   const pendingDiffs = new Map<string, {
     turnId: string;
     files: StructuredAgentDiffFile[];
@@ -350,6 +413,7 @@ export function createClaudeStructuredAdapter(
       (previousState === 'completed' && state !== 'failed')
     ) return;
     completedTurnStates.set(turnId, state);
+    settleQuestions(turnId);
     if (completedTurnStates.size > 512) {
       const oldest = completedTurnStates.keys().next().value;
       if (oldest !== undefined) completedTurnStates.delete(oldest);
@@ -391,8 +455,123 @@ export function createClaudeStructuredAdapter(
     return turnId;
   };
 
+  /**
+   * Lets go of a question nobody answered — its turn ended, Claude withdrew it,
+   * or the session closed — with the reply that says so.
+   */
+  const settleQuestion = (requestId: string): void => {
+    const pending = pendingQuestions.get(requestId);
+    if (pending === undefined) return;
+    pendingQuestions.delete(requestId);
+    pending.resolve(pending.kind === 'ask'
+      ? { behavior: 'deny', message: 'The question was not answered.' }
+      : { action: 'cancel' });
+    if (closed) return;
+    emit({
+      turnId: pending.turnId,
+      parentEventId: null,
+      kind: 'question.resolved',
+      payload: { requestId, outcome: 'cancelled' }
+    });
+  };
+  const settleQuestions = (turnId: string | null): void => {
+    for (const [requestId, pending] of [...pendingQuestions]) {
+      if (turnId === null || pending.turnId === turnId) settleQuestion(requestId);
+    }
+  };
+
+  /** Claude's AskUserQuestion, shown as questions rather than a permission to allow. */
+  const askQuestions = (
+    turnId: string,
+    permission: ClaudePermissionOptions,
+    toolInput: Record<string, unknown>,
+    asked: z.infer<typeof AskUserQuestionSchema>
+  ): Promise<unknown> => {
+    const requestId = `claude-question-${permission.toolUseID}`.slice(0, 256);
+    const questions: StructuredQuestion[] = asked.questions.map((question, index) => {
+      const header = question.header.trim();
+      const described = (description: string | undefined): string | null => {
+        const text = description?.trim() ?? '';
+        return text === '' ? null : text.slice(0, 2_048);
+      };
+      return {
+        id: `question-${index}`,
+        header: header === '' ? null : header.slice(0, 128),
+        prompt: question.question.slice(0, 4_096),
+        answer: 'choice',
+        options: question.options.map((option) => ({
+          label: option.label.slice(0, 512),
+          description: described(option.description)
+        })),
+        multiSelect: question.multiSelect === true,
+        // Claude offers its own Other beside the choices it lists.
+        allowOther: true,
+        secret: false,
+        required: true
+      };
+    });
+    emit({
+      turnId,
+      parentEventId: null,
+      kind: 'question.requested',
+      payload: { requestId, source: 'agent', serverName: null, message: null, link: null, questions }
+    });
+    return new Promise((resolve) => {
+      pendingQuestions.set(requestId, {
+        kind: 'ask',
+        turnId,
+        input: toolInput,
+        prompts: new Map(questions.map((question, index) => [
+          question.id,
+          asked.questions[index]!.question
+        ])),
+        resolve
+      });
+      permission.signal?.addEventListener('abort', () => settleQuestion(requestId), { once: true });
+    });
+  };
+
+  const onElicitation: ClaudeElicitationHandler = async (request, { signal }) => {
+    // A form turns into questions and a page to visit becomes a link; a form
+    // Lumora cannot show faithfully is declined rather than half-answered.
+    const form = request.mode === 'url' ? null : mcpFormQuestions(request.requestedSchema);
+    const link = request.mode === 'url' && /^https?:\/\//iu.test(request.url ?? '')
+      ? request.url!.slice(0, 4_096)
+      : null;
+    if (form === null && link === null) return { action: 'decline' };
+    const turnId = currentTurnId ?? `claude-turn-${Math.max(1, turnNumber)}`;
+    const requestId = `claude-form-${randomUUID()}`;
+    const message = request.message.trim();
+    emit({
+      turnId,
+      parentEventId: null,
+      kind: 'question.requested',
+      payload: {
+        requestId,
+        source: 'mcp',
+        serverName: request.serverName.trim().slice(0, 256) || null,
+        message: message === '' ? null : message.slice(0, 8_192),
+        link,
+        questions: form?.questions ?? []
+      }
+    });
+    return new Promise((resolve) => {
+      pendingQuestions.set(requestId, {
+        kind: 'elicitation',
+        turnId,
+        form,
+        resolve: resolve as (value: unknown) => void
+      });
+      signal.addEventListener('abort', () => settleQuestion(requestId), { once: true });
+    });
+  };
+
   const canUseTool: ClaudeCanUseTool = async (toolName, toolInput, permission) => {
     const turnId = currentTurnId ?? `claude-turn-${Math.max(1, turnNumber)}`;
+    if (toolName === 'AskUserQuestion') {
+      const asked = AskUserQuestionSchema.safeParse(toolInput);
+      if (asked.success) return askQuestions(turnId, permission, toolInput, asked.data);
+    }
     const approvalId = `claude-${permission.toolUseID}`.slice(0, 256);
     const command = stringValue(toolInput.command);
     emit({
@@ -624,7 +803,8 @@ export function createClaudeStructuredAdapter(
       newSessionId: resumeSessionId === null ? nativeSessionId : null,
       settingSources: ['user', 'project', 'local'],
       input: nextInput,
-      canUseTool
+      canUseTool,
+      onElicitation
     });
     const generation = ++queryGeneration;
     hasStartedQuery = true;
@@ -795,6 +975,45 @@ export function createClaudeStructuredAdapter(
         completeTurn(turnId, 'cancelled', null);
         return;
       }
+      if (action.kind === 'question.respond') {
+        const question = pendingQuestions.get(action.requestId);
+        if (question === undefined) throw new Error('The Claude question is no longer pending.');
+        let reply: unknown;
+        if (question.kind === 'ask') {
+          reply = action.outcome === 'decline'
+            ? { behavior: 'deny', message: 'The user declined to answer.' }
+            : {
+              behavior: 'allow',
+              updatedInput: {
+                ...question.input,
+                answers: Object.fromEntries([...question.prompts].map(([id, prompt]) => [
+                  prompt,
+                  (action.answers[id] ?? []).join(', ')
+                ]))
+              }
+            };
+        } else if (action.outcome === 'decline') {
+          reply = { action: 'decline' };
+        } else {
+          // Checked before the question is let go, so a bad answer can be fixed.
+          const content = question.form === null
+            ? null
+            : mcpFormContent(question.form, action.answers);
+          reply = content === null ? { action: 'accept' } : { action: 'accept', content };
+        }
+        pendingQuestions.delete(action.requestId);
+        question.resolve(reply);
+        emit({
+          turnId: question.turnId,
+          parentEventId: null,
+          kind: 'question.resolved',
+          payload: {
+            requestId: action.requestId,
+            outcome: action.outcome === 'decline' ? 'declined' : 'answered'
+          }
+        });
+        return;
+      }
       const pending = pendingPermissions.get(action.approvalId);
       if (pending === undefined) throw new Error('The Claude permission is no longer pending.');
       pendingPermissions.delete(action.approvalId);
@@ -824,6 +1043,7 @@ export function createClaudeStructuredAdapter(
         pending.resolve({ behavior: 'deny', message: 'Lumora closed the session.' });
       }
       pendingPermissions.clear();
+      settleQuestions(null);
       pendingDiffs.clear();
       turnIdByUserMessageUuid.clear();
       turnIdByAssistantMessageUuid.clear();
