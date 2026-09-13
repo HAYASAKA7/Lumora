@@ -1195,4 +1195,127 @@ describe('Claude structured adapter', () => {
       })).rejects.toThrow('mode is not available');
     });
   });
+
+  describe('Claude plan and compaction', () => {
+    async function openLive() {
+      const query = new FakeQuery([{
+        type: 'system', subtype: 'init', session_id: 'claude-native-5'
+      }]);
+      const current = context();
+      const adapter = createClaudeStructuredAdapter(current.value, {
+        createQuery: () => query,
+        loadHistory: async () => [],
+        createNativeSessionId: () => 'claude-native-5'
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      await adapter.dispatch({
+        kind: 'prompt.submit', connectionId: 'connection-claude', text: 'Fix the build', attachmentTokens: []
+      });
+      return { current, query };
+    }
+    const ofKind = (events: unknown[], kind: string) => events.filter((event) => (
+      (event as { kind?: string }).kind === kind
+    )) as Array<{ payload: Record<string, unknown> }>;
+
+    it('shows Claude\u2019s to-do list as the plan, not as a tool it used', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'assistant',
+        session_id: 'claude-native-5',
+        parent_tool_use_id: null,
+        message: {
+          content: [{
+            type: 'tool_use', id: 'todo-1', name: 'TodoWrite',
+            input: {
+              todos: [
+                { content: 'Reproduce the failure', status: 'completed', activeForm: 'Reproducing the failure' },
+                { content: 'Fix the import', status: 'in_progress', activeForm: 'Fixing the import' },
+                { content: 'Run the tests', status: 'pending', activeForm: 'Running the tests' }
+              ]
+            }
+          }]
+        }
+      });
+      query.emit({
+        type: 'user',
+        session_id: 'claude-native-5',
+        message: { content: [{ type: 'tool_result', tool_use_id: 'todo-1', is_error: false }] }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'plan.updated')).toHaveLength(1));
+      expect(ofKind(current.events, 'plan.updated')[0]?.payload).toEqual({
+        items: [
+          { id: 'todo-0', text: 'Reproduce the failure', status: 'completed' },
+          { id: 'todo-1', text: 'Fix the import', status: 'in_progress' },
+          { id: 'todo-2', text: 'Run the tests', status: 'pending' }
+        ]
+      });
+      expect(ofKind(current.events, 'tool.started')).toEqual([]);
+      expect(ofKind(current.events, 'tool.updated')).toEqual([]);
+    });
+
+    it('leaves a subagent\u2019s to-do list as its own tool call rather than the plan', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'assistant',
+        session_id: 'claude-native-5',
+        parent_tool_use_id: 'task-1',
+        message: {
+          content: [{
+            type: 'tool_use', id: 'todo-sub', name: 'TodoWrite',
+            input: { todos: [{ content: 'Search the logs', status: 'pending', activeForm: 'Searching' }] }
+          }]
+        }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'tool.started')).toHaveLength(1));
+      expect(ofKind(current.events, 'plan.updated')).toEqual([]);
+    });
+
+    it('shows the plan as it stood when a session is resumed', async () => {
+      const query = new FakeQuery([{ type: 'system', subtype: 'init', session_id: 'claude-native-6' }]);
+      const adapter = createClaudeStructuredAdapter(context('resume').value, {
+        createQuery: () => query,
+        loadHistory: async () => [{
+          type: 'assistant',
+          uuid: 'history-plan',
+          parent_tool_use_id: null,
+          message: {
+            content: [{
+              type: 'tool_use', id: 'todo-old', name: 'TodoWrite',
+              input: { todos: [{ content: 'Ship it', status: 'completed', activeForm: 'Shipping' }] }
+            }]
+          }
+        }],
+        createNativeSessionId: () => 'claude-native-6'
+      });
+
+      const opened = await adapter.open();
+
+      expect(opened.initialEvents).toContainEqual(expect.objectContaining({
+        kind: 'plan.updated',
+        payload: { items: [{ id: 'todo-0', text: 'Ship it', status: 'completed' }] }
+      }));
+    });
+
+    it('shows when Claude compacted its context', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'claude-native-5',
+        compact_metadata: { trigger: 'auto', pre_tokens: 180_000, post_tokens: 24_000 }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'tool.updated')).toHaveLength(1));
+      expect(ofKind(current.events, 'tool.started')[0]?.payload).toEqual({
+        activityId: 'claude-compact-1', title: 'Compact context', detail: null
+      });
+      expect(ofKind(current.events, 'tool.updated')[0]?.payload).toMatchObject({ status: 'completed' });
+    });
+  });
 });

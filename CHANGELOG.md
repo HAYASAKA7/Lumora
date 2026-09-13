@@ -9,6 +9,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Show Claude Code's to-do list as the plan checklist in the unified interface,
+  the way Codex's plan already appears, instead of a row saying Claude used its
+  to-do tool. A subagent's own to-do list stays with that subagent's work, and
+  Claude compacting its context now shows in the process as Codex's does.
+
 - Keep writing while an agent works. Codex takes a message into the turn under
   way, shown beneath the prompt as sent while it was working. Claude Code and
   ACP agents take one message at a time, so the unified interface holds yours

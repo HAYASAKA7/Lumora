@@ -184,6 +184,11 @@ Provider commands, tool calls, approvals, and related operations share the
 collapsible **Process** entry. Agent messages remain in the conversation while
 implementation activity can be expanded only when needed.
 
+An agent's plan appears there as a checklist that updates as the work moves on:
+Codex's plan, and Claude Code's to-do list, in place of the tool call Claude
+uses to write it. When either agent compacts its context to make room, the
+process shows that too.
+
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_activity.png" alt="Lumora Unified UI showing expanded provider tool activity during a running turn" width="1100">
 </p>

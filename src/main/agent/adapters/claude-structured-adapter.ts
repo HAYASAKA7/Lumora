@@ -253,6 +253,14 @@ function contentBlocks(message: unknown): readonly Record<string, unknown>[] {
   });
 }
 
+/** Claude's TodoWrite: the whole to-do list, written again each time it changes. */
+const TodoWriteSchema = z.object({
+  todos: z.array(z.object({
+    content: z.string().trim().min(1),
+    status: z.enum(['pending', 'in_progress', 'completed'])
+  }).passthrough()).max(100)
+});
+
 function historyEvents(messages: readonly unknown[]): StructuredAgentEventDraft[] {
   return messages.flatMap((value, index) => {
     const entry = object(value);
@@ -261,7 +269,28 @@ function historyEvents(messages: readonly unknown[]): StructuredAgentEventDraft[
     const turnId = `claude-${uuid}`.slice(0, 256);
     const blocks = contentBlocks(entry?.message);
     if (type !== 'user' && type !== 'assistant') return [];
-    return blocks.flatMap((block) => {
+    return blocks.flatMap((block): StructuredAgentEventDraft[] => {
+      if (
+        type === 'assistant' && block.type === 'tool_use' && block.name === 'TodoWrite' &&
+        stringValue(entry?.parent_tool_use_id) === null
+      ) {
+        // A resumed session shows the plan as it stood, as a live one does.
+        const todos = TodoWriteSchema.safeParse(block.input);
+        return todos.success
+          ? [{
+            turnId,
+            parentEventId: null,
+            kind: 'plan.updated',
+            payload: {
+              items: todos.data.todos.map((todo, todoIndex) => ({
+                id: `todo-${todoIndex}`,
+                text: bounded(todo.content, 2_048),
+                status: todo.status
+              }))
+            }
+          }]
+          : [];
+      }
       if (block.type !== 'text' || typeof block.text !== 'string' || block.text.length === 0) {
         return [];
       }
@@ -322,6 +351,9 @@ export function createClaudeStructuredAdapter(
   }
   const pendingPermissions = new Map<string, PendingPermission>();
   const pendingQuestions = new Map<string, PendingQuestion>();
+  /** TodoWrite calls shown as the plan, whose tool results would only repeat it. */
+  const planToolUseIds = new Set<string>();
+  let compactionCount = 0;
   /** Claude's permission mode, as Claude last reported it. */
   let permissionMode = 'default';
   const pendingDiffs = new Map<string, {
@@ -692,6 +724,25 @@ export function createClaudeStructuredAdapter(
     if (sessionId !== null && nativeSessionId !== null && sessionId !== nativeSessionId) return;
     const turnId = resolveMessageTurnId(message);
 
+    if (message.type === 'system' && message.subtype === 'compact_boundary') {
+      // Claude summarized the conversation to make room, the way Codex compacts.
+      compactionCount += 1;
+      const activityId = `claude-compact-${compactionCount}`;
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'tool.started',
+        payload: { activityId, title: 'Compact context', detail: null }
+      });
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'tool.updated',
+        payload: { activityId, status: 'completed', detail: null }
+      });
+      return;
+    }
+
     if (message.type === 'system' && message.subtype === 'api_retry') {
       // Claude is trying again on its own; say so, and which attempt this is.
       const named = claudeErrorKind(message.error);
@@ -787,6 +838,30 @@ export function createClaudeStructuredAdapter(
         } else if (block.type === 'tool_use' && typeof block.id === 'string') {
           const toolName = stringValue(block.name) ?? 'Tool';
           const toolInput = object(block.input);
+          // Claude's own to-do list is its plan; a subagent's list is only its own work.
+          const todos = toolName === 'TodoWrite' && stringValue(message.parent_tool_use_id) === null
+            ? TodoWriteSchema.safeParse(toolInput)
+            : null;
+          if (todos?.success === true) {
+            planToolUseIds.add(block.id);
+            if (planToolUseIds.size > 256) {
+              const oldest = planToolUseIds.values().next().value;
+              if (oldest !== undefined) planToolUseIds.delete(oldest);
+            }
+            emit({
+              turnId,
+              parentEventId: null,
+              kind: 'plan.updated',
+              payload: {
+                items: todos.data.todos.map((todo, index) => ({
+                  id: `todo-${index}`,
+                  text: bounded(todo.content, 2_048),
+                  status: todo.status
+                }))
+              }
+            });
+            continue;
+          }
           if (
             toolName.toLocaleLowerCase() === 'edit' &&
             typeof toolInput?.file_path === 'string' &&
@@ -827,6 +902,7 @@ export function createClaudeStructuredAdapter(
     if (message.type === 'user') {
       for (const block of contentBlocks(message.message)) {
         if (block.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue;
+        if (planToolUseIds.has(block.tool_use_id)) continue;
         emit({
           turnId,
           parentEventId: null,
