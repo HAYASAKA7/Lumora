@@ -234,18 +234,20 @@ describe('WindowRoot', () => {
     expect(await screen.findByTestId('remote-appearance-root'))
       .toHaveAttribute('data-theme', 'dark');
 
+    /**
+     * The window listens for focus from an effect, and React runs effects after
+     * it paints. The dark theme can be on screen before that listener exists,
+     * so on a loaded machine a focus fired straight away went unheard and the
+     * theme never changed. Flushing the pending effects first means the focus
+     * below is always heard.
+     */
+    await act(async () => {});
     await act(async () => {
       fireEvent.focus(window);
     });
 
-    /**
-     * Focus starts an appearance request, and the theme only lands once that
-     * promise resolves and React commits the state it carries. Waiting for the
-     * attribute keeps the test honest on a loaded machine, where a single act
-     * flush is not always enough.
-     */
+    await waitFor(() => expect(getAppearancePresentation).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByTestId('remote-appearance-root'))
       .toHaveAttribute('data-theme', 'light'));
-    expect(getAppearancePresentation).toHaveBeenCalledTimes(2);
   });
 });
