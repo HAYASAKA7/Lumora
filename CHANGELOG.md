@@ -7,26 +7,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-09-13
+
 ### Added
 
-- Show Claude Code's to-do list as the plan checklist in the unified interface,
-  the way Codex's plan already appears, instead of a row saying Claude used its
-  to-do tool. A subagent's own to-do list stays with that subagent's work, and
-  Claude compacting its context now shows in the process as Codex's does.
-
-- Keep writing while an agent works. Codex takes a message into the turn under
-  way, shown beneath the prompt as sent while it was working. Claude Code and
-  ACP agents take one message at a time, so the unified interface holds yours
-  above the message box and sends it when the turn ends, including when you
-  stop the turn to redirect the agent. A waiting message can be removed, and
-  several go one turn at a time. Send and Stop now sit side by side during a turn.
-
-- Switch how an agent works from the message box. A **Mode** picker beside the
-  attach button offers Codex's **Default** and **Plan**, Claude Code's
-  **Default**, **Accept edits** and **Plan**, and whatever modes an ACP agent
-  such as Gemini CLI advertises. It follows the agent when the agent changes
-  mode itself, such as Claude leaving plan mode once a plan is approved. Lumora
-  never switches Claude into bypassing permissions.
 - Answer an agent's questions in the unified interface. When Codex asks which
   option you want, when Claude Code puts a multiple-choice question to you, or
   when an MCP server needs a short form or a sign-in page, the question appears
@@ -34,12 +18,27 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Answers go only to the agent: the conversation notes that a question was
   answered or declined, never what you answered, and a secret field hides what
   you type. A question the agent no longer needs closes on its own.
+- Switch how an agent works from the message box. A **Mode** picker beside the
+  attach button offers Codex's **Default** and **Plan**, Claude Code's
+  **Default**, **Accept edits** and **Plan**, and whatever modes an ACP agent
+  such as Gemini CLI advertises. It follows the agent when the agent changes
+  mode itself, such as Claude leaving plan mode once a plan is approved. Lumora
+  never switches Claude into bypassing permissions.
+- Keep writing while an agent works. Codex takes a message into the turn under
+  way, shown beneath the prompt as sent while it was working. Claude Code and
+  ACP agents take one message at a time, so the unified interface holds yours
+  above the message box and sends it when the turn ends, including when you
+  stop the turn to redirect the agent. A waiting message can be removed, and
+  several go one turn at a time. Send and Stop now sit side by side during a
+  turn.
+- Show Claude Code's to-do list as the plan checklist in the unified interface,
+  the way Codex's plan already appears, instead of a row saying Claude used its
+  to-do tool. A resumed session shows the plan as it stood, a subagent's own
+  to-do list stays with that subagent's work, and Claude compacting its context
+  now shows in the process as Codex's does.
 
 ### Fixed
 
-- Leave Codex's plan mode. `/plan` switched a session into plan mode with no way
-  back out short of starting a new session; the mode picker now switches back to
-  **Default**, and `/permissions` shows which permission profile is in use.
 - Stop a question from an agent ending its turn. Codex's requests for input,
   for an MCP form, and for extra permissions were refused, so the agent failed
   without saying why. Claude Code's questions appeared as a permission to allow
@@ -53,6 +52,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   attempts while the agent tries again, and shows when a usage limit resets.
   An error clears itself once the agent is heard from again, not when a command
   such as `/status` runs, and a turn you stop is no longer reported as a failure.
+- Leave Codex's plan mode. `/plan` switched a session into plan mode with no way
+  back out short of starting a new session; the mode picker now switches back to
+  **Default**, and `/permissions` shows which permission profile is in use.
 - Keep Codex's subscription limits current in **Session details**. Codex
   reports its limits as they change, and those reports were ignored, so the
   details showed only what was read when they were last opened.
