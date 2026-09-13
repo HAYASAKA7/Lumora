@@ -85,9 +85,21 @@ from conversation height and keeps focus after sending.
   <img src="screenshots/0.5/unified-ui/unified_ui_conversation.png" alt="Lumora Unified UI conversation with Markdown, model selector, composer, and session sidebar" width="1100">
 </p>
 
-During a turn, the status changes to Running and the Send control becomes a
-stop control. Cancelling requests provider cancellation through the structured
+During a turn, the status changes to Running and a stop control appears beside
+Send. Cancelling requests provider cancellation through the structured
 transport; it does not terminate the whole Lumora application.
+
+You can keep writing while the agent works. **Codex** takes a message into the
+turn under way, and the conversation shows it beneath the prompt as sent while
+Codex was working. **Claude Code** and **ACP agents** take one message at a
+time, so Lumora holds yours above the message box, marked as waiting, and sends
+it when the turn ends — also when you stop the turn, which is the quickest way
+to redirect an agent that has gone the wrong way. Several waiting messages go
+one turn at a time, and a waiting message can be removed before it is sent. A
+command waits for the turn to end rather than being sent into it, and so does
+a message sent during a Codex review or compaction, which cannot take one. A
+waiting message that cannot be sent is marked **Not sent** and stays until you
+send it again or remove it.
 
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_running.png" alt="A running Lumora Unified UI turn with process activity and the stop control" width="1100">

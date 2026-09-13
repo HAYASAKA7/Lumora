@@ -44,7 +44,7 @@ import {
   prepareImage
 } from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
-import { CrossIcon, FileIcon, InfoIcon, PaperclipIcon } from '../ui/icons';
+import { CrossIcon, FileIcon, InfoIcon, PaperclipIcon, SendIcon } from '../ui/icons';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
@@ -80,6 +80,18 @@ interface ComposerImage {
   id: number;
   previewUrl: string | null;
   token: string | null;
+}
+
+/**
+ * A message waiting for the turn under way to end, for an agent that cannot
+ * take one mid-turn. It is sent, as it was composed, when the turn ends.
+ */
+interface QueuedPrompt {
+  id: number;
+  text: string;
+  attachmentTokens: readonly string[];
+  /** It could not be sent; it waits for the user to send it again or remove it. */
+  failed: boolean;
 }
 
 /** A file the message points the agent at: its path travels, not its bytes. */
@@ -138,6 +150,11 @@ export function StructuredAgentWorkspace({
   const [composerImages, setComposerImages] = useState<
     Readonly<Record<string, readonly ComposerImage[]>>
   >({});
+  const [queuedPrompts, setQueuedPrompts] = useState<
+    Readonly<Record<string, readonly QueuedPrompt[]>>
+  >({});
+  /** The last turn each session sent a queued message after, so it sends one per turn. */
+  const queuedSentAfter = useRef<Record<string, string | undefined>>({});
   const [composerFiles, setComposerFiles] = useState<
     Readonly<Record<string, readonly ComposerFile[]>>
   >({});
@@ -218,6 +235,7 @@ export function StructuredAgentWorkspace({
     );
     setComposerImages(onlyActive);
     setComposerFiles(onlyActive);
+    setQueuedPrompts(onlyActive);
   }, [snapshots]);
   useEffect(() => {
     const connectionId = snapshot?.runtime.connectionId;
@@ -263,6 +281,41 @@ export function StructuredAgentWorkspace({
       scroller.scrollHeight - restore.scrollHeight
     );
   }, [runtime?.connectionId, visibleTurnCounts]);
+  useEffect(() => {
+    if (runtime === undefined || runtime.state !== 'ready' || sending) return;
+    const connectionId = runtime.connectionId;
+    const next = queuedPrompts[connectionId]?.[0];
+    const lastTurn = state.turns.at(-1);
+    if (next === undefined || next.failed || lastTurn?.status === 'running') return;
+    // One waiting message per finished turn: the next waits for this one's turn.
+    if (queuedSentAfter.current[connectionId] === lastTurn?.id) return;
+    queuedSentAfter.current[connectionId] = lastTurn?.id;
+    setSending(true);
+    setActionError(false);
+    void api.dispatchStructuredAgentAction({
+      kind: 'prompt.submit',
+      connectionId,
+      text: next.text,
+      attachmentTokens: [...next.attachmentTokens]
+    }).then(
+      () => setQueuedPrompts((current) => ({
+        ...current,
+        [connectionId]: (current[connectionId] ?? []).filter(({ id }) => id !== next.id)
+      })),
+      () => {
+        // Not retried on its own: marked, so the user can send it again or remove it.
+        queuedSentAfter.current[connectionId] = undefined;
+        setActionError(true);
+        setQueuedPrompts((current) => ({
+          ...current,
+          [connectionId]: (current[connectionId] ?? []).map((item) => (
+            item.id === next.id ? { ...item, failed: true } : item
+          ))
+        }));
+      }
+    ).finally(() => setSending(false));
+  }, [api, queuedPrompts, runtime, sending, state.turns]);
+
   if (snapshot === undefined || runtime === undefined) return null;
 
   const draft = drafts[runtime.connectionId] ?? '';
@@ -274,6 +327,8 @@ export function StructuredAgentWorkspace({
   const files = composerFiles[runtime.connectionId] ?? [];
   const imagesStaging = images.some(({ token }) => token === null);
   const acceptsImages = runtime.acceptsImages === true;
+  const canSteer = runtime.canSteer === true;
+  const queued = queuedPrompts[runtime.connectionId] ?? [];
   const canAttachImages = acceptsImages && runtime.state === 'ready' && !sending;
   const visibleProblem = composerProblem?.connectionId === runtime.connectionId
     ? composerProblem.problem
@@ -422,6 +477,8 @@ export function StructuredAgentWorkspace({
     ? filteredChoices.length
     : filteredCommands.length;
   const runningTurn = state.turns.at(-1)?.status === 'running';
+  // A message goes into the running turn only if the agent and the turn both take it.
+  const steerNow = runningTurn && canSteer && state.turns.at(-1)?.steerable !== false;
   const hiddenTurnCount = Math.max(0, state.turns.length - visibleTurnCount);
   const visibleTurns = hiddenTurnCount === 0
     ? state.turns
@@ -456,6 +513,8 @@ export function StructuredAgentWorkspace({
     }
   };
   const executeCommand = (commandId: string, argument: string) => {
+    // A command waits for the turn to end, however it was chosen.
+    if (runningTurn) return;
     restoreComposerFocus.current = true;
     setSending(true);
     if (commandId === 'copy') {
@@ -575,7 +634,6 @@ export function StructuredAgentWorkspace({
       (text === '' && images.length === 0 && files.length === 0) ||
       imagesStaging ||
       sending ||
-      runningTurn ||
       runtime.state !== 'ready'
     ) return;
     const commandMatch = /^(\/[^\s]+)(?:\s+([\s\S]*))?$/.exec(text);
@@ -583,6 +641,8 @@ export function StructuredAgentWorkspace({
       ? undefined
       : commands.find(({ name }) => name.toLocaleLowerCase() === commandMatch[1]!.toLocaleLowerCase());
     if (command !== undefined) {
+      // A command waits for the turn to end; it is not a message to send into it.
+      if (runningTurn) return;
       const argument = commandMatch?.[2]?.trim() ?? '';
       if (argument === '' && (command.choices?.length ?? 0) > 0) {
         setDraft(`${command.name} `);
@@ -593,28 +653,56 @@ export function StructuredAgentWorkspace({
       return;
     }
     restoreComposerFocus.current = true;
-    setSending(true);
     // The agent reads a file itself, so the message carries paths, not bytes.
     const note = files.length === 0
       ? ''
       : [t('terminal.unified.file-note'), ...files.map(({ path }) => path)].join(lineBreak);
+    const message = [text, note].filter((part) => part !== '').join(lineBreak + lineBreak);
+    const attachmentTokens = images.flatMap(({ token }) => token === null ? [] : [token]);
+    const clearComposer = () => {
+      setDrafts((current) => ({
+        ...current,
+        [runtime.connectionId]: ''
+      }));
+      updateImages(runtime.connectionId, () => []);
+      setComposerFiles((current) => ({ ...current, [runtime.connectionId]: [] }));
+      setComposerProblem(null);
+    };
+    if (runningTurn && !steerNow) {
+      // This agent takes one message at a time; hold it for the end of the turn.
+      nextImageId.current += 1;
+      const id = nextImageId.current;
+      setQueuedPrompts((current) => ({
+        ...current,
+        [runtime.connectionId]: [...(current[runtime.connectionId] ?? []), { id, text: message, attachmentTokens, failed: false }]
+      }));
+      clearComposer();
+      return;
+    }
+    setSending(true);
     void dispatch({
       kind: 'prompt.submit',
       connectionId: runtime.connectionId,
-      text: [text, note].filter((part) => part !== '').join(lineBreak + lineBreak),
-      attachmentTokens: images.flatMap(({ token }) => token === null ? [] : [token])
-    }).then(
-      () => {
-        setDrafts((current) => ({
-          ...current,
-          [runtime.connectionId]: ''
-        }));
-        updateImages(runtime.connectionId, () => []);
-        setComposerFiles((current) => ({ ...current, [runtime.connectionId]: [] }));
-        setComposerProblem(null);
-      },
-      () => undefined
-    ).finally(() => setSending(false));
+      text: message,
+      attachmentTokens
+    }).then(clearComposer, () => undefined).finally(() => setSending(false));
+  };
+  const retryQueued = (id: number) => {
+    const connectionId = runtime.connectionId;
+    setQueuedPrompts((current) => ({
+      ...current,
+      [connectionId]: (current[connectionId] ?? []).map((item) => (
+        item.id === id ? { ...item, failed: false } : item
+      ))
+    }));
+  };
+  const removeQueued = (id: number) => {
+    const connectionId = runtime.connectionId;
+    setQueuedPrompts((current) => ({
+      ...current,
+      [connectionId]: (current[connectionId] ?? []).filter((item) => item.id !== id)
+    }));
+    composer.current?.focus();
   };
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (commandListOpen && !composing.current && !event.nativeEvent.isComposing) {
@@ -749,6 +837,22 @@ export function StructuredAgentWorkspace({
                   )}
                 </section>
               )}
+              {turn.followUps.map((followUp, index) => (
+                <section
+                  className="structured-message structured-message-user structured-message-follow-up"
+                  key={`${turn.id}-follow-up-${index}`}
+                >
+                  <p className="structured-message-follow-up-label">
+                    {t('terminal.unified.sent-while-working', { provider: providerName })}
+                  </p>
+                  {followUp.text === '' ? null : <p>{followUp.text}</p>}
+                  {followUp.imageCount === 0 ? null : (
+                    <p className="structured-message-images">
+                      {t('terminal.unified.image-count', { count: followUp.imageCount })}
+                    </p>
+                  )}
+                </section>
+              ))}
               {turn.reasoning.length === 0 &&
               turn.activities.length === 0 &&
               turn.diffs.length === 0 &&
@@ -1002,6 +1106,40 @@ export function StructuredAgentWorkspace({
               ))}
             </ul>
           )}
+          {queued.length === 0 ? null : (
+            <ul
+              aria-label={t('terminal.unified.queued-messages', { provider: providerName })}
+              className="structured-composer-queue"
+            >
+              {queued.map((item) => (
+                <li className="structured-composer-queued" key={item.id}>
+                  <span className="structured-composer-queued-label">
+                    {t(item.failed ? 'terminal.unified.queued-failed' : 'terminal.unified.queued')}
+                  </span>
+                  <span className="structured-composer-queued-text">
+                    {item.text === ''
+                      ? t('terminal.unified.image-count', { count: item.attachmentTokens.length })
+                      : item.text}
+                  </span>
+                  {item.failed ? (
+                    <IconButton
+                      disabled={sending}
+                      label={t('terminal.unified.retry-queued')}
+                      onClick={() => retryQueued(item.id)}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  ) : null}
+                  <IconButton
+                    label={t('terminal.unified.remove-queued')}
+                    onClick={() => removeQueued(item.id)}
+                  >
+                    <CrossIcon />
+                  </IconButton>
+                </li>
+              ))}
+            </ul>
+          )}
           <textarea
             aria-label={t('terminal.unified.message-label', { provider: providerName })}
             disabled={runtime.state !== 'ready' || sending}
@@ -1105,6 +1243,27 @@ export function StructuredAgentWorkspace({
                 value={selectedModel}
               />
             )}
+            {runningTurn ? (
+              <button
+                aria-label={t(
+                  steerNow ? 'terminal.unified.send-while-working' : 'terminal.unified.queue-message',
+                  { provider: providerName }
+                )}
+                className="structured-composer-action structured-composer-action-follow-up"
+                data-lumora-command
+                disabled={
+                  (draft.trim() === '' && images.length === 0 && files.length === 0) ||
+                  imagesStaging ||
+                  sending
+                }
+                onClick={submit}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M10 15V5m0 0L6 9m4-4 4 4" />
+                </svg>
+              </button>
+            ) : null}
             {runningTurn ? (
               <button
                 aria-label={t('terminal.unified.cancel')}

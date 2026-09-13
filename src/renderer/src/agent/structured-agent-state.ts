@@ -54,6 +54,10 @@ export interface StructuredAgentTurnView {
   userText: string;
   /** Images the user's message carried. The images themselves are not kept. */
   userImageCount: number;
+  /** Messages the user sent into the turn after it began. */
+  followUps: readonly { text: string; imageCount: number }[];
+  /** Whether the turn, while it runs, can take a message into it. */
+  steerable: boolean;
   assistantText: string;
   reasoning: readonly string[];
   activities: readonly StructuredAgentActivityView[];
@@ -111,6 +115,8 @@ function emptyTurn(id: string): StructuredAgentTurnView {
     status: 'idle',
     userText: '',
     userImageCount: 0,
+    followUps: [],
+    steerable: true,
     assistantText: '',
     reasoning: [],
     activities: [],
@@ -185,14 +191,23 @@ export function reduceStructuredAgentEvent(
     case 'turn.completed':
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,
-        status: event.payload.state
+        status: event.payload.state,
+        ...(event.kind === 'turn.started' ? { steerable: event.payload.steerable !== false } : {})
       }));
     case 'user.message':
-      return updateTurn(next, event.turnId, (turn) => ({
-        ...turn,
-        userText: event.payload.text,
-        userImageCount: event.payload.imageCount ?? 0
-      }));
+      return updateTurn(next, event.turnId, (turn) => event.payload.followUp === true
+        ? {
+          ...turn,
+          followUps: [...turn.followUps, {
+            text: event.payload.text,
+            imageCount: event.payload.imageCount ?? 0
+          }]
+        }
+        : {
+          ...turn,
+          userText: event.payload.text,
+          userImageCount: event.payload.imageCount ?? 0
+        });
     case 'assistant.delta':
       return updateTurn(next, event.turnId, (turn) => ({
         ...turn,

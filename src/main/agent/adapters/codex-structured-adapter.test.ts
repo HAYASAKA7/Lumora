@@ -1551,4 +1551,182 @@ describe('Codex structured adapter', () => {
       kind: 'command.execute', connectionId: 'connection-1', commandId: 'mode', argument: 'yolo'
     })).rejects.toThrow('mode is not available');
   });
+
+  describe('messages sent while Codex works', () => {
+    type Answer = (method: string, params?: unknown) => Promise<unknown>;
+    // The fake answers each method with its own shape; a test swaps in one of its own.
+    const rewire = (transport: FakeTransport) =>
+      transport.request as unknown as { mockImplementation(answer: Answer): void };
+    const threadId = '019c-native-thread';
+    const userMessages = (events: unknown[]) => events.filter((event) => (
+      (event as { kind?: string }).kind === 'user.message'
+    )) as Array<{ turnId: string; payload: Record<string, unknown> }>;
+
+    async function openRunning(strategy: 'new' | 'resume' = 'new') {
+      const transport = new FakeTransport();
+      const answer = transport.request.getMockImplementation()! as Answer;
+      const current = context(strategy);
+      const adapter = createCodexStructuredAdapter(current.value, {
+        createTransport: async () => transport
+      });
+      return { adapter, answer, current, transport };
+    }
+
+    it('steers a message into the turn under way instead of starting another', async () => {
+      const { adapter, answer, current, transport } = await openRunning();
+      rewire(transport).mockImplementation(async (method: string, params?: unknown) => (
+        method === 'turn/steer' ? { turnId: 'turn-live' } : answer(method, params)
+      ));
+      const opened = await adapter.open();
+      await adapter.activate?.();
+      expect(opened.canSteer).toBe(true);
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-live', status: 'inProgress' } });
+
+      await adapter.dispatch({
+        kind: 'prompt.submit',
+        connectionId: 'connection-1',
+        text: 'Also update the docs',
+        attachmentTokens: []
+      });
+
+      expect(transport.request).toHaveBeenCalledWith('turn/steer', {
+        threadId,
+        input: [{ type: 'text', text: 'Also update the docs', text_elements: [] }],
+        expectedTurnId: 'turn-live'
+      });
+      expect(transport.request).not.toHaveBeenCalledWith('turn/start', expect.anything());
+      expect(userMessages(current.events)).toEqual([expect.objectContaining({
+        turnId: 'turn-live',
+        payload: { text: 'Also update the docs', followUp: true }
+      })]);
+
+      // Codex echoes the message as an item of the turn; it is not shown twice.
+      transport.emit('item/started', {
+        threadId,
+        turnId: 'turn-live',
+        item: { type: 'userMessage', id: 'item-steer', content: [{ type: 'text', text: 'Also update the docs' }] }
+      });
+      expect(userMessages(current.events)).toHaveLength(1);
+    });
+
+    it('starts the next turn with a message sent just as the last one ended', async () => {
+      const { adapter, answer, current, transport } = await openRunning();
+      rewire(transport).mockImplementation(async (method: string, params?: unknown) => {
+        if (method !== 'turn/steer') return answer(method, params);
+        transport.emit('turn/completed', {
+          threadId,
+          turn: { id: 'turn-earlier', status: 'completed', items: [] }
+        });
+        throw new Error('There is no active turn to steer.');
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-earlier', status: 'inProgress' } });
+
+      await adapter.dispatch({
+        kind: 'prompt.submit',
+        connectionId: 'connection-1',
+        text: 'One more thing',
+        attachmentTokens: []
+      });
+
+      expect(transport.request).toHaveBeenCalledWith('turn/start', {
+        threadId,
+        input: [{ type: 'text', text: 'One more thing', text_elements: [] }]
+      });
+      expect(userMessages(current.events).at(-1)).toMatchObject({
+        turnId: 'turn-live',
+        payload: { text: 'One more thing' }
+      });
+      expect(userMessages(current.events).at(-1)?.payload.followUp).toBeUndefined();
+    });
+
+    it('shows a message that was steered into a turn as a follow-up when the session is resumed', async () => {
+      const { adapter, answer, transport } = await openRunning('resume');
+      rewire(transport).mockImplementation(async (method: string, params?: unknown) => {
+        const response = await answer(method, params);
+        if (method !== 'thread/resume') return response;
+        return {
+          ...(response as Record<string, unknown>),
+          initialTurnsPage: {
+            data: [{
+              id: 'turn-steered',
+              status: 'completed',
+              items: [
+                { type: 'userMessage', id: 'item-first', content: [{ type: 'text', text: 'Fix the tests' }] },
+                { type: 'agentMessage', id: 'item-agent', text: 'Working on it' },
+                { type: 'userMessage', id: 'item-second', content: [{ type: 'text', text: 'Skip the flaky one' }] }
+              ]
+            }],
+            nextCursor: null
+          }
+        };
+      });
+
+      const opened = await adapter.open();
+
+      expect(userMessages([...(opened.initialEvents ?? [])])).toEqual([
+        expect.objectContaining({ turnId: 'turn-steered', payload: { text: 'Fix the tests' } }),
+        expect.objectContaining({
+          turnId: 'turn-steered',
+          payload: { text: 'Skip the flaky one', followUp: true }
+        })
+      ]);
+    });
+  });
+
+  describe('when a turn cannot take a message', () => {
+    type Answer = (method: string, params?: unknown) => Promise<unknown>;
+    const threadId = '019c-native-thread';
+
+    it('starts the next turn when Codex refuses the steer just before reporting the end', async () => {
+      const transport = new FakeTransport();
+      const answer = transport.request.getMockImplementation()! as Answer;
+      (transport.request as unknown as { mockImplementation(fn: Answer): void }).mockImplementation(
+        async (method, params) => {
+          if (method !== 'turn/steer') return answer(method, params);
+          // The refusal arrives first; the end of the turn a moment later.
+          setTimeout(() => transport.emit('turn/completed', {
+            threadId,
+            turn: { id: 'turn-ending', status: 'completed', items: [] }
+          }), 10);
+          throw new Error('The expected turn is no longer active.');
+        }
+      );
+      const current = context();
+      const adapter = createCodexStructuredAdapter(current.value, { createTransport: async () => transport });
+      await adapter.open();
+      await adapter.activate?.();
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-ending', status: 'inProgress' } });
+
+      await adapter.dispatch({
+        kind: 'prompt.submit', connectionId: 'connection-1', text: 'Right after', attachmentTokens: []
+      });
+
+      expect(transport.request).toHaveBeenCalledWith('turn/start', {
+        threadId,
+        input: [{ type: 'text', text: 'Right after', text_elements: [] }]
+      });
+    });
+
+    it('marks a compaction turn as one that cannot take a message', async () => {
+      const transport = new FakeTransport();
+      const current = context();
+      const adapter = createCodexStructuredAdapter(current.value, { createTransport: async () => transport });
+      await adapter.open();
+      await adapter.activate?.();
+
+      await adapter.dispatch({
+        kind: 'command.execute', connectionId: 'connection-1', commandId: 'compact', argument: ''
+      });
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-compact', status: 'inProgress' } });
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-next', status: 'inProgress' } });
+
+      const started = current.events.filter((event) => (
+        (event as { kind?: string; turnId?: string }).kind === 'turn.started'
+      )) as Array<{ turnId: string; payload: { steerable?: boolean } }>;
+      expect(started.find(({ turnId }) => turnId === 'turn-compact')?.payload.steerable).toBe(false);
+      expect(started.find(({ turnId }) => turnId === 'turn-next')?.payload.steerable).toBe(true);
+    });
+  });
 });

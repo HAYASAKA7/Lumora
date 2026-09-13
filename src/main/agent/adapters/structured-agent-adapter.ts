@@ -44,6 +44,8 @@ export interface StructuredAgentAdapter {
     commands?: readonly StructuredAgentCommand[];
     /** Whether the agent takes images in a prompt. */
     acceptsImages?: boolean;
+    /** Whether a message sent during a turn can go into that turn. */
+    canSteer?: boolean;
   }>;
   activate?(): Promise<void>;
   dispatch(action: StructuredAgentAction): Promise<void>;

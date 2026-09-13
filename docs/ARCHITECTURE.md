@@ -237,6 +237,25 @@ provider SDK, process handle, raw filesystem capability, or general-purpose RPC
 transport. Runtime identity is indexed with PTY identity so direct resume
 activates an existing owner instead of launching a duplicate.
 
+A message sent while a turn runs is delivered according to the session's
+`canSteer` capability. Codex reports it: the adapter sends `turn/steer` with the
+active turn as `expectedTurnId`, and if the turn ended in the meantime it starts
+the next turn with the message instead of dropping it — waiting briefly for
+the end of the turn, because Codex can refuse the steer before it reports that
+end. A review or compaction turn cannot be steered; the adapter marks the turn
+it started for one as `steerable: false`, and the renderer queues instead. The
+resulting
+`user.message` carries `followUp: true`, which the renderer shows beneath the
+turn's prompt; an unflagged message still restates the prompt, so Codex's live
+echo of a user item cannot duplicate one. The adapter also skips that echo for
+turns whose message it has already shown, and marks a turn's later user items
+as follow-ups when it reads history. For agents without the capability the
+renderer holds the message in a per-session queue and sends the first waiting
+message once the latest turn is no longer running, at most one per finished
+turn, so no provider ever receives a prompt while another is in flight. A
+queued message whose send fails is marked and left for the user rather than
+retried, so a persistent failure cannot become a loop.
+
 Modes use the same command channel as models rather than a separate action. An
 adapter that can change how its agent works publishes a command with the id
 `mode`, its choices, and the current value, and the renderer shows it as a

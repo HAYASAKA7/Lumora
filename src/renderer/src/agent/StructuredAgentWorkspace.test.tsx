@@ -174,6 +174,31 @@ function renderFileWorkspace(options: {
   };
 }
 
+function turnEvent(
+  sequence: number,
+  turnId: string,
+  kind: 'turn.started' | 'turn.completed',
+  state: 'running' | 'completed'
+): StructuredAgentRuntimeSnapshot['events'][number] {
+  return {
+    connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+    turnId, eventId: `event-${sequence}`, parentEventId: null, sequence,
+    generation: 1, timestamp: `2026-08-27T00:00:${String(sequence).padStart(2, '0')}.000Z`,
+    kind, payload: { state, message: null }
+  };
+}
+
+function workingSnapshot(
+  canSteer: boolean,
+  extra: StructuredAgentRuntimeSnapshot['events'] = []
+): StructuredAgentRuntimeSnapshot {
+  return {
+    ...snapshot,
+    runtime: { ...snapshot.runtime, canSteer },
+    events: [...snapshot.events, turnEvent(4, 'turn-2', 'turn.started', 'running'), ...extra]
+  };
+}
+
 describe('StructuredAgentWorkspace', () => {
   it('exposes a close control for the active structured session', () => {
     const { onClose } = renderWorkspace();
@@ -911,7 +936,7 @@ describe('StructuredAgentWorkspace', () => {
       .toHaveValue('Draft for the first session');
   });
 
-  it('replaces Send with one stop-turn action while a turn is running', () => {
+  it('keeps Stop while a turn runs and holds a message for an agent that takes one at a time', () => {
     const runningSnapshot: StructuredAgentRuntimeSnapshot = {
       ...snapshot,
       events: [
@@ -951,6 +976,9 @@ describe('StructuredAgentWorkspace', () => {
     expect(dispatchStructuredAgentAction).not.toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'prompt.submit' })
     );
+    // The message waits for the turn instead of being lost or sent into it.
+    expect(screen.getByRole('list', { name: 'Messages waiting for Codex' })).toHaveTextContent('Wait for the current turn');
+    expect(composer).toHaveValue('');
   });
 
   it('uses the latest turn state instead of a stale historical running turn', () => {
@@ -1418,5 +1446,212 @@ describe('StructuredAgentWorkspace', () => {
     renderWorkspace();
 
     expect(screen.queryByRole('button', { name: 'Mode' })).toBeNull();
+  });
+
+  it('sends a message straight into the turn for an agent that can take it', async () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[workingSnapshot(true)]}
+      />
+    );
+    const composer = screen.getByRole('textbox', { name: 'Message Codex' });
+
+    // A command typed out is not a message to send into the turn.
+    fireEvent.change(composer, { target: { value: '/compact' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Codex now' }));
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
+
+    fireEvent.change(composer, { target: { value: 'Also update the docs' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Codex now' }));
+
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'prompt.submit',
+      connectionId: 'connection-1',
+      text: 'Also update the docs',
+      attachmentTokens: []
+    });
+    expect(screen.getByRole('button', { name: 'Cancel turn' })).toBeInTheDocument();
+    await waitFor(() => expect(composer).toHaveValue(''));
+  });
+
+  it('sends a waiting message once the turn ends, and one per turn', async () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    const api = { dispatchStructuredAgentAction } as unknown as LumoraApi;
+    const view = (snapshots: StructuredAgentRuntimeSnapshot[]) => (
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={api}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={snapshots}
+      />
+    );
+    const { rerender } = renderWithLocalization(view([workingSnapshot(false)]));
+    const composer = screen.getByRole('textbox', { name: 'Message Codex' });
+
+    fireEvent.change(composer, { target: { value: 'First follow-up' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send when Codex finishes' }));
+    fireEvent.change(composer, { target: { value: 'Second follow-up' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send when Codex finishes' }));
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
+
+    rerender(view([workingSnapshot(false, [turnEvent(5, 'turn-2', 'turn.completed', 'completed')])]));
+
+    await waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledTimes(1));
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'prompt.submit',
+      text: 'First follow-up'
+    }));
+    await waitFor(() => expect(
+      screen.getByRole('list', { name: 'Messages waiting for Codex' })
+    ).not.toHaveTextContent('First follow-up'));
+    // The second waits for the turn the first one starts.
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a waiting message be withdrawn before the turn ends', async () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    const api = { dispatchStructuredAgentAction } as unknown as LumoraApi;
+    const view = (snapshots: StructuredAgentRuntimeSnapshot[]) => (
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={api}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={snapshots}
+      />
+    );
+    const { rerender } = renderWithLocalization(view([workingSnapshot(false)]));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Codex' }), {
+      target: { value: 'Never mind' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send when Codex finishes' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove waiting message' }));
+    expect(screen.queryByRole('list', { name: 'Messages waiting for Codex' })).not.toBeInTheDocument();
+    rerender(view([workingSnapshot(false, [turnEvent(5, 'turn-2', 'turn.completed', 'completed')])]));
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
+  });
+
+  it('shows a message sent into a turn beneath the prompt that started it', () => {
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction: vi.fn() } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[{
+          ...snapshot,
+          events: [
+            ...snapshot.events,
+            {
+              connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+              turnId: 'turn-1', eventId: 'event-4', parentEventId: null, sequence: 4,
+              generation: 1, timestamp: '2026-08-27T00:00:04.000Z', kind: 'user.message',
+              payload: { text: 'Skip the flaky test', followUp: true }
+            }
+          ]
+        }]}
+      />
+    );
+
+    expect(screen.getByText('Fix the tests.')).toBeInTheDocument();
+    expect(screen.getByText('Sent while Codex was working')).toBeInTheDocument();
+    expect(screen.getByText('Skip the flaky test')).toBeInTheDocument();
+  });
+
+  it('holds a message for a turn that cannot take one, even for an agent that steers', () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    const compacting = workingSnapshot(true);
+    const events = compacting.events.map((entry) => (
+      entry.kind === 'turn.started' && entry.turnId === 'turn-2'
+        ? { ...entry, payload: { ...entry.payload, steerable: false } }
+        : entry
+    ));
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[{ ...compacting, events }]}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Codex' }), {
+      target: { value: 'After the compaction' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send when Codex finishes' }));
+
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
+    expect(screen.getByRole('list', { name: 'Messages waiting for Codex' })).toHaveTextContent('After the compaction');
+  });
+
+  it('marks a waiting message that could not be sent, and sends it again when asked', async () => {
+    const dispatchStructuredAgentAction = vi.fn()
+      .mockRejectedValueOnce(new Error('The agent is busy.'))
+      .mockResolvedValue(undefined);
+    const api = { dispatchStructuredAgentAction } as unknown as LumoraApi;
+    const view = (snapshots: StructuredAgentRuntimeSnapshot[]) => (
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={api}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={snapshots}
+      />
+    );
+    const { rerender } = renderWithLocalization(view([workingSnapshot(false)]));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Codex' }), {
+      target: { value: 'Try this next' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send when Codex finishes' }));
+    const ended = [workingSnapshot(false, [turnEvent(5, 'turn-2', 'turn.completed', 'completed')])];
+
+    rerender(view(ended));
+    expect(await screen.findByText('Not sent')).toBeInTheDocument();
+    // It is not retried on its own.
+    rerender(view([...ended]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(dispatchStructuredAgentAction).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send again' }));
+    await waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(
+      screen.queryByRole('list', { name: 'Messages waiting for Codex' })
+    ).not.toBeInTheDocument());
+  });
+
+  it('does not run a command picked from the list while a turn is running', () => {
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[workingSnapshot(true)]}
+      />
+    );
+    const composer = screen.getByRole('textbox', { name: 'Message Codex' });
+
+    fireEvent.change(composer, { target: { value: '/comp' } });
+    fireEvent.keyDown(composer, { key: 'Enter' });
+
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
   });
 });

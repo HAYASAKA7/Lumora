@@ -48,7 +48,11 @@ export function estimateStructuredTurnRenderCost(
       ),
     0
   );
-  return baseTurnCost + turn.userText.length + turn.assistantText.length +
+  const followUpCost = turn.followUps.reduce(
+    (total, followUp) => total + richBlockCost + followUp.text.length,
+    0
+  );
+  return baseTurnCost + turn.userText.length + turn.assistantText.length + followUpCost +
     reasoningCost + activityCost + diffCost + approvalCost + planCost + questionCost;
 }
 

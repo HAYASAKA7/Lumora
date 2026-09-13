@@ -9,6 +9,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Keep writing while an agent works. Codex takes a message into the turn under
+  way, shown beneath the prompt as sent while it was working. Claude Code and
+  ACP agents take one message at a time, so the unified interface holds yours
+  above the message box and sends it when the turn ends, including when you
+  stop the turn to redirect the agent. A waiting message can be removed, and
+  several go one turn at a time. Send and Stop now sit side by side during a turn.
+
 - Switch how an agent works from the message box. A **Mode** picker beside the
   attach button offers Codex's **Default** and **Plan**, Claude Code's
   **Default**, **Accept edits** and **Plan**, and whatever modes an ACP agent

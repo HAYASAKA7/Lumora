@@ -271,4 +271,15 @@ describe('structured agent view state', () => {
     );
     expect(answered.error).toBeNull();
   });
+
+  it('adds a message sent into a turn beneath its prompt, and lets a restated prompt stand', () => {
+    const state = [
+      event(2, 'user.message', { text: 'Fix the tests' }),
+      event(3, 'user.message', { text: 'Fix the tests' }),
+      event(4, 'user.message', { text: 'Skip the flaky one', followUp: true })
+    ].reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+
+    expect(state.turns[0]?.userText).toBe('Fix the tests');
+    expect(state.turns[0]?.followUps).toEqual([{ text: 'Skip the flaky one', imageCount: 0 }]);
+  });
 });

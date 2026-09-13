@@ -68,7 +68,13 @@ const UserMessageEventSchema = z.strictObject({
   payload: z.strictObject({
     text: z.string().max(65_536),
     // Set when the message carried images; the text may then be empty.
-    imageCount: z.number().int().min(1).max(16).optional()
+    imageCount: z.number().int().min(1).max(16).optional(),
+    /**
+     * Sent into a turn already under way, rather than starting it. A turn's
+     * first message is its prompt; a follow-up is added beneath it, while an
+     * unflagged repeat of the prompt simply restates it.
+     */
+    followUp: z.boolean().optional()
   }).refine(
     (payload) => payload.text.length > 0 || payload.imageCount !== undefined,
     'A user message needs text or images.'
@@ -283,7 +289,12 @@ const TurnStatusEventSchema = z.strictObject({
   kind: z.enum(['turn.started', 'turn.completed']),
   payload: z.strictObject({
     state: z.enum(['running', 'completed', 'failed', 'cancelled']),
-    message: z.string().trim().min(1).max(512).nullable()
+    message: z.string().trim().min(1).max(512).nullable(),
+    /**
+     * False for a started turn that cannot take a message while it runs, such
+     * as a review or a compaction; a message then waits for it to end.
+     */
+    steerable: z.boolean().optional()
   })
 });
 
@@ -536,7 +547,12 @@ export const StructuredAgentRuntimeSummarySchema = z.strictObject({
     retryable: z.boolean()
   }).nullable(),
   /** Whether this session's agent takes images in a prompt. */
-  acceptsImages: z.boolean().optional()
+  acceptsImages: z.boolean().optional(),
+  /**
+   * Whether a message sent while a turn runs goes into that turn. Without it,
+   * Lumora holds the message and sends it when the turn ends.
+   */
+  canSteer: z.boolean().optional()
 });
 
 export const StructuredAgentCommandSchema = z.strictObject({

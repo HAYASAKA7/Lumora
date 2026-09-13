@@ -90,6 +90,7 @@ const ThreadResponseSchema = z.object({
   }).passthrough().nullable().optional()
 }).passthrough();
 
+const TurnSteerResponseSchema = z.object({ turnId: z.string().min(1) }).passthrough();
 const TurnStartResponseSchema = z.object({ turn: TurnLifecycleSchema }).passthrough();
 const EnvelopeSchema = z.object({
   threadId: z.string().min(1),
@@ -370,6 +371,15 @@ export interface CreateCodexStructuredAdapterOptions {
   createTransport?: CodexStructuredTransportFactory;
 }
 
+function userMessagePayload(displayText: string, imageCount: number) {
+  return imageCount === 0
+    ? { text: bounded(displayText, 65_536) }
+    : {
+      text: displayText.trim() === '' ? '' : bounded(displayText, 65_536),
+      imageCount
+    };
+}
+
 function bounded(value: string, max = 65_536): string {
   const text = value.slice(0, max);
   return text.length === 0 ? ' ' : text;
@@ -560,21 +570,40 @@ function itemEvents(
 function historyEvents(
   turns: readonly z.infer<typeof TurnSchema>[]
 ): StructuredAgentEventDraft[] {
-  return turns.flatMap((turn) => [
+  return turns.flatMap((turn) => {
+    let userMessages = 0;
+    // A turn's first user message is its prompt; any later one was sent into it.
+    const items = turn.items.flatMap((item) => itemEvents(turn.id, item, 'completed'))
+      .map((event): StructuredAgentEventDraft => {
+        if (event.kind !== 'user.message') return event;
+        userMessages += 1;
+        return userMessages === 1
+          ? event
+          : { ...event, payload: { ...event.payload, followUp: true } };
+      });
+    return historyTurn(turn, items);
+  });
+}
+
+function historyTurn(
+  turn: z.infer<typeof TurnSchema>,
+  items: readonly StructuredAgentEventDraft[]
+): StructuredAgentEventDraft[] {
+  return [
     {
       turnId: turn.id,
       parentEventId: null,
       kind: 'turn.started' as const,
       payload: { state: 'running' as const, message: null }
     },
-    ...turn.items.flatMap((item) => itemEvents(turn.id, item, 'completed')),
+    ...items,
     {
       turnId: turn.id,
       parentEventId: null,
       kind: 'turn.completed' as const,
       payload: { state: status(turn.status), message: null }
     }
-  ]);
+  ];
 }
 
 function defaultTransportFactory(
@@ -608,6 +637,16 @@ export function createCodexStructuredAdapter(
   const createTransport = options.createTransport ?? defaultTransportFactory;
   const pendingApprovals = new Map<string, PendingApproval>();
   const pendingQuestions = new Map<string, PendingQuestion>();
+  /**
+   * Turns whose messages Lumora has shown itself. Codex echoes each message as
+   * a live item too; for these turns the echo would only repeat it.
+   */
+  const announcedTurns = new Set<string>();
+  /** Lumora asked for a review or a compaction; the turn that starts next is it. */
+  let expectingNonSteerableTurn = false;
+  const nonSteerableTurns = new Set<string>();
+  /** Callers waiting to learn whether a turn ended: true when it did, false when the session closed. */
+  const turnEndWaiters = new Map<string, Array<(ended: boolean) => void>>();
   /** The latest rate limits Codex reported, merged update by update. */
   let lastRateLimits: CodexRateLimits | null = null;
   let transport: LineJsonRpcTransport | null = null;
@@ -929,11 +968,20 @@ export function createCodexStructuredAdapter(
       const turn = TurnLifecycleSchema.safeParse(params.turn);
       if (!turn.success) return;
       currentTurnId = turn.data.id;
+      const steerable = !expectingNonSteerableTurn;
+      if (!steerable) {
+        expectingNonSteerableTurn = false;
+        nonSteerableTurns.add(turn.data.id);
+        if (nonSteerableTurns.size > 64) {
+          const oldest = nonSteerableTurns.values().next().value;
+          if (oldest !== undefined) nonSteerableTurns.delete(oldest);
+        }
+      }
       emit({
         turnId: turn.data.id,
         parentEventId: null,
         kind: 'turn.started',
-        payload: { state: 'running', message: null }
+        payload: { state: 'running', message: null, steerable }
       });
       return;
     }
@@ -941,6 +989,8 @@ export function createCodexStructuredAdapter(
       const turn = TurnLifecycleSchema.safeParse(params.turn);
       if (!turn.success) return;
       if (currentTurnId === turn.data.id) currentTurnId = null;
+      for (const ended of turnEndWaiters.get(turn.data.id) ?? []) ended(true);
+      turnEndWaiters.delete(turn.data.id);
       settleQuestions(turn.data.id);
       emit({
         turnId: turn.data.id,
@@ -972,7 +1022,10 @@ export function createCodexStructuredAdapter(
         turnId,
         item.data,
         notification.method === 'item/started' ? 'started' : 'completed'
-      )) emit(event);
+      )) {
+        if (event.kind === 'user.message' && announcedTurns.has(turnId)) continue;
+        emit(event);
+      }
       if (notification.method === 'item/completed' && item.data.type === 'fileChange') {
         void refreshWorkspaceDiff(turnId);
       }
@@ -1065,16 +1118,72 @@ export function createCodexStructuredAdapter(
       input
     }));
     currentTurnId = parsed.turn.id;
+    announce(parsed.turn.id);
     emit({
       turnId: parsed.turn.id,
       parentEventId: null,
       kind: 'user.message',
-      payload: imageCount === 0
-        ? { text: bounded(displayText, 65_536) }
-        : {
-            text: displayText.trim() === '' ? '' : bounded(displayText, 65_536),
-            imageCount
-          }
+      payload: userMessagePayload(displayText, imageCount)
+    });
+  };
+
+  /** Resolves true once the turn ends, or false if it has not within the time given. */
+  const turnEnds = (turnId: string, withinMs: number): Promise<boolean> => new Promise((resolve) => {
+    if (currentTurnId !== turnId) {
+      resolve(true);
+      return;
+    }
+    const settle = (ended: boolean) => {
+      clearTimeout(timer);
+      turnEndWaiters.set(turnId, (turnEndWaiters.get(turnId) ?? []).filter((entry) => entry !== settle));
+      resolve(ended);
+    };
+    const timer = setTimeout(() => settle(false), withinMs);
+    turnEndWaiters.set(turnId, [...(turnEndWaiters.get(turnId) ?? []), settle]);
+  });
+
+  const announce = (turnId: string): void => {
+    announcedTurns.add(turnId);
+    if (announcedTurns.size <= 512) return;
+    const oldest = announcedTurns.values().next().value;
+    if (oldest !== undefined) announcedTurns.delete(oldest);
+  };
+
+  /**
+   * Sends a message into the turn under way, or starts one when none is. A
+   * turn can end between Send and Codex hearing it; then the message starts
+   * the next turn instead of being lost.
+   */
+  const deliverInput = async (
+    input: readonly Record<string, unknown>[],
+    displayText: string,
+    imageCount: number
+  ): Promise<void> => {
+    if (transport === null || nativeSessionId === null) throw new Error('Codex is not ready.');
+    const activeTurnId = currentTurnId;
+    if (activeTurnId === null) return startTurn(input, displayText, imageCount);
+    if (nonSteerableTurns.has(activeTurnId)) {
+      throw new Error('Codex cannot take a message during this turn.');
+    }
+    let steered: z.infer<typeof TurnSteerResponseSchema>;
+    try {
+      steered = TurnSteerResponseSchema.parse(await transport.request('turn/steer', {
+        threadId: nativeSessionId,
+        input,
+        expectedTurnId: activeTurnId
+      }));
+    } catch (error) {
+      // Codex can refuse a steer for a turn that is ending before it reports the end,
+      // so give that report a moment to arrive before calling the send a failure.
+      if (await turnEnds(activeTurnId, 2_000)) return startTurn(input, displayText, imageCount);
+      throw error;
+    }
+    announce(steered.turnId);
+    emit({
+      turnId: steered.turnId,
+      parentEventId: null,
+      kind: 'user.message',
+      payload: { ...userMessagePayload(displayText, imageCount), followUp: true }
     });
   };
 
@@ -1088,7 +1197,7 @@ export function createCodexStructuredAdapter(
     if (text.trim().length === 0 && images.length === 0) return;
     // Codex reads a local image from disk itself. The images go first, the
     // way a person pastes them before asking about them.
-    await startTurn([
+    await deliverInput([
       ...images.map((image) => ({ type: 'localImage', path: image.path })),
       ...(text.trim().length === 0 ? [] : [{ type: 'text', text, text_elements: [] }])
     ], text, images.length);
@@ -1181,6 +1290,7 @@ export function createCodexStructuredAdapter(
         nativeSessionId,
         commands: initialCommands,
         initialEvents: historyEvents(history),
+        canSteer: true,
         acceptsImages: true
       };
     },
@@ -1313,7 +1423,13 @@ export function createCodexStructuredAdapter(
           return;
         }
         if (action.commandId === 'compact') {
-          await transport.request('thread/compact/start', { threadId: nativeSessionId });
+          expectingNonSteerableTurn = true;
+          try {
+            await transport.request('thread/compact/start', { threadId: nativeSessionId });
+          } catch (error) {
+            expectingNonSteerableTurn = false;
+            throw error;
+          }
           respond('compact', '/compact', 'Context compacted.');
           return;
         }
@@ -1327,12 +1443,18 @@ export function createCodexStructuredAdapter(
           return;
         }
         if (action.commandId === 'review') {
-          await transport.request('review/start', {
-            threadId: nativeSessionId,
-            target: action.argument.trim() === ''
-              ? { type: 'uncommittedChanges' }
-              : { type: 'custom', instructions: action.argument.trim() }
-          });
+          expectingNonSteerableTurn = true;
+          try {
+            await transport.request('review/start', {
+              threadId: nativeSessionId,
+              target: action.argument.trim() === ''
+                ? { type: 'uncommittedChanges' }
+                : { type: 'custom', instructions: action.argument.trim() }
+            });
+          } catch (error) {
+            expectingNonSteerableTurn = false;
+            throw error;
+          }
           return;
         }
         if (action.commandId === 'permissions') {
@@ -1645,6 +1767,10 @@ export function createCodexStructuredAdapter(
       }
       pendingApprovals.clear();
       settleQuestions(null);
+      for (const waiters of turnEndWaiters.values()) {
+        for (const ended of waiters) ended(false);
+      }
+      turnEndWaiters.clear();
       await transport?.close();
       transport = null;
     }

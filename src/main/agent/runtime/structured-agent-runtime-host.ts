@@ -241,7 +241,8 @@ export class StructuredAgentRuntimeHost {
         nativeSessionId: opened.nativeSessionId,
         state: 'ready',
         error: null,
-        acceptsImages: opened.acceptsImages === true
+        acceptsImages: opened.acceptsImages === true,
+        canSteer: opened.canSteer === true
       });
       const initialEvents = opened.initialEvents ?? [];
       for (const event of initialEvents.slice(-this.maxTailEvents)) {
@@ -416,7 +417,8 @@ export class StructuredAgentRuntimeHost {
       this.updateSummary(runtime, {
         state: 'ready',
         error: null,
-        acceptsImages: opened.acceptsImages === true
+        acceptsImages: opened.acceptsImages === true,
+        canSteer: opened.canSteer === true
       });
       this.emitStatus(runtime, generation, 'ready', null);
       return runtime.summary;
@@ -586,6 +588,7 @@ export class StructuredAgentRuntimeHost {
       | 'generation'
       | 'error'
       | 'acceptsImages'
+      | 'canSteer'
     >>
   ): void {
     runtime.summary = StructuredAgentRuntimeSummarySchema.parse({

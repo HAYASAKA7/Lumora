@@ -78,6 +78,11 @@ export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;
 }
 
+/** Sends a message on its way: an arrow pointing up, as on the send button. */
+export function SendIcon(): ReactNode {
+  return <Glyph path="M10 15V5m0 0L6 9m4-4 4 4" />;
+}
+
 /** Reads something again: a circular arrow with its head at the top right. */
 export function RefreshIcon(): ReactNode {
   return (

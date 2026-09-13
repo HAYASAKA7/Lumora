@@ -5803,6 +5803,51 @@ button {
   height: 12px;
 }
 
+/* Messages waiting for the turn to end: one line apiece and removable. */
+.structured-composer-queue {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 0;
+  list-style: none;
+}
+
+.structured-composer-queued {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 4px 4px 10px;
+  font-size: 0.8rem;
+  background: var(--surface-subtle);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.structured-composer-queued-label {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.structured-composer-queued-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.structured-composer-queued .icon-button {
+  width: 20px;
+  height: 20px;
+}
+
+.structured-composer-queued .icon-button .icon {
+  width: 12px;
+  height: 12px;
+}
+
 .structured-composer-surface.is-receiving-drop {
   border-color: var(--blue);
   box-shadow: 0 0 0 2px var(--focus-outline);
@@ -5812,6 +5857,13 @@ button {
   margin: 8px 2px 0;
   color: var(--warning-strong);
   font-size: 0.78rem;
+}
+
+/* A message sent into a turn already under way. */
+.structured-message .structured-message-follow-up-label {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 .structured-message .structured-message-images {
