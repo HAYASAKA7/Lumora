@@ -143,6 +143,21 @@ When the provider exposes model configuration, use the selector inside the
 composer. A successful change applies to future turns and is reconciled with
 the provider state when the session is resumed.
 
+When the agent can change how it works, a **Mode** picker sits at the left of
+the message box, beside the attach button:
+
+- **Codex** offers **Default** and **Plan**. Plan mode can be left the same way
+  it was entered, and `/plan` with a request still switches to plan and starts
+  on it. `/permissions` shows which permission profile is in use.
+- **Claude Code** offers **Default**, **Accept edits**, and **Plan**. Lumora never
+  switches Claude into bypassing permissions; a session already in another
+  mode shows it until you choose one of these.
+- **ACP agents** show the modes they advertise, such as Gemini CLI's.
+
+When the agent changes mode itself — Claude leaving plan mode once you approve
+its plan, for example — the picker follows. The mode can be changed between
+turns, the same as the model.
+
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_model_selector.png" alt="Lumora Unified UI model selector inside the message composer" width="1100">
 </p>

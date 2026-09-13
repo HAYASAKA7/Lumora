@@ -148,9 +148,16 @@ function description(value: string): string | null {
   return normalized === '' ? null : normalized;
 }
 
+/** What the session is set to now, so each picker shows its current choice. */
+export interface CodexCommandSelections {
+  collaborationMode: string;
+  permissionProfile: string | null;
+}
+
 export function buildCodexCommands(
   discovery: CodexCommandDiscovery,
-  selectedModel: string | null
+  selectedModel: string | null,
+  selections: CodexCommandSelections = { collaborationMode: 'default', permissionProfile: null }
 ): StructuredAgentCommand[] {
   const model = selectedModel === null
     ? discovery.models[0] ?? null
@@ -217,11 +224,26 @@ export function buildCodexCommands(
       selectionBehavior: 'execute'
     });
   }
-  commands.push({
-    id: 'mode', name: '/plan',
-    description: 'Switch to plan mode, optionally with a planning request.',
-    descriptionKey: 'terminal.unified.commands.plan', inputHint: '[request]'
-  });
+  // The mode is a choice with a current value, so it can be left as easily as
+  // entered; /plan stays as the quick way in with a request attached.
+  commands.push(
+    {
+      id: 'mode', name: '/mode',
+      description: 'Choose whether Codex plans first or works directly.',
+      descriptionKey: 'terminal.unified.commands.mode', inputHint: '<mode>',
+      choices: [
+        { value: 'default', label: 'Default', labelKey: 'terminal.unified.modes.default', description: null },
+        { value: 'plan', label: 'Plan', labelKey: 'terminal.unified.modes.plan', description: null }
+      ],
+      selectedValue: selections.collaborationMode === 'plan' ? 'plan' : 'default',
+      selectionBehavior: 'execute'
+    },
+    {
+      id: 'plan', name: '/plan',
+      description: 'Switch to plan mode, optionally with a planning request.',
+      descriptionKey: 'terminal.unified.commands.plan', inputHint: '[request]'
+    }
+  );
   commands.push(
     {
       id: 'review', name: '/review',
@@ -256,6 +278,9 @@ export function buildCodexCommands(
         label: profile.id,
         description: profile.description
       })),
+      ...(discovery.permissionProfiles.some(({ id }) => id === selections.permissionProfile)
+        ? { selectedValue: selections.permissionProfile! }
+        : {}),
       selectionBehavior: 'execute'
     });
   }

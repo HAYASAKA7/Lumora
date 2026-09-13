@@ -823,6 +823,7 @@ describe('Codex structured adapter', () => {
       '/reasoning',
       '/fast',
       '/personality',
+      '/mode',
       '/plan',
       '/review',
       '/compact',
@@ -880,7 +881,7 @@ describe('Codex structured adapter', () => {
     });
     await adapter.dispatch({
       kind: 'command.execute', connectionId: 'connection-1',
-      commandId: 'mode', argument: ''
+      commandId: 'plan', argument: ''
     });
     await adapter.dispatch({
       kind: 'command.execute', connectionId: 'connection-1',
@@ -1502,5 +1503,52 @@ describe('Codex structured adapter', () => {
       expect(dropped?.payload).toMatchObject({ providerMessage: 'stream disconnected before completion' });
       expect(silent?.payload).toMatchObject({ errorKind: 'other', providerMessage: null });
     });
+  });
+
+  it('switches between default and plan mode, and shows which one is on', async () => {
+    const transport = new FakeTransport();
+    const current = context();
+    const adapter = createCodexStructuredAdapter(current.value, {
+      createTransport: async () => transport
+    });
+    await adapter.open();
+    const modeCommand = () => current.commandLists.at(-1)?.find(({ id }) => id === 'mode');
+    await vi.waitFor(() => expect(modeCommand()).toMatchObject({
+      name: '/mode',
+      selectedValue: 'default',
+      choices: [
+        expect.objectContaining({ value: 'default', labelKey: 'terminal.unified.modes.default' }),
+        expect.objectContaining({ value: 'plan', labelKey: 'terminal.unified.modes.plan' })
+      ]
+    }));
+
+    await adapter.dispatch({
+      kind: 'command.execute', connectionId: 'connection-1', commandId: 'mode', argument: 'plan'
+    });
+    expect(modeCommand()?.selectedValue).toBe('plan');
+
+    // Plan mode can be left again, which /plan alone never allowed.
+    await adapter.dispatch({
+      kind: 'command.execute', connectionId: 'connection-1', commandId: 'mode', argument: 'default'
+    });
+    expect(transport.request).toHaveBeenLastCalledWith('thread/settings/update', {
+      threadId: '019c-native-thread',
+      collaborationMode: {
+        mode: 'default',
+        settings: expect.objectContaining({ developer_instructions: null })
+      }
+    });
+    expect(modeCommand()?.selectedValue).toBe('default');
+
+    // Codex changing it from elsewhere moves the picker too.
+    transport.emit('thread/settings/updated', {
+      threadId: '019c-native-thread',
+      threadSettings: { model: 'gpt-5.6-sol', effort: 'high', collaborationMode: { mode: 'plan' } }
+    });
+    await vi.waitFor(() => expect(modeCommand()?.selectedValue).toBe('plan'));
+
+    await expect(adapter.dispatch({
+      kind: 'command.execute', connectionId: 'connection-1', commandId: 'mode', argument: 'yolo'
+    })).rejects.toThrow('mode is not available');
   });
 });

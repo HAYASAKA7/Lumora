@@ -237,6 +237,18 @@ provider SDK, process handle, raw filesystem capability, or general-purpose RPC
 transport. Runtime identity is indexed with PTY identity so direct resume
 activates an existing owner instead of launching a duplicate.
 
+Modes use the same command channel as models rather than a separate action. An
+adapter that can change how its agent works publishes a command with the id
+`mode`, its choices, and the current value, and the renderer shows it as a
+picker beside the model's. Codex maps it to its collaboration mode (`default` or
+`plan`) through `thread/settings/update`; Claude maps it to the Agent SDK's
+permission mode through `setPermissionMode`, offering only the modes Claude Code
+cycles through and never switching into `bypassPermissions`; ACP agents map it
+to a mode-category session config option or to `session/set_mode`. Each adapter
+republishes the command when the agent reports a mode change of its own —
+Codex's settings update, Claude's status message, or ACP's `current_mode_update`
+— so the picker never shows a mode the session has left.
+
 Agent errors travel as `runtime.error` events that say what went wrong in
 shared terms. Each adapter maps its provider's own names — Codex's
 `codexErrorInfo`, Claude's API error names, or an HTTP status when that is all

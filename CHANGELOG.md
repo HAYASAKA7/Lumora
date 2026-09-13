@@ -9,6 +9,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Switch how an agent works from the message box. A **Mode** picker beside the
+  attach button offers Codex's **Default** and **Plan**, Claude Code's
+  **Default**, **Accept edits** and **Plan**, and whatever modes an ACP agent
+  such as Gemini CLI advertises. It follows the agent when the agent changes
+  mode itself, such as Claude leaving plan mode once a plan is approved. Lumora
+  never switches Claude into bypassing permissions.
 - Answer an agent's questions in the unified interface. When Codex asks which
   option you want, when Claude Code puts a multiple-choice question to you, or
   when an MCP server needs a short form or a sign-in page, the question appears
@@ -19,6 +25,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Leave Codex's plan mode. `/plan` switched a session into plan mode with no way
+  back out short of starting a new session; the mode picker now switches back to
+  **Default**, and `/permissions` shows which permission profile is in use.
 - Stop a question from an agent ending its turn. Codex's requests for input,
   for an MCP form, and for extra permissions were refused, so the agent failed
   without saying why. Claude Code's questions appeared as a permission to allow

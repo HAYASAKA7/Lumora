@@ -3,6 +3,8 @@ import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { StructuredAgentCommand } from '../../../shared/agent/contracts';
+
 import type { StructuredAgentAdapterContext } from './structured-agent-adapter';
 import {
   createClaudeStructuredAdapter,
@@ -1133,6 +1135,64 @@ describe('Claude structured adapter', () => {
       })));
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(errors(current.events)).toEqual([]);
+    });
+  });
+
+  describe('Claude permission modes', () => {
+    class ModeQuery extends FakeQuery {
+      readonly setPermissionMode = vi.fn(async (_mode: string) => undefined);
+    }
+
+    async function openWithModes(initialMode?: string) {
+      const query = new ModeQuery([{
+        type: 'system', subtype: 'init', session_id: 'claude-native-4',
+        ...(initialMode === undefined ? {} : { permissionMode: initialMode })
+      }]);
+      const current = context();
+      const commandLists: StructuredAgentCommand[][] = [];
+      current.value.callbacks.commandsChanged = (commands) => commandLists.push([...commands]);
+      const adapter = createClaudeStructuredAdapter(current.value, {
+        createQuery: () => query,
+        loadHistory: async () => [],
+        createNativeSessionId: () => 'claude-native-4'
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      const mode = () => commandLists.at(-1)?.find(({ id }) => id === 'mode');
+      await vi.waitFor(() => expect(mode()).toBeDefined());
+      return { adapter, query, mode };
+    }
+
+    it('offers default, accept edits and plan, switches between them, and follows Claude', async () => {
+      const { adapter, query, mode } = await openWithModes();
+
+      expect(mode()?.selectedValue).toBe('default');
+      expect(mode()?.choices?.map(({ value }) => value)).toEqual(['default', 'acceptEdits', 'plan']);
+
+      await adapter.dispatch({
+        kind: 'command.execute', connectionId: 'connection-claude', commandId: 'mode', argument: 'acceptEdits'
+      });
+      expect(query.setPermissionMode).toHaveBeenCalledWith('acceptEdits');
+      expect(mode()?.selectedValue).toBe('acceptEdits');
+
+      // Approving a plan moves Claude out of plan mode on its own.
+      query.emit({ type: 'system', subtype: 'status', session_id: 'claude-native-4', status: null, permissionMode: 'plan' });
+      await vi.waitFor(() => expect(mode()?.selectedValue).toBe('plan'));
+    });
+
+    it('never switches into bypassing permissions, but shows it truthfully when it is already on', async () => {
+      const { adapter, query, mode } = await openWithModes('bypassPermissions');
+
+      expect(mode()?.selectedValue).toBe('bypassPermissions');
+      await adapter.dispatch({
+        kind: 'command.execute', connectionId: 'connection-claude', commandId: 'mode', argument: 'default'
+      });
+      expect(query.setPermissionMode).toHaveBeenCalledWith('default');
+      // Once left, it is no longer on offer.
+      expect(mode()?.choices?.map(({ value }) => value)).toEqual(['default', 'acceptEdits', 'plan']);
+      await expect(adapter.dispatch({
+        kind: 'command.execute', connectionId: 'connection-claude', commandId: 'mode', argument: 'bypassPermissions'
+      })).rejects.toThrow('mode is not available');
     });
   });
 });

@@ -257,6 +257,7 @@
     "question-declined": "Declined",
     "question-cancelled": "No longer needed",
     "model-selector-label": "Model",
+    "mode-selector-label": "Mode",
     "send": "Send",
     "cancel": "Cancel turn",
     "reconnect": "Reconnect",
@@ -309,6 +310,9 @@
       "fast": "Toggle Fast mode for future turns.",
       "personality": "Choose how Codex communicates.",
       "plan": "Switch to plan mode, optionally with a planning request.",
+      "mode": "Choose whether Codex plans first or works directly.",
+      "claude-mode": "Choose how much Claude may do without asking.",
+      "agent-mode": "Choose how the agent works.",
       "review": "Review the current workspace.",
       "compact": "Compact the current context.",
       "diff": "Show the current Git diff for the workspace.",
@@ -327,6 +331,14 @@
       "status": "Show the current session configuration and limits.",
       "usage": "Show Codex account token usage.",
       "rename": "Rename the native Codex session."
+    },
+    "modes": {
+      "default": "Default",
+      "plan": "Plan",
+      "accept-edits": "Accept edits",
+      "dont-ask": "Don't ask",
+      "bypass-permissions": "Bypass permissions",
+      "auto": "Auto"
     },
     "command-values": {
       "default": "Default",

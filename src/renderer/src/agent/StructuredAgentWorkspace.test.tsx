@@ -1370,4 +1370,53 @@ describe('StructuredAgentWorkspace', () => {
       answers: { 'question-0': ['Production'] }
     }));
   });
+
+  it('offers the modes an agent has at the left of the message box and switches them', async () => {
+    const modeSnapshot: StructuredAgentRuntimeSnapshot = {
+      ...snapshot,
+      commands: [{
+        id: 'mode',
+        name: '/mode',
+        description: 'Choose whether Codex plans first or works directly.',
+        descriptionKey: 'terminal.unified.commands.mode',
+        inputHint: '<mode>',
+        choices: [
+          { value: 'default', label: 'Default', labelKey: 'terminal.unified.modes.default', description: null },
+          { value: 'plan', label: 'Plan', labelKey: 'terminal.unified.modes.plan', description: null }
+        ],
+        selectedValue: 'default',
+        selectionBehavior: 'execute'
+      }]
+    };
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[modeSnapshot]}
+      />
+    );
+
+    const modeSelector = screen.getByRole('button', { name: 'Mode' });
+    // How the agent works sits with attaching, away from the model and Send.
+    expect(modeSelector.closest('.structured-composer-attachments')).not.toBeNull();
+    fireEvent.click(modeSelector);
+    fireEvent.click(screen.getByRole('option', { name: 'Plan' }));
+
+    await vi.waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'command.execute',
+      connectionId: 'connection-1',
+      commandId: 'mode',
+      argument: 'plan'
+    }));
+  });
+
+  it('shows no mode picker for an agent without modes', () => {
+    renderWorkspace();
+
+    expect(screen.queryByRole('button', { name: 'Mode' })).toBeNull();
+  });
 });

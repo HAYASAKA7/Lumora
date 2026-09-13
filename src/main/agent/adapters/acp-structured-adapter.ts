@@ -228,6 +228,8 @@ export function createAcpStructuredAdapter(
   let modelCommand: StructuredAgentCommand | null = null;
   let modelConfigId: string | null = null;
   let usesLegacyModelMethod = false;
+  let modeCommand: StructuredAgentCommand | null = null;
+  let modeConfigId: string | null = null;
 
   const normalizeCommands = (value: unknown): StructuredAgentCommand[] => {
     if (!Array.isArray(value)) return [];
@@ -254,7 +256,11 @@ export function createAcpStructuredAdapter(
   };
 
   const publishCommands = (): void => {
-    commands = [...(modelCommand === null ? [] : [modelCommand]), ...providerCommands];
+    commands = [
+      ...(modelCommand === null ? [] : [modelCommand]),
+      ...(modeCommand === null ? [] : [modeCommand]),
+      ...providerCommands
+    ];
     if (opened) context.callbacks.commandsChanged?.(commands);
   };
 
@@ -280,9 +286,73 @@ export function createAcpStructuredAdapter(
     }).slice(0, 256);
   };
 
+  /**
+   * The agent's own modes, shown as a picker: a session config option in the
+   * mode category, or the older list of available modes.
+   */
+  const applyModeConfiguration = (
+    response: Record<string, unknown> | null,
+    configOptions: readonly unknown[]
+  ): void => {
+    const option = configOptions.map(object).find((candidate) => (
+      candidate !== null && candidate.type === 'select' &&
+      (candidate.category === 'mode' || candidate.id === 'mode')
+    ));
+    const command = (
+      choices: NonNullable<StructuredAgentCommand['choices']>,
+      current: string
+    ): StructuredAgentCommand => ({
+      id: 'mode',
+      name: '/mode',
+      description: `Choose how ${providerName} works.`,
+      descriptionKey: 'terminal.unified.commands.agent-mode',
+      inputHint: '<mode>',
+      choices,
+      selectedValue: choices.some(({ value }) => value === current) ? current : choices[0]!.value,
+      selectionBehavior: 'execute'
+    });
+    if (
+      option !== undefined && option !== null &&
+      typeof option.id === 'string' && option.id.trim() !== '' &&
+      typeof option.currentValue === 'string' && option.currentValue.trim() !== ''
+    ) {
+      const choices = modelChoicesFromOptions(option.options);
+      if (choices.length > 0) {
+        modeConfigId = option.id;
+        modeCommand = command(choices, option.currentValue);
+        publishCommands();
+        return;
+      }
+    }
+    const modes = object(response?.modes);
+    if (modes === null) return;
+    const available = Array.isArray(modes.availableModes) ? modes.availableModes : [];
+    const choices = available.flatMap((entry) => {
+      const candidate = object(entry);
+      if (
+        candidate === null ||
+        typeof candidate.id !== 'string' || candidate.id.trim() === '' ||
+        typeof candidate.name !== 'string' || candidate.name.trim() === ''
+      ) return [];
+      return [{
+        value: bounded(candidate.id.trim(), 512),
+        label: bounded(candidate.name.trim(), 512),
+        description: typeof candidate.description === 'string' && candidate.description.trim() !== ''
+          ? bounded(candidate.description.trim(), 512)
+          : null
+      }];
+    }).slice(0, 256);
+    if (choices.length > 0 && typeof modes.currentModeId === 'string') {
+      modeConfigId = null;
+      modeCommand = command(choices, modes.currentModeId);
+      publishCommands();
+    }
+  };
+
   const applySessionConfiguration = (value: unknown): void => {
     const response = object(value);
     const configOptions = Array.isArray(response?.configOptions) ? response.configOptions : [];
+    applyModeConfiguration(response, configOptions);
     const modelOption = configOptions.map(object).find((option) => (
       option !== null && option.type === 'select' &&
       (option.category === 'model' || option.id === 'model')
@@ -452,6 +522,18 @@ export function createAcpStructuredAdapter(
     }
     if (kind === 'config_option_update') {
       applySessionConfiguration({ configOptions: update.configOptions });
+      return;
+    }
+    if (kind === 'current_mode_update') {
+      // The agent changed its mode itself; keep the picker on it.
+      const current = update.currentModeId;
+      if (
+        modeCommand !== null && modeConfigId === null && typeof current === 'string' &&
+        modeCommand.choices?.some(({ value }) => value === current) === true
+      ) {
+        modeCommand = { ...modeCommand, selectedValue: current };
+        publishCommands();
+      }
       return;
     }
     const content = object(update.content);
@@ -723,6 +805,31 @@ export function createAcpStructuredAdapter(
         const command = commands.find(({ id }) => id === action.commandId);
         if (command === undefined) {
           throw new Error(`The ${providerName} command is not available.`);
+        }
+        if (command.id === 'mode') {
+          if (transport === null || nativeSessionId === null) {
+            throw new Error(`${providerName} is not ready.`);
+          }
+          const mode = command.choices?.find(({ value }) => value === action.argument.trim());
+          if (mode === undefined) {
+            throw new Error(`The ${providerName} mode is not available.`);
+          }
+          if (modeConfigId !== null) {
+            const response = await transport.request('session/set_config_option', {
+              sessionId: nativeSessionId,
+              configId: modeConfigId,
+              value: mode.value
+            });
+            applySessionConfiguration(response);
+          } else {
+            await transport.request('session/set_mode', {
+              sessionId: nativeSessionId,
+              modeId: mode.value
+            });
+            modeCommand = { ...command, selectedValue: mode.value };
+            publishCommands();
+          }
+          return;
         }
         if (command.id === 'model') {
           if (transport === null || nativeSessionId === null) {

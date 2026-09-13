@@ -10,6 +10,7 @@ import type {
   LineJsonRpcError,
   LineJsonRpcTransport
 } from '../transport/line-json-rpc';
+import type { StructuredAgentCommand } from '../../../shared/agent/contracts';
 import type { StructuredAgentAdapterContext } from './structured-agent-adapter';
 import {
   createGeminiStructuredAdapter,
@@ -21,6 +22,7 @@ class FakeTransport implements LineJsonRpcTransport {
   private promptRelease: (() => void) | null = null;
   private promptGate: Promise<void> | null = null;
   sessionConfigOptions: unknown[] = [];
+  sessionModes: unknown = undefined;
   readonly request = vi.fn(async (method: string, params?: unknown) => {
     if (method === 'initialize') {
       return {
@@ -30,13 +32,17 @@ class FakeTransport implements LineJsonRpcTransport {
       };
     }
     if (method === 'session/new') {
-      return { sessionId: 'gemini-native-1', configOptions: this.sessionConfigOptions };
+      return {
+        sessionId: 'gemini-native-1',
+        configOptions: this.sessionConfigOptions,
+        ...(this.sessionModes === undefined ? {} : { modes: this.sessionModes })
+      };
     }
     if (method === 'session/load') return { configOptions: this.sessionConfigOptions };
     if (method === 'session/set_config_option') {
-      const value = (params as { value?: string } | undefined)?.value;
+      const { value, configId } = (params as { value?: string; configId?: string } | undefined) ?? {};
       this.sessionConfigOptions = this.sessionConfigOptions.map((entry) => (
-        typeof entry === 'object' && entry !== null && 'category' in entry && entry.category === 'model'
+        typeof entry === 'object' && entry !== null && 'id' in entry && entry.id === configId
           ? { ...entry, currentValue: value }
           : entry
       ));
@@ -419,5 +425,72 @@ describe('Gemini structured adapter', () => {
       outcome: { outcome: 'selected', optionId: 'once' }
     });
     await adapter.close();
+  });
+
+  it('shows an ACP agent\'s own modes, switches them, and follows the agent\'s changes', async () => {
+    const transport = new FakeTransport();
+    transport.sessionModes = {
+      currentModeId: 'default',
+      availableModes: [
+        { id: 'default', name: 'Default' },
+        { id: 'autoEdit', name: 'Auto edit', description: 'Edits without asking' }
+      ]
+    };
+    const current = context('C:\\workspace');
+    const commandLists: StructuredAgentCommand[][] = [];
+    current.value.callbacks.commandsChanged = (commands) => commandLists.push([...commands]);
+    const adapter = createGeminiStructuredAdapter(current.value, {
+      createTransport: async () => transport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
+
+    const opened = await adapter.open();
+    expect(opened.commands?.find(({ id }) => id === 'mode')).toMatchObject({
+      name: '/mode',
+      selectedValue: 'default',
+      choices: [
+        { value: 'default', label: 'Default', description: null },
+        { value: 'autoEdit', label: 'Auto edit', description: 'Edits without asking' }
+      ]
+    });
+
+    await adapter.dispatch({
+      kind: 'command.execute', connectionId: 'connection-gemini', commandId: 'mode', argument: 'autoEdit'
+    });
+    expect(transport.request).toHaveBeenCalledWith('session/set_mode', {
+      sessionId: 'gemini-native-1', modeId: 'autoEdit'
+    });
+    expect(commandLists.at(-1)?.find(({ id }) => id === 'mode')?.selectedValue).toBe('autoEdit');
+
+    transport.emit('session/update', {
+      sessionId: 'gemini-native-1',
+      update: { sessionUpdate: 'current_mode_update', currentModeId: 'default' }
+    });
+    await vi.waitFor(() => expect(
+      commandLists.at(-1)?.find(({ id }) => id === 'mode')?.selectedValue
+    ).toBe('default'));
+  });
+
+  it('switches a mode offered as a session config option', async () => {
+    const transport = new FakeTransport();
+    transport.sessionConfigOptions = [{
+      id: 'approval', name: 'Approval', type: 'select', category: 'mode', currentValue: 'ask',
+      options: [{ value: 'ask', name: 'Ask' }, { value: 'auto', name: 'Automatic' }]
+    }];
+    const current = context('C:\\workspace');
+    const adapter = createGeminiStructuredAdapter(current.value, {
+      createTransport: async () => transport,
+      resolveAuthenticationMethod: async () => 'oauth-personal'
+    });
+
+    const opened = await adapter.open();
+    expect(opened.commands?.find(({ id }) => id === 'mode')?.selectedValue).toBe('ask');
+    await adapter.dispatch({
+      kind: 'command.execute', connectionId: 'connection-gemini', commandId: 'mode', argument: 'auto'
+    });
+
+    expect(transport.request).toHaveBeenCalledWith('session/set_config_option', {
+      sessionId: 'gemini-native-1', configId: 'approval', value: 'auto'
+    });
   });
 });

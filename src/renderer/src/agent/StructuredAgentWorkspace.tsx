@@ -128,6 +128,7 @@ export function StructuredAgentWorkspace({
   const [visibleTurnCounts, setVisibleTurnCounts] = useState<Readonly<Record<string, number>>>({});
   const [sending, setSending] = useState(false);
   const [modelSelections, setModelSelections] = useState<Readonly<Record<string, string>>>({});
+  const [modeSelections, setModeSelections] = useState<Readonly<Record<string, string>>>({});
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [actionError, setActionError] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
@@ -165,6 +166,13 @@ export function StructuredAgentWorkspace({
   const snapshotCommands = snapshot?.commands ?? [];
   const advertisedModelCommand = snapshotCommands.find(({ name, choices, selectedValue }) => (
     name.toLocaleLowerCase() === '/model' &&
+    (choices?.length ?? 0) > 0 &&
+    selectedValue !== undefined
+  ));
+  // An agent that can change how it works publishes a `mode` command with its
+  // choices and the current one, the way `/model` carries the model.
+  const advertisedModeCommand = snapshotCommands.find(({ id, choices, selectedValue }) => (
+    id === 'mode' &&
     (choices?.length ?? 0) > 0 &&
     selectedValue !== undefined
   ));
@@ -219,6 +227,14 @@ export function StructuredAgentWorkspace({
       ? current
       : { ...current, [connectionId]: selectedValue });
   }, [advertisedModelCommand?.selectedValue, snapshot?.runtime.connectionId]);
+  useEffect(() => {
+    const connectionId = snapshot?.runtime.connectionId;
+    const selectedValue = advertisedModeCommand?.selectedValue;
+    if (connectionId === undefined || selectedValue === undefined) return;
+    setModeSelections((current) => current[connectionId] === selectedValue
+      ? current
+      : { ...current, [connectionId]: selectedValue });
+  }, [advertisedModeCommand?.selectedValue, snapshot?.runtime.connectionId]);
   useEffect(() => {
     if (runtime?.state === 'ready') composer.current?.focus();
   }, [focusRequestKey, runtime?.connectionId, runtime?.state]);
@@ -379,6 +395,10 @@ export function StructuredAgentWorkspace({
   const providerName = providerDefinition(runtime.providerId).displayName;
   const commands = snapshotCommands;
   const modelCommand = advertisedModelCommand;
+  const modeCommand = advertisedModeCommand;
+  const selectedMode = modeCommand === undefined
+    ? undefined
+    : modeSelections[runtime.connectionId] ?? modeCommand.selectedValue;
   const selectedModel = modelCommand === undefined
     ? undefined
     : modelSelections[runtime.connectionId] ?? modelCommand.selectedValue;
@@ -476,6 +496,29 @@ export function StructuredAgentWorkspace({
       },
       () => undefined
     ).finally(() => setSending(false));
+  };
+  const selectMode = (value: string) => {
+    if (
+      modeCommand === undefined || value === selectedMode || sending ||
+      runningTurn || runtime.state !== 'ready'
+    ) return;
+    restoreComposerFocus.current = true;
+    setSending(true);
+    void dispatch({
+      kind: 'command.execute',
+      connectionId: runtime.connectionId,
+      commandId: modeCommand.id,
+      argument: value
+    }).then(
+      () => setModeSelections((current) => ({
+        ...current,
+        [runtime.connectionId]: value
+      })),
+      () => undefined
+    ).finally(() => {
+      setSending(false);
+      requestAnimationFrame(() => composer.current?.focus());
+    });
   };
   const selectModel = (value: string) => {
     if (
@@ -1019,6 +1062,19 @@ export function StructuredAgentWorkspace({
               >
                 <PaperclipIcon />
               </IconButton>
+            )}
+            {modeCommand === undefined || selectedMode === undefined ? null : (
+              <SelectMenu
+                className="structured-mode-select"
+                disabled={sending || runningTurn || runtime.state !== 'ready'}
+                label={t('terminal.unified.mode-selector-label')}
+                onChange={selectMode}
+                options={modeCommand.choices!.map((choice) => ({
+                  value: choice.value,
+                  label: choice.labelKey === undefined ? choice.label : t(choice.labelKey)
+                }))}
+                value={selectedMode}
+              />
             )}
             {acceptsImages ? (
               <input

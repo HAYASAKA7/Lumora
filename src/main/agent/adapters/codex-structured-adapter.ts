@@ -709,10 +709,12 @@ export function createCodexStructuredAdapter(
     });
   };
 
+  const currentCommands = () => buildCodexCommands(commandDiscovery, selectedModel, {
+    collaborationMode: selectedCollaborationMode,
+    permissionProfile: selectedPermissionProfile
+  });
   const refreshCommands = (): void => {
-    context.callbacks.commandsChanged?.(
-      buildCodexCommands(commandDiscovery, selectedModel)
-    );
+    context.callbacks.commandsChanged?.(currentCommands());
   };
 
   const askUserInput = (request: JsonRpcProviderRequest): Promise<unknown> => {
@@ -1152,7 +1154,7 @@ export function createCodexStructuredAdapter(
       selectedServiceTier = response.serviceTier !== undefined
         ? response.serviceTier
         : (receivedSettings ? selectedServiceTier : null);
-      const initialCommands = buildCodexCommands(commandDiscovery, selectedModel);
+      const initialCommands = currentCommands();
       void discoverCodexCommands(
         (method, params) => {
           if (transport === null) throw new Error('Codex is not ready.');
@@ -1275,14 +1277,15 @@ export function createCodexStructuredAdapter(
           respond('personality', '/personality', argument);
           return;
         }
-        if (action.commandId === 'mode') {
+        const setCollaborationMode = async (mode: 'default' | 'plan'): Promise<void> => {
+          if (transport === null || nativeSessionId === null) throw new Error('Codex is not ready.');
           if (selectedModel === null) {
             throw new Error('Codex did not expose a model for collaboration mode.');
           }
           await transport.request('thread/settings/update', {
             threadId: nativeSessionId,
             collaborationMode: {
-              mode: 'plan',
+              mode,
               settings: {
                 model: selectedModel,
                 reasoning_effort: selectedEffort,
@@ -1290,8 +1293,20 @@ export function createCodexStructuredAdapter(
               }
             }
           });
-          selectedCollaborationMode = 'plan';
-          respond('mode', '/plan', 'Plan mode');
+          selectedCollaborationMode = mode;
+          refreshCommands();
+        };
+        if (action.commandId === 'mode') {
+          if (argument !== 'default' && argument !== 'plan') {
+            throw new Error('The requested Codex mode is not available.');
+          }
+          await setCollaborationMode(argument);
+          respond('mode', '/mode', argument === 'plan' ? 'Plan mode' : 'Default mode');
+          return;
+        }
+        if (action.commandId === 'plan') {
+          await setCollaborationMode('plan');
+          respond('plan', '/plan', 'Plan mode');
           if (argument !== '') {
             await startTurn([{ type: 'text', text: argument, text_elements: [] }], argument);
           }
@@ -1330,6 +1345,7 @@ export function createCodexStructuredAdapter(
             permissions: profile.id
           });
           selectedPermissionProfile = profile.id;
+          refreshCommands();
           respond('permissions', '/permissions', profile.id);
           return;
         }

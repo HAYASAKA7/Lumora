@@ -33,6 +33,8 @@ import {
 export interface ClaudeQueryLike extends AsyncIterable<unknown> {
   interrupt(): Promise<unknown>;
   setModel(model?: string): Promise<void>;
+  /** Present on SDKs that can change the permission mode mid-session. */
+  setPermissionMode?(mode: string): Promise<void>;
   supportedCommands(): Promise<Array<{
     name: string;
     description: string;
@@ -141,6 +143,23 @@ export async function resolveClaudeSdkExecutablePath(
   if (await isExecutable(nativeExecutable)) return nativeExecutable;
   throw new Error('The Claude npm wrapper does not expose a native SDK executable.');
 }
+
+/**
+ * The permission modes Lumora offers for Claude: the ones Claude Code cycles
+ * through itself. Bypassing permissions needs a separate opt-in when the
+ * session starts, which Lumora never gives, so it is not on offer; a mode set
+ * some other way is still shown truthfully while it is the current one.
+ */
+const CLAUDE_OFFERED_MODES = [
+  { value: 'default', label: 'Default', labelKey: 'terminal.unified.modes.default' },
+  { value: 'acceptEdits', label: 'Accept edits', labelKey: 'terminal.unified.modes.accept-edits' },
+  { value: 'plan', label: 'Plan', labelKey: 'terminal.unified.modes.plan' }
+] as const;
+const CLAUDE_OTHER_MODES: Readonly<Record<string, { label: string; labelKey: string }>> = {
+  dontAsk: { label: "Don't ask", labelKey: 'terminal.unified.modes.dont-ask' },
+  bypassPermissions: { label: 'Bypass permissions', labelKey: 'terminal.unified.modes.bypass-permissions' },
+  auto: { label: 'Auto', labelKey: 'terminal.unified.modes.auto' }
+};
 
 interface PendingPermission {
   turnId: string;
@@ -303,6 +322,8 @@ export function createClaudeStructuredAdapter(
   }
   const pendingPermissions = new Map<string, PendingPermission>();
   const pendingQuestions = new Map<string, PendingQuestion>();
+  /** Claude's permission mode, as Claude last reported it. */
+  let permissionMode = 'default';
   const pendingDiffs = new Map<string, {
     turnId: string;
     files: StructuredAgentDiffFile[];
@@ -382,7 +403,30 @@ export function createClaudeStructuredAdapter(
       value === selectedModel ||
       resolvedModels.get(value) === selectedModel
     ));
+    const modeChoices = [
+      ...CLAUDE_OFFERED_MODES.map((mode) => ({ ...mode, description: null })),
+      ...(CLAUDE_OFFERED_MODES.some(({ value }) => value === permissionMode)
+        ? []
+        : [{
+          value: permissionMode,
+          label: CLAUDE_OTHER_MODES[permissionMode]?.label ?? permissionMode,
+          ...(CLAUDE_OTHER_MODES[permissionMode] === undefined
+            ? {}
+            : { labelKey: CLAUDE_OTHER_MODES[permissionMode]!.labelKey }),
+          description: null
+        }])
+    ];
     commands = [
+      ...(query?.setPermissionMode === undefined ? [] : [{
+        id: 'mode',
+        name: '/mode',
+        description: 'Choose how much Claude may do without asking.',
+        descriptionKey: 'terminal.unified.commands.claude-mode',
+        inputHint: '<mode>',
+        choices: modeChoices,
+        selectedValue: permissionMode,
+        selectionBehavior: 'execute' as const
+      }]),
       ...(modelChoices.length === 0 ? [] : [{
         id: 'model',
         name: '/model',
@@ -616,6 +660,7 @@ export function createClaudeStructuredAdapter(
       }
       nativeSessionId = sessionId;
       selectedModel = stringValue(message.model) ?? selectedModel;
+      permissionMode = stringValue(message.permissionMode) ?? permissionMode;
       const activeQuery = query;
       void (activeQuery === null
         ? Promise.resolve()
@@ -633,6 +678,15 @@ export function createClaudeStructuredAdapter(
     if (message.type === 'system' && message.subtype === 'commands_changed') {
       providerCommands = normalizeCommands(message.commands);
       publishCommands();
+      return;
+    }
+    if (message.type === 'system' && message.subtype === 'status') {
+      // Claude changes its own mode too, as when a plan is approved.
+      const reported = stringValue(message.permissionMode);
+      if (reported !== null && reported !== permissionMode) {
+        permissionMode = reported;
+        publishCommands();
+      }
       return;
     }
     if (sessionId !== null && nativeSessionId !== null && sessionId !== nativeSessionId) return;
@@ -1017,6 +1071,22 @@ export function createClaudeStructuredAdapter(
       if (action.kind === 'command.execute') {
         const command = commands.find(({ id }) => id === action.commandId);
         if (command === undefined) throw new Error('The Claude command is not available.');
+        if (command.id === 'mode') {
+          const mode = command.choices?.find(({ value }) => value === action.argument.trim());
+          const activeQuery = startQuery();
+          if (
+            mode === undefined ||
+            activeQuery.setPermissionMode === undefined ||
+            // Never switch into bypassing permissions; only keep it if it is already on.
+            (mode.value === 'bypassPermissions' && permissionMode !== 'bypassPermissions')
+          ) {
+            throw new Error('The Claude mode is not available.');
+          }
+          await activeQuery.setPermissionMode(mode.value);
+          permissionMode = mode.value;
+          publishCommands();
+          return;
+        }
         if (command.id === 'model') {
           const model = modelChoices.find(({ value }) => value === action.argument.trim());
           if (model === undefined) throw new Error('The Claude model is not available.');
