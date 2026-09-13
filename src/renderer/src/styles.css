@@ -5579,6 +5579,19 @@ button {
   border-color: var(--blue);
 }
 
+/* An agent error: the kind in the user's language and the provider's words beneath. */
+.structured-error p {
+  margin: 0;
+}
+
+.structured-error .structured-error-detail {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .structured-history-boundary {
   width: min(900px, 100%);
   margin: 0 auto 16px;

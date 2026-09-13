@@ -35,6 +35,7 @@ import {
 } from './structured-agent-state';
 import { nextStructuredHistoryVisibleCount } from './structured-history-window';
 import { StructuredDiff } from './StructuredDiff';
+import { StructuredErrorNotice } from './StructuredErrorNotice';
 import { StructuredQuestionCard } from './StructuredQuestionCard';
 import { StructuredSessionDetailsDialog } from './StructuredSessionDetailsDialog';
 import {
@@ -842,8 +843,8 @@ export function StructuredAgentWorkspace({
           ))}
         </div>
         {state.error === null && !actionError ? null : (
-          <div className="catalog-operation-error" role="alert">
-            {state.error?.message ?? t('terminal.unified.action-failed')}
+          <div className="catalog-operation-error structured-error" role="alert">
+            <StructuredErrorNotice error={state.error} providerName={providerName} />
           </div>
         )}
       </div>

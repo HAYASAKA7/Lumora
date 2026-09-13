@@ -21,6 +21,11 @@ import type {
   StructuredAgentAdapterContext
 } from './structured-agent-adapter';
 import {
+  codexErrorKind,
+  epochSeconds,
+  providerWords
+} from './structured-errors';
+import {
   mcpFormContent,
   mcpFormQuestions,
   type McpQuestionForm
@@ -168,6 +173,49 @@ const CodexRateLimitsSchema = z.object({
     }).passthrough().nullable().optional()
   }).passthrough()
 }).passthrough();
+type CodexRateLimits = z.infer<typeof CodexRateLimitsSchema>['rateLimits'];
+
+function rateLimitWindows(rateLimits: CodexRateLimits) {
+  return ([
+    ['primary', rateLimits.primary],
+    ['secondary', rateLimits.secondary]
+  ] as const).flatMap(([kind, window]) => (
+    window === null || window === undefined
+      ? []
+      : [{
+        kind,
+        usedPercent: window.usedPercent,
+        windowDurationMinutes: window.windowDurationMins ?? null,
+        resetsAt: window.resetsAt ?? null
+      }]
+  ));
+}
+
+/**
+ * A rolling update names only what changed; a value it leaves out or sends as
+ * null keeps what was seen before, as Codex's protocol asks.
+ */
+function mergeRateLimits(
+  previous: CodexRateLimits | null,
+  update: CodexRateLimits
+): CodexRateLimits {
+  const merged: Record<string, unknown> = { ...previous };
+  for (const [key, value] of Object.entries(update)) {
+    if (value !== null && value !== undefined) merged[key] = value;
+    else if (!(key in merged)) merged[key] = null;
+  }
+  return merged as CodexRateLimits;
+}
+
+const RateLimitsUpdatedSchema = z.object({
+  rateLimits: CodexRateLimitsSchema.shape.rateLimits
+}).passthrough();
+
+const TurnErrorSchema = z.object({
+  message: z.string().optional(),
+  codexErrorInfo: z.union([z.string(), z.record(z.string(), z.unknown())]).nullable().optional()
+}).passthrough();
+
 const CodexAccountUsageSchema = z.object({
   summary: z.object({
     lifetimeTokens: z.number().int().nonnegative().nullable().optional(),
@@ -560,6 +608,8 @@ export function createCodexStructuredAdapter(
   const createTransport = options.createTransport ?? defaultTransportFactory;
   const pendingApprovals = new Map<string, PendingApproval>();
   const pendingQuestions = new Map<string, PendingQuestion>();
+  /** The latest rate limits Codex reported, merged update by update. */
+  let lastRateLimits: CodexRateLimits | null = null;
   let transport: LineJsonRpcTransport | null = null;
   let nativeSessionId = context.launch.nativeSessionId;
   let currentTurnId: string | null = null;
@@ -821,7 +871,31 @@ export function createCodexStructuredAdapter(
     }
   };
 
+  const publishRateLimits = (rateLimits: CodexRateLimits): void => {
+    lastRateLimits = rateLimits;
+    if (nativeSessionId === null) return;
+    emit({
+      turnId: currentTurnId ?? nativeSessionId,
+      parentEventId: null,
+      kind: 'account.usage.updated',
+      payload: { plan: rateLimits.planType ?? null, windows: rateLimitWindows(rateLimits) }
+    });
+  };
+
+  /** When the limit that is spent lifts, if Codex has said. */
+  const usageLimitResetsAt = (): number | null => {
+    const windows = lastRateLimits === null ? [] : rateLimitWindows(lastRateLimits)
+      .filter((window) => window.resetsAt !== null)
+      .sort((left, right) => right.usedPercent - left.usedPercent);
+    return epochSeconds(windows[0]?.resetsAt);
+  };
+
   const acceptNotification = (notification: JsonRpcNotification): void => {
+    if (notification.method === 'account/rateLimits/updated') {
+      const update = RateLimitsUpdatedSchema.safeParse(notification.params);
+      if (update.success) publishRateLimits(mergeRateLimits(lastRateLimits, update.data.rateLimits));
+      return;
+    }
     const parsed = EnvelopeSchema.safeParse(notification.params);
     if (!parsed.success || parsed.data.threadId !== nativeSessionId) return;
     const params = parsed.data as Record<string, unknown> & {
@@ -833,6 +907,7 @@ export function createCodexStructuredAdapter(
       plan?: unknown;
       tokenUsage?: unknown;
       willRetry?: boolean;
+      error?: unknown;
     };
     const turnId = params.turnId;
     if (notification.method === 'thread/settings/updated') {
@@ -957,6 +1032,8 @@ export function createCodexStructuredAdapter(
       return;
     }
     if (notification.method === 'error') {
+      const failure = TurnErrorSchema.safeParse(params.error);
+      const errorKind = codexErrorKind(failure.success ? failure.data.codexErrorInfo : null);
       emit({
         turnId,
         parentEventId: null,
@@ -964,7 +1041,12 @@ export function createCodexStructuredAdapter(
         payload: {
           code: 'CODEX_RUNTIME_ERROR',
           message: 'Codex reported a structured runtime error.',
-          retryable: params.willRetry === true
+          retryable: params.willRetry === true,
+          errorKind,
+          // The kind is said in the user's language; these are Codex's own words.
+          providerMessage: providerWords(failure.success ? failure.data.message : null),
+          attempt: null,
+          resetsAt: errorKind === 'usage_limit' ? usageLimitResetsAt() : null
         }
       });
     }
@@ -1112,31 +1194,9 @@ export function createCodexStructuredAdapter(
         if (transport === null || nativeSessionId === null) {
           throw new Error('Codex is not ready.');
         }
-        const rateLimits = CodexRateLimitsSchema.parse(
+        publishRateLimits(CodexRateLimitsSchema.parse(
           await transport.request('account/rateLimits/read', undefined)
-        ).rateLimits;
-        const windows = ([
-          ['primary', rateLimits.primary],
-          ['secondary', rateLimits.secondary]
-        ] as const).flatMap(([kind, window]) => (
-          window === null || window === undefined
-            ? []
-            : [{
-                kind,
-                usedPercent: window.usedPercent,
-                windowDurationMinutes: window.windowDurationMins ?? null,
-                resetsAt: window.resetsAt ?? null
-              }]
-        ));
-        emit({
-          turnId: currentTurnId ?? nativeSessionId,
-          parentEventId: null,
-          kind: 'account.usage.updated',
-          payload: {
-            plan: rateLimits.planType ?? null,
-            windows
-          }
-        });
+        ).rateLimits);
         return;
       }
       if (action.kind === 'command.execute') {

@@ -25,6 +25,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or deny with no way to answer them, and a form an MCP server asked Claude for
   was declined without being shown. Each is now shown and answered, and Codex's
   permission requests use the approval buttons its commands already use.
+- Say why an agent's turn failed. An error from Codex was replaced with a
+  generic line, and a Claude Code turn that failed — at a usage limit, say —
+  showed only **Failed**. The unified interface now names the kind of problem
+  in your language, shows the agent's own words beneath it, counts retry
+  attempts while the agent tries again, and shows when a usage limit resets.
+  An error clears itself once the agent is heard from again, not when a command
+  such as `/status` runs, and a turn you stop is no longer reported as a failure.
+- Keep Codex's subscription limits current in **Session details**. Codex
+  reports its limits as they change, and those reports were ignored, so the
+  details showed only what was read when they were last opened.
 
 ## [0.5.10] - 2026-09-12
 

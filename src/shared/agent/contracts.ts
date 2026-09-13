@@ -287,13 +287,42 @@ const TurnStatusEventSchema = z.strictObject({
   })
 });
 
+/**
+ * What went wrong, in terms every agent shares, so the renderer can say it in
+ * the user's language. The provider's own words stay in `message`.
+ */
+export const StructuredAgentErrorKindSchema = z.enum([
+  'usage_limit',
+  'rate_limit',
+  'context_full',
+  'overloaded',
+  'connection',
+  'sign_in',
+  'account',
+  'rejected',
+  'other'
+]);
+
 const RuntimeErrorEventSchema = z.strictObject({
   ...EventEnvelopeFields,
   kind: z.literal('runtime.error'),
   payload: z.strictObject({
     code: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
     message: z.string().trim().min(1).max(512),
-    retryable: z.boolean()
+    retryable: z.boolean(),
+    errorKind: StructuredAgentErrorKindSchema.optional(),
+    /**
+     * The provider's own words, when it gave any. Shown beneath the kind; left
+     * out rather than filled with Lumora's English when the provider said nothing.
+     */
+    providerMessage: z.string().trim().min(1).max(1_024).nullable().optional(),
+    /** The provider is trying again: which attempt this is, of how many. */
+    attempt: z.strictObject({
+      current: z.number().int().positive().max(1_000),
+      max: z.number().int().positive().max(1_000)
+    }).nullable().optional(),
+    /** When a limit lifts, in seconds since the epoch. */
+    resetsAt: z.number().int().nonnegative().nullable().optional()
   })
 });
 
@@ -440,6 +469,7 @@ export type StructuredFileReference = z.infer<typeof StructuredFileReferenceSche
 export type StructuredFileChooseRequest = z.infer<typeof StructuredFileChooseRequestSchema>;
 export type StructuredFileChooseResult = z.infer<typeof StructuredFileChooseResultSchema>;
 export type StructuredQuestion = z.infer<typeof StructuredQuestionSchema>;
+export type StructuredAgentErrorKind = z.infer<typeof StructuredAgentErrorKindSchema>;
 
 export const StructuredAgentActionSchema = z.discriminatedUnion('kind', [
   PromptSubmitActionSchema,

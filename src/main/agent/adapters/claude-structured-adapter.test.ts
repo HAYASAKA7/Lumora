@@ -1016,4 +1016,123 @@ describe('Claude structured adapter', () => {
       }, { signal: new AbortController().signal })).resolves.toEqual({ action: 'decline' });
     });
   });
+
+  describe('errors and limits Claude reports', () => {
+    async function openLive() {
+      const query = new FakeQuery([{
+        type: 'system', subtype: 'init', session_id: 'claude-native-3'
+      }]);
+      const current = context();
+      const adapter = createClaudeStructuredAdapter(current.value, {
+        createQuery: () => query,
+        loadHistory: async () => [],
+        createNativeSessionId: () => 'claude-native-3'
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      await adapter.dispatch({
+        kind: 'prompt.submit',
+        connectionId: 'connection-claude',
+        text: 'Keep going',
+        attachmentTokens: []
+      });
+      return { adapter, current, query };
+    }
+    const errors = (events: unknown[]) => events.filter((event) => (
+      (event as { kind?: string }).kind === 'runtime.error'
+    )) as Array<{ payload: Record<string, unknown> }>;
+
+    it('says Claude is retrying, why, and which attempt this is', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'system',
+        subtype: 'api_retry',
+        session_id: 'claude-native-3',
+        attempt: 2,
+        max_retries: 10,
+        retry_delay_ms: 4_000,
+        error_status: 529,
+        error: 'overloaded'
+      });
+
+      await vi.waitFor(() => expect(errors(current.events)).toHaveLength(1));
+      expect(errors(current.events)[0]?.payload).toEqual({
+        code: 'CLAUDE_API_RETRY',
+        message: 'Claude is retrying after an API error.',
+        retryable: true,
+        errorKind: 'overloaded',
+        providerMessage: null,
+        attempt: { current: 2, max: 10 },
+        resetsAt: null
+      });
+    });
+
+    it('reports a refused request at the usage limit with when it resets, and lets a warning pass', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'rate_limit_event',
+        session_id: 'claude-native-3',
+        rate_limit_info: { status: 'allowed_warning', utilization: 0.9, rateLimitType: 'five_hour' }
+      });
+      query.emit({
+        type: 'rate_limit_event',
+        session_id: 'claude-native-3',
+        rate_limit_info: { status: 'rejected', resetsAt: 1_788_000_000_000, rateLimitType: 'five_hour' }
+      });
+
+      await vi.waitFor(() => expect(errors(current.events)).toHaveLength(1));
+      expect(errors(current.events)[0]?.payload).toMatchObject({
+        code: 'CLAUDE_USAGE_LIMIT',
+        errorKind: 'usage_limit',
+        providerMessage: null,
+        resetsAt: 1_788_000_000
+      });
+    });
+
+    it('passes on the reason a turn failed in Claude\'s own words', async () => {
+      const { current, query } = await openLive();
+
+      query.emit({
+        type: 'result',
+        subtype: 'success',
+        session_id: 'claude-native-3',
+        is_error: true,
+        api_error_status: 529,
+        result: 'API Error: 529 Overloaded'
+      });
+
+      await vi.waitFor(() => expect(errors(current.events)).toHaveLength(1));
+      expect(errors(current.events)[0]?.payload).toMatchObject({
+        code: 'CLAUDE_TURN_FAILED',
+        errorKind: 'overloaded',
+        providerMessage: 'API Error: 529 Overloaded'
+      });
+      expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'turn.completed',
+        payload: expect.objectContaining({ state: 'failed' })
+      }));
+    });
+
+    it('does not report a turn the user stopped as a failure', async () => {
+      const { adapter, current, query } = await openLive();
+
+      await adapter.dispatch({ kind: 'turn.cancel', connectionId: 'connection-claude' });
+      query.emit({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'claude-native-3',
+        is_error: true,
+        errors: ['Request was aborted.']
+      });
+
+      await vi.waitFor(() => expect(current.events).toContainEqual(expect.objectContaining({
+        kind: 'turn.completed',
+        payload: expect.objectContaining({ state: 'cancelled' })
+      })));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(errors(current.events)).toEqual([]);
+    });
+  });
 });

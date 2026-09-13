@@ -1401,4 +1401,106 @@ describe('Codex structured adapter', () => {
       await expect(ask('attestation/generate', {})).rejects.toThrow('Unsupported Codex request');
     });
   });
+
+  describe('errors and rate limits Codex reports', () => {
+    async function openLive() {
+      const transport = new FakeTransport();
+      const current = context();
+      const adapter = createCodexStructuredAdapter(current.value, {
+        createTransport: async () => transport
+      });
+      await adapter.open();
+      await adapter.activate?.();
+      return { adapter, current, transport };
+    }
+    const ofKind = (events: unknown[], kind: string) => events.filter((event) => (
+      (event as { kind?: string }).kind === kind
+    )) as Array<{ payload: Record<string, unknown> }>;
+
+    it('keeps each rolling rate-limit update, holding what an update leaves out', async () => {
+      const { current, transport } = await openLive();
+
+      transport.emit('account/rateLimits/updated', {
+        rateLimits: {
+          planType: 'pro',
+          primary: { usedPercent: 40, windowDurationMins: 300, resetsAt: 1_788_000_000 },
+          secondary: null
+        }
+      });
+      transport.emit('account/rateLimits/updated', {
+        rateLimits: {
+          planType: null,
+          primary: null,
+          secondary: { usedPercent: 12, windowDurationMins: 10_080, resetsAt: 1_788_500_000 }
+        }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'account.usage.updated')).toHaveLength(2));
+      expect(ofKind(current.events, 'account.usage.updated').at(-1)?.payload).toEqual({
+        plan: 'pro',
+        windows: [
+          { kind: 'primary', usedPercent: 40, windowDurationMinutes: 300, resetsAt: 1_788_000_000 },
+          { kind: 'secondary', usedPercent: 12, windowDurationMinutes: 10_080, resetsAt: 1_788_500_000 }
+        ]
+      });
+    });
+
+    it('says a usage limit in Codex\'s own words, and when the spent limit lifts', async () => {
+      const { current, transport } = await openLive();
+      transport.emit('account/rateLimits/updated', {
+        rateLimits: {
+          primary: { usedPercent: 100, windowDurationMins: 300, resetsAt: 1_788_000_000 },
+          secondary: { usedPercent: 60, windowDurationMins: 10_080, resetsAt: 1_788_900_000 }
+        }
+      });
+
+      transport.emit('error', {
+        threadId: '019c-native-thread',
+        turnId: 'turn-live',
+        willRetry: false,
+        error: {
+          message: 'You have hit your usage limit.',
+          codexErrorInfo: 'usageLimitExceeded',
+          additionalDetails: null
+        }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'runtime.error')).toHaveLength(1));
+      expect(ofKind(current.events, 'runtime.error')[0]?.payload).toEqual({
+        code: 'CODEX_RUNTIME_ERROR',
+        message: 'Codex reported a structured runtime error.',
+        retryable: false,
+        errorKind: 'usage_limit',
+        providerMessage: 'You have hit your usage limit.',
+        attempt: null,
+        resetsAt: 1_788_000_000
+      });
+    });
+
+    it('marks a dropped stream Codex will retry, and adds no words when Codex gives none', async () => {
+      const { current, transport } = await openLive();
+
+      transport.emit('error', {
+        threadId: '019c-native-thread',
+        turnId: 'turn-live',
+        willRetry: true,
+        error: {
+          message: 'stream disconnected before completion',
+          codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 502 } }
+        }
+      });
+      transport.emit('error', {
+        threadId: '019c-native-thread',
+        turnId: 'turn-live',
+        willRetry: false,
+        error: { codexErrorInfo: null }
+      });
+
+      await vi.waitFor(() => expect(ofKind(current.events, 'runtime.error')).toHaveLength(2));
+      const [dropped, silent] = ofKind(current.events, 'runtime.error');
+      expect(dropped?.payload).toMatchObject({ errorKind: 'connection', retryable: true, resetsAt: null });
+      expect(dropped?.payload).toMatchObject({ providerMessage: 'stream disconnected before completion' });
+      expect(silent?.payload).toMatchObject({ errorKind: 'other', providerMessage: null });
+    });
+  });
 });

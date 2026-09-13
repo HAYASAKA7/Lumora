@@ -237,6 +237,23 @@ provider SDK, process handle, raw filesystem capability, or general-purpose RPC
 transport. Runtime identity is indexed with PTY identity so direct resume
 activates an existing owner instead of launching a duplicate.
 
+Agent errors travel as `runtime.error` events that say what went wrong in
+shared terms. Each adapter maps its provider's own names — Codex's
+`codexErrorInfo`, Claude's API error names, or an HTTP status when that is all
+there is — to one error kind: usage limit, rate limit, full context, overload,
+connection, sign-in, account, refusal, or other. The event keeps the provider's
+words separately from Lumora's fallback message, so the renderer can say the
+kind in the user's language and add the provider's detail without inventing
+untranslated text, and it can carry the retry attempt and a limit's reset time.
+The renderer keeps an error with the turn it came from and drops it once events
+show the agent recovered: that turn completing, output in it after a failure the
+provider was retrying, or output in any later turn. A turn merely starting does
+not count, because a command's reply opens and closes a turn of its own without
+the agent speaking. Codex's
+rolling `account/rateLimits/updated` notifications carry no thread, so they are
+read before the per-thread filter and merged into the last snapshot, keeping any
+value an update leaves out, as the protocol asks.
+
 Requests an agent sends to Lumora mid-turn are answered, not refused. Codex's
 user-input request, Claude's AskUserQuestion tool, and MCP elicitation from
 either become one `question.requested` event: a list of questions, each a

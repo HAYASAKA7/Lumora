@@ -87,7 +87,10 @@ export interface StructuredAgentViewState {
       resetsAt: number | null;
     }[];
   } | null;
-  error: { code: string; message: string; retryable: boolean } | null;
+  /** The agent's last error, with the turn it came from. */
+  error: (Extract<StructuredAgentEvent, { kind: 'runtime.error' }>['payload'] & {
+    turnId: string;
+  }) | null;
 }
 
 export function createStructuredAgentViewState(): StructuredAgentViewState {
@@ -133,6 +136,25 @@ function updateTurn(
   return { ...state, turns };
 }
 
+/**
+ * Whether an event shows the agent has got past its last error. The turn that
+ * failed recovers by completing, or by answering after a failure the provider
+ * was retrying; any later turn recovers it by answering at all. A turn that
+ * only starts proves nothing — a command's reply starts and completes a turn
+ * of its own without the agent saying a word — so a usage limit or a refusal
+ * stays until the agent is heard from again.
+ */
+function recoveredFrom(
+  error: StructuredAgentViewState['error'],
+  event: StructuredAgentEvent
+): boolean {
+  if (error === null) return false;
+  const answered = event.kind === 'assistant.delta' || event.kind === 'assistant.message';
+  if (event.turnId !== error.turnId) return answered;
+  if (event.kind === 'turn.completed') return event.payload.state === 'completed';
+  return answered && error.retryable;
+}
+
 export function reduceStructuredAgentEvent(
   state: StructuredAgentViewState,
   event: StructuredAgentEvent
@@ -146,7 +168,8 @@ export function reduceStructuredAgentEvent(
   let next: StructuredAgentViewState = {
     ...state,
     generation: event.generation,
-    sequence: event.sequence
+    sequence: event.sequence,
+    error: recoveredFrom(state.error, event) ? null : state.error
   };
   switch (event.kind) {
     case 'runtime.status':
@@ -310,6 +333,6 @@ export function reduceStructuredAgentEvent(
     case 'account.usage.updated':
       return { ...next, accountUsage: event.payload };
     case 'runtime.error':
-      return { ...next, error: event.payload };
+      return { ...next, error: { ...event.payload, turnId: event.turnId } };
   }
 }

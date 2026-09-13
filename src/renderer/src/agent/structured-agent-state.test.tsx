@@ -134,7 +134,7 @@ describe('structured agent view state', () => {
     expect(stale).toBe(initial);
     expect(initial.turns[0]?.approvals[0]?.decision).toBe('allow_once');
     expect(initial.error).toEqual({
-      code: 'CONNECTION_LOST', message: 'Connection lost.', retryable: true
+      code: 'CONNECTION_LOST', message: 'Connection lost.', retryable: true, turnId: 'turn-1'
     });
   });
 
@@ -220,5 +220,55 @@ describe('structured agent view state', () => {
     expect(closed.turns[0]?.questions).toEqual([expect.objectContaining({
       id: 'codex-question-7', outcome: 'answered'
     })]);
+  });
+
+  it('recovers from an error the agent got past, and keeps one it did not', () => {
+    const reduce = (events: StructuredAgentEvent[]) =>
+      events.reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+    const retrying = event(2, 'runtime.error', {
+      code: 'CLAUDE_API_RETRY', message: 'Claude is retrying after an API error.',
+      retryable: true, errorKind: 'overloaded', providerMessage: null,
+      attempt: { current: 1, max: 10 }, resetsAt: null
+    });
+    const limited = event(2, 'runtime.error', {
+      code: 'CLAUDE_USAGE_LIMIT', message: 'Claude reached a usage limit.',
+      retryable: false, errorKind: 'usage_limit', providerMessage: null,
+      attempt: null, resetsAt: 1_788_000_000
+    });
+    const output = event(3, 'assistant.delta', { text: 'Back on track' });
+
+    // Output after a retried failure means the retry worked.
+    expect(reduce([retrying, output]).error).toBeNull();
+    // Output in the turn a usage limit stopped does not lift it…
+    expect(reduce([limited, output]).error).toMatchObject({ errorKind: 'usage_limit', turnId: 'turn-1' });
+    // …the turn completing does, and failing does not.
+    expect(reduce([limited, event(3, 'turn.completed', { state: 'completed', message: null })]).error).toBeNull();
+    expect(reduce([limited, event(3, 'turn.completed', { state: 'failed', message: null })]).error)
+      .toMatchObject({ errorKind: 'usage_limit' });
+  });
+
+  it('keeps an error through a command\'s own turn, and lets it go when a later turn answers', () => {
+    const reduce = (events: StructuredAgentEvent[]) =>
+      events.reduce(reduceStructuredAgentEvent, createStructuredAgentViewState());
+    const limited = event(2, 'runtime.error', {
+      code: 'CODEX_RUNTIME_ERROR', message: 'Codex reported a structured runtime error.',
+      retryable: false, errorKind: 'usage_limit', providerMessage: 'Usage limit reached.',
+      attempt: null, resetsAt: 1_788_000_000
+    }, 'turn-1');
+    // A command such as /status replies in a turn of its own without the agent.
+    const command = [
+      event(3, 'turn.started', { state: 'running', message: null }, 'command-1'),
+      event(4, 'user.message', { text: '/status' }, 'command-1'),
+      event(5, 'turn.completed', { state: 'completed', message: null }, 'command-1')
+    ];
+
+    const afterCommand = reduce([limited, ...command]);
+    expect(afterCommand.error).toMatchObject({ errorKind: 'usage_limit' });
+
+    const answered = reduceStructuredAgentEvent(
+      afterCommand,
+      event(6, 'assistant.delta', { text: 'Working again' }, 'turn-2')
+    );
+    expect(answered.error).toBeNull();
   });
 });

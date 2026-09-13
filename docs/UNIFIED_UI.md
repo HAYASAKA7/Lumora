@@ -190,7 +190,24 @@ command, and allowing it grants exactly what was asked.
 Select **Session details** to inspect normalized metadata such as provider,
 native session identity, timestamps, token totals, context, and subscription
 usage when available. The details surface does not parse terminal text to guess
-missing provider data.
+missing provider data. Codex's subscription limits stay current as it reports
+them during the session, without reopening the details.
+
+### When something goes wrong
+
+An error from the agent says what kind of problem it is in your language — a
+usage limit, too many requests, a conversation too long for the context, an
+overloaded service, a lost connection, a sign-in that expired, an account or
+billing problem, or a refused request — with the agent's own words beneath it
+when it gave any. A request the agent is retrying shows which attempt it is on,
+and a usage limit shows when it resets if the agent reported that.
+
+An error clears itself once the agent gets past it: the failed turn completes,
+the agent answers after a retry, or a later turn gets an answer. A usage limit
+or a refusal stays until the agent is heard from again, so it is still there
+when you come back to the session, and running a command such as `/status`
+does not clear it.
+A turn you stop yourself is not reported as a failure.
 
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_session_details.png" alt="Lumora Unified UI session details with provider metadata and token usage" width="900">

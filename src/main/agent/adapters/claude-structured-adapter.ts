@@ -23,6 +23,12 @@ import {
   mcpFormQuestions,
   type McpQuestionForm
 } from './structured-questions';
+import {
+  claudeErrorKind,
+  epochSeconds,
+  httpStatusErrorKind,
+  providerWords
+} from './structured-errors';
 
 export interface ClaudeQueryLike extends AsyncIterable<unknown> {
   interrupt(): Promise<unknown>;
@@ -632,6 +638,51 @@ export function createClaudeStructuredAdapter(
     if (sessionId !== null && nativeSessionId !== null && sessionId !== nativeSessionId) return;
     const turnId = resolveMessageTurnId(message);
 
+    if (message.type === 'system' && message.subtype === 'api_retry') {
+      // Claude is trying again on its own; say so, and which attempt this is.
+      const named = claudeErrorKind(message.error);
+      const attempt = typeof message.attempt === 'number' ? Math.floor(message.attempt) : null;
+      const max = typeof message.max_retries === 'number' ? Math.floor(message.max_retries) : null;
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'runtime.error',
+        payload: {
+          code: 'CLAUDE_API_RETRY',
+          message: 'Claude is retrying after an API error.',
+          retryable: true,
+          errorKind: named === 'other' ? httpStatusErrorKind(message.error_status) : named,
+          providerMessage: null,
+          attempt: attempt !== null && max !== null && attempt >= 1 && max >= 1
+            ? { current: Math.min(attempt, 1_000), max: Math.min(Math.max(attempt, max), 1_000) }
+            : null,
+          resetsAt: null
+        }
+      });
+      return;
+    }
+
+    if (message.type === 'rate_limit_event') {
+      const info = object(message.rate_limit_info);
+      // Only a refused request is a problem; a warning is not worth interrupting for.
+      if (info?.status !== 'rejected') return;
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'runtime.error',
+        payload: {
+          code: 'CLAUDE_USAGE_LIMIT',
+          message: 'Claude reached a usage limit.',
+          retryable: false,
+          errorKind: 'usage_limit',
+          providerMessage: null,
+          attempt: null,
+          resetsAt: epochSeconds(info.resetsAt)
+        }
+      });
+      return;
+    }
+
     if (message.type === 'stream_event') {
       const event = object(message.event);
       const delta = object(event?.delta);
@@ -778,6 +829,29 @@ export function createClaudeStructuredAdapter(
             : inputTokens + outputTokens
         }
       });
+      // A turn the user stopped is not a failure to report.
+      if (message.is_error === true && completedTurnStates.get(resultTurnId) !== 'cancelled') {
+        const errors = Array.isArray(message.errors)
+          ? message.errors.filter((entry): entry is string => typeof entry === 'string')
+          : [];
+        const words = providerWords(errors.length > 0 ? errors.join('\n') : message.result);
+        emit({
+          turnId: resultTurnId,
+          parentEventId: null,
+          kind: 'runtime.error',
+          payload: {
+            code: 'CLAUDE_TURN_FAILED',
+            message: 'Claude could not complete this turn.',
+            retryable: false,
+            errorKind: message.subtype === 'error_max_budget_usd'
+              ? 'usage_limit'
+              : httpStatusErrorKind(message.api_error_status),
+            providerMessage: words,
+            attempt: null,
+            resetsAt: null
+          }
+        });
+      }
       completeTurn(
         resultTurnId,
         message.is_error === true ? 'failed' : 'completed',
