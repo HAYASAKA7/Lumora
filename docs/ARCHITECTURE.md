@@ -380,7 +380,9 @@ does not copy transcript bodies. Workspaces can come from provider discovery or
 manual selection, and canonical paths are used to avoid duplicate identities.
 
 Catalog refreshes run at startup, on user request, on a schedule, and shortly
-after a managed provider exits. Search results use request ownership so a slow,
+after a managed provider exits. A terminal launch that must find the session it
+creates refreshes only its own provider's sessions; a full refresh already
+under way answers for it, and refreshes of different providers run together. Search results use request ownership so a slow,
 stale response cannot replace a newer query.
 
 Workspace visibility is a non-destructive renderer projection over a complete
@@ -478,6 +480,16 @@ fork arguments plus the user's optional single-line initial task, and starts
 with no destination session identity. When the task is empty, no prompt argument
 is added. The existing reconciliation flow then links the runtime to the new
 provider-owned session without changing the source session.
+
+A terminal started for a new session, a native fork, or a handoff has no
+session identity until the provider writes one. Just before the terminal
+spawns, Lumora refreshes that provider's sessions alone and records the IDs
+already present in the workspace; reconciliation then refreshes the same
+provider on its schedule and links the one ID that was not there before. The
+other providers keep what the last catalog refresh found. A Unified UI launch
+hears its session ID from the agent, so it neither waits for this refresh nor
+reconciles. If the sessions cannot be read, the terminal still starts and is
+left unlinked.
 
 For an enabled cross-agent handoff, the main process instead:
 

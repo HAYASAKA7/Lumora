@@ -66,10 +66,6 @@ interface LaunchServiceDependencies {
    */
   scanProviders(options?: ProviderLookup): Promise<ProviderScanResult>;
   isExecutablePath(path: string): Promise<boolean>;
-  captureSessionBaseline(
-    provider: ProviderId,
-    workspaceId: string
-  ): Promise<readonly string[]>;
   handoffService: Pick<HandoffService, 'reserve' | 'materialize'>;
   platform: SystemInfo['platform'];
   env: Environment;
@@ -89,7 +85,11 @@ export interface LaunchSpec {
   startPrompt: string;
   sessionId: string | null;
   nativeSessionId: string | null;
-  reconciliationBaselineNativeIds: string[] | null;
+  /**
+   * Whether the runtime must work out which saved session it created. Its
+   * baseline is read when the terminal starts, not when the launch is prepared.
+   */
+  reconcileNewSession: boolean;
   provider: ProviderId;
   workspaceId: string;
   executablePath: string;
@@ -206,17 +206,6 @@ function launchHash(
       })
     )
     .digest('hex');
-}
-
-function normalizeSessionBaseline(values: readonly string[]): string[] {
-  if (values.length > 25_000) {
-    throw new Error('The session baseline is too large.');
-  }
-  const normalized = values.map((value) => value.trim());
-  if (normalized.some((value) => value.length === 0 || value.length > 256)) {
-    throw new Error('The session baseline contains an invalid identity.');
-  }
-  return [...new Set(normalized)].sort();
 }
 
 function sameValue(left: unknown, right: unknown): boolean {
@@ -464,23 +453,14 @@ export class LaunchService {
         environment.LUMORA_PROVIDER_RUNTIME_PATH = runtimeDirectory;
       }
     }
-    let reconciliationBaselineNativeIds: string[] | null = null;
-    if (
-      (
-        request.strategy === 'new' ||
-        request.strategy === 'fork' ||
-        handoff !== null
-      ) &&
-      this.dependencies.sessionCatalogRegistry.get(provider) !== null
-    ) {
-      try {
-        reconciliationBaselineNativeIds = normalizeSessionBaseline(
-          await this.dependencies.captureSessionBaseline(provider, workspace.id)
-        );
-      } catch {
-        reconciliationBaselineNativeIds = null;
-      }
-    }
+    // Only a terminal needs to find the session it created, and it reads the
+    // sessions already there just before it starts: a Unified UI launch hears
+    // its session ID from the agent and never pays for that read.
+    const reconcileNewSession = (
+      request.strategy === 'new' ||
+      request.strategy === 'fork' ||
+      handoff !== null
+    ) && this.dependencies.sessionCatalogRegistry.get(provider) !== null;
     const createdAt = this.clock();
     const partial = {
       interactionRoute: request.interactionRoute,
@@ -489,7 +469,7 @@ export class LaunchService {
       startPrompt: request.startPrompt,
       sessionId,
       nativeSessionId,
-      reconciliationBaselineNativeIds,
+      reconcileNewSession,
       provider,
       workspaceId: workspace.id,
       executablePath: installation.executablePath,

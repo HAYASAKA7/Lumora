@@ -60,7 +60,7 @@ interface CreateCatalogRuntimeOptions {
   homeDirectory: string;
   platform: SystemInfo['platform'];
   env: Environment;
-  scanProviders(): Promise<ProviderScanResult>;
+  scanProviders(options?: { providers?: readonly ProviderId[] }): Promise<ProviderScanResult>;
   enabledProviders?: () => readonly ProviderId[];
   allowExperimentalTransferRoutes?: boolean;
   clock?: () => Date;
@@ -70,6 +70,7 @@ interface CreateCatalogRuntimeOptions {
     durationMs: number;
     cacheHits: number;
     counts: { discovered: number; unchanged: number; invalid: number };
+    provider?: ProviderId;
   }) => void;
 }
 

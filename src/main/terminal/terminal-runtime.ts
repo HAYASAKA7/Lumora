@@ -18,6 +18,7 @@ import {
   type LaunchSettingsLayerInput,
   type KeyboardSettings,
   type ProviderLaunchConfig,
+  type ProviderId,
   type ProviderLaunchConfigInput,
   type ProviderScanResult,
   type RuntimeAttachment,
@@ -105,6 +106,8 @@ interface CreateTerminalRuntimeOptions {
     'reserve' | 'materialize' | 'cleanupExpired'
   >;
   refreshCatalog?(): Promise<unknown>;
+  /** Refreshes one provider's sessions; a full refresh is used without it. */
+  refreshProviderSessions?(provider: ProviderId): Promise<unknown>;
   onGeneralSettingsSaved?(settings: GeneralSettings): void;
   clock?: () => Date;
   createProfileId?: () => string;
@@ -162,6 +165,7 @@ export async function createTerminalRuntime({
   handoffRootDirectory,
   handoffService: providedHandoffService,
   refreshCatalog,
+  refreshProviderSessions,
   onGeneralSettingsSaved,
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
@@ -215,15 +219,6 @@ export async function createTerminalRuntime({
     sessionCatalogRegistry,
     scanProviders,
     isExecutablePath: (path) => isExecutableFile(path, platform),
-    captureSessionBaseline: async (provider, workspaceId) => {
-      if (refreshCatalog === undefined) {
-        throw new Error('Catalog refresh is unavailable.');
-      }
-      await refreshCatalog();
-      return repository
-        .listCurrentSessionIdentities(provider, workspaceId)
-        .map((session) => session.nativeId);
-    },
     handoffService,
     platform,
     env,
@@ -250,13 +245,20 @@ export async function createTerminalRuntime({
     }
   });
   let host!: RuntimeHost;
+  // A new session only needs its own provider's sessions read, never every
+  // provider's: a full catalog refresh takes seconds.
+  const refreshSessionsOf = async (provider: ProviderId): Promise<void> => {
+    if (refreshProviderSessions !== undefined) {
+      await refreshProviderSessions(provider);
+      return;
+    }
+    if (refreshCatalog === undefined) {
+      throw new Error('Catalog refresh is unavailable.');
+    }
+    await refreshCatalog();
+  };
   const reconciler = new NewSessionReconciler({
-    refreshCatalog: async () => {
-      if (refreshCatalog === undefined) {
-        throw new Error('Catalog refresh is unavailable.');
-      }
-      await refreshCatalog();
-    },
+    refreshCatalog: refreshSessionsOf,
     listCurrentSessionIdentities: (provider, workspaceId) =>
       repository.listCurrentSessionIdentities(provider, workspaceId),
     applyResult: (runtimeId, result) => {
@@ -269,6 +271,12 @@ export async function createTerminalRuntime({
     spawn,
     startReconciliation: (request) => {
       void reconciler.start(request);
+    },
+    captureSessionBaseline: async (provider, workspaceId) => {
+      await refreshSessionsOf(provider);
+      return repository
+        .listCurrentSessionIdentities(provider, workspaceId)
+        .map((session) => session.nativeId);
     },
     platform,
     clock,

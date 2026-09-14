@@ -1,3 +1,4 @@
+import { normalizeSessionBaseline } from './session-baseline';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -75,6 +76,11 @@ interface RuntimeHostDependencies {
     'executablePath' | 'args' | 'env'
   >;
   startReconciliation(request: ReconciliationRequest): void;
+  /** The native session IDs a provider already has in a workspace. */
+  captureSessionBaseline?(
+    provider: LaunchSpec['provider'],
+    workspaceId: string
+  ): Promise<readonly string[]>;
   platform: SystemInfo['platform'];
   clock?: () => Date;
   createRuntimeId?: () => string;
@@ -224,7 +230,25 @@ export class RuntimeHost {
     return this.startSpec(spec);
   }
 
+  /**
+   * The sessions a provider has just before a new one starts, so the one it
+   * creates can be told apart. Null when they cannot be read; the runtime then
+   * starts without linking a session.
+   */
+  private async captureBaseline(spec: LaunchSpec): Promise<string[] | null> {
+    const capture = this.dependencies.captureSessionBaseline;
+    if (spec.strategy === 'resume' || !spec.reconcileNewSession || capture === undefined) {
+      return null;
+    }
+    try {
+      return normalizeSessionBaseline(await capture(spec.provider, spec.workspaceId));
+    } catch {
+      return null;
+    }
+  }
+
   private async startSpec(spec: LaunchSpec): Promise<RuntimeSummary> {
+    const baselineNativeIds = await this.captureBaseline(spec);
     const runtimeId = this.createRuntimeId();
     try {
       this.sessionGuard.claim({
@@ -248,7 +272,7 @@ export class RuntimeHost {
       reconciliationState:
         spec.strategy === 'resume'
           ? 'not_required'
-          : spec.reconciliationBaselineNativeIds === null
+          : baselineNativeIds === null
             ? 'unresolved'
             : 'pending',
       provider: spec.provider,
@@ -265,8 +289,8 @@ export class RuntimeHost {
     });
     this.persistAndEmit(
       launching,
-      spec.strategy !== 'resume' && spec.reconciliationBaselineNativeIds !== null
-        ? spec.reconciliationBaselineNativeIds
+      spec.strategy !== 'resume' && baselineNativeIds !== null
+        ? baselineNativeIds
         : undefined
     );
 
@@ -330,14 +354,14 @@ export class RuntimeHost {
     this.persistAndEmit(running);
     if (
       running.reconciliationState === 'pending' &&
-      spec.reconciliationBaselineNativeIds !== null
+      baselineNativeIds !== null
     ) {
       try {
         this.dependencies.startReconciliation({
           runtimeId,
           provider: spec.provider,
           workspaceId: spec.workspaceId,
-          baselineNativeIds: spec.reconciliationBaselineNativeIds
+          baselineNativeIds
         });
       } catch {
         this.applyReconciliation(runtimeId, { state: 'unresolved' });

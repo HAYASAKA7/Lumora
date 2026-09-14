@@ -14,7 +14,8 @@ export interface ReconciliationRequest {
 type Wait = (delay: number, signal: AbortSignal) => Promise<void>;
 
 interface NewSessionReconcilerDependencies {
-  refreshCatalog(): Promise<unknown>;
+  /** Refreshes the sessions of the provider a new runtime is waiting to link. */
+  refreshCatalog(provider: ProviderId): Promise<unknown>;
   listCurrentSessionIdentities(
     provider: ProviderId,
     workspaceId: string
@@ -86,7 +87,7 @@ export class NewSessionReconciler {
       if (signal.aborted) return;
 
       try {
-        await this.dependencies.refreshCatalog();
+        await this.dependencies.refreshCatalog(request.provider);
       } catch {
         continue;
       }

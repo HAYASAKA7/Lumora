@@ -17,7 +17,7 @@ const launchSpec: LaunchSpec = {
   startPrompt: '',
   sessionId: null,
   nativeSessionId: null,
-  reconciliationBaselineNativeIds: ['known-native'],
+  reconcileNewSession: true,
   provider: 'codex',
   workspaceId: 'a'.repeat(64),
   executablePath: '/usr/local/bin/codex',
@@ -180,6 +180,7 @@ function harness(options: {
     })
   };
   const startReconciliation = vi.fn();
+  const captureSessionBaseline = vi.fn(async () => ['known-native']);
   let waitCallCount = 0;
   let spawnCount = 0;
   const spawn = vi.fn(async (_options: PtySpawnOptions) => {
@@ -204,6 +205,7 @@ function harness(options: {
     ),
     spawn,
     startReconciliation,
+    captureSessionBaseline,
     platform: options.platform ?? 'linux',
     ...(options.sessionGuard === undefined
       ? {}
@@ -232,6 +234,7 @@ function harness(options: {
     repository,
     spawn,
     startReconciliation,
+    captureSessionBaseline,
     resolveInvocation
   };
 }
@@ -260,7 +263,7 @@ describe('RuntimeHost', () => {
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
       nativeSessionId: 'native-thread-1',
-      reconciliationBaselineNativeIds: null
+      reconcileNewSession: false
     };
     const { host, spawn } = harness({
       launch: resumeLaunch,
@@ -397,7 +400,7 @@ describe('RuntimeHost', () => {
       strategy: 'resume',
       sessionId,
       nativeSessionId: 'native-thread-1',
-      reconciliationBaselineNativeIds: null,
+      reconcileNewSession: false,
       args: ['resume', 'native-thread-1']
     };
     const { host, spawn } = harness({
@@ -536,7 +539,7 @@ describe('RuntimeHost', () => {
       strategy: 'resume',
       sessionId: 'd'.repeat(64),
       nativeSessionId: 'native-thread-1',
-      reconciliationBaselineNativeIds: null,
+      reconcileNewSession: false,
       args: ['resume', 'native-thread-1']
     };
     const { host, repository } = harness({ launch: resumeLaunch });
@@ -948,5 +951,41 @@ describe('RuntimeHost', () => {
       host.start('0198f8b6-18f3-7ca0-9f0f-123456789abd')
     ).rejects.toMatchObject({ code: 'RUNTIME_SHUTTING_DOWN' });
     expect(spawn).toHaveBeenCalledOnce();
+  });
+
+  it('reads the sessions already there when a new terminal starts, before it spawns', async () => {
+    const { host, spawn, startReconciliation, captureSessionBaseline } = harness();
+    captureSessionBaseline.mockImplementationOnce(async () => {
+      expect(spawn).not.toHaveBeenCalled();
+      return ['native-b', 'native-a', 'native-a'];
+    });
+
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(captureSessionBaseline).toHaveBeenCalledWith('codex', launchSpec.workspaceId);
+    expect(startReconciliation).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeId: runtime.id,
+      baselineNativeIds: ['native-a', 'native-b']
+    }));
+  });
+
+  it('starts a new terminal without linking when its sessions cannot be read, and never reads them to resume', async () => {
+    const failed = harness();
+    failed.captureSessionBaseline.mockRejectedValueOnce(new Error('discovery failed'));
+    const runtime = await failed.host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    expect(runtime.reconciliationState).toBe('unresolved');
+    expect(failed.startReconciliation).not.toHaveBeenCalled();
+
+    const resumed = harness({
+      launch: {
+        ...launchSpec,
+        strategy: 'resume',
+        sessionId: 'd'.repeat(64),
+        nativeSessionId: 'native-thread-1',
+        reconcileNewSession: false
+      }
+    });
+    await resumed.host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    expect(resumed.captureSessionBaseline).not.toHaveBeenCalled();
   });
 });

@@ -113,7 +113,6 @@ function harness(overrides: {
   command?: string | null;
   layers?: LaunchSettingsLayer[];
   profiles?: TerminalProfile[];
-  baseline?: readonly string[] | Error;
   trusted?: boolean;
   sessionCatalogRegistry?: ReturnType<typeof createSessionCatalogRegistry>;
   generalSettings?: GeneralSettings;
@@ -179,10 +178,6 @@ function harness(overrides: {
     isWorkspaceTrusted: vi.fn(() => trusted),
     trustWorkspace
   };
-  const captureSessionBaseline = vi.fn(async () => {
-    if (overrides.baseline instanceof Error) throw overrides.baseline;
-    return overrides.baseline ?? [];
-  });
   let currentScan: ProviderScanResult = overrides.scan ?? scan;
   const handoffPlan: HandoffPlan = {
     id: '019c0000-0000-7000-8000-000000000010',
@@ -217,7 +212,6 @@ function harness(overrides: {
       overrides.scanProviders ?? (async () => currentScan)
     ),
     isExecutablePath: vi.fn(async () => true),
-    captureSessionBaseline,
     handoffService,
     platform: 'linux',
     env: overrides.env ?? { PATH: '/usr/local/bin:/usr/bin' },
@@ -235,7 +229,6 @@ function harness(overrides: {
   return {
     service,
     repository,
-    captureSessionBaseline,
     handoffService,
     setNow(value: string) {
       now = new Date(value);
@@ -616,12 +609,10 @@ describe('LaunchService', () => {
   ) => {
     const {
       service,
-      captureSessionBaseline,
       handoffService
     } = harness({
       trusted: true,
       session: { ...session, provider },
-      baseline: ['existing-native']
     });
     const preview = await service.prepare({
       strategy: 'fork',
@@ -643,14 +634,13 @@ describe('LaunchService', () => {
       strategy: 'fork',
       sessionId: null,
       nativeSessionId: null,
-      reconciliationBaselineNativeIds: ['existing-native'],
+      reconcileNewSession: true,
       fork: {
         sourceSessionId: sessionId,
         sourceNativeSessionId: nativeId,
         startPrompt: 'Fix the failing tests.'
       }
     });
-    expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
     expect(handoffService.reserve).not.toHaveBeenCalled();
     expect(handoffService.materialize).not.toHaveBeenCalled();
   });
@@ -664,12 +654,10 @@ describe('LaunchService', () => {
     async (provider, args) => {
       const {
         service,
-        captureSessionBaseline,
         handoffService
       } = harness({
         trusted: true,
         session: { ...session, provider },
-        baseline: ['existing-native']
       });
       const preview = await service.prepare({
         strategy: 'fork',
@@ -690,14 +678,13 @@ describe('LaunchService', () => {
         strategy: 'fork',
         sessionId: null,
         nativeSessionId: null,
-        reconciliationBaselineNativeIds: ['existing-native'],
+        reconcileNewSession: true,
         fork: {
           sourceSessionId: sessionId,
           sourceNativeSessionId: nativeId,
           startPrompt: ''
         }
       });
-      expect(captureSessionBaseline).toHaveBeenCalledWith(provider, workspaceId);
       expect(handoffService.reserve).not.toHaveBeenCalled();
       expect(handoffService.materialize).not.toHaveBeenCalled();
     }
@@ -807,7 +794,6 @@ describe('LaunchService', () => {
   it('invalidates a native fork when the source identity changes after preview', async () => {
     const { service, setSession } = harness({
       trusted: true,
-      baseline: ['existing-native']
     });
     const preview = await service.prepare({
       strategy: 'fork',
@@ -829,10 +815,9 @@ describe('LaunchService', () => {
       ...DEFAULT_GENERAL_SETTINGS,
       crossAgentWorkflowEnabled: true
     };
-    const { service, handoffService, captureSessionBaseline } = harness({
+    const { service, handoffService } = harness({
       trusted: true,
-      generalSettings: enabled,
-      baseline: ['claude-existing']
+      generalSettings: enabled
     });
     const preview = await service.prepare({
       strategy: 'resume',
@@ -861,7 +846,7 @@ describe('LaunchService', () => {
       sessionId: null,
       nativeSessionId: null,
       provider: 'claude',
-      reconciliationBaselineNativeIds: ['claude-existing']
+      reconcileNewSession: true
     });
     expect(handoffService.materialize).toHaveBeenCalledTimes(1);
     expect(
@@ -870,7 +855,6 @@ describe('LaunchService', () => {
       nativeSessionId: nativeId,
       sourceKeys: ['/sessions/codex.jsonl']
     }));
-    expect(captureSessionBaseline).toHaveBeenCalledWith('claude', workspaceId);
   });
 
   it.each([
@@ -897,7 +881,7 @@ describe('LaunchService', () => {
           ]
         : scan.providers
     };
-    const { service, captureSessionBaseline } = harness({
+    const { service } = harness({
       trusted: true,
       scan: providerScan
     });
@@ -912,9 +896,9 @@ describe('LaunchService', () => {
     });
 
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
-      displayName
+      displayName,
+      reconcileNewSession: true
     });
-    expect(captureSessionBaseline).toHaveBeenCalledTimes(1);
   });
 
   it('rejects missing and stale sessions', async () => {
@@ -1118,11 +1102,8 @@ describe('LaunchService', () => {
     })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
   });
 
-  it('captures a normalized pre-launch baseline only for new sessions', async () => {
-    const { service } = harness({
-      baseline: ['native-b', 'native-a', 'native-a'],
-      trusted: true
-    });
+  it('marks new sessions for linking without reading any sessions while preparing', async () => {
+    const { service } = harness({ trusted: true });
     const preview = await service.prepare({
       strategy: 'new',
       startPrompt: '',
@@ -1133,31 +1114,13 @@ describe('LaunchService', () => {
       rows: 30
     });
 
+    // A Unified UI launch hears its session ID from the agent, so preparing a
+    // launch never waits for the catalog; a terminal reads it when it starts.
     await expect(service.consume(preview.launchToken)).resolves.toMatchObject({
-      reconciliationBaselineNativeIds: ['native-a', 'native-b']
+      reconcileNewSession: true
     });
 
-    const failed = harness({
-      baseline: new Error('scan failed'),
-      trusted: true
-    }).service;
-    const failedPreview = await failed.prepare({
-      strategy: 'new',
-      startPrompt: '',
-      workspaceId,
-      provider: 'codex',
-      terminalProfileId: profileId,
-      cols: 100,
-      rows: 30
-    });
-    await expect(failed.consume(failedPreview.launchToken)).resolves.toMatchObject({
-      reconciliationBaselineNativeIds: null
-    });
-
-    const resume = harness({
-      baseline: new Error('must not run'),
-      trusted: true
-    }).service;
+    const resume = harness({ trusted: true }).service;
     const resumePreview = await resume.prepare({
       strategy: 'resume',
       startPrompt: '',
@@ -1167,39 +1130,9 @@ describe('LaunchService', () => {
       rows: 30
     });
     await expect(resume.consume(resumePreview.launchToken)).resolves.toMatchObject({
-      reconciliationBaselineNativeIds: null
+      reconcileNewSession: false
     });
   });
-
-  it.each(['codex', 'claude'] as const)(
-    'prepares a typed, secret-free %s launch preview',
-    async (provider) => {
-      const { service } = harness();
-      const preview = await service.prepare({
-        strategy: 'new',
-        startPrompt: '',
-        workspaceId,
-        provider,
-        terminalProfileId: profileId,
-        cols: 120,
-        rows: 36
-      });
-
-      expect(preview).toMatchObject({
-        strategy: 'new',
-        provider,
-        executablePath: `/usr/local/bin/${provider}`,
-        args: [],
-        workingDirectory: '/work/lumora',
-        workspaceTrusted: false,
-        environmentNames: ['PATH', 'SHELL'],
-        terminalProfile: profile,
-        warnings: []
-      });
-      expect(preview.launchHash).toMatch(/^[a-f0-9]{64}$/);
-      expect(JSON.stringify(preview)).not.toContain('/secret');
-    }
-  );
 
   it('blocks an untrusted prepared launch before returning its specification', async () => {
     const { service } = harness();

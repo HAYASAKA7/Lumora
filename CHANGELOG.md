@@ -22,6 +22,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   failed check is now tried once more, only that provider is scanned again, a
   launch asks again before refusing, and the diagnostic journal names the
   provider and whether its check timed out.
+- Start a new terminal session without scanning every provider first. Before a
+  new session, fork, or handoff could open, Lumora refreshed the sessions of
+  every enabled provider, which could take several seconds with Codex or
+  OpenCode installed, and Unified UI launches waited for it too. A terminal
+  launch now reads only its own provider's sessions as the terminal starts,
+  and Unified UI launches skip it.
 
 ## [0.5.12] - 2026-09-14
 

@@ -218,12 +218,6 @@ export function createRemoteSessionRuntime(
     sessionCatalogRegistry: remoteSessionCatalogRegistry,
     scanProviders,
     isExecutablePath: async (path) => executablePaths.has(path),
-    captureSessionBaseline: async (provider, workspaceId) => {
-      await refreshCatalog();
-      return repository
-        .listCurrentSessionIdentities(provider, workspaceId)
-        .map((session) => session.nativeId);
-    },
     handoffService: {
       reserve: () => {
         throw new Error('Remote cross-agent handoff is unavailable.');
@@ -244,7 +238,8 @@ export function createRemoteSessionRuntime(
 
   let host!: RuntimeHost;
   const reconciler = new NewSessionReconciler({
-    refreshCatalog,
+    // The remote helper lists every provider's sessions in one scan.
+    refreshCatalog: () => refreshCatalog(),
     listCurrentSessionIdentities: (provider, workspaceId) =>
       repository.listCurrentSessionIdentities(provider, workspaceId),
     applyResult: (runtimeId, result) => {
@@ -260,6 +255,12 @@ export function createRemoteSessionRuntime(
   host = new RuntimeHost({
     repository,
     consumeLaunch: (token) => launchService.consume(token),
+    captureSessionBaseline: async (provider, workspaceId) => {
+      await refreshCatalog();
+      return repository
+        .listCurrentSessionIdentities(provider, workspaceId)
+        .map((session) => session.nativeId);
+    },
     spawn: async (spawnOptions: PtySpawnOptions) => {
       const command = buildRemotePtyCommand({
         platform: options.platform,

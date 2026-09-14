@@ -143,7 +143,9 @@ function createHarness(options: { immediateReconciliation?: boolean } = {}) {
     emitData(data: string): void;
     emitExit(exitCode: number | null): void;
   }> = [];
+  let onPtyOpened: (() => void) | null = null;
   const openPty = vi.fn(async () => {
+    onPtyOpened?.();
     let dataListener: ((data: string) => void) | null = null;
     let exitListener: ((event: { exitCode: number | null }) => void) | null = null;
     const write = vi.fn((data: string) => {
@@ -196,6 +198,9 @@ function createHarness(options: { immediateReconciliation?: boolean } = {}) {
     channels,
     setCatalog(nextCatalog: RemoteSessionCatalog) {
       currentCatalog = nextCatalog;
+    },
+    whenPtyOpens(listener: () => void) {
+      onPtyOpened = listener;
     }
   };
 }
@@ -610,7 +615,7 @@ describe('remote session runtime', () => {
   });
 
   it('links a new remote runtime to the native session created by the provider', async () => {
-    const { database, runtime, setCatalog } = createHarness({
+    const { database, runtime, setCatalog, whenPtyOpens } = createHarness({
       immediateReconciliation: true
     });
     const preview = await runtime.prepareLaunch({
@@ -624,7 +629,8 @@ describe('remote session runtime', () => {
     });
     runtime.trustWorkspaceForLaunch(preview.launchToken);
     const createdNativeId = 'codex-created-remotely';
-    setCatalog({
+    // The provider writes its session once it is running in the terminal.
+    whenPtyOpens(() => setCatalog({
       ...catalog(),
       scannedAt: '2026-08-10T05:01:00.000Z',
       sessions: [
@@ -639,7 +645,7 @@ describe('remote session runtime', () => {
           lifetimeTokens: null
         }
       ]
-    });
+    }));
 
     const running = await runtime.startRuntime(preview.launchToken);
 

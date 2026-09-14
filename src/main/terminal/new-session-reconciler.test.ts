@@ -31,7 +31,7 @@ function harness(sessionSnapshots: Array<Array<{ id: string; nativeId: string }>
 
 describe('NewSessionReconciler', () => {
   it('links exactly one native ID that was absent from the baseline', async () => {
-    const { reconciler, results } = harness([
+    const { reconciler, refreshCatalog, results } = harness([
       [
         { id: 'b'.repeat(64), nativeId: 'known-native' },
         { id: 'c'.repeat(64), nativeId: 'new-native' }
@@ -40,6 +40,7 @@ describe('NewSessionReconciler', () => {
 
     await reconciler.start(request);
 
+    expect(refreshCatalog).toHaveBeenCalledWith('codex');
     expect(results).toEqual([
       {
         state: 'linked',

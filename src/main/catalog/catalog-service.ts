@@ -52,7 +52,8 @@ interface CatalogRepositoryPort {
 }
 
 interface CatalogServiceDependencies {
-  scanProviders(): Promise<ProviderScanResult>;
+  /** Installations for a refresh; one provider's refresh names it. */
+  scanProviders(options?: { providers?: readonly ProviderId[] }): Promise<ProviderScanResult>;
   enabledProviders(): readonly ProviderId[];
   registry: SessionCatalogRegistry;
   canonicalizeWorkspace(path: string): Promise<CanonicalWorkspacePath>;
@@ -66,6 +67,8 @@ interface CatalogServiceDependencies {
     durationMs: number;
     cacheHits: number;
     counts: { discovered: number; unchanged: number; invalid: number };
+    /** Present when only this provider's sessions were refreshed. */
+    provider?: ProviderId;
   }) => void;
 }
 
@@ -190,16 +193,24 @@ function databaseFailureDiagnostic(
   };
 }
 
+interface CatalogRefresh {
+  providersKey: string;
+  providers: readonly ProviderId[];
+  /** Set when only this provider's sessions are being refreshed. */
+  onlyProvider: ProviderId | null;
+  promise: Promise<CatalogRefreshCounts>;
+  cacheHits: number;
+}
+
 export class CatalogService {
   private providerStatus: CatalogProviderStatus[];
   private availableProviders: ProviderId[] = [];
   private diagnostics: CatalogDiagnostic[] = [];
   private refreshedAt: string;
-  private refreshInFlight: {
-    providersKey: string;
-    promise: Promise<CatalogRefreshCounts>;
-    cacheHits: number;
-  } | null = null;
+  /** A refresh of every enabled provider; it never overlaps any other refresh. */
+  private refreshInFlight: CatalogRefresh | null = null;
+  /** Refreshes of one provider each; different providers may run together. */
+  private readonly providerRefreshes = new Map<ProviderId, CatalogRefresh>();
 
   constructor(private readonly dependencies: CatalogServiceDependencies) {
     this.providerStatus = this.currentProviders()
@@ -253,78 +264,127 @@ export class CatalogService {
     for (;;) {
       const providersKey = providers.join('\u0000');
       const currentRefresh = this.refreshInFlight;
-      if (currentRefresh === null) {
-        const monotonicClock = this.dependencies.monotonicClock ?? (() => performance.now());
-        const startedAt = monotonicClock();
-        let entry!: NonNullable<CatalogService['refreshInFlight']>;
-        const promise = (async () => {
-          let outcome: 'succeeded' | 'failed' = 'succeeded';
-          let counts: CatalogRefreshCounts = {
-            discovered: 0,
-            unchanged: 0,
-            invalid: 0
-          };
-          try {
-            counts = await this.refreshProviders(providers);
-            return counts;
-          } catch (error) {
-            outcome = 'failed';
-            throw error;
-          } finally {
-            try {
-              this.dependencies.onRefreshSettled?.({
-                outcome,
-                durationMs: Math.max(
-                  0,
-                  Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
-                ),
-                cacheHits: entry.cacheHits,
-                counts
-              });
-            } catch {
-              // Measurement consumers cannot change catalog behavior.
-            }
-          }
-        })();
-        entry = {
-          providersKey,
-          promise,
-          cacheHits: 0
-        };
-        this.refreshInFlight = entry;
-        void entry.promise
-          .finally(() => {
-            if (this.refreshInFlight === entry) {
-              this.refreshInFlight = null;
-            }
-          })
-          .catch(() => undefined);
-        await entry.promise;
-        break;
-      }
-
-      if (currentRefresh.providersKey === providersKey) {
+      if (currentRefresh?.providersKey === providersKey) {
         currentRefresh.cacheHits += 1;
         await currentRefresh.promise;
         break;
       }
 
-      try {
-        await currentRefresh.promise;
-      } catch {
-        // A policy-changing refresh must still get its own current scan.
-      } finally {
-        if (this.refreshInFlight === currentRefresh) {
-          this.refreshInFlight = null;
-        }
+      const running = this.runningRefreshes();
+      if (running.length === 0) {
+        await this.startRefresh(providers, providersKey, null).promise;
+        break;
       }
+
+      // A policy-changing refresh must still get its own current scan, and a
+      // scan of one provider must not land after this one's older answer.
+      await Promise.allSettled(running.map(({ promise }) => promise));
       providers = this.currentProviders();
     }
     return this.getCatalog(parsedQuery);
   }
 
+  /**
+   * Refreshes one provider's sessions, as a launch needs to tell a new session
+   * from those already there. Other providers keep what the last refresh found,
+   * a full refresh already under way answers for this provider too, and other
+   * providers' refreshes run alongside it.
+   */
+  async refreshProviderSessions(provider: ProviderId): Promise<void> {
+    for (;;) {
+      if (!this.currentProviders().includes(provider)) return;
+      const fullRefresh = this.refreshInFlight;
+      if (fullRefresh !== null) {
+        if (fullRefresh.providers.includes(provider)) {
+          fullRefresh.cacheHits += 1;
+          await fullRefresh.promise;
+          return;
+        }
+        // The enabled providers changed; wait for that refresh, then ask again.
+        await Promise.allSettled([fullRefresh.promise]);
+        continue;
+      }
+      const sameProvider = this.providerRefreshes.get(provider);
+      if (sameProvider !== undefined) {
+        sameProvider.cacheHits += 1;
+        await sameProvider.promise;
+        return;
+      }
+      await this.startRefresh([provider], `only:${provider}`, provider).promise;
+      return;
+    }
+  }
+
+  private runningRefreshes(): CatalogRefresh[] {
+    return [
+      ...(this.refreshInFlight === null ? [] : [this.refreshInFlight]),
+      ...this.providerRefreshes.values()
+    ];
+  }
+
+  private startRefresh(
+    providers: readonly ProviderId[],
+    providersKey: string,
+    onlyProvider: ProviderId | null
+  ): CatalogRefresh {
+    const monotonicClock = this.dependencies.monotonicClock ?? (() => performance.now());
+    const startedAt = monotonicClock();
+    let entry!: CatalogRefresh;
+    const promise = (async () => {
+      let outcome: 'succeeded' | 'failed' = 'succeeded';
+      let counts: CatalogRefreshCounts = {
+        discovered: 0,
+        unchanged: 0,
+        invalid: 0
+      };
+      try {
+        counts = await this.refreshProviders(providers, onlyProvider);
+        return counts;
+      } catch (error) {
+        outcome = 'failed';
+        throw error;
+      } finally {
+        // Cleared before any waiter resumes, so it finds the slot free.
+        if (onlyProvider === null) {
+          if (this.refreshInFlight === entry) this.refreshInFlight = null;
+        } else if (this.providerRefreshes.get(onlyProvider) === entry) {
+          this.providerRefreshes.delete(onlyProvider);
+        }
+        try {
+          this.dependencies.onRefreshSettled?.({
+            outcome,
+            durationMs: Math.max(
+              0,
+              Math.min(86_400_000, Math.round(monotonicClock() - startedAt))
+            ),
+            cacheHits: entry.cacheHits,
+            counts,
+            ...(onlyProvider === null ? {} : { provider: onlyProvider })
+          });
+        } catch {
+          // Measurement consumers cannot change catalog behavior.
+        }
+      }
+    })();
+    entry = {
+      providersKey,
+      providers,
+      onlyProvider,
+      promise,
+      cacheHits: 0
+    };
+    if (onlyProvider === null) {
+      this.refreshInFlight = entry;
+    } else {
+      this.providerRefreshes.set(onlyProvider, entry);
+    }
+    void entry.promise.catch(() => undefined);
+    return entry;
+  }
+
   private async refreshProviders(
-    providers: readonly ProviderId[]
+    providers: readonly ProviderId[],
+    onlyProvider: ProviderId | null
   ): Promise<CatalogRefreshCounts> {
     const scannedAt = this.dependencies.clock().toISOString();
     const canonicalWorkspaces = new Map<
@@ -340,7 +400,9 @@ export class CatalogService {
       canonicalWorkspaces.set(path, pending);
       return pending;
     };
-    const scan = await this.dependencies.scanProviders();
+    const scan = onlyProvider === null
+      ? await this.dependencies.scanProviders()
+      : await this.dependencies.scanProviders({ providers: [onlyProvider] });
     const installations = new Map<ProviderId, ProviderInstallation>(
       scan.providers.map((installation) => [
         installation.provider,
@@ -471,12 +533,30 @@ export class CatalogService {
       }
     }
 
-    this.providerStatus = nextStatus;
-    this.availableProviders = providers.filter((provider) =>
-      readyInstallations.has(provider)
-    );
-    this.diagnostics = nextDiagnostics;
-    this.refreshedAt = scannedAt;
+    if (onlyProvider === null) {
+      this.providerStatus = nextStatus;
+      this.availableProviders = providers.filter((provider) =>
+        readyInstallations.has(provider)
+      );
+      this.diagnostics = nextDiagnostics;
+      this.refreshedAt = scannedAt;
+    } else {
+      // Only this provider was asked; the rest of the catalog stands.
+      const order = this.currentProviders();
+      const byOrder = (left: ProviderId, right: ProviderId) => order.indexOf(left) - order.indexOf(right);
+      this.providerStatus = [
+        ...this.providerStatus.filter(({ provider }) => provider !== onlyProvider),
+        ...nextStatus
+      ].sort((left, right) => byOrder(left.provider, right.provider));
+      this.availableProviders = [
+        ...this.availableProviders.filter((provider) => provider !== onlyProvider),
+        ...(readyInstallations.has(onlyProvider) ? [onlyProvider] : [])
+      ].sort(byOrder);
+      this.diagnostics = [
+        ...this.diagnostics.filter(({ provider }) => provider !== onlyProvider),
+        ...nextDiagnostics
+      ];
+    }
     return nextStatus.reduce<CatalogRefreshCounts>(
       (counts, status) => ({
         discovered: counts.discovered + status.discoveredCount,

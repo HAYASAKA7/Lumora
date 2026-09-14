@@ -888,14 +888,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     homeDirectory: app.getPath('home'),
     platform,
     env: applicationEnvironment,
-    scanProviders: scanEnabledProviders,
+    scanProviders: scanProvidersForLaunch,
     enabledProviders: () => providerPolicy.providers(),
     allowExperimentalTransferRoutes: true,
     onRefreshSettled: (measurement) => {
       void diagnosticService?.record({
         severity: measurement.outcome === 'failed' ? 'warning' : 'info',
         subsystem: 'catalog',
-        operation: 'catalog-refresh',
+        ...(measurement.provider === undefined
+          ? { operation: 'catalog-refresh' }
+          : { operation: 'catalog-provider-refresh', provider: measurement.provider }),
         outcome: measurement.outcome,
         targetKind: 'local',
         durationMs: measurement.durationMs,
@@ -917,6 +919,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sessionGuard: structuredSessionGuard,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
+    refreshProviderSessions: (provider) =>
+      catalogRuntime!.service.refreshProviderSessions(provider),
     onGeneralSettingsSaved: (settings) => {
       providerPolicy.replace(settings.enabledProviders);
       localizationService?.setPreference(settings.languagePreference);

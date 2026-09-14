@@ -226,6 +226,115 @@ describe('CatalogService', () => {
     });
   });
 
+  it('refreshes one provider’s sessions and leaves the others as the last refresh found them', async () => {
+    const repository = createRepository();
+    const onRefreshSettled = vi.fn();
+    const scanProviders = vi.fn(async (options?: { providers?: readonly ProviderId[] }) => (
+      options?.providers === undefined
+        ? scan([ready('codex'), ready('claude'), missing('gemini')])
+        : scan(options.providers.map(ready))
+    ));
+    const adapters = registry({
+      codex: vi.fn(async () => discovery('codex', [record('codex', 'one')])),
+      claude: vi.fn(async () => discovery('claude', [record('claude', 'two')]))
+    });
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => ['codex', 'claude', 'gemini'],
+      repository,
+      registry: adapters,
+      scanProviders,
+      onRefreshSettled
+    }));
+
+    await service.refreshCatalog();
+    await service.refreshProviderSessions('claude');
+
+    // A launch that needs Claude's sessions does not wait on Codex discovery.
+    expect(scanProviders.mock.calls.at(-1)).toEqual([{ providers: ['claude'] }]);
+    expect(adapters.get('codex')!.discover).toHaveBeenCalledOnce();
+    expect(adapters.get('claude')!.discover).toHaveBeenCalledTimes(2);
+    expect(repository.applyProviderScan.mock.calls.map(([value]) => value.provider))
+      .toEqual(['codex', 'claude', 'claude']);
+    const snapshot = service.getCatalog();
+    expect(snapshot.providerStatus.map(({ provider, state }) => [provider, state])).toEqual([
+      ['codex', 'ready'],
+      ['claude', 'ready'],
+      ['gemini', 'unavailable']
+    ]);
+    expect(snapshot.diagnostics.map(({ provider }) => provider)).toEqual(['gemini']);
+    expect(repository.getSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ availableProviders: ['codex', 'claude'] })
+    );
+    expect(onRefreshSettled).toHaveBeenLastCalledWith(expect.objectContaining({ provider: 'claude' }));
+  });
+
+  it('lets a full refresh under way answer for one provider, and skips a provider not enabled', async () => {
+    const pending = deferred<ProviderScanResult>();
+    const scanProviders = vi.fn(() => pending.promise);
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => ['codex', 'claude'],
+      scanProviders
+    }));
+
+    const full = service.refreshCatalog();
+    const claude = service.refreshProviderSessions('claude');
+    await service.refreshProviderSessions('gemini');
+    pending.resolve(scan([ready('codex'), ready('claude')]));
+    await Promise.all([full, claude]);
+
+    expect(scanProviders).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes different providers together, and one provider once for callers that overlap', async () => {
+    const codexScan = deferred<ProviderScanResult>();
+    const scanProviders = vi.fn((options?: { providers?: readonly ProviderId[] }) => (
+      options?.providers?.[0] === 'codex'
+        ? codexScan.promise
+        : Promise.resolve(scan([ready('claude')]))
+    ));
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => ['codex', 'claude'],
+      scanProviders
+    }));
+
+    const codex = service.refreshProviderSessions('codex');
+    const codexAgain = service.refreshProviderSessions('codex');
+    // A slow Codex discovery does not hold up a Claude launch.
+    await service.refreshProviderSessions('claude');
+    codexScan.resolve(scan([ready('codex')]));
+    await Promise.all([codex, codexAgain]);
+
+    expect(scanProviders.mock.calls).toEqual([
+      [{ providers: ['codex'] }],
+      [{ providers: ['claude'] }]
+    ]);
+    expect(service.getCatalog().providerStatus.map(({ provider, state }) => [provider, state]))
+      .toEqual([['codex', 'ready'], ['claude', 'ready']]);
+  });
+
+  it('starts a full refresh only after a provider refresh under way has settled', async () => {
+    const codexScan = deferred<ProviderScanResult>();
+    const scanProviders = vi.fn((options?: { providers?: readonly ProviderId[] }) => (
+      options?.providers === undefined
+        ? Promise.resolve(scan([ready('codex'), ready('claude')]))
+        : codexScan.promise
+    ));
+    const service = new CatalogService(dependencies({
+      enabledProviders: () => ['codex', 'claude'],
+      scanProviders
+    }));
+
+    const codex = service.refreshProviderSessions('codex');
+    const full = service.refreshCatalog();
+    await Promise.resolve();
+    // Its Codex answer would be older than the provider refresh's, so it waits.
+    expect(scanProviders).toHaveBeenCalledOnce();
+
+    codexScan.resolve(scan([ready('codex')]));
+    await Promise.all([codex, full]);
+    expect(scanProviders.mock.calls).toEqual([[{ providers: ['codex'] }], []]);
+  });
+
   it('bounds concurrent provider session discovery', async () => {
     const providers = ['codex', 'claude', 'gemini', 'opencode', 'copilot'] as const;
     const gates = providers.map(() => {
