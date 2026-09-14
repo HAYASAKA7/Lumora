@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocalization } from '../localization/useLocalization';
+import { placeMenu } from './menu-placement';
 
 export interface SelectMenuOption<Value extends string> {
   value: Value;
@@ -17,6 +18,8 @@ export interface SelectMenuOption<Value extends string> {
 }
 
 interface SelectMenuProps<Value extends string> {
+  /** Which edge of the trigger the list lines up with; a list at the right of a row hangs from its right. */
+  align?: 'start' | 'end';
   label: string;
   onChange(value: Value): void;
   options: readonly SelectMenuOption<Value>[];
@@ -27,6 +30,7 @@ interface SelectMenuProps<Value extends string> {
 }
 
 export function SelectMenu<Value extends string>({
+  align = 'start',
   ariaDescribedBy,
   className,
   disabled = false,
@@ -76,29 +80,11 @@ export function SelectMenu<Value extends string>({
         setOpen(false);
         return;
       }
-      const rect = trigger.getBoundingClientRect();
-      const gap = 6;
-      const margin = 8;
-      const availableBelow = window.innerHeight - rect.bottom - gap - margin;
-      const availableAbove = rect.top - gap - margin;
-      const openAbove =
-        availableBelow < 120 && availableAbove > availableBelow;
-      const maxHeight = Math.min(
-        220,
-        Math.max(72, openAbove ? availableAbove : availableBelow)
-      );
-      setOverlayStyle({
-        left: Math.max(
-          margin,
-          Math.min(rect.left, window.innerWidth - rect.width - margin)
-        ),
-        maxHeight,
-        position: 'fixed',
-        top: openAbove
-          ? Math.max(margin, rect.top - gap - maxHeight)
-          : rect.bottom + gap,
-        width: rect.width
-      });
+      setOverlayStyle(placeMenu(
+        trigger.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+        { align, itemCount: options.length, minWidth: 0, maxWidth: 360 }
+      ));
     };
     place();
     window.addEventListener('resize', place);
@@ -107,7 +93,7 @@ export function SelectMenu<Value extends string>({
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [open]);
+  }, [align, open, options.length]);
 
   const moveActive = (direction: -1 | 1) => {
     setOpen(true);

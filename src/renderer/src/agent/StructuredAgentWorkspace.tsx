@@ -1232,6 +1232,7 @@ export function StructuredAgentWorkspace({
           <div className="structured-composer-actions">
             {modelCommand === undefined || selectedModel === undefined ? null : (
               <SelectMenu
+                align="end"
                 className="structured-model-select"
                 disabled={sending || runningTurn || runtime.state !== 'ready'}
                 label={t('terminal.unified.model-selector-label')}

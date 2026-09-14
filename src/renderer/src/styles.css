@@ -7329,6 +7329,8 @@ button {
   border-radius: 7px;
   font-size: 0.78rem;
   font-weight: 650;
+  /* A long label wraps inside the widest menu instead of spilling out of it. */
+  overflow-wrap: anywhere;
 }
 
 .select-menu-option:hover,

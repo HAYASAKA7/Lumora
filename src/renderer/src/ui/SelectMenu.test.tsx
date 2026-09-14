@@ -1,6 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SelectMenu } from './SelectMenu';
 import { renderWithLocalization } from '../test/render-with-localization';
@@ -45,6 +45,45 @@ function AccessibleHarness() {
 }
 
 describe('SelectMenu', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('opens a list at the bottom of the window upward, resting on its trigger', () => {
+    renderWithLocalization(
+      <SelectMenu
+        align="end"
+        label="Model"
+        onChange={() => undefined}
+        options={options}
+        value="direct"
+      />
+    );
+    const trigger = screen.getByRole('button', { name: 'Model' });
+    const top = window.innerHeight - 44;
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+      top,
+      bottom: top + 34,
+      left: window.innerWidth - 240,
+      right: window.innerWidth - 20,
+      width: 220,
+      height: 34,
+      x: window.innerWidth - 240,
+      y: top,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole('listbox')).toHaveStyle({
+      top: 'auto',
+      bottom: '50px',
+      left: 'auto',
+      right: '20px',
+      minWidth: '220px'
+    });
+  });
+
   it('supports keyboard selection without opening a native browser menu', () => {
     renderWithLocalization(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Connection route' });

@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { placeMenu } from './menu-placement';
+
 export interface ActionMenuItem<Id extends string> {
   id: Id;
   label: string;
@@ -85,31 +87,11 @@ export function ActionMenu<Id extends string>({
         setOpen(false);
         return;
       }
-      const rect = trigger.getBoundingClientRect();
-      const margin = 8;
-      const gap = 6;
-      const width = Math.min(
-        Math.max(rect.width, 164),
-        Math.max(0, window.innerWidth - margin * 2)
-      );
-      const estimatedHeight = Math.min(220, items.length * 40 + 12);
-      const openAbove =
-        window.innerHeight - rect.bottom - gap - margin < estimatedHeight &&
-        rect.top - gap - margin > window.innerHeight - rect.bottom - gap - margin;
-      setOverlayStyle({
-        left: Math.max(margin, Math.min(
-          align === 'start' ? rect.left : rect.right - width,
-          window.innerWidth - width - margin
-        )),
-        maxHeight: Math.max(72, Math.min(220, openAbove
-          ? rect.top - gap - margin
-          : window.innerHeight - rect.bottom - gap - margin)),
-        position: 'fixed',
-        top: openAbove
-          ? Math.max(margin, rect.top - gap - estimatedHeight)
-          : rect.bottom + gap,
-        width
-      });
+      setOverlayStyle(placeMenu(
+        trigger.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+        { align, itemCount: items.length, minWidth: 164, maxWidth: 360 }
+      ));
     };
     place();
     window.addEventListener('resize', place);
