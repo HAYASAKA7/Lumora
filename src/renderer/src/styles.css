@@ -7287,10 +7287,17 @@ button {
 }
 
 .select-menu-chevron {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   color: var(--text-soft);
-  font-size: 1rem;
-  transform: translateY(-1px);
+}
+
+/* Drawn as an icon so it sits on the trigger's centre line at any font size. */
+.select-menu-chevron .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .select-menu-options {

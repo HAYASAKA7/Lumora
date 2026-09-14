@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocalization } from '../localization/useLocalization';
+import { ChevronDownIcon } from './icons';
 import { placeMenu } from './menu-placement';
 
 export interface SelectMenuOption<Value extends string> {
@@ -162,7 +163,9 @@ export function SelectMenu<Value extends string>({
         type="button"
       >
         <span className="select-menu-value">{selected?.label ?? t('common.states.unavailable')}</span>
-        <span aria-hidden="true" className="select-menu-chevron">⌄</span>
+        <span aria-hidden="true" className="select-menu-chevron">
+          <ChevronDownIcon />
+        </span>
       </button>
       {open
         ? createPortal(

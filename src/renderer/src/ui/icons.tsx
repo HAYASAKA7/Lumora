@@ -73,6 +73,11 @@ export function FileIcon(): ReactNode {
   );
 }
 
+/** Opens a list to choose from: a chevron pointing down, centred in its box. */
+export function ChevronDownIcon(): ReactNode {
+  return <Glyph path="M6 8l4 4 4-4" />;
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;
