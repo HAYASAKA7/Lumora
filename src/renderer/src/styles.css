@@ -7298,6 +7298,12 @@ button {
 .select-menu-chevron .icon {
   width: 14px;
   height: 14px;
+  transition: transform 120ms ease;
+}
+
+/* The arrow points up while its list is open. */
+.select-menu-trigger[aria-expanded='true'] .select-menu-chevron .icon {
+  transform: rotate(180deg);
 }
 
 .select-menu-options {
