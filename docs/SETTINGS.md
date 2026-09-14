@@ -193,18 +193,26 @@ them, and 100% CPU is one full core. The figures update every two seconds while
 the page is open and pause while the window is hidden. CPU shows
 **Measuring…** until Lumora has a reading from the last few seconds.
 
+<p align="center">
+  <img src="screenshots/0.5/settings/settings_diagnostics.png" alt="Lumora Diagnostics settings with live process metrics above journal storage and export controls" width="1100">
+</p>
+
 **Process details**, the information button beside refresh, opens a live list
 of every Lumora process and every running agent in a window that keeps its size
-as the figures change and scrolls instead. Lumora's own processes
-include its window, graphics, and service processes, and anything else it
-started, such as its helper. Each agent is listed with
-the process Lumora started for it and everything that process started, so the
-commands an agent runs count toward that agent. Each process shows its PID,
-memory, and CPU. An agent on a remote computer does not appear, because its
-processes run there.
+as the figures change and scrolls instead. Lumora's own processes include its
+window, graphics, and service processes, and anything else it started, such as
+its helper. Each agent is listed with the process Lumora started for it and
+everything that process started, so the commands an agent runs count toward
+that agent. Each process shows its PID, memory, and CPU. An agent on a remote
+computer does not appear, because its processes run there.
+
+Lumora's total in this list can be higher than the page's figures. The page
+counts only Lumora's app processes, while the list also counts the other
+processes Lumora started, such as the helper that reads these details, and the
+two take their readings at different moments.
 
 <p align="center">
-  <img src="screenshots/0.5/settings/settings_diagnostics.png" alt="Lumora Diagnostics settings with process metrics, journal controls, and export" width="1100">
+  <img src="screenshots/0.5/settings/settings_diagnostics_details.png" alt="Lumora Diagnostics process details listing Lumora and agent processes with PID, memory, and CPU" width="1100">
 </p>
 
 The bounded journal excludes prompts, terminal output, session content,
