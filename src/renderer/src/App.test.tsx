@@ -3861,19 +3861,28 @@ describe('App', () => {
     const scanDeveloperEnvironment = vi
       .fn()
       .mockResolvedValue(readyEnvironmentScan);
-    setSystemInfoResult(undefined, scanProviders, { scanDeveloperEnvironment });
+    // The release check that follows the first scan answers after a moment.
+    const checkProviderUpdates = vi.fn(() => new Promise((resolve) => {
+      setTimeout(() => resolve({ checkedAt: '2026-08-24T01:00:00.000Z', providers: [] }), 150);
+    }));
+    setSystemInfoResult(undefined, scanProviders, {
+      scanDeveloperEnvironment,
+      checkProviderUpdates
+    });
     renderWithLocalization(<App />);
 
     expect(await screen.findByText('1 of 2 providers ready')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-
     /*
-     * Refreshing now rescans and then checks releases, so this waits on two
-     * chained round trips rather than one. The default second is enough on an
-     * idle machine and not always enough beside the rest of the suite.
+     * Refresh stays disabled while the release check that follows the first
+     * scan is out, so a click before it answers does nothing, as it would for a
+     * person. A busy machine answers later, which once failed this test.
      */
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
+
     expect(
       await screen.findByText('2.3.4 (Claude Code)', undefined, { timeout: 4_000 })
     ).toBeInTheDocument();

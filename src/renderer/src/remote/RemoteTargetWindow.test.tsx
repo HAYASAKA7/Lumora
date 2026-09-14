@@ -1130,7 +1130,10 @@ describe('RemoteTargetWindow', () => {
     expect(await screen.findByText('codex 1.2.3')).toBeInTheDocument();
     expect(screen.getByText('Remote provider registry'))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    // Refresh waits for the release check that follows discovery.
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
     await waitFor(() => expect(api.scanRemoteDiscovery).toHaveBeenCalledTimes(2));
     const openCodeSwitch = screen.getByRole('checkbox', { name: 'Use OpenCode' });
     fireEvent.click(openCodeSwitch);
