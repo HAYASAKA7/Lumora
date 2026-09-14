@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-09-14
+
 ### Fixed
 
 - Open a session in Unified UI without waiting on other agents. Every launch
@@ -28,6 +30,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   OpenCode installed, and Unified UI launches waited for it too. A terminal
   launch now reads only its own provider's sessions as the terminal starts,
   and Unified UI launches skip it.
+- Keep dropdown lists against the control that opened them. A list that opened
+  upward, such as the **Mode** and model pickers in Unified UI, started where a
+  full-height list would have and floated above a picker with only a few
+  choices, and every list was exactly as wide as its control, so longer names
+  wrapped. Lists now rest on their control and widen to fit their choices, and
+  the model list lines up with the right edge of its picker.
+- Match the Unified UI **Mode** picker to the model picker. It was taller and
+  set in different type; both now share one size and type.
+- Centre the arrow on every dropdown, and turn it to point up while the list is
+  open.
 
 ## [0.5.12] - 2026-09-14
 

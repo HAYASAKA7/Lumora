@@ -287,7 +287,7 @@ needed. Report the problem only if the provider process is still running.
 **Symptom:** Opening or resuming a session in Unified UI shows **Starting** for
 15 seconds or more, whether or not the session holds images or a long history.
 
-**Likely cause:** Fixed after 0.5.12. Earlier versions asked every installed
+**Likely cause:** Fixed in 0.5.13. Earlier versions asked every installed
 Unified UI agent what it supports before opening any session, and asked again
 once the answers were five minutes old.
 
