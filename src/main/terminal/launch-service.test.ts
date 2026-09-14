@@ -119,7 +119,7 @@ function harness(overrides: {
   generalSettings?: GeneralSettings;
   sourceKeys?: readonly string[];
   createToken?: () => string;
-  scanProviders?: () => Promise<ProviderScanResult>;
+  scanProviders?: (options?: { providers?: readonly string[]; fresh?: boolean }) => Promise<ProviderScanResult>;
   resolveProviderRuntimeDirectory?: (provider: string) => Promise<string | null>;
 } = {}) {
   let now = overrides.now ?? new Date('2026-07-11T04:00:00.000Z');
@@ -1024,6 +1024,57 @@ describe('LaunchService', () => {
     await expect(service.consume(preview.launchToken)).rejects.toMatchObject({
       code: 'LAUNCH_TOKEN_INVALID'
     });
+  });
+
+  it('reads only the provider a launch uses, and the handoff source with it', async () => {
+    const scanProviders = vi.fn(async () => scan);
+    const { service } = harness({ trusted: true, scanProviders });
+
+    const preview = await service.prepare({
+      strategy: 'resume', startPrompt: '', sessionId, terminalProfileId: profileId,
+      cols: 80, rows: 24
+    });
+    await service.consume(preview.launchToken);
+
+    // Launching one agent must not wait for every provider to be discovered.
+    expect(scanProviders.mock.calls).toEqual([
+      [{ providers: ['codex'] }],
+      [{ providers: ['codex'] }]
+    ]);
+  });
+
+  it('checks a provider again, fresh, before refusing a launch on a stale answer', async () => {
+    const missingCodex: ProviderScanResult = {
+      ...scan,
+      providers: scan.providers.map((item) => (item.provider === 'codex'
+        ? {
+            provider: 'codex' as const,
+            displayName: 'Codex',
+            state: 'probe_failed' as const,
+            executablePath: '/usr/local/bin/codex',
+            version: null,
+            issue: {
+              code: 'PROVIDER_VERSION_PROBE_FAILED' as const,
+              message: 'slow',
+              recovery: 'retry',
+              retryable: true
+            }
+          }
+        : item)) as ProviderScanResult['providers']
+    };
+    const scanProviders = vi.fn(async (options?: { fresh?: boolean }) => (
+      options?.fresh === true ? scan : missingCodex
+    ));
+    const { service } = harness({ trusted: true, scanProviders });
+
+    await expect(service.prepare({
+      strategy: 'new', startPrompt: '', workspaceId, provider: 'codex', terminalProfileId: profileId,
+      cols: 80, rows: 24
+    })).resolves.toMatchObject({ launchToken: expect.any(String) });
+    expect(scanProviders.mock.calls).toEqual([
+      [{ providers: ['codex'] }],
+      [{ providers: ['codex'], fresh: true }]
+    ]);
   });
 
   it('revalidates provider identity and adapter compatibility at consumption', async () => {

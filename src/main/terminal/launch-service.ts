@@ -52,10 +52,19 @@ interface LaunchRepository {
   ): WorkspaceTrustDecision;
 }
 
+export interface ProviderLookup {
+  providers?: readonly ProviderId[];
+  fresh?: boolean;
+}
+
 interface LaunchServiceDependencies {
   repository: LaunchRepository;
   sessionCatalogRegistry: SessionCatalogRegistry;
-  scanProviders(): Promise<ProviderScanResult>;
+  /**
+   * Provider installations. A launch names the providers it uses, so only those
+   * are read; `fresh` asks them again instead of trusting the last answer.
+   */
+  scanProviders(options?: ProviderLookup): Promise<ProviderScanResult>;
   isExecutablePath(path: string): Promise<boolean>;
   captureSessionBaseline(
     provider: ProviderId,
@@ -247,6 +256,21 @@ export class LaunchService {
     this.createToken = dependencies.createToken ?? randomUUID;
   }
 
+  /**
+   * The installations of the providers a launch uses. A launch trusts what
+   * discovery last found, and asks those providers again only when that answer
+   * would refuse the launch: the install may have changed since.
+   */
+  private async launchInstallations(
+    providers: readonly ProviderId[],
+    usable: (scan: ProviderScanResult) => Promise<boolean>
+  ): Promise<ProviderScanResult> {
+    const needed = [...new Set(providers)];
+    const known = await this.dependencies.scanProviders({ providers: needed });
+    if (await usable(known)) return known;
+    return this.dependencies.scanProviders({ providers: needed, fresh: true });
+  }
+
   async prepare(value: LaunchPrepareRequest): Promise<LaunchPreview> {
     const request = LaunchPrepareRequestSchema.parse(value);
     const generation = ++this.prepareGeneration;
@@ -334,7 +358,24 @@ export class LaunchService {
       throw new TerminalLaunchError('WORKSPACE_UNAVAILABLE');
     }
 
-    const scan = await this.dependencies.scanProviders();
+    const launchedSource = sourceSession;
+    const scan = await this.launchInstallations(
+      launchedSource === null ? [provider] : [provider, launchedSource.provider],
+      async (candidate) => {
+        const found = candidate.providers.find((entry) => entry.provider === provider);
+        const adapter = this.dependencies.sessionCatalogRegistry.get(provider);
+        if (
+          found?.state !== 'ready' ||
+          !(await this.dependencies.isExecutablePath(found.executablePath)) ||
+          (adapter !== null && !isAdapterCompatible(adapter, found)) ||
+          (request.strategy === 'fork' && !supportsNativeForkVersion(provider, found.version))
+        ) return false;
+        if (launchedSource === null) return true;
+        const source = candidate.providers.find((entry) => entry.provider === launchedSource.provider);
+        const sourceAdapter = this.dependencies.sessionCatalogRegistry.get(launchedSource.provider);
+        return source?.state === 'ready' && sourceAdapter !== null && isAdapterCompatible(sourceAdapter, source);
+      }
+    );
     const installation = scan.providers.find(
       (candidate) => candidate.provider === provider
     );
@@ -610,7 +651,32 @@ export class LaunchService {
         throw new TerminalLaunchError('LAUNCH_TOKEN_INVALID');
       }
     }
-    const scan = await this.dependencies.scanProviders();
+    const preparedHandoff = prepared.spec.handoff ?? null;
+    const scan = await this.launchInstallations(
+      preparedHandoff === null
+        ? [prepared.spec.provider]
+        : [prepared.spec.provider, preparedHandoff.plan.sourceProvider],
+      async (candidate) => {
+        const found = candidate.providers.find((entry) => entry.provider === prepared.spec.provider);
+        const adapter = this.dependencies.sessionCatalogRegistry.get(prepared.spec.provider);
+        if (
+          found?.state !== 'ready' ||
+          found.executablePath !== prepared.spec.executablePath ||
+          !(await this.dependencies.isExecutablePath(found.executablePath)) ||
+          (adapter !== null && !isAdapterCompatible(adapter, found)) ||
+          (prepared.spec.strategy === 'fork' && !supportsNativeForkVersion(prepared.spec.provider, found.version))
+        ) return false;
+        if (preparedHandoff === null) return true;
+        const source = candidate.providers.find(
+          (entry) => entry.provider === preparedHandoff.plan.sourceProvider
+        );
+        const sourceAdapter = this.dependencies.sessionCatalogRegistry.get(preparedHandoff.plan.sourceProvider);
+        return source?.state === 'ready' &&
+          source.executablePath === preparedHandoff.sourceExecutablePath &&
+          sourceAdapter !== null &&
+          isAdapterCompatible(sourceAdapter, source);
+      }
+    );
     const installation = scan.providers.find(
       (candidate) => candidate.provider === prepared.spec.provider
     );

@@ -60,6 +60,7 @@ function dependencies(overrides: {
       lastScan: () => overrides.last ?? null,
       scan,
       scanFresh,
+      installations: async (providers) => scanResult(providers),
       resolveInstallations: async ({ scan: result }) => result.providers,
       probe: probe as never
     })
@@ -93,6 +94,38 @@ describe('structured capability scan', () => {
 
     expect(deps.scanFresh).toHaveBeenCalledOnce();
     expect(deps.scan).not.toHaveBeenCalled();
+  });
+
+  it('checks only the provider a launch needs, from that provider’s own installation', async () => {
+    const installations = vi.fn(async (providers: readonly ProviderInstallation['provider'][]) =>
+      scanResult(providers));
+    const probe = vi.fn(async (entries: readonly ProviderInstallation[]) =>
+      ['codex', 'claude', 'gemini'].map((providerId) => ({
+        providerId,
+        state: entries.some(({ provider }) => provider === providerId) ? 'verified' : 'unavailable'
+      })));
+    const scan = vi.fn(async () => scanResult(['codex', 'claude', 'gemini']));
+    const run = createStructuredCapabilityScan({
+      lastScan: () => null,
+      scan,
+      scanFresh: scan,
+      installations,
+      resolveInstallations: async ({ scan: result }) => result.providers,
+      probe: probe as never
+    });
+
+    const reports = await run(false, [preference('claude', true)], 'claude');
+
+    // Opening one agent waits on that agent alone, not on every provider.
+    expect(scan).not.toHaveBeenCalled();
+    expect(installations).toHaveBeenCalledWith(['claude']);
+    expect(probe.mock.calls[0]?.[0].map((entry) => entry.provider)).toEqual(['claude']);
+    expect(reports).toEqual([{ providerId: 'claude', state: 'verified' }]);
+
+    // A provider turned off is not probed for a launch either.
+    probe.mockClear();
+    await run(false, [preference('claude', false)], 'claude');
+    expect(probe.mock.calls[0]?.[0]).toEqual([]);
   });
 
   it('probes only the providers turned on for the unified interface', async () => {

@@ -82,7 +82,9 @@ provider command under **Settings > Launch**.
 
 A scan that missed a provider is recorded in the diagnostic journal with the
 number of providers detected, missing, and failed to probe, so a detection that
-fails intermittently leaves a trace to look back at.
+fails intermittently leaves a trace to look back at. A version check that fails
+is tried once more; the journal then records a `provider · version-check`
+event naming the provider and whether its check timed out or failed.
 
 ### An alias or wrapper command does not start
 
@@ -279,6 +281,20 @@ when its managed provider process exits and refreshes the catalog.
 
 **Resolution:** Resume the saved session or start a new one if more work is
 needed. Report the problem only if the provider process is still running.
+
+### A Unified UI session stays on Starting for a long time
+
+**Symptom:** Opening or resuming a session in Unified UI shows **Starting** for
+15 seconds or more, whether or not the session holds images or a long history.
+
+**Likely cause:** Fixed after 0.5.12. Earlier versions asked every installed
+Unified UI agent what it supports before opening any session, and asked again
+once the answers were five minutes old.
+
+**Resolution:** Update Lumora. The first session of Codex or an ACP agent after
+installing or updating it still waits for that agent's own check once. If
+sessions stay slow, look in **Settings > Diagnostics** for `provider ·
+version-check` events naming a provider whose check times out.
 
 ### A provider process is still running after Lumora closes
 

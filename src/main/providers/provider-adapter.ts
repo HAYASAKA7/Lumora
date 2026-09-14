@@ -13,12 +13,29 @@ export interface ProviderAdapter {
   scan(): Promise<ProviderInstallation>;
 }
 
+export interface ProviderVersionCheckReport {
+  provider: ProviderId;
+  /** `recovered` when the retry succeeded, `failed` when it did not. */
+  outcome: 'recovered' | 'failed';
+  /** Why the first attempt failed: it ran out of time, or the command failed. */
+  reason: 'timeout' | 'failed';
+}
+
 export interface ProviderScanDependencies {
   findExecutable(command: string): Promise<string | null>;
   probeVersion(
     executablePath: string,
     args: readonly string[]
   ): Promise<string>;
+  /** Told about a version check that failed, so the provider can be named later. */
+  reportVersionCheck?(report: ProviderVersionCheckReport): void;
+}
+
+function failureReason(error: unknown): 'timeout' | 'failed' {
+  return typeof error === 'object' && error !== null &&
+    (error as { reason?: unknown }).reason === 'timeout'
+    ? 'timeout'
+    : 'failed';
 }
 
 type ProviderIdentity = Pick<ProviderAdapter, 'provider' | 'displayName'>;
@@ -76,11 +93,28 @@ export function createProviderAdapter(
         };
       }
 
+      const report = (outcome: ProviderVersionCheckReport['outcome'], error: unknown) => {
+        try {
+          dependencies.reportVersionCheck?.({ provider, outcome, reason: failureReason(error) });
+        } catch {
+          // Reporting cannot change what the scan found.
+        }
+      };
       try {
-        const version = await dependencies.probeVersion(
-          executablePath,
-          versionArgs
-        );
+        let version: string;
+        try {
+          version = await dependencies.probeVersion(executablePath, versionArgs);
+        } catch (firstError) {
+          // A cold CLI start on a busy machine can miss its budget once; a
+          // second try tells that apart from a broken install.
+          try {
+            version = await dependencies.probeVersion(executablePath, versionArgs);
+          } catch {
+            report('failed', firstError);
+            throw firstError;
+          }
+          report('recovered', firstError);
+        }
         return {
           provider,
           displayName,

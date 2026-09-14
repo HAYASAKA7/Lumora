@@ -230,6 +230,25 @@ it opens, and a PTY that resolves after cancellation is immediately terminated.
 Cancellation never becomes a structured-start failure or triggers PTY fallback.
 Normal page navigation only hides the launch surface and does not cancel it.
 
+A launch checks only the providers it uses. Preparing and consuming it read
+that provider's installation, and a handoff source's, from what discovery last
+found instead of scanning every provider. An answer past its five-minute term
+is refreshed in the background, and only a provider with no ready answer (never
+found, last probe failed, or reported broken) is probed at once, on its own.
+When the stored answer would refuse the launch, those providers are asked again
+before it is refused. The capability probe likewise asks only the launched
+provider. A verified report is kept while that provider's executable path and
+version are unchanged, because either change is a new cache key; a failed or
+timed-out report is retried after 30 seconds. A structured launch failure other
+than a cancellation or an ownership collision forgets that provider's report
+and installation. A full scan keeps its five-minute term, but when one version
+check failed only that provider is rescanned ten seconds later. A failed version
+check is retried once, and the diagnostic journal records which provider failed
+and whether it timed out. Twenty seconds after startup, the providers opened in
+Unified UI during the last 14 days, at most three and most recent first, are
+checked in the background one at a time; that record holds only provider IDs
+and times.
+
 The main-process runtime host owns provider processes, cancellation, cleanup,
 reconnection, event sequencing, and session reconciliation. The renderer sees
 only validated summaries and bounded normalized events. It never receives a

@@ -101,6 +101,8 @@ function harness(options: {
     executablePathOverride: null
   }] satisfies StructuredProviderPreference[]);
   const isUnifiedUiEnabled = vi.fn(() => options.masterEnabled ?? true);
+  const invalidateProvider = vi.fn();
+  const recordUnifiedLaunch = vi.fn();
   const router = new AgentLaunchRouter({
     consumePreparedLaunch,
     startPty,
@@ -109,10 +111,14 @@ function harness(options: {
     scanCapabilities,
     scanCapabilitiesIncluding,
     listPreferences,
-    isUnifiedUiEnabled
+    isUnifiedUiEnabled,
+    invalidateProvider,
+    recordUnifiedLaunch
   });
   return {
     router,
+    invalidateProvider,
+    recordUnifiedLaunch,
     consumePreparedLaunch,
     startPty,
     terminatePty,
@@ -274,6 +280,44 @@ describe('AgentLaunchRouter', () => {
       .toMatchObject({ mode: 'structured' });
     expect(scanCapabilitiesIncluding).toHaveBeenCalledWith('codex');
     expect(scanCapabilities).not.toHaveBeenCalled();
+  });
+
+  it('checks only the provider being launched', async () => {
+    const { router, scanCapabilities, recordUnifiedLaunch, invalidateProvider } = harness();
+
+    await expect(router.start('operation-1', 'launch-token')).resolves
+      .toMatchObject({ mode: 'structured' });
+
+    // Opening one agent does not wait for every other provider to be asked.
+    expect(scanCapabilities).toHaveBeenCalledWith('codex');
+    expect(recordUnifiedLaunch).toHaveBeenCalledWith('codex');
+    expect(invalidateProvider).not.toHaveBeenCalled();
+  });
+
+  it('asks a provider again after its structured launch failed, but not after a cancellation', async () => {
+    const automatic = harness({ structuredFailure: new Error('provider startup failed') });
+    await automatic.router.start('operation-1', 'launch-token');
+    expect(automatic.invalidateProvider).toHaveBeenCalledWith('codex');
+    expect(automatic.recordUnifiedLaunch).not.toHaveBeenCalled();
+
+    const forced = harness({
+      launchSpec: { ...spec, interactionRoute: 'unified' } as LaunchSpec,
+      structuredFailure: new Error('structured failed')
+    });
+    await expect(forced.router.start('operation-2', 'launch-token')).rejects.toThrow('structured failed');
+    expect(forced.invalidateProvider).toHaveBeenCalledWith('codex');
+
+    const collision = harness({
+      structuredFailure: Object.assign(new Error('already active'), { code: 'STRUCTURED_RUNTIME_ALREADY_ACTIVE' })
+    });
+    await expect(collision.router.start('operation-3', 'launch-token')).rejects.toThrow('already active');
+    const cancelled = harness({
+      structuredFailure: Object.assign(new Error('cancelled'), { code: 'STRUCTURED_RUNTIME_START_CANCELLED' })
+    });
+    await expect(cancelled.router.start('operation-4', 'launch-token')).rejects.toBeDefined();
+    // Neither says anything about whether the provider works.
+    expect(collision.invalidateProvider).not.toHaveBeenCalled();
+    expect(cancelled.invalidateProvider).not.toHaveBeenCalled();
   });
 
   it('uses PTY without attempting a structured resume the provider did not advertise', async () => {

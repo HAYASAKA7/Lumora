@@ -1,8 +1,10 @@
 import type {
+  ProviderId,
   ProviderInstallation,
   ProviderScanResult,
   StructuredProviderPreference
 } from '../../../shared/contracts';
+import type { StructuredAgentProviderId } from '../../../shared/agent/contracts';
 import type { StructuredProviderCapabilityReport } from '../../../shared/agent/provider-capabilities';
 
 interface StructuredCapabilityScanDependencies {
@@ -10,6 +12,8 @@ interface StructuredCapabilityScanDependencies {
   lastScan(): ProviderScanResult | null;
   scan(): Promise<ProviderScanResult>;
   scanFresh(): Promise<ProviderScanResult>;
+  /** The installations of just these providers, as a launch reads them. */
+  installations(providers: readonly ProviderId[]): Promise<ProviderScanResult>;
   resolveInstallations(input: {
     scan: ProviderScanResult;
     preferences: readonly StructuredProviderPreference[];
@@ -40,25 +44,36 @@ function turnedOn(
  * The expensive half is the probe: it launches the agent's CLI and asks it, so
  * the check stays as narrow as it can be. It reuses the discovery the rest of
  * the app already has rather than repeating it, and it asks only the providers
- * that could actually route to the unified interface.
+ * that could actually route to the unified interface. Given `only`, as a
+ * launch does, it reads and probes that one provider and reports it alone.
  */
 export function createStructuredCapabilityScan(
   dependencies: StructuredCapabilityScanDependencies
 ): (
   fresh: boolean,
-  preferences: readonly StructuredProviderPreference[]
+  preferences: readonly StructuredProviderPreference[],
+  only?: StructuredAgentProviderId
 ) => Promise<readonly StructuredProviderCapabilityReport[]> {
-  return async (fresh, preferences) => {
-    const scan = fresh
-      ? await dependencies.scanFresh()
-      : dependencies.lastScan() ?? await dependencies.scan();
+  return async (fresh, preferences, only) => {
+    const scan = only !== undefined
+      ? await dependencies.installations([only])
+      : fresh
+        ? await dependencies.scanFresh()
+        : dependencies.lastScan() ?? await dependencies.scan();
     const installations = await dependencies.resolveInstallations({
       scan,
-      preferences
+      preferences: only === undefined
+        ? preferences
+        : preferences.filter(({ providerId }) => providerId === only)
     });
-    return dependencies.probe(
-      installations.filter((entry) => turnedOn(entry, preferences)),
+    const reports = await dependencies.probe(
+      installations.filter((entry) => (
+        (only === undefined || entry.provider === only) && turnedOn(entry, preferences)
+      )),
       fresh
     );
+    return only === undefined
+      ? reports
+      : reports.filter(({ providerId }) => providerId === only);
   };
 }

@@ -47,7 +47,8 @@ cards; Lumora does not duplicate them in the Unified UI dialog.
 
 Opening the dialog reads the providers Lumora has already detected and asks
 each one that is turned on what it supports, by launching its own interface and
-holding a short conversation with it. Results are reused for five minutes;
+holding a short conversation with it. A provider's answer is kept until its
+installation changes, and a failed check is tried again after half a minute;
 **Check interfaces** discards them and looks again from scratch. A provider
 turned off here is not asked at all, and reports **Native terminal fallback**
 until you turn it on.
@@ -64,6 +65,12 @@ without deleting the saved per-provider choices.
 Select a supported saved session normally. Lumora begins the direct resume flow
 immediately, keeps preparation inside the terminal workspace, and leaves other
 pages usable while the provider connects.
+
+Opening a session checks only that session's agent, so it never waits for the
+other agents to answer. The first time Codex or an ACP agent opens after it is
+installed or updated, Lumora asks it what it supports once; later sessions reuse
+that answer. Shortly after Lumora starts, it prepares that answer in the
+background for the agents you opened in Unified UI during the last two weeks.
 
 When a session is already active, Lumora returns to its existing runtime rather
 than opening a second writer. For a stopped session, right-click to explicitly

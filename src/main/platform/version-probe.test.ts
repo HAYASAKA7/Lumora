@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildVersionInvocation,
+  executeVersionInvocation,
   probeVersion,
+  VersionProbeError,
   type VersionInvocation
 } from './version-probe';
 
@@ -117,7 +119,28 @@ describe('probeVersion', () => {
       })
     ).rejects.toMatchObject({
       code: 'VERSION_PROBE_FAILED',
-      message: 'The provider version command failed.'
+      message: 'The provider version command failed.',
+      reason: 'failed'
     });
+  });
+
+  it('tells a version command that ran out of time from one that failed', async () => {
+    await expect(
+      probeVersion('/usr/bin/codex', {
+        platform: 'linux',
+        env: {},
+        execute: async () => {
+          throw new VersionProbeError(undefined, 'timeout');
+        }
+      })
+    ).rejects.toMatchObject({ code: 'VERSION_PROBE_FAILED', reason: 'timeout' });
+  });
+
+  it('marks a command killed at its time limit as timed out', async () => {
+    await expect(executeVersionInvocation(
+      { file: process.execPath, args: ['-e', 'setTimeout(() => {}, 5000)'] },
+      { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      50
+    )).rejects.toMatchObject({ reason: 'timeout' });
   });
 });

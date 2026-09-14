@@ -283,6 +283,169 @@ describe('ProviderScanCoordinator', () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
+  it('rescans only the providers whose probe failed', async () => {
+    let elapsed = 100;
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => ({
+      scannedAt: '2026-07-23T07:30:00.000Z',
+      providers: providers.map((provider) => (provider === 'claude' && scan.mock.calls.length === 1
+        ? probeFailedResult([provider]).providers[0]!
+        : readyResult([provider]).providers[0]!))
+    }));
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 300_000,
+      failedCacheTtlMs: 10_000,
+      monotonicClock: () => elapsed
+    });
+
+    await coordinator.scan(['codex', 'claude']);
+    elapsed = 10_101;
+    const retried = await coordinator.scan(['codex', 'claude']);
+
+    // One slow CLI must not send every other provider through discovery again.
+    expect(scan.mock.calls.map(([providers]) => providers)).toEqual([
+      ['codex', 'claude'],
+      ['claude']
+    ]);
+    expect(retried.providers.map(({ provider, state }) => [provider, state])).toEqual([
+      ['codex', 'ready'],
+      ['claude', 'ready']
+    ]);
+    // With the miss resolved, the scan keeps the rest of its term.
+    elapsed = 200_000;
+    await coordinator.scan(['codex', 'claude']);
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers a launch from what discovery found, without scanning', async () => {
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => readyResult(providers));
+    const coordinator = new ProviderScanCoordinator(scan);
+
+    await coordinator.scan(['codex', 'claude', 'gemini']);
+    const launch = await coordinator.installations(['codex', 'claude', 'gemini'], ['claude']);
+
+    expect(launch.providers.map(({ provider }) => provider)).toEqual(['claude']);
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
+  it('probes only the launched provider when discovery has no ready answer for it', async () => {
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => readyResult(providers));
+    const coordinator = new ProviderScanCoordinator(scan);
+
+    const launch = await coordinator.installations(['codex', 'claude', 'gemini'], ['claude']);
+
+    expect(scan.mock.calls.map(([providers]) => providers)).toEqual([['claude']]);
+    expect(launch.providers.map(({ provider, state }) => [provider, state])).toEqual([['claude', 'ready']]);
+    // A probe of one provider is not a scan of them all.
+    expect(coordinator.lastScan(['codex', 'claude', 'gemini'])).toBeNull();
+    // A provider the policy leaves out is not probed for a launch.
+    await expect(coordinator.installations(['codex'], ['claude'])).resolves.toMatchObject({ providers: [] });
+    expect(scan).toHaveBeenCalledOnce();
+  });
+
+  it('answers a stale launch at once and refreshes that provider in the background', async () => {
+    let elapsed = 100;
+    const pending = deferred<ProviderScanResult>();
+    const scan = vi.fn()
+      .mockImplementationOnce(async (providers: readonly ProviderId[]) => readyResult(providers))
+      .mockImplementationOnce(() => pending.promise);
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 1_000,
+      monotonicClock: () => elapsed
+    });
+
+    await coordinator.scan(['codex', 'claude']);
+    elapsed = 5_000;
+    const launch = await coordinator.installations(['codex', 'claude'], ['claude']);
+
+    expect(launch.providers.map(({ provider }) => provider)).toEqual(['claude']);
+    expect(scan.mock.calls.map(([providers]) => providers)).toEqual([['codex', 'claude'], ['claude']]);
+    pending.resolve(readyResult(['claude']));
+  });
+
+  it('probes a provider again once a launch reports it broken, and on request', async () => {
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => readyResult(providers));
+    const coordinator = new ProviderScanCoordinator(scan);
+
+    await coordinator.scan(['codex', 'claude']);
+    coordinator.invalidate(['codex', 'claude'], 'claude');
+    await coordinator.installations(['codex', 'claude'], ['claude']);
+    await coordinator.installations(['codex', 'claude'], ['claude']);
+    await coordinator.installations(['codex', 'claude'], ['codex'], { fresh: true });
+
+    expect(scan.mock.calls.map(([providers]) => providers)).toEqual([
+      ['codex', 'claude'],
+      ['claude'],
+      ['codex']
+    ]);
+  });
+
+  it('keeps the newer answer when an older probe of the same provider finishes last', async () => {
+    const olderProbe = deferred<ProviderScanResult>();
+    const newerScan = deferred<ProviderScanResult>();
+    const scan = vi.fn()
+      .mockImplementationOnce(() => olderProbe.promise)
+      .mockImplementationOnce(() => newerScan.promise);
+    const coordinator = new ProviderScanCoordinator(scan);
+
+    const launch = coordinator.installations(['codex', 'claude'], ['codex']);
+    const catalog = coordinator.scan(['codex', 'claude']);
+    newerScan.resolve(readyResult(['codex', 'claude']));
+    await catalog;
+    olderProbe.resolve(probeFailedResult(['codex']));
+    await launch;
+
+    // The probe started first; its miss must not replace what the later scan found.
+    await expect(coordinator.installations(['codex', 'claude'], ['codex'])).resolves
+      .toMatchObject({ providers: [{ provider: 'codex', state: 'ready' }] });
+    expect(coordinator.lastScan(['codex', 'claude'])?.providers[0]?.state).toBe('ready');
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not rescan every provider when a fresh scan interrupts a retry of failed ones', async () => {
+    let elapsed = 100;
+    const retry = deferred<ProviderScanResult>();
+    const scan = vi.fn()
+      .mockImplementationOnce(async () => ({
+        scannedAt: '2026-07-23T07:30:00.000Z',
+        providers: [readyResult(['codex']).providers[0]!, probeFailedResult(['claude']).providers[0]!]
+      }))
+      .mockImplementationOnce(() => retry.promise)
+      .mockImplementation(async (providers: readonly ProviderId[]) => readyResult(providers));
+    const coordinator = new ProviderScanCoordinator(scan, {
+      cacheTtlMs: 300_000,
+      failedCacheTtlMs: 10_000,
+      monotonicClock: () => elapsed
+    });
+
+    await coordinator.scan(['codex', 'claude']);
+    elapsed = 10_101;
+    const retrying = coordinator.scan(['codex', 'claude']);
+    const fresh = coordinator.scanFresh(['codex', 'claude']);
+    retry.resolve(readyResult(['claude']));
+    await Promise.all([retrying, fresh]);
+
+    // The first scan, the retry of the failed provider, and the one fresh scan asked for.
+    expect(scan.mock.calls.map(([providers]) => providers)).toEqual([
+      ['codex', 'claude'],
+      ['claude'],
+      ['codex', 'claude']
+    ]);
+  });
+
+  it('keeps state for only the few most recent enabled-provider lists', async () => {
+    const scan = vi.fn(async (providers: readonly ProviderId[]) => readyResult(providers));
+    const coordinator = new ProviderScanCoordinator(scan);
+
+    await coordinator.scan(['codex']);
+    for (const providers of [['claude'], ['gemini'], ['qwen'], ['kimi']] as ProviderId[][]) {
+      await coordinator.scan(providers);
+    }
+
+    // Each change to the enabled providers starts a new list; old ones are let go.
+    expect(coordinator.lastScan(['codex'])).toBeNull();
+    expect(coordinator.lastScan(['kimi'])).not.toBeNull();
+  });
+
   it('starts a fresh scan after an active scan rejects', async () => {
     const scan = vi
       .fn<(providers: readonly ProviderId[]) => Promise<ProviderScanResult>>()

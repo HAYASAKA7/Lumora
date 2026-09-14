@@ -138,6 +138,51 @@ describe('StructuredProviderProbeCoordinator', () => {
     expect(probeReady).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a verified report while the installation is unchanged, and retries a miss soon', async () => {
+    let elapsed = 0;
+    let codexBroken = true;
+    const probeReady = vi.fn(async (installation: ReadyStructuredProviderInstallation) => {
+      if (installation.provider === 'codex' && codexBroken) throw new Error('broken');
+      return verified(installation);
+    });
+    const coordinator = new StructuredProviderProbeCoordinator({
+      probeReady,
+      monotonicClock: () => elapsed,
+      retryAfterMs: 30_000
+    });
+
+    await coordinator.scan([ready('claude'), ready('codex')]);
+    expect(probeReady).toHaveBeenCalledTimes(2);
+
+    // The same executable at the same version answers the same way, so a
+    // verified report does not expire with time.
+    elapsed = 24 * 60 * 60_000;
+    codexBroken = false;
+    const reports = await coordinator.scan([ready('claude'), ready('codex')]);
+    expect(probeReady.mock.calls.map(([installation]) => installation.provider)).toEqual([
+      'codex', 'claude', 'codex'
+    ]);
+    expect(reports.slice(0, 2).map(({ providerId, state }) => [providerId, state])).toEqual([
+      ['codex', 'verified'],
+      ['claude', 'verified']
+    ]);
+  });
+
+  it('asks a provider again once a launch found it broken', async () => {
+    const probeReady = vi.fn(async (installation: ReadyStructuredProviderInstallation) =>
+      verified(installation)
+    );
+    const coordinator = new StructuredProviderProbeCoordinator({ probeReady });
+
+    await coordinator.scan([ready('claude'), ready('codex')]);
+    coordinator.invalidate('claude');
+    await coordinator.scan([ready('claude'), ready('codex')]);
+
+    expect(probeReady.mock.calls.map(([installation]) => installation.provider)).toEqual([
+      'codex', 'claude', 'claude'
+    ]);
+  });
+
   it('isolates failures and timeouts while preserving provider order', async () => {
     const probeReady = vi.fn(
       async (installation: ReadyStructuredProviderInstallation) => {

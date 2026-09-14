@@ -86,6 +86,45 @@ describe('provider adapters', () => {
   });
 });
 
+describe('provider version check retries', () => {
+  it('tries a failed version check once more before reporting the provider failed', async () => {
+    const reportVersionCheck = vi.fn();
+    const probeVersion = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('slow'), { reason: 'timeout' }))
+      .mockResolvedValueOnce('GitHub Copilot CLI 1.2.3');
+    const adapter = createProviderAdapters({
+      findExecutable: async () => '/tools/copilot',
+      probeVersion,
+      reportVersionCheck
+    }).find(({ provider }) => provider === 'copilot')!;
+
+    // A busy machine can push one cold CLI start past its budget; one miss
+    // should not mark a working provider broken.
+    await expect(adapter.scan()).resolves.toMatchObject({ state: 'ready' });
+    expect(probeVersion).toHaveBeenCalledTimes(2);
+    expect(reportVersionCheck).toHaveBeenCalledWith({
+      provider: 'copilot', outcome: 'recovered', reason: 'timeout'
+    });
+  });
+
+  it('reports which provider failed and why once the retry fails too', async () => {
+    const reportVersionCheck = vi.fn();
+    const adapter = createProviderAdapters({
+      findExecutable: async () => '/tools/gemini',
+      probeVersion: async () => {
+        throw new Error('exit 1');
+      },
+      reportVersionCheck
+    }).find(({ provider }) => provider === 'gemini')!;
+
+    await expect(adapter.scan()).resolves.toMatchObject({ state: 'probe_failed' });
+    expect(reportVersionCheck).toHaveBeenCalledOnce();
+    expect(reportVersionCheck).toHaveBeenCalledWith({
+      provider: 'gemini', outcome: 'failed', reason: 'failed'
+    });
+  });
+});
+
 describe('ProviderRegistry', () => {
   it('bounds concurrent provider probes while preserving provider order', async () => {
     let active = 0;

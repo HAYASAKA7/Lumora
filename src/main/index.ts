@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -60,6 +60,13 @@ import {
   type DiagnosticService
 } from './diagnostics/diagnostic-service';
 import { installDiagnosticProcessObservers } from './diagnostics/diagnostic-process-observers';
+import type { StructuredAgentProviderId } from '../shared/agent/contracts';
+import type { ProviderLookup } from './terminal/launch-service';
+import {
+  createUnifiedLaunchUsageStore,
+  scheduleUnifiedCapabilityWarmup,
+  type UnifiedLaunchUsageStore
+} from './agent/probes/unified-capability-warmup';
 import { listAgentProcessRoots } from './diagnostics/agent-process-roots';
 import {
   createLocalProcessSampler,
@@ -209,7 +216,21 @@ const providerDependencies = {
     })
 };
 const providerRegistry = new ProviderRegistry(
-  createProviderAdapters(providerDependencies)
+  createProviderAdapters({
+    ...providerDependencies,
+    // A scan's counts say a check failed; this names the provider and why.
+    reportVersionCheck: ({ provider, outcome, reason }) => {
+      void diagnosticService?.record({
+        severity: outcome === 'failed' ? 'warning' : 'info',
+        subsystem: 'provider',
+        operation: 'version-check',
+        outcome: outcome === 'failed' ? 'failed' : 'succeeded',
+        provider,
+        targetKind: 'local',
+        code: reason === 'timeout' ? 'VERSION_CHECK_TIMED_OUT' : 'VERSION_CHECK_FAILED'
+      }).catch(() => undefined);
+    }
+  })
 );
 const providerScanCoordinator = new ProviderScanCoordinator(
   (providers) => providerRegistry.scan(providers),
@@ -241,6 +262,25 @@ const providerScanCoordinator = new ProviderScanCoordinator(
 const providerPolicy = createProviderPolicy();
 const scanEnabledProviders = () =>
   providerScanCoordinator.scan(providerPolicy.providers());
+/**
+ * Installations as a launch reads them: only the providers it names, from
+ * what discovery last found, with no scan of every provider.
+ */
+const scanProvidersForLaunch = (options: ProviderLookup = {}) => {
+  if (options.providers === undefined) {
+    return options.fresh === true
+      ? providerScanCoordinator.scanFresh(providerPolicy.providers())
+      : scanEnabledProviders();
+  }
+  return providerScanCoordinator.installations(
+    providerPolicy.providers(),
+    options.providers,
+    options.fresh === true ? { fresh: true } : {}
+  );
+};
+/** Providers opened in Unified UI within this long are warmed after startup. */
+const UNIFIED_WARMUP_RECENT_MS = 14 * 24 * 60 * 60_000;
+const UNIFIED_WARMUP_DELAY_MS = 20_000;
 const providerReleaseSource = createProviderReleaseSource({
   fetch: (input, init) => net.fetch(input, init)
 });
@@ -312,6 +352,8 @@ let diagnosticService: DiagnosticService | null = null;
 let diagnosticPreferencesStore: DiagnosticPreferencesStore | null = null;
 let disposeDiagnosticProcessObservers: (() => void) | null = null;
 let localProcessSampler: LocalProcessSampler | null = null;
+let unifiedLaunchUsage: UnifiedLaunchUsageStore | null = null;
+let cancelUnifiedCapabilityWarmup: (() => void) | null = null;
 let shutdownStarted = false;
 
 function helperBundleRoot(): string {
@@ -871,7 +913,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     handoffRootDirectory: join(app.getPath('userData'), 'handoffs'),
     platform,
     env: applicationEnvironment,
-    scanProviders: scanEnabledProviders,
+    scanProviders: scanProvidersForLaunch,
     sessionGuard: structuredSessionGuard,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
@@ -891,6 +933,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     lastScan: () => providerScanCoordinator.lastScan(providerPolicy.providers()),
     scan: scanEnabledProviders,
     scanFresh: () => providerScanCoordinator.scanFresh(providerPolicy.providers()),
+    installations: (providers) =>
+      providerScanCoordinator.installations(providerPolicy.providers(), providers),
     resolveInstallations: ({ scan, preferences }) =>
       resolveStructuredProviderInstallations({
         scan,
@@ -903,8 +947,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   const scanStructuredCapabilities = (
     fresh: boolean,
-    preferences = terminalRuntime!.getStructuredProviderPreferences()
-  ) => runStructuredCapabilityScan(fresh, preferences);
+    preferences = terminalRuntime!.getStructuredProviderPreferences(),
+    only?: StructuredAgentProviderId
+  ) => runStructuredCapabilityScan(fresh, preferences, only);
   // The images a Unified UI prompt carries: staged once from the renderer's
   // bytes, proven to be images by Electron's decoder, and read by the adapter.
   const structuredImageStore = new StructuredImageStore({
@@ -928,17 +973,39 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     terminatePty: (runtimeId) => terminalRuntime!.terminateRuntime(runtimeId),
     launchStructured: (request, signal) =>
       structuredAgentRuntime!.launch(request, signal),
-    scanCapabilities: () => scanStructuredCapabilities(false),
+    scanCapabilities: (providerId) =>
+      scanStructuredCapabilities(false, undefined, providerId),
     scanCapabilitiesIncluding: (providerId) => runStructuredCapabilityScan(
       false,
       terminalRuntime!.getStructuredProviderPreferences().map((preference) =>
         preference.providerId === providerId
           ? { ...preference, useUnifiedWhenAvailable: true }
-          : preference)
+          : preference),
+      providerId
     ),
     listPreferences: () => terminalRuntime!.getStructuredProviderPreferences(),
     isUnifiedUiEnabled: () =>
-      terminalRuntime!.getGeneralSettings().unifiedAgentUiEnabled
+      terminalRuntime!.getGeneralSettings().unifiedAgentUiEnabled,
+    invalidateProvider: (providerId) => {
+      structuredProviderProbe.invalidate(providerId);
+      providerScanCoordinator.invalidate(providerPolicy.providers(), providerId);
+    },
+    recordUnifiedLaunch: (providerId) => unifiedLaunchUsage?.record(providerId)
+  });
+  const unifiedLaunchUsagePath = join(app.getPath('userData'), 'unified-launch-usage.json');
+  unifiedLaunchUsage = createUnifiedLaunchUsageStore({
+    readFile: () => readFile(unifiedLaunchUsagePath, 'utf8'),
+    writeFile: (data) => writeTextFile(unifiedLaunchUsagePath, data, { encoding: 'utf8', mode: 0o600 })
+  });
+  await unifiedLaunchUsage.load();
+  // The agents opened in Unified UI lately get their check ready in the
+  // background, one at a time, once startup has settled.
+  cancelUnifiedCapabilityWarmup = scheduleUnifiedCapabilityWarmup({
+    delayMs: UNIFIED_WARMUP_DELAY_MS,
+    providers: () => unifiedLaunchUsage?.recentProviders(UNIFIED_WARMUP_RECENT_MS, 3) ?? [],
+    isEnabled: () => !shutdownStarted &&
+      terminalRuntime?.getGeneralSettings().unifiedAgentUiEnabled === true,
+    check: (providerId) => scanStructuredCapabilities(false, undefined, providerId)
   });
   const localePaths = resolveLocalePaths({
     isPackaged: app.isPackaged,
@@ -1442,7 +1509,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
           const candidate = current.map((preference) =>
             preference.providerId === input.providerId ? input : preference
           );
-          const reports = await scanStructuredCapabilities(true, candidate);
+          const reports = await scanStructuredCapabilities(true, candidate, input.providerId);
           if (reports.find(
             ({ providerId }) => providerId === input.providerId
           )?.state !== 'verified') {
@@ -1615,6 +1682,8 @@ app.on('before-quit', (event) => {
         outcome: 'succeeded',
         targetKind: 'local'
       }).catch(() => undefined);
+      // A session opened just before quitting still counts toward the next warm-up.
+      await unifiedLaunchUsage?.flush();
       await diagnosticJournal?.finishRun();
     } catch (error) {
       console.error('Unable to complete Lumora shutdown cleanly.', error);
@@ -1645,6 +1714,8 @@ app.on('before-quit', (event) => {
       disposeDiagnosticProcessObservers = null;
       localProcessSampler?.close();
       localProcessSampler = null;
+      cancelUnifiedCapabilityWarmup?.();
+      cancelUnifiedCapabilityWarmup = null;
       app.quit();
     }
   })();

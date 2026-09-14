@@ -38,7 +38,7 @@ import { TerminalRepository } from '../storage/terminal-repository';
 import { StructuredProviderPreferenceRepository } from '../storage/structured-provider-preference-repository';
 import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
 import { providerDefinition } from '../../shared/provider-definitions';
-import { LaunchService, type LaunchSpec } from './launch-service';
+import { LaunchService, type LaunchSpec, type ProviderLookup } from './launch-service';
 import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
 import { detectTerminalProfiles } from './profile-detector';
@@ -97,7 +97,7 @@ interface CreateTerminalRuntimeOptions {
   executionTargetId: ExecutionTargetId;
   platform: SystemInfo['platform'];
   env: Environment;
-  scanProviders(): Promise<ProviderScanResult>;
+  scanProviders(options?: ProviderLookup): Promise<ProviderScanResult>;
   sessionCatalogRegistry: SessionCatalogRegistry;
   handoffRootDirectory?: string;
   handoffService?: Pick<
@@ -240,7 +240,7 @@ export async function createTerminalRuntime({
     resolveProviderExecutable: async (providerId) => {
       const override = structuredPreferences.get(providerId).executablePathOverride;
       if (override !== null) return override;
-      const scan = await scanProviders();
+      const scan = await scanProviders({ providers: [providerId] });
       const installation = scan.providers.find(
         (candidate) => candidate.provider === providerId
       );

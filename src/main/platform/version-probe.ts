@@ -34,7 +34,11 @@ interface ProbeVersionOptions extends VersionInvocationOptions {
 export class VersionProbeError extends Error {
   readonly code = 'VERSION_PROBE_FAILED';
 
-  constructor(message = 'The provider version command failed.') {
+  constructor(
+    message = 'The provider version command failed.',
+    /** Whether the command ran out of time or failed on its own. */
+    readonly reason: 'timeout' | 'failed' = 'failed'
+  ) {
     super(message);
     this.name = 'VersionProbeError';
   }
@@ -98,7 +102,8 @@ const VERSION_PROBE_TIMEOUT_MS = 10_000;
 
 export function executeVersionInvocation(
   invocation: VersionInvocation,
-  env: Environment = process.env
+  env: Environment = process.env,
+  timeoutMs = VERSION_PROBE_TIMEOUT_MS
 ): Promise<VersionCommandOutput> {
   return new Promise((resolve, reject) => {
     execFile(
@@ -108,14 +113,15 @@ export function executeVersionInvocation(
         encoding: 'utf8',
         env: { ...env, NO_COLOR: '1' },
         maxBuffer: 32 * 1024,
-        timeout: VERSION_PROBE_TIMEOUT_MS,
+        timeout: timeoutMs,
         windowsHide: true,
         windowsVerbatimArguments:
           invocation.windowsVerbatimArguments ?? false
       },
       (error, stdout, stderr) => {
         if (error !== null) {
-          reject(new VersionProbeError());
+          // Node kills the command when the time limit passes.
+          reject(new VersionProbeError(undefined, error.killed === true ? 'timeout' : 'failed'));
           return;
         }
 
@@ -151,8 +157,11 @@ export async function probeVersion(
     output = await (execute ?? ((value) => executeVersionInvocation(value, env)))(
       invocation
     );
-  } catch {
-    throw new VersionProbeError();
+  } catch (error) {
+    throw new VersionProbeError(
+      undefined,
+      error instanceof VersionProbeError ? error.reason : 'failed'
+    );
   }
 
   const version = firstOutputLine(output.stdout) ?? firstOutputLine(output.stderr);

@@ -7,6 +7,22 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Open a session in Unified UI without waiting on other agents. Every launch
+  asked each installed Unified UI agent what it supports, starting Codex and
+  the ACP agents to do so, and asked again once the answers were five minutes
+  old, so a session could stay on **Starting** for 15 seconds to a minute. A
+  launch now checks only its own agent, a verified answer stands until that
+  agent's installation changes, and agents you opened in Unified UI recently
+  are checked in the background shortly after Lumora starts.
+- Keep one slow provider from holding up the rest. When a provider's version
+  check failed, every provider was scanned again ten seconds later, and
+  launching the provider whose check failed was refused in the meantime. A
+  failed check is now tried once more, only that provider is scanned again, a
+  launch asks again before refusing, and the diagnostic journal names the
+  provider and whether its check timed out.
+
 ## [0.5.12] - 2026-09-14
 
 ### Added

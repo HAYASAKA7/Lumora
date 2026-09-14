@@ -41,18 +41,27 @@ interface AgentLaunchRouterDependencies {
     request: StructuredAgentLaunchRequest,
     signal: AbortSignal
   ): Promise<StructuredAgentRuntimeSummary>;
-  /** Reports for the providers that can route there on their own. */
-  scanCapabilities(): Promise<readonly StructuredProviderCapabilityReport[]>;
   /**
-   * The same, plus the named provider even when its automatic preference is
-   * off: choosing Unified UI for one session overrides that preference, so the
-   * provider still has to be asked what it supports.
+   * The report for the provider being launched, when it can route there on its
+   * own. Only that provider is checked: a launch never waits on the others.
+   */
+  scanCapabilities(
+    providerId: StructuredAgentProviderId
+  ): Promise<readonly StructuredProviderCapabilityReport[]>;
+  /**
+   * The same even when its automatic preference is off: choosing Unified UI
+   * for one session overrides that preference, so the provider still has to be
+   * asked what it supports.
    */
   scanCapabilitiesIncluding(
     providerId: StructuredAgentProviderId
   ): Promise<readonly StructuredProviderCapabilityReport[]>;
   listPreferences(): readonly StructuredProviderPreference[];
   isUnifiedUiEnabled(): boolean;
+  /** Forgets what a provider reported, after its structured launch failed. */
+  invalidateProvider?(providerId: StructuredAgentProviderId): void;
+  /** Notes that a provider opened in Unified UI, so its check can be warmed next time. */
+  recordUnifiedLaunch?(providerId: StructuredAgentProviderId): void;
 }
 
 interface PendingAgentLaunch {
@@ -212,7 +221,7 @@ export class AgentLaunchRouter {
         return {
           mode: 'structured',
           routeReason: 'verified',
-          runtime: await this.dependencies.launchStructured(request, signal)
+          runtime: await this.launchStructured(request, signal)
         };
       } catch (error) {
         if (signal.aborted || isCancellation(error)) {
@@ -222,7 +231,7 @@ export class AgentLaunchRouter {
       }
     }
     const [reports, preferences] = await Promise.all([
-      this.dependencies.scanCapabilities(),
+      this.dependencies.scanCapabilities(request.providerId),
       Promise.resolve(this.dependencies.listPreferences())
     ]);
     throwIfCancelled(signal);
@@ -258,7 +267,7 @@ export class AgentLaunchRouter {
       return {
         mode: 'structured',
         routeReason: 'verified',
-        runtime: await this.dependencies.launchStructured(request, signal)
+        runtime: await this.launchStructured(request, signal)
       };
     } catch (error) {
       if (signal.aborted || isCancellation(error)) {
@@ -271,6 +280,29 @@ export class AgentLaunchRouter {
         error.code === 'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
       ) throw error;
       return this.startPty(spec, 'structured_failed', signal);
+    }
+  }
+
+  /**
+   * Launches through the structured host. A failure other than a cancellation
+   * or a session already open elsewhere may mean the installation changed
+   * since it was checked, so that provider is asked again next time.
+   */
+  private async launchStructured(
+    request: StructuredAgentLaunchRequest,
+    signal: AbortSignal
+  ): Promise<StructuredAgentRuntimeSummary> {
+    try {
+      const runtime = await this.dependencies.launchStructured(request, signal);
+      this.dependencies.recordUnifiedLaunch?.(request.providerId);
+      return runtime;
+    } catch (error) {
+      const alreadyActive = typeof error === 'object' && error !== null &&
+        'code' in error && error.code === 'STRUCTURED_RUNTIME_ALREADY_ACTIVE';
+      if (!signal.aborted && !isCancellation(error) && !alreadyActive) {
+        this.dependencies.invalidateProvider?.(request.providerId);
+      }
+      throw error;
     }
   }
 
