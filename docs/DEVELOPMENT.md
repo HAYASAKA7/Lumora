@@ -67,7 +67,10 @@ Run `npm run verify` before committing a code change.
 
 Remote-helper source changes additionally require `npm run helper:build`. The
 generated bundle is intentionally ignored; packages rebuild it and copy it to
-the application resources directory. `scripts/release/verify-package.cjs`
+the application resources directory. The helper also runs on the local
+computer while **Process details** is open in Diagnostics. `npm run dev`
+rebuilds the bundle only when `helper/version.json` changes, so bump the helper
+version with any change to its operations. `scripts/release/verify-package.cjs`
 rejects packages without a complete, digest-valid helper manifest and artifact
 set.
 

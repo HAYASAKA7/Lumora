@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-09-14
+
 ### Added
 
 - See every process behind Lumora and its agents. **Process details** in
@@ -24,6 +26,12 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and lead the page ahead of the storage locations. CPU shows **Measuring…**
   until it has a recent reading, rather than an average since the page was last
   opened.
+
+### Changed
+
+- Lumora's helper moves to version 0.5.0. A remote computer asks to install the
+  new helper the next time it connects, the same confirmation as a first
+  install.
 
 ## [0.5.11] - 2026-09-13
 

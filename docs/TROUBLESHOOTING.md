@@ -436,6 +436,23 @@ write to the selected destination.
 user directory and try again. Do not delete application data as a first step;
 the journal rotates automatically and cannot block normal provider use.
 
+### Process details show only Lumora's own processes
+
+**Symptom:** **Process details** in **Settings > Diagnostics** says Lumora
+could not read the processes it started, and each agent says its processes
+could not be read.
+
+**Likely cause:** Lumora reads process details through its packaged helper,
+which it starts on this computer only while the window is open. The helper
+could not start or answer: security software may have blocked it, or in a
+development build the generated helper bundle is missing or out of date.
+
+**Resolution:** Close the window, wait half a minute, and open it again; after
+a failure Lumora waits 30 seconds before starting the helper again. If it keeps
+failing, allow Lumora's `lumora-helper` executable in your security software. In
+a development build, run `npm run helper:ensure`. Lumora's own app processes and
+the figures on the Diagnostics page stay available either way.
+
 ### Lumora is using the default diagnostic folder instead of my selection
 
 **Symptom:** **Settings > Diagnostics** reports that Lumora is using its default
