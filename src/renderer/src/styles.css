@@ -6047,6 +6047,8 @@ button {
   min-width: 0;
 }
 
+/* The mode and model selectors share one trigger size and type. */
+.structured-mode-select .select-menu-trigger,
 .structured-model-select .select-menu-trigger {
   min-height: 34px;
   padding: 6px 9px;

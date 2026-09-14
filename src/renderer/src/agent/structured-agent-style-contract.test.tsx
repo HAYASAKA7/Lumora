@@ -65,6 +65,16 @@ describe('structured agent workspace style contract', () => {
     expect(rule('.structured-composer-action')).toContain('position: static');
   });
 
+  it('gives the mode and model selectors one trigger size and type', () => {
+    const trigger = rule(
+      '.structured-mode-select .select-menu-trigger,\n.structured-model-select .select-menu-trigger'
+    );
+    expect(trigger).toContain('min-height: 34px');
+    expect(trigger).toContain('font-size: 0.76rem');
+    expect(trigger).toContain('font-weight: 680');
+    expect(styles.split('.structured-model-select .select-menu-trigger').length).toBe(2);
+  });
+
   it('uses the unified Lumora selection highlight for command options', () => {
     expect(styles).toContain([
       '.structured-command-option:hover,',
