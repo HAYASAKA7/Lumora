@@ -93,6 +93,30 @@ describe('StructuredAgentRuntimeHost', () => {
     expect(host.list()).toEqual([]);
   });
 
+  it('lists each session with the agent process behind it', async () => {
+    const host = new StructuredAgentRuntimeHost({
+      resolveLaunch: async () => resolved(),
+      createAdapter: () => ({
+        open: async () => ({ nativeSessionId: 'native-1' }),
+        dispatch: async () => undefined,
+        close: async () => undefined,
+        processId: () => 4242
+      }),
+      createConnectionId: () => 'connection-1'
+    });
+    expect(host.listProcesses()).toEqual([]);
+
+    await host.launch(newRequest);
+
+    expect(host.listProcesses()).toEqual([{
+      connectionId: 'connection-1',
+      providerId: 'codex',
+      title: 'New Codex session',
+      state: 'ready',
+      processId: 4242
+    }]);
+  });
+
   it('launches a new native session and emits an ordered bounded envelope', async () => {
     const { host } = harness();
     const observed: unknown[] = [];

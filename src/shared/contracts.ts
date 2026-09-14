@@ -17,6 +17,8 @@ import type {
 } from './session-transfer';
 import type {
   DiagnosticExportResult,
+  DiagnosticProcessDetails,
+  DiagnosticResources,
   DiagnosticStorageSettings,
   DiagnosticSummary
 } from './diagnostics';
@@ -2366,6 +2368,8 @@ export const IPC_CHANNELS = {
   startupPresentationClaim: 'lumora:system:startup-presentation:claim',
   startupPresentationComplete: 'lumora:system:startup-presentation:complete',
   diagnosticSummaryGet: 'lumora:diagnostics:summary:get',
+  diagnosticResourcesGet: 'lumora:diagnostics:resources:get',
+  diagnosticProcessesGet: 'lumora:diagnostics:processes:get',
   diagnosticBundleExport: 'lumora:diagnostics:bundle:export',
   diagnosticStorageGet: 'lumora:diagnostics:storage:get',
   diagnosticJournalDirectoryChoose: 'lumora:diagnostics:journal-directory:choose',
@@ -2531,6 +2535,8 @@ export interface LumoraApi {
   ): Promise<void>;
   getAppearancePresentation(): Promise<AppearancePresentation>;
   getDiagnosticSummary(): Promise<DiagnosticSummary>;
+  getDiagnosticResources(): Promise<DiagnosticResources>;
+  getDiagnosticProcesses(): Promise<DiagnosticProcessDetails>;
   exportDiagnosticBundle(): Promise<DiagnosticExportResult>;
   getDiagnosticStorageSettings(): Promise<DiagnosticStorageSettings>;
   chooseDiagnosticJournalDirectory(): Promise<DiagnosticStorageSettings>;

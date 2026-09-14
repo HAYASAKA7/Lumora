@@ -61,6 +61,14 @@ export interface StructuredCatalogSessionIdentity {
   title: string;
 }
 
+export interface StructuredAgentProcess {
+  connectionId: string;
+  providerId: StructuredAgentRuntimeSummary['providerId'];
+  title: StructuredAgentRuntimeSummary['title'];
+  state: StructuredAgentRuntimeSummary['state'];
+  processId: number | null;
+}
+
 interface LiveStructuredRuntime {
   summary: StructuredAgentRuntimeSummary;
   launch: ResolvedStructuredAgentLaunch;
@@ -291,6 +299,17 @@ export class StructuredAgentRuntimeHost {
     return [...this.live.values()].map(({ summary }) =>
       StructuredAgentRuntimeSummarySchema.parse(summary)
     );
+  }
+
+  /** Each session with the agent process behind it, for diagnostics only. */
+  listProcesses(): readonly StructuredAgentProcess[] {
+    return [...this.live.values()].map(({ summary, adapter }) => ({
+      connectionId: summary.connectionId,
+      providerId: summary.providerId,
+      title: summary.title,
+      state: summary.state,
+      processId: adapter?.processId?.() ?? null
+    }));
   }
 
   synchronizeCatalogSessions(

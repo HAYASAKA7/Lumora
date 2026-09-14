@@ -1318,4 +1318,34 @@ describe('Claude structured adapter', () => {
       expect(ofKind(current.events, 'tool.updated')[0]?.payload).toMatchObject({ status: 'completed' });
     });
   });
+
+  it('knows the process behind the running query, for diagnostics', async () => {
+    const query = new FakeQuery([{
+      type: 'system', subtype: 'init', session_id: 'claude-native-6'
+    }]);
+    let reportProcess: ((processId: number | null) => void) | undefined;
+    const adapter = createClaudeStructuredAdapter(context().value, {
+      createQuery: (options) => {
+        reportProcess = options.onProcess;
+        return query;
+      },
+      loadHistory: async () => [],
+      createNativeSessionId: () => 'claude-native-6'
+    });
+    await adapter.open();
+    await adapter.activate?.();
+    expect(adapter.processId?.()).toBeNull();
+
+    await adapter.dispatch({
+      kind: 'prompt.submit', connectionId: 'connection-claude', text: 'Fix the build', attachmentTokens: []
+    });
+    reportProcess?.(4242);
+    expect(adapter.processId?.()).toBe(4242);
+
+    reportProcess?.(null);
+    expect(adapter.processId?.()).toBeNull();
+    reportProcess?.(4243);
+    await adapter.close();
+    expect(adapter.processId?.()).toBeNull();
+  });
 });

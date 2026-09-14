@@ -50,6 +50,8 @@ export interface StructuredAgentAdapter {
   activate?(): Promise<void>;
   dispatch(action: StructuredAgentAction): Promise<void>;
   close(): Promise<void>;
+  /** The agent process Lumora started, for diagnostics; null while there is none. */
+  processId?(): number | null;
 }
 
 export type CreateStructuredAgentAdapter = (

@@ -69,28 +69,89 @@ export const DiagnosticSummarySchema = z.strictObject({
     storedEvents: z.number().int().min(0).max(MAX_COUNT),
     invalidRecords: z.number().int().min(0).max(MAX_COUNT)
   }),
-  agents: z.strictObject({
-    activeCount: z.number().int().min(0).max(MAX_COUNT)
-  }),
-  processes: z.strictObject({
-    processCount: z.number().int().min(0).max(1_024),
-    workingSetBytes: z.number().int().min(0).max(1_099_511_627_776),
-    cpuPercent: z.number().min(0).max(100_000)
-  }),
   recentEvents: z.array(DiagnosticEventSchema).max(100)
 });
 
 export type DiagnosticSummary = z.infer<typeof DiagnosticSummarySchema>;
 
+export const DiagnosticProcessUsageSchema = z.strictObject({
+  processCount: z.number().int().min(0).max(1_024),
+  workingSetBytes: z.number().int().min(0).max(1_099_511_627_776),
+  /** Null when there is no recent earlier sample to measure CPU use against. */
+  cpuPercent: z.number().min(0).max(100_000).nullable()
+});
+
+export type DiagnosticProcessUsage = z.infer<typeof DiagnosticProcessUsageSchema>;
+
+/** Resource use sampled on demand, kept apart from the journal so it is cheap to poll. */
+export const DiagnosticResourcesSchema = z.strictObject({
+  sampledAt: z.iso.datetime(),
+  lumora: DiagnosticProcessUsageSchema,
+  agents: z.strictObject({
+    activeCount: z.number().int().min(0).max(MAX_COUNT)
+  })
+});
+
+export type DiagnosticResources = z.infer<typeof DiagnosticResourcesSchema>;
+
+export const DIAGNOSTIC_MAX_PROCESSES = 512;
+export const DIAGNOSTIC_MAX_AGENTS = 64;
+const MAX_PROCESS_ID = 2_147_483_647;
+
+/** One process in a detailed listing, placed under the process that started it. */
+export const DiagnosticProcessSchema = z.strictObject({
+  pid: z.number().int().min(0).max(MAX_PROCESS_ID),
+  depth: z.number().int().min(0).max(DIAGNOSTIC_MAX_PROCESSES),
+  /** Electron's role for its own processes; `process` for anything else. */
+  kind: z.enum(['main', 'renderer', 'gpu', 'utility', 'process']),
+  /** An executable or Electron service name; never a command line. */
+  name: z.string().max(128),
+  workingSetBytes: z.number().int().min(0).max(1_099_511_627_776).nullable(),
+  cpuPercent: z.number().min(0).max(100_000).nullable()
+});
+
+export type DiagnosticProcess = z.infer<typeof DiagnosticProcessSchema>;
+
+export const DiagnosticAgentProcessesSchema = z.strictObject({
+  id: z.string().min(1).max(128),
+  provider: z.string().regex(SAFE_PROVIDER),
+  surface: z.enum(['terminal', 'unified']),
+  title: z.string().max(256),
+  /**
+   * `measured` lists the agent's processes; `starting` has no process yet;
+   * `unavailable` means Lumora could not read them.
+   */
+  status: z.enum(['measured', 'starting', 'unavailable']),
+  processes: z.array(DiagnosticProcessSchema).max(DIAGNOSTIC_MAX_PROCESSES)
+});
+
+export type DiagnosticAgentProcesses = z.infer<typeof DiagnosticAgentProcessesSchema>;
+
+/**
+ * Every Lumora process and every running agent's processes. Shown locally
+ * only: titles and process names never go into an export.
+ */
+export const DiagnosticProcessDetailsSchema = z.strictObject({
+  sampledAt: z.iso.datetime(),
+  /** False when only Electron's own processes could be read. */
+  processTreeAvailable: z.boolean(),
+  truncated: z.boolean(),
+  lumora: z.array(DiagnosticProcessSchema).max(DIAGNOSTIC_MAX_PROCESSES),
+  agents: z.array(DiagnosticAgentProcessesSchema).max(DIAGNOSTIC_MAX_AGENTS)
+});
+
+export type DiagnosticProcessDetails = z.infer<typeof DiagnosticProcessDetailsSchema>;
+
 export const DiagnosticBundleSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   generatedAt: z.iso.datetime(),
   lumora: z.strictObject({
     version: z.string().min(1).max(64),
     platform: z.enum(['win32', 'darwin', 'linux']),
     architecture: z.string().min(1).max(32)
   }),
-  summary: DiagnosticSummarySchema
+  summary: DiagnosticSummarySchema,
+  resources: DiagnosticResourcesSchema
 });
 
 export type DiagnosticBundle = z.infer<typeof DiagnosticBundleSchema>;

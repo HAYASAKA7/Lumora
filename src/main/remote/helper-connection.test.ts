@@ -231,6 +231,71 @@ describe('remote helper connection', () => {
     connected.close();
   });
 
+  it('samples a process tree after capability negotiation', async () => {
+    const remote = channel();
+    const written: Buffer[] = [];
+    remote.stdin.on('data', (chunk: Buffer) => written.push(chunk));
+    const requestIds = ['request-1', 'request-2'];
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => requestIds.shift()!,
+      timeoutMs: 100
+    });
+    remote.stdout.write(encodeHelperFrame(response({
+      result: {
+        ...response().result as object,
+        capabilities: ['system-info', 'process-tree']
+      }
+    })));
+    const connected = await connecting;
+    const sampling = connected.sampleProcessTree(4242);
+    remote.stdout.write(encodeHelperFrame({
+      protocolVersion: 1,
+      kind: 'response',
+      generation: 7,
+      requestId: 'request-2',
+      operation: 'process-tree',
+      ok: true,
+      result: {
+        processes: [{
+          pid: 4242, parentPid: 1, name: 'lumora', measured: true,
+          workingSetBytes: 1024, cpuTimeMs: 50, startedAt: 1_757_000_000_000
+        }],
+        truncated: false
+      }
+    }));
+
+    await expect(sampling).resolves.toMatchObject({
+      processes: [{ pid: 4242, name: 'lumora' }], truncated: false
+    });
+    const requests = createHelperFrameDecoder().push(Buffer.concat(written));
+    expect(requests[1]).toMatchObject({
+      operation: 'process-tree',
+      payload: { rootPid: 4242 }
+    });
+    connected.close();
+  });
+
+  it('rejects process tree sampling when the helper did not advertise it', async () => {
+    const remote = channel();
+    const connecting = connectRemoteHelper({
+      channel: remote.value,
+      generation: 7,
+      expectedPlatform: 'linux',
+      expectedArchitecture: 'x64',
+      createRequestId: () => 'request-1'
+    });
+    remote.stdout.write(encodeHelperFrame(response()));
+    const connected = await connecting;
+    await expect(connected.sampleProcessTree(4242)).rejects.toMatchObject({
+      code: 'HELPER_INCOMPATIBLE'
+    });
+    connected.close();
+  });
+
   it('rejects provider lifecycle when the helper did not advertise it', async () => {
     const remote = channel();
     const connecting = connectRemoteHelper({

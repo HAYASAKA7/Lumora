@@ -174,9 +174,10 @@ five built-in languages, installed interface and terminal fonts, managed image
 backgrounds, built-in themes, and bounded data-only locale, font, and Theme
 Mods.
 
-Open **Settings > Diagnostics** to review current Lumora-owned process metrics,
-recent lifecycle health, local journal storage, and privacy-safe diagnostic
-export. Lumora never uploads a diagnostic report.
+Open **Settings > Diagnostics** to review live Lumora-owned process metrics,
+every process behind Lumora and its agents, recent lifecycle health, local
+journal storage, and privacy-safe diagnostic export. Lumora never uploads a
+diagnostic report.
 
 See [Settings and customization](docs/SETTINGS.md) for every category and
 [Localization and Mods](docs/localization.md) for pack formats and safety

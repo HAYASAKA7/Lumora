@@ -51,6 +51,8 @@ export interface LineJsonRpcTransport {
   onNotification(listener: (notification: JsonRpcNotification) => void): () => void;
   onExit(listener: (error: LineJsonRpcError) => void): () => void;
   close(): Promise<void>;
+  /** The spawned process's ID, for diagnostics; null when it has none. */
+  readonly processId?: number | null;
 }
 
 export interface CreateLineJsonRpcTransportOptions {
@@ -112,6 +114,10 @@ class JsonRpcLineTransport implements LineJsonRpcTransport {
       ));
     });
     process.on('exit', (code) => this.acceptExit(code));
+  }
+
+  get processId(): number | null {
+    return this.exited ? null : this.process.pid ?? null;
   }
 
   request(method: string, params: unknown): Promise<unknown> {

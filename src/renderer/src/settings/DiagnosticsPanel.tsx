@@ -7,11 +7,16 @@ import type {
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { InfoIcon, RefreshIcon } from '../ui/icons';
+import { DiagnosticsDetailsDialog } from './DiagnosticsDetailsDialog';
+import { formatBytes } from './diagnostic-format';
+import { useDiagnosticResources } from './use-diagnostic-sampling';
 
 type DiagnosticApi = Pick<
   LumoraApi,
   | 'getDiagnosticSummary'
+  | 'getDiagnosticResources'
+  | 'getDiagnosticProcesses'
   | 'exportDiagnosticBundle'
   | 'getDiagnosticStorageSettings'
   | 'chooseDiagnosticJournalDirectory'
@@ -30,14 +35,6 @@ type DiagnosticStatus =
   | { state: 'ready'; summary: DiagnosticSummary }
   | { state: 'error' };
 
-function formatBytes(bytes: number, formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string): string {
-  if (bytes < 1024 * 1024) return `${formatNumber(Math.round(bytes / 1024))} KB`;
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${formatNumber(bytes / (1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
-  }
-  return `${formatNumber(bytes / (1024 * 1024 * 1024), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`;
-}
-
 export function DiagnosticsPanel({
   active,
   api = window.lumora
@@ -49,11 +46,15 @@ export function DiagnosticsPanel({
   const [storage, setStorage] = useState<DiagnosticStorageSettings | null>(null);
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const closeDetails = useCallback(() => setDetailsOpen(false), []);
   const refreshGeneration = useRef(0);
 
-  const refresh = useCallback(async (showLoading = true) => {
+  const resourceStatus = useDiagnosticResources(api, active);
+
+  const refresh = useCallback(async () => {
     const generation = ++refreshGeneration.current;
-    if (showLoading) setStatus({ state: 'loading' });
+    setStatus({ state: 'loading' });
     try {
       const summary = await api.getDiagnosticSummary();
       if (generation === refreshGeneration.current) {
@@ -73,11 +74,7 @@ export function DiagnosticsPanel({
     }
 
     let cancelled = false;
-    let sampleTimer: number | undefined;
-    void refresh().finally(() => {
-      if (cancelled) return;
-      sampleTimer = window.setTimeout(() => void refresh(false), 1_000);
-    });
+    void refresh();
     void api.getDiagnosticStorageSettings().then(
       (settings) => {
         if (!cancelled) setStorage(settings);
@@ -90,7 +87,6 @@ export function DiagnosticsPanel({
     return () => {
       cancelled = true;
       refreshGeneration.current += 1;
-      if (sampleTimer !== undefined) window.clearTimeout(sampleTimer);
     };
   }, [active, api, refresh]);
 
@@ -126,6 +122,8 @@ export function DiagnosticsPanel({
   };
 
   const summary = status.state === 'ready' ? status.summary : null;
+  const resources = resourceStatus.state === 'ready' ? resourceStatus.value : null;
+  const cpuPercent = resources?.lumora.cpuPercent ?? null;
 
   return (
     <div className="diagnostics-panel">
@@ -136,6 +134,12 @@ export function DiagnosticsPanel({
           <p>{t('settings.diagnostics.description')}</p>
         </div>
         <div className="diagnostics-panel-actions">
+          <IconButton
+            label={t('settings.diagnostics.details-title')}
+            onClick={() => setDetailsOpen(true)}
+          >
+            <InfoIcon />
+          </IconButton>
           <IconButton
             busy={status.state === 'loading'}
             busyLabel={t('settings.diagnostics.loading')}
@@ -172,6 +176,37 @@ export function DiagnosticsPanel({
       ) : null}
       {exportNotice !== null ? (
         <p className="diagnostics-export-notice" role="status">{exportNotice}</p>
+      ) : null}
+
+      {resourceStatus.state === 'error' ? (
+        <div className="diagnostics-state diagnostics-state-error" role="alert">
+          {t('settings.diagnostics.resources-unavailable')}
+        </div>
+      ) : null}
+
+      {resources !== null ? (
+        <div className="diagnostics-metrics" aria-label={t('settings.diagnostics.current-label')}>
+          <article>
+            <span>{t('settings.diagnostics.active-agents')}</span>
+            <strong>{formatNumber(resources.agents.activeCount)}</strong>
+          </article>
+          <article>
+            <span>{t('settings.diagnostics.working-set')}</span>
+            <strong>{formatBytes(resources.lumora.workingSetBytes, formatNumber)}</strong>
+          </article>
+          <article>
+            <span>{t('settings.diagnostics.lumora-cpu')}</span>
+            <strong>
+              {cpuPercent === null
+                ? t('settings.diagnostics.measuring')
+                : `${formatNumber(cpuPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+            </strong>
+          </article>
+          <article>
+            <span>{t('settings.diagnostics.lumora-processes')}</span>
+            <strong>{formatNumber(resources.lumora.processCount)}</strong>
+          </article>
+        </div>
       ) : null}
 
       {storage !== null ? (
@@ -272,25 +307,6 @@ export function DiagnosticsPanel({
 
       {summary !== null ? (
         <>
-          <div className="diagnostics-metrics" aria-label={t('settings.diagnostics.current-label')}>
-            <article>
-              <span>{t('settings.diagnostics.active-agents')}</span>
-              <strong>{formatNumber(summary.agents.activeCount)}</strong>
-            </article>
-            <article>
-              <span>{t('settings.diagnostics.working-set')}</span>
-              <strong>{formatBytes(summary.processes.workingSetBytes, formatNumber)}</strong>
-            </article>
-            <article>
-              <span>{t('settings.diagnostics.lumora-cpu')}</span>
-              <strong>{formatNumber(summary.processes.cpuPercent, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong>
-            </article>
-            <article>
-              <span>{t('settings.diagnostics.lumora-processes')}</span>
-              <strong>{formatNumber(summary.processes.processCount)}</strong>
-            </article>
-          </div>
-
           <section className="diagnostics-events" aria-labelledby="diagnostic-events-title">
             <div className="diagnostics-events-heading">
               <div>
@@ -321,6 +337,10 @@ export function DiagnosticsPanel({
             )}
           </section>
         </>
+      ) : null}
+
+      {detailsOpen && active ? (
+        <DiagnosticsDetailsDialog api={api} onClose={closeDetails} />
       ) : null}
     </div>
   );

@@ -35,7 +35,7 @@ func TestCurrentAdvertisesImplementedCatalogCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, capability := range []string{"system-info", "provider-scan", "session-scan"} {
+	for _, capability := range []string{"system-info", "provider-scan", "session-scan", "process-tree"} {
 		if !slices.Contains(info.Capabilities, capability) {
 			t.Fatalf("missing capability %q in %#v", capability, info.Capabilities)
 		}

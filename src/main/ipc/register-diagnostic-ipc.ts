@@ -1,9 +1,13 @@
 import {
   DiagnosticExportResultSchema,
+  DiagnosticProcessDetailsSchema,
+  DiagnosticResourcesSchema,
   DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema,
   IPC_CHANNELS,
   type DiagnosticExportResult,
+  type DiagnosticProcessDetails,
+  type DiagnosticResources,
   type DiagnosticStorageSettings,
   type DiagnosticSummary
 } from '../../shared/contracts';
@@ -20,7 +24,10 @@ interface IpcRegistrar {
 interface RegisterDiagnosticIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  service: Pick<DiagnosticService, 'getSummary' | 'exportBundle'>;
+  service: Pick<
+    DiagnosticService,
+    'getSummary' | 'getResources' | 'getProcessDetails' | 'exportBundle'
+  >;
   storage: {
     getSettings(): Promise<DiagnosticStorageSettings>;
     selectJournalDirectory(directory: string): Promise<DiagnosticStorageSettings>;
@@ -64,6 +71,26 @@ export function registerDiagnosticIpc({
       authorize(event);
       return protectedOperation(async () =>
         DiagnosticSummarySchema.parse(await service.getSummary())
+      );
+    }
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.diagnosticResourcesGet,
+    async (event): Promise<DiagnosticResources> => {
+      authorize(event);
+      return protectedOperation(async () =>
+        DiagnosticResourcesSchema.parse(await service.getResources())
+      );
+    }
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.diagnosticProcessesGet,
+    async (event): Promise<DiagnosticProcessDetails> => {
+      authorize(event);
+      return protectedOperation(async () =>
+        DiagnosticProcessDetailsSchema.parse(await service.getProcessDetails())
       );
     }
   );

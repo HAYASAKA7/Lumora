@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/HAYASAKA7/lumora/helper/internal/processtree"
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerlifecycle"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
@@ -22,6 +23,21 @@ type Dependencies struct {
 	Discover          func(context.Context, []string) providerprobe.Result
 	ProviderLifecycle func(context.Context, providerlifecycle.Request) (providerlifecycle.Result, error)
 	SessionScan       func(context.Context, sessioncatalog.Query) sessioncatalog.Result
+	ProcessTree       func(int) (processtree.Result, error)
+}
+
+const maxProcessID = 1<<31 - 1
+
+func processTreeRoot(payload map[string]any) (int, bool) {
+	if len(payload) != 1 {
+		return 0, false
+	}
+	value, ok := payload["rootPid"].(float64)
+	root := int(value)
+	if !ok || value != float64(root) || root < 1 || root > maxProcessID {
+		return 0, false
+	}
+	return root, true
 }
 
 var sessionProviders = map[string]struct{}{
@@ -240,6 +256,27 @@ func responseFor(request protocol.Request, dependencies Dependencies) (protocol.
 		}
 		response.OK = true
 		response.Result = scan(context.Background(), query)
+	case "process-tree":
+		root, valid := processTreeRoot(request.Payload)
+		if !valid {
+			response.Error = &protocol.ResponseError{
+				Code: "INVALID_REQUEST", Message: "The helper request is invalid.",
+			}
+			return response, false
+		}
+		sample := dependencies.ProcessTree
+		if sample == nil {
+			sample = processtree.Sample
+		}
+		result, err := sample(root)
+		if err != nil {
+			response.Error = &protocol.ResponseError{
+				Code: "INTERNAL_ERROR", Message: "Process information is unavailable.",
+			}
+			return response, false
+		}
+		response.OK = true
+		response.Result = result
 	default:
 		response.Error = &protocol.ResponseError{
 			Code: "UNSUPPORTED_OPERATION", Message: "The helper operation is unsupported.",

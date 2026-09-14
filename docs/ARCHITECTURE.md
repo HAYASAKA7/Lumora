@@ -566,10 +566,41 @@ terminal output, session content, credentials, environment values,
 exception text, stack traces, session identities, or filesystem paths.
 
 Diagnostic IPC is local-window-only. The renderer receives a validated summary
-of recent structured events, the current count of locally managed launching or
-running agents, and bounded Electron process metrics for Lumora itself. The
+of recent structured events and, through a separate call that does not read the
+journal, a resource sample: bounded Electron process metrics for Lumora itself
+and the current count of locally managed launching or running agents. The
 memory value sums each Electron process's resident working set, so shared pages
-may be represented more than once. Export is an explicit native save-dialog
+may be represented more than once. Electron measures CPU since its previous
+metrics call, so the service reports CPU only when that call was between 250 ms
+and 5 seconds earlier and reports none otherwise. The renderer samples one at a
+time while Diagnostics is open and the window is visible: every two seconds, or
+after one second when the last sample had no CPU reading. Agent processes are
+not part of Electron's metrics. Every metrics call restarts Electron's CPU
+measurement for all callers, so a call made within 250 ms of another shares its
+reading rather than cutting the next one short.
+
+Process details come from a third call. Lumora starts its packaged helper on
+this computer, after verifying it against the bundle manifest, only when
+details are requested, and the helper exits once 15 seconds pass without a
+request; a helper that fails is not started again for 30 seconds. The helper's
+`process-tree` operation lists a root process and everything under it, up to
+256 processes, with parent, executable name, working set, total CPU time, and
+start time, and never a command line. It reads a process snapshot and process
+times through Windows system calls, `/proc` on Linux, and `ps` on macOS, and
+drops a child that started before its parent, whose parent ID was reused. The
+service samples the tree under Lumora's main process and assigns each running
+agent the subtree under the process Lumora started for it: the pty process for
+a terminal session, the spawned transport for Codex and ACP sessions, and for
+Claude Code the process Lumora starts on the SDK's behalf through
+`spawnClaudeCodeProcess`, which drains Claude's error output so an unread pipe
+cannot stall it. An agent outside Lumora's tree is sampled on its own. What
+remains is Lumora's; Electron's own processes keep Electron's labels and
+figures and are listed even when the helper is unavailable. Helper CPU is the
+change in CPU time between samples, keyed by PID and start time. Titles and
+process names reach only the renderer and never an export.
+
+The export bundle, schema version 2, carries the summary and a resource sample
+side by side. Export is an explicit native save-dialog
 action that creates a local JSON file. Its last successful parent directory is
 remembered privately and used as the next dialog location. Native directory
 dialogs prevent the renderer from submitting arbitrary paths. There is no

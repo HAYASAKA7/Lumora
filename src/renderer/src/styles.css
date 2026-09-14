@@ -2016,6 +2016,132 @@ button {
   }
 }
 
+/* Live figures change every sample; a fixed window keeps them from resizing it.
+   It shrinks only to fit smaller screens and its body scrolls. */
+.diagnostics-details-dialog {
+  width: min(960px, 100%);
+  height: min(760px, calc(100vh - 56px));
+}
+
+.diagnostics-details-section,
+.diagnostics-details-agent {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostics-details-section + .diagnostics-details-section {
+  padding-top: 6px;
+}
+
+.diagnostics-details-agent + .diagnostics-details-agent {
+  padding-top: 6px;
+}
+
+.diagnostics-details-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.diagnostics-details-heading > .diagnostics-details-summary {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.diagnostics-details-heading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.diagnostics-details-heading h3,
+.diagnostics-details-heading h4 {
+  margin: 0;
+  color: var(--text);
+}
+
+.diagnostics-details-heading h3 {
+  font-size: 0.95rem;
+}
+
+.diagnostics-details-heading h4 {
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostics-details-heading span,
+.diagnostics-details-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.diagnostics-process-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+/* Fixed columns so a figure growing from 9.9% to 10.0% never shifts the table. */
+.diagnostics-process-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
+  text-align: left;
+}
+
+.diagnostics-process-table th,
+.diagnostics-process-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.diagnostics-process-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.diagnostics-process-table thead th {
+  color: var(--text-soft);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.diagnostics-process-table tbody th {
+  overflow: hidden;
+  padding-inline-start: calc(12px + var(--process-depth, 0) * 16px);
+  color: var(--text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.diagnostics-process-table th:nth-child(n + 2),
+.diagnostics-process-table td {
+  text-align: right;
+}
+
+.diagnostics-process-table thead th:nth-child(2) {
+  width: 96px;
+}
+
+.diagnostics-process-table thead th:nth-child(3) {
+  width: 112px;
+}
+
+.diagnostics-process-table thead th:nth-child(4) {
+  width: 88px;
+}
+
 .general-settings-panel {
   display: grid;
   gap: 18px;

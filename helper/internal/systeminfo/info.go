@@ -63,6 +63,7 @@ func Current(helperVersion string) (Info, error) {
 		DefaultShell:    shell,
 		Capabilities: []string{
 			"system-info", "provider-scan", "provider-lifecycle", "session-scan",
+			"process-tree",
 		},
 	}, nil
 }

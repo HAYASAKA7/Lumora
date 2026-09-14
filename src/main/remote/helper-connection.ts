@@ -4,6 +4,7 @@ import {
   REMOTE_HELPER_PROTOCOL_VERSION,
   RemoteHelperRequestSchema,
   RemoteHelperResponseSchema,
+  type HelperProcessTreeResult,
   type RemoteHelperDiscoveryResult,
   type RemoteHelperProviderLifecycleResult,
   type RemoteHelperResponse,
@@ -53,6 +54,7 @@ export interface ConnectedRemoteHelper {
     provider: ProviderId,
     action: 'install' | 'update'
   ): Promise<RemoteHelperProviderLifecycleResult>;
+  sampleProcessTree(rootPid: number): Promise<HelperProcessTreeResult>;
   close(): void;
 }
 
@@ -249,6 +251,16 @@ export function connectRemoteHelper(input: {
           throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
         }
         return lifecycle.result;
+      },
+      async sampleProcessTree(rootPid: number) {
+        if (!info.capabilities.includes('process-tree')) {
+          throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
+        }
+        const tree = await send('process-tree', { rootPid });
+        if (tree.operation !== 'process-tree' || !tree.ok) {
+          throw new RemoteHelperConnectionError('HELPER_INCOMPATIBLE');
+        }
+        return tree.result;
       },
       close() {
         failConnection('HELPER_INCOMPATIBLE');

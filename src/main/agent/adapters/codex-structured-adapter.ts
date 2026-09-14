@@ -1757,6 +1757,10 @@ export function createCodexStructuredAdapter(
       });
     },
 
+    processId() {
+      return transport?.processId ?? null;
+    },
+
     async close() {
       if (closed) return;
       closed = true;

@@ -187,7 +187,21 @@ importing session files.
 
 Diagnostics shows current Lumora-owned runtime and Electron process metrics,
 recent lifecycle events, abnormal-shutdown state, journal storage, and local
-export controls.
+export controls. The cumulative working set adds up each Lumora process's
+working set, so memory shared between processes is counted once for each of
+them, and 100% CPU is one full core. The figures update every two seconds while
+the page is open and pause while the window is hidden. CPU shows
+**Measuring…** until Lumora has a reading from the last few seconds.
+
+**Process details**, the information button beside refresh, opens a live list
+of every Lumora process and every running agent in a window that keeps its size
+as the figures change and scrolls instead. Lumora's own processes
+include its window, graphics, and service processes, and anything else it
+started, such as its helper. Each agent is listed with
+the process Lumora started for it and everything that process started, so the
+commands an agent runs count toward that agent. Each process shows its PID,
+memory, and CPU. An agent on a remote computer does not appear, because its
+processes run there.
 
 <p align="center">
   <img src="screenshots/0.5/settings/settings_diagnostics.png" alt="Lumora Diagnostics settings with process metrics, journal controls, and export" width="1100">

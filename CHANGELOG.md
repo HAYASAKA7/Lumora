@@ -7,6 +7,24 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- See every process behind Lumora and its agents. **Process details** in
+  **Diagnostics** lists each Lumora process, and each running agent with the
+  processes it started, such as the commands it runs, with memory and CPU for
+  every one. The list updates every two seconds while it is open. Process
+  names and session titles stay on screen and never go into a diagnostic
+  export.
+
+### Fixed
+
+- Keep **Diagnostics** figures current. Working set, CPU, and process count
+  took one reading when the page opened and then stood still; they now update
+  every two seconds while the page is open, pause while the window is hidden,
+  and lead the page ahead of the storage locations. CPU shows **Measuring…**
+  until it has a recent reading, rather than an average since the page was last
+  opened.
+
 ## [0.5.11] - 2026-09-13
 
 ### Added

@@ -60,6 +60,12 @@ import {
   type DiagnosticService
 } from './diagnostics/diagnostic-service';
 import { installDiagnosticProcessObservers } from './diagnostics/diagnostic-process-observers';
+import { listAgentProcessRoots } from './diagnostics/agent-process-roots';
+import {
+  createLocalProcessSampler,
+  type LocalProcessSampler
+} from './diagnostics/local-process-sampler';
+import { resolveRemoteHelperArtifact } from './remote/helper-artifact-resolver';
 import {
   createIpcAuthorizer,
   createLocalIpcAuthorizer
@@ -305,7 +311,14 @@ let diagnosticJournal: DiagnosticJournal | null = null;
 let diagnosticService: DiagnosticService | null = null;
 let diagnosticPreferencesStore: DiagnosticPreferencesStore | null = null;
 let disposeDiagnosticProcessObservers: (() => void) | null = null;
+let localProcessSampler: LocalProcessSampler | null = null;
 let shutdownStarted = false;
+
+function helperBundleRoot(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'helper')
+    : join(app.getAppPath(), 'resources', 'helper', 'generated');
+}
 let applicationQuitApproved = false;
 const pendingRemoteWindowCloses = new Set<string>();
 
@@ -734,6 +747,21 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     directory: diagnosticStorage.directory
   });
   const diagnosticRun = await diagnosticJournal.startRun();
+  const helperArchitecture = process.arch === 'x64' || process.arch === 'arm64'
+    ? process.arch
+    : null;
+  // The helper reads process details only while Diagnostics asks for them.
+  localProcessSampler = helperArchitecture === null
+    ? null
+    : createLocalProcessSampler({
+      resolveExecutable: async () => (await resolveRemoteHelperArtifact({
+        bundleRoot: helperBundleRoot(),
+        platform,
+        architecture: helperArchitecture
+      })).absolutePath,
+      platform,
+      architecture: helperArchitecture
+    });
   diagnosticService = createDiagnosticService({
     journal: diagnosticJournal,
     previousRunAbnormal: diagnosticRun.previousRunAbnormal,
@@ -746,6 +774,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       structuredAgentRuntime?.list() ?? []
     ),
     getProcessMetrics: () => app.getAppMetrics(),
+    mainProcessId: process.pid,
+    listAgentProcesses: () => listAgentProcessRoots(
+      terminalRuntime?.listRuntimes() ?? [],
+      structuredAgentRuntime?.listProcesses() ?? []
+    ),
+    ...(localProcessSampler === null
+      ? {}
+      : { sampleProcessTree: (rootPid: number) => localProcessSampler!.sample(rootPid) }),
     getExportDirectory: async () => (
       await diagnosticPreferencesStore!.getSettings()
     ).effectiveExportDirectory,
@@ -802,9 +838,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     credentialEncryption,
     providerReleases: providerReleaseSource,
-    helperBundleRoot: app.isPackaged
-      ? join(process.resourcesPath, 'helper')
-      : join(app.getAppPath(), 'resources', 'helper', 'generated')
+    helperBundleRoot: helperBundleRoot()
   });
   catalogRuntime = createCatalogRuntime({
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
@@ -1609,6 +1643,8 @@ app.on('before-quit', (event) => {
       catalogRuntime = null;
       disposeDiagnosticProcessObservers?.();
       disposeDiagnosticProcessObservers = null;
+      localProcessSampler?.close();
+      localProcessSampler = null;
       app.quit();
     }
   })();

@@ -17,9 +17,13 @@ export const RemoteHelperCapabilitySchema = z.enum([
   'provider-scan',
   'provider-lifecycle',
   'session-scan',
+  'process-tree',
   'pty',
   'persistent-runtime'
 ]);
+
+export const HELPER_PROCESS_TREE_MAX_PROCESSES = 256;
+const MAX_PROCESS_ID = 2_147_483_647;
 
 const RequestIdentitySchema = z.object({
   protocolVersion: z.literal(REMOTE_HELPER_PROTOCOL_VERSION),
@@ -77,6 +81,12 @@ export const RemoteHelperRequestSchema = z.discriminatedUnion('operation', [
       provider: SessionProviderIdSchema,
       cursor: SessionScanCursorSchema,
       limit: z.number().int().min(1).max(100)
+    })
+  }).strict(),
+  RequestIdentitySchema.extend({
+    operation: z.literal('process-tree'),
+    payload: z.strictObject({
+      rootPid: z.number().int().min(1).max(MAX_PROCESS_ID)
     })
   }).strict()
 ]);
@@ -220,10 +230,31 @@ export const RemoteHelperSessionScanResponseSchema = ResponseIdentitySchema.exte
   result: RemoteHelperSessionScanResultSchema
 }).strict();
 
+export const HelperProcessSchema = z.strictObject({
+  pid: z.number().int().min(0).max(MAX_PROCESS_ID),
+  parentPid: z.number().int().min(0).max(MAX_PROCESS_ID),
+  name: z.string().max(64),
+  measured: z.boolean(),
+  workingSetBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  cpuTimeMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  startedAt: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+});
+
+export const HelperProcessTreeResultSchema = z.strictObject({
+  processes: z.array(HelperProcessSchema).max(HELPER_PROCESS_TREE_MAX_PROCESSES),
+  truncated: z.boolean()
+});
+
+export const RemoteHelperProcessTreeResponseSchema = ResponseIdentitySchema.extend({
+  operation: z.literal('process-tree'),
+  ok: z.literal(true),
+  result: HelperProcessTreeResultSchema
+}).strict();
+
 export const RemoteHelperErrorResponseSchema = ResponseIdentitySchema.extend({
   operation: z.enum([
     'handshake', 'system-info', 'health', 'shutdown', 'discovery-scan',
-    'session-scan', 'provider-lifecycle'
+    'session-scan', 'provider-lifecycle', 'process-tree'
   ]),
   ok: z.literal(false),
   error: z.object({
@@ -248,6 +279,7 @@ export const RemoteHelperResponseSchema = z.union([
   RemoteHelperDiscoveryResponseSchema,
   RemoteHelperProviderLifecycleResponseSchema,
   RemoteHelperSessionScanResponseSchema,
+  RemoteHelperProcessTreeResponseSchema,
   RemoteHelperErrorResponseSchema
 ]);
 
@@ -267,3 +299,5 @@ export type RemoteHelperSessionRecord = z.infer<
 export type RemoteHelperSessionScanResult = z.infer<
   typeof RemoteHelperSessionScanResultSchema
 >;
+export type HelperProcess = z.infer<typeof HelperProcessSchema>;
+export type HelperProcessTreeResult = z.infer<typeof HelperProcessTreeResultSchema>;

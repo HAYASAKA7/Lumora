@@ -40,6 +40,16 @@ function readLines(stream: PassThrough, accept: (message: unknown) => void): voi
 }
 
 describe('line JSON-RPC transport', () => {
+  it('reports the process ID only while the process runs', () => {
+    const process = Object.assign(new FakeLineProcess(), { pid: 4242 });
+    const transport = createLineJsonRpcTransport(process);
+
+    expect(transport.processId).toBe(4242);
+    process.emit('exit', 0, null);
+    expect(transport.processId).toBeNull();
+    expect(createLineJsonRpcTransport(new FakeLineProcess()).processId).toBeNull();
+  });
+
   it('ends the process through the terminator when a request times out', async () => {
     // The transport must not decide for itself how to end a process: on
     // Windows the thing it spawned is only a shim in front of the agent.

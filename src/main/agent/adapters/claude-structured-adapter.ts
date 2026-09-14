@@ -14,6 +14,7 @@ import {
 } from '../../../shared/agent/contracts';
 import type { StructuredAgentEventDraft } from '../runtime/event-sequencer';
 import { createFullTextUnifiedDiff } from '../diff/unified-diff';
+import { createClaudeProcessSpawner } from './claude-process';
 import type {
   StructuredAgentAdapter,
   StructuredAgentAdapterContext
@@ -95,6 +96,8 @@ export interface ClaudeStructuredQueryFactoryOptions {
   input: AsyncIterable<unknown>;
   canUseTool: ClaudeCanUseTool;
   onElicitation: ClaudeElicitationHandler;
+  /** Told the Claude process ID when it starts, and null when it ends. */
+  onProcess?: (processId: number | null) => void;
 }
 
 export type ClaudeStructuredQueryFactory = (
@@ -328,6 +331,9 @@ async function loadDefaultDependencies(): Promise<{
         onElicitation: options.onElicitation as NonNullable<
           NonNullable<Parameters<typeof sdk.query>[0]['options']>['onElicitation']
         >,
+        spawnClaudeCodeProcess: createClaudeProcessSpawner(
+          options.onProcess ?? (() => undefined)
+        ),
         ...(options.resumeSessionId === null
           ? options.newSessionId === null
             ? {}
@@ -367,6 +373,8 @@ export function createClaudeStructuredAdapter(
   const terminalStreamTurnIds = new Map<string, string>();
   let input: AsyncInputQueue | null = null;
   let query: ClaudeQueryLike | null = null;
+  /** The process behind the current query; each query starts its own. */
+  let queryProcess: { id: number | null } | null = null;
   let consumePromise: Promise<void> | null = null;
   let queryFactory: ClaudeStructuredQueryFactory | null = null;
   let sdkExecutablePath: string | null = null;
@@ -1000,6 +1008,7 @@ export function createClaudeStructuredAdapter(
     const resumeSessionId = hasStartedQuery
       ? nativeSessionId
       : context.launch.nativeSessionId;
+    const nextProcess: { id: number | null } = { id: null };
     const nextQuery = queryFactory({
       executablePath: sdkExecutablePath,
       workingDirectory: context.launch.workingDirectory,
@@ -1008,12 +1017,16 @@ export function createClaudeStructuredAdapter(
       settingSources: ['user', 'project', 'local'],
       input: nextInput,
       canUseTool,
-      onElicitation
+      onElicitation,
+      onProcess: (processId) => {
+        nextProcess.id = processId;
+      }
     });
     const generation = ++queryGeneration;
     hasStartedQuery = true;
     input = nextInput;
     query = nextQuery;
+    queryProcess = nextProcess;
     const consuming = (async () => {
       let failure: Error | null = null;
       try {
@@ -1023,6 +1036,7 @@ export function createClaudeStructuredAdapter(
       } finally {
         if (queryGeneration !== generation || query !== nextQuery) return;
         query = null;
+        queryProcess = null;
         input = null;
         consumePromise = null;
         if (closed) return;
@@ -1255,6 +1269,10 @@ export function createClaudeStructuredAdapter(
       });
     },
 
+    processId() {
+      return query === null ? null : queryProcess?.id ?? null;
+    },
+
     async close() {
       if (closed) return;
       closed = true;
@@ -1277,6 +1295,7 @@ export function createClaudeStructuredAdapter(
         new Promise<void>((resolve) => setTimeout(resolve, 1_000))
       ]);
       query = null;
+      queryProcess = null;
     }
   };
 }

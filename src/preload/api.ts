@@ -16,6 +16,8 @@ import {
   CustomTerminalProfileInputSchema,
   DeveloperEnvironmentScanResultSchema,
   DiagnosticExportResultSchema,
+  DiagnosticProcessDetailsSchema,
+  DiagnosticResourcesSchema,
   DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema,
   ExternalOpenResultSchema,
@@ -338,6 +340,14 @@ export function createLumoraApi(
     async getDiagnosticSummary() {
       const value = await invoke(IPC_CHANNELS.diagnosticSummaryGet);
       return DiagnosticSummarySchema.parse(value);
+    },
+    async getDiagnosticResources() {
+      const value = await invoke(IPC_CHANNELS.diagnosticResourcesGet);
+      return DiagnosticResourcesSchema.parse(value);
+    },
+    async getDiagnosticProcesses() {
+      const value = await invoke(IPC_CHANNELS.diagnosticProcessesGet);
+      return DiagnosticProcessDetailsSchema.parse(value);
     },
     async exportDiagnosticBundle() {
       const value = await invoke(IPC_CHANNELS.diagnosticBundleExport);

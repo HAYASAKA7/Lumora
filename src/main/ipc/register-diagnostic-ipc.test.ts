@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   DiagnosticExportResultSchema,
+  DiagnosticProcessDetailsSchema,
+  DiagnosticResourcesSchema,
   DiagnosticSummarySchema,
   IPC_CHANNELS
 } from '../../shared/contracts';
@@ -18,9 +20,21 @@ const summary = DiagnosticSummarySchema.parse({
   generatedAt: '2026-08-13T08:00:00.000Z',
   previousRunAbnormal: false,
   journal: { storedEvents: 2, invalidRecords: 0 },
-  agents: { activeCount: 1 },
-  processes: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
   recentEvents: []
+});
+
+const resources = DiagnosticResourcesSchema.parse({
+  sampledAt: '2026-08-13T08:00:00.000Z',
+  lumora: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
+  agents: { activeCount: 1 }
+});
+
+const processes = DiagnosticProcessDetailsSchema.parse({
+  sampledAt: '2026-08-13T08:00:00.000Z',
+  processTreeAvailable: true,
+  truncated: false,
+  lumora: [{ pid: 100, depth: 0, kind: 'main', name: 'Browser', workingSetBytes: 1024, cpuPercent: 1 }],
+  agents: []
 });
 
 const storage = {
@@ -38,6 +52,8 @@ function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
   const handlers = new Map<string, InvokeHandler>();
   const service = {
     getSummary: vi.fn().mockResolvedValue(summary),
+    getResources: vi.fn().mockResolvedValue(resources),
+    getProcessDetails: vi.fn().mockResolvedValue(processes),
     exportBundle: vi.fn().mockResolvedValue({ status: 'saved' })
   };
   const storageService = {
@@ -82,20 +98,30 @@ const trustedEvent: InvokeEventStub = {
 };
 
 describe('registerDiagnosticIpc', () => {
-  it('registers validated summary and export operations', async () => {
+  it('registers validated summary, resource, and export operations', async () => {
     const { handlers, service } = createHarness();
 
     await expect(
       handlers.get(IPC_CHANNELS.diagnosticSummaryGet)?.(trustedEvent)
     ).resolves.toEqual(summary);
     await expect(
+      handlers.get(IPC_CHANNELS.diagnosticResourcesGet)?.(trustedEvent)
+    ).resolves.toEqual(resources);
+    await expect(
+      handlers.get(IPC_CHANNELS.diagnosticProcessesGet)?.(trustedEvent)
+    ).resolves.toEqual(processes);
+    await expect(
       handlers.get(IPC_CHANNELS.diagnosticBundleExport)?.(trustedEvent)
     ).resolves.toEqual({ status: 'saved' });
 
     expect(service.getSummary).toHaveBeenCalledOnce();
+    expect(service.getResources).toHaveBeenCalledOnce();
+    expect(service.getProcessDetails).toHaveBeenCalledOnce();
     expect(service.exportBundle).toHaveBeenCalledOnce();
     expect([...handlers.keys()]).toEqual([
       IPC_CHANNELS.diagnosticSummaryGet,
+      IPC_CHANNELS.diagnosticResourcesGet,
+      IPC_CHANNELS.diagnosticProcessesGet,
       IPC_CHANNELS.diagnosticBundleExport,
       IPC_CHANNELS.diagnosticStorageGet,
       IPC_CHANNELS.diagnosticJournalDirectoryChoose,
@@ -143,10 +169,21 @@ describe('registerDiagnosticIpc', () => {
   it('replaces malformed service results and internal failures with a stable error', async () => {
     const { handlers, service } = createHarness();
     service.getSummary.mockResolvedValueOnce({ recentEvents: ['unsafe'] });
+    service.getResources.mockResolvedValueOnce({ ...resources, privatePath: 'C:\\private' });
+    service.getProcessDetails.mockResolvedValueOnce({
+      ...processes,
+      lumora: [{ ...processes.lumora[0], commandLine: 'codex --api-key secret' }]
+    });
     service.exportBundle.mockRejectedValueOnce(new Error('C:\\private\\path'));
 
     await expect(
       handlers.get(IPC_CHANNELS.diagnosticSummaryGet)?.(trustedEvent)
+    ).rejects.toMatchObject({ code: 'DIAGNOSTIC_OPERATION_FAILED' });
+    await expect(
+      handlers.get(IPC_CHANNELS.diagnosticResourcesGet)?.(trustedEvent)
+    ).rejects.toMatchObject({ code: 'DIAGNOSTIC_OPERATION_FAILED' });
+    await expect(
+      handlers.get(IPC_CHANNELS.diagnosticProcessesGet)?.(trustedEvent)
     ).rejects.toMatchObject({ code: 'DIAGNOSTIC_OPERATION_FAILED' });
     await expect(
       handlers.get(IPC_CHANNELS.diagnosticBundleExport)?.(trustedEvent)

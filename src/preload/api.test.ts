@@ -200,15 +200,29 @@ describe('createLumoraApi', () => {
     })).toThrow();
   });
 
-  it('exposes validated diagnostic summary, export, and storage operations', async () => {
+  it('exposes validated diagnostic summary, resource, export, and storage operations', async () => {
     const invocations: string[] = [];
     const summary = {
       generatedAt: '2026-08-13T08:00:00.000Z',
       previousRunAbnormal: false,
       journal: { storedEvents: 2, invalidRecords: 0 },
-      agents: { activeCount: 1 },
-      processes: { processCount: 3, workingSetBytes: 1024, cpuPercent: 1.5 },
       recentEvents: []
+    } as const;
+    const resources = {
+      sampledAt: '2026-08-13T08:00:00.000Z',
+      lumora: { processCount: 3, workingSetBytes: 1024, cpuPercent: null },
+      agents: { activeCount: 1 }
+    } as const;
+    const processes = {
+      sampledAt: '2026-08-13T08:00:00.000Z',
+      processTreeAvailable: true,
+      truncated: false,
+      lumora: [],
+      agents: [{
+        id: 'connection-1', provider: 'codex', surface: 'unified', title: 'Fix the build',
+        status: 'measured',
+        processes: [{ pid: 200, depth: 0, kind: 'process', name: 'codex.exe', workingSetBytes: 1024, cpuPercent: null }]
+      }]
     } as const;
     const storage = {
       selectedJournalDirectory: null,
@@ -223,11 +237,15 @@ describe('createLumoraApi', () => {
     const api = createLumoraApi(async (channel) => {
       invocations.push(channel);
       if (channel === IPC_CHANNELS.diagnosticSummaryGet) return summary;
+      if (channel === IPC_CHANNELS.diagnosticResourcesGet) return resources;
+      if (channel === IPC_CHANNELS.diagnosticProcessesGet) return processes;
       if (channel === IPC_CHANNELS.diagnosticBundleExport) return { status: 'saved' };
       return storage;
     });
 
     await expect(api.getDiagnosticSummary()).resolves.toEqual(summary);
+    await expect(api.getDiagnosticResources()).resolves.toEqual(resources);
+    await expect(api.getDiagnosticProcesses()).resolves.toEqual(processes);
     await expect(api.exportDiagnosticBundle()).resolves.toEqual({
       status: 'saved'
     });
@@ -238,6 +256,8 @@ describe('createLumoraApi', () => {
     await expect(api.resetDiagnosticExportDirectory()).resolves.toEqual(storage);
     expect(invocations).toEqual([
       IPC_CHANNELS.diagnosticSummaryGet,
+      IPC_CHANNELS.diagnosticResourcesGet,
+      IPC_CHANNELS.diagnosticProcessesGet,
       IPC_CHANNELS.diagnosticBundleExport,
       IPC_CHANNELS.diagnosticStorageGet,
       IPC_CHANNELS.diagnosticJournalDirectoryChoose,
@@ -248,6 +268,8 @@ describe('createLumoraApi', () => {
 
     const invalidApi = createLumoraApi(vi.fn().mockResolvedValue({}));
     await expect(invalidApi.getDiagnosticSummary()).rejects.toBeDefined();
+    await expect(invalidApi.getDiagnosticResources()).rejects.toBeDefined();
+    await expect(invalidApi.getDiagnosticProcesses()).rejects.toBeDefined();
     await expect(invalidApi.exportDiagnosticBundle()).rejects.toBeDefined();
     await expect(invalidApi.getDiagnosticStorageSettings()).rejects.toBeDefined();
   });

@@ -921,6 +921,10 @@ export function createAcpStructuredAdapter(
       });
     },
 
+    processId() {
+      return transport?.processId ?? null;
+    },
+
     async close() {
       if (closed) return;
       closed = true;

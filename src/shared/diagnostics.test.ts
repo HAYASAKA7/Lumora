@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DiagnosticBundleSchema,
   DiagnosticEventSchema,
+  DiagnosticResourcesSchema,
   DiagnosticStorageSettingsSchema,
   DiagnosticSummarySchema
 } from './diagnostics';
@@ -54,36 +55,48 @@ describe('diagnostic contracts', () => {
     })).toThrow();
   });
 
-  it('bounds summaries and diagnostic exports', () => {
+  it('bounds summaries, resource samples, and diagnostic exports', () => {
     const summary = DiagnosticSummarySchema.parse({
       generatedAt: '2026-08-13T07:01:00.000Z',
       previousRunAbnormal: true,
       journal: { storedEvents: 1, invalidRecords: 0 },
-      agents: { activeCount: 1 },
-      processes: {
+      recentEvents: [event]
+    });
+    const resources = DiagnosticResourcesSchema.parse({
+      sampledAt: '2026-08-13T07:01:00.000Z',
+      lumora: {
         processCount: 3,
         workingSetBytes: 150_000_000,
         cpuPercent: 2.5
       },
-      recentEvents: [event]
+      agents: { activeCount: 1 }
     });
     expect(DiagnosticBundleSchema.parse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: summary.generatedAt,
       lumora: {
         version: '0.3.2',
         platform: 'win32',
         architecture: 'x64'
       },
-      summary
+      summary,
+      resources
     }).summary.previousRunAbnormal).toBe(true);
     expect(() => DiagnosticSummarySchema.parse({
       ...summary,
       recentEvents: Array.from({ length: 101 }, () => event)
     })).toThrow();
-    expect(() => DiagnosticSummarySchema.parse({
-      ...summary,
+    expect(DiagnosticResourcesSchema.parse({
+      ...resources,
+      lumora: { ...resources.lumora, cpuPercent: null }
+    }).lumora.cpuPercent).toBeNull();
+    expect(() => DiagnosticResourcesSchema.parse({
+      ...resources,
       agents: { activeCount: 1_000_000_001 }
+    })).toThrow();
+    expect(() => DiagnosticResourcesSchema.parse({
+      ...resources,
+      lumora: { ...resources.lumora, cpuPercent: 100_001 }
     })).toThrow();
   });
 

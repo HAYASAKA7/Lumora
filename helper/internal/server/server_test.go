@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/HAYASAKA7/lumora/helper/internal/processtree"
 	"github.com/HAYASAKA7/lumora/helper/internal/protocol"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerlifecycle"
 	"github.com/HAYASAKA7/lumora/helper/internal/providerprobe"
@@ -199,6 +201,56 @@ func TestServeSessionScanValidatesPaginationBeforeScanning(t *testing.T) {
 	}
 	if response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" || calls != 1 {
 		t.Fatalf("invalid session scan was not rejected: %#v calls=%d", response, calls)
+	}
+}
+
+func TestServeProcessTreeValidatesRootBeforeSampling(t *testing.T) {
+	roots := []int{}
+	sample := func(root int) (processtree.Result, error) {
+		roots = append(roots, root)
+		if root == 13 {
+			return processtree.Result{}, errors.New("listing failed")
+		}
+		return processtree.Result{Processes: []processtree.Process{{PID: root, Name: "lumora"}}}, nil
+	}
+	respond := func(payload map[string]any) protocol.Response {
+		t.Helper()
+		tree := request("process-tree")
+		tree.Payload = payload
+		var input, output bytes.Buffer
+		if err := protocol.WriteFrame(&input, tree); err != nil {
+			t.Fatal(err)
+		}
+		if err := Serve(&input, &output, Dependencies{ProcessTree: sample}); err != nil {
+			t.Fatal(err)
+		}
+		var response protocol.Response
+		if err := protocol.ReadFrame(&output, &response); err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+
+	if response := respond(map[string]any{"rootPid": float64(4242)}); !response.OK || response.Operation != "process-tree" {
+		t.Fatalf("unexpected process tree response: %#v", response)
+	}
+	for _, payload := range []map[string]any{
+		{},
+		{"rootPid": float64(0)},
+		{"rootPid": float64(1.5)},
+		{"rootPid": "4242"},
+		{"rootPid": float64(1 << 31)},
+		{"rootPid": float64(4242), "extra": true},
+	} {
+		if response := respond(payload); response.OK || response.Error == nil || response.Error.Code != "INVALID_REQUEST" {
+			t.Fatalf("invalid process tree payload %#v was not rejected: %#v", payload, response)
+		}
+	}
+	if response := respond(map[string]any{"rootPid": float64(13)}); response.OK || response.Error == nil || response.Error.Code != "INTERNAL_ERROR" {
+		t.Fatalf("failed sample was not reported: %#v", response)
+	}
+	if len(roots) != 2 || roots[0] != 4242 || roots[1] != 13 {
+		t.Fatalf("sampled roots = %v; want only the valid requests", roots)
 	}
 }
 
