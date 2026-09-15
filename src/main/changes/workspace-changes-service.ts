@@ -19,6 +19,9 @@ export type SnapshotEngineLike = Pick<
   'snapshot' | 'changedFiles' | 'fileDiff' | 'headTree' | 'composeReviewed' | 'removeWorkspace'
 >;
 
+/** The kind of work a recovered failure interrupted, for diagnostics. */
+export type ChangesOperation = 'baseline' | 'refresh' | 'summary' | 'timer' | 'startup';
+
 export interface WorkspaceChangesServiceOptions {
   repository: ChangesRepository;
   engine: SnapshotEngineLike;
@@ -28,6 +31,8 @@ export interface WorkspaceChangesServiceOptions {
   /** Electron's shell.openPath: an empty string on success. */
   openPath(path: string): Promise<string>;
   showItemInFolder(path: string): void;
+  /** Hears about failures the service recovers from on its own. */
+  reportError?(operation: ChangesOperation, error: unknown): void;
   clock?: () => Date;
   createId?: () => string;
   launchWaitMs?: number;
@@ -61,6 +66,7 @@ export class WorkspaceChangesService {
   private readonly snapshots: SnapshotCache;
   private readonly resolver: ChangeSourceResolver;
   private readonly refreshes = new Map<string, RefreshRun>();
+  private readonly reviewQueues = new Map<string, Promise<void>>();
   private readonly lastCounts = new Map<string, number>();
   private terminalTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -77,31 +83,29 @@ export class WorkspaceChangesService {
       engine: this.engine,
       snapshots: this.snapshots,
       lookupWorkspace: (workspaceId) => options.lookupWorkspace(workspaceId),
-      isGitAvailable: () => this.isGitAvailable(),
-      now: () => this.now()
+      isGitAvailable: () => this.isGitAvailable('summary'),
+      now: () => this.now(),
+      reportError: (error) => this.report('summary', error)
     });
   }
 
   async begin(input: BeginInput): Promise<void> {
-    const segmentId = this.createId();
     try {
+      const segmentId = this.createId();
       this.repository.createSegment({ ...input, id: segmentId, createdAt: this.now() });
-    } catch {
-      return;
-    }
-    try {
       const workspace = this.options.lookupWorkspace(input.workspaceId);
       if (workspace === null || !workspace.available) {
         this.repository.markUnavailable(segmentId, 'workspace-unavailable');
         return;
       }
-      if (!(await this.isGitAvailable())) {
+      if (!(await this.isGitAvailable('baseline'))) {
         this.repository.markUnavailable(segmentId, 'git-missing');
         return;
       }
       await this.waitForBaseline(segmentId, input, workspace.canonicalPath);
-    } catch {
+    } catch (error) {
       // Tracking changes must never keep a session from starting.
+      this.report('baseline', error);
     }
   }
 
@@ -161,34 +165,26 @@ export class WorkspaceChangesService {
     return { path, patch: diff.patch, binary: false, truncated: diff.truncated };
   }
 
-  async markReviewed(ownerId: string, paths: readonly string[] | null): Promise<ChangesSummary> {
-    const source: ChangesSource = { kind: 'session', ownerId, view: 'session' };
-    const { segment } = this.resolver.target(source);
-    const workspace = segment === null ? null : this.options.lookupWorkspace(segment.workspaceId);
-    if (segment?.state !== 'ready' || segment.baselineTree === null || workspace === null || !workspace.available) {
-      return this.summary(source);
+  /**
+   * Marks exactly the listed files reviewed. Reviews for one session run one
+   * at a time, so each starts from the baseline the one before left.
+   */
+  async markReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary> {
+    if (paths.length === 0) {
+      throw new Error('Choose at least one file to mark reviewed.');
     }
-    const { workspaceId, baselineTree } = segment;
-    const current = await this.snapshots.get(workspaceId, workspace.canonicalPath, true);
-    const files = await this.engine.changedFiles(workspaceId, workspace.canonicalPath, baselineTree, current.tree);
-    const reviewed = await this.reviewedTree(segment, workspace.canonicalPath, current.tree, files, paths);
-    if (reviewed.fileCount === 0) {
-      return this.summary(source);
-    }
-    this.repository.recordReview({
-      id: this.createId(),
-      segmentId: segment.id,
-      fromTree: baselineTree,
-      toTree: reviewed.tree,
-      fileCount: reviewed.fileCount,
-      reviewedAt: this.now()
+    const previous = this.reviewQueues.get(ownerId) ?? Promise.resolve();
+    const review = previous.then(() => this.reviewNow(ownerId, paths));
+    const settled = review.then(() => undefined, () => undefined);
+    this.reviewQueues.set(ownerId, settled);
+    void settled.then(() => {
+      if (this.reviewQueues.get(ownerId) === settled) this.reviewQueues.delete(ownerId);
     });
-    await this.refresh(ownerId);
-    return this.summary(source);
+    return review;
   }
 
   history(workspaceId: string): ChangesHistory {
-    const segments = this.repository.listWorkspaceSegments(workspaceId).slice(0, MAX_HISTORY_ENTRIES);
+    const segments = this.repository.listWorkspaceSegments(workspaceId, MAX_HISTORY_ENTRIES);
     return {
       segments: segments.map((segment) => ({
         ownerId: segment.ownerId,
@@ -196,7 +192,7 @@ export class WorkspaceChangesService {
         catalogSessionId: segment.catalogSessionId,
         createdAt: segment.createdAt,
         endedAt: segment.endedAt,
-        reviews: this.repository.listReviews(segment.id).slice(0, MAX_HISTORY_ENTRIES).map((review) => ({
+        reviews: this.repository.listReviews(segment.id, MAX_HISTORY_ENTRIES).map((review) => ({
           reviewId: review.id,
           fileCount: review.fileCount,
           reviewedAt: review.reviewedAt
@@ -228,10 +224,14 @@ export class WorkspaceChangesService {
   startTerminalTimer(): void {
     if (this.terminalTimer !== null) return;
     this.terminalTimer = setInterval(() => {
-      for (const segment of this.repository.listOpenSegments()) {
-        if (segment.ownerKind === 'terminal' && segment.state === 'ready') {
-          void this.refresh(segment.ownerId);
+      try {
+        for (const segment of this.repository.listOpenSegments()) {
+          if (segment.ownerKind === 'terminal' && segment.state === 'ready') {
+            void this.refresh(segment.ownerId);
+          }
         }
+      } catch (error) {
+        this.report('timer', error);
       }
     }, this.terminalRefreshMs);
     this.terminalTimer.unref?.();
@@ -244,7 +244,11 @@ export class WorkspaceChangesService {
     }
   }
 
-  /** Ends segments left open by the last run and drops those that ended more than 14 days ago. */
+  /**
+   * Ends segments left open by the last run and drops those that ended more
+   * than 14 days ago. Must run before any session launches, or it would end
+   * the new sessions' segments too.
+   */
   async startup(): Promise<void> {
     const now = this.clock();
     this.repository.endOpenSegments(now.toISOString());
@@ -255,8 +259,8 @@ export class WorkspaceChangesService {
       this.snapshots.delete(workspaceId);
       try {
         await this.engine.removeWorkspace(workspaceId);
-      } catch {
-        // A store that could not be removed stays until the workspace is pruned again.
+      } catch (error) {
+        this.report('startup', error);
       }
     }
   }
@@ -265,10 +269,19 @@ export class WorkspaceChangesService {
     return this.clock().toISOString();
   }
 
-  private async isGitAvailable(): Promise<boolean> {
+  private report(operation: ChangesOperation, error: unknown): void {
+    try {
+      this.options.reportError?.(operation, error);
+    } catch {
+      // A failing reporter must not break change tracking.
+    }
+  }
+
+  private async isGitAvailable(operation: ChangesOperation): Promise<boolean> {
     try {
       return await this.options.gitAvailable();
-    } catch {
+    } catch (error) {
+      this.report(operation, error);
       return false;
     }
   }
@@ -306,12 +319,16 @@ export class WorkspaceChangesService {
         head: snapshot.head,
         late: late()
       });
-      this.emitCount({ ownerId: input.ownerId, workspaceId: input.workspaceId, state: 'ready', changedFileCount: 0 });
+      // A late baseline may land after its session ended or its workspace went away.
+      if (this.repository.getSegment(segmentId)?.endedAt === null) {
+        this.emitCount({ ownerId: input.ownerId, workspaceId: input.workspaceId, state: 'ready', changedFileCount: 0 });
+      }
     } catch (error) {
+      this.report('baseline', error);
       try {
         this.repository.markUnavailable(segmentId, unavailableReasonFor(error));
-      } catch {
-        // The segment may have gone with its workspace.
+      } catch (markError) {
+        this.report('baseline', markError);
       }
     }
   }
@@ -320,6 +337,10 @@ export class WorkspaceChangesService {
     try {
       const target = this.resolver.target({ kind: 'session', ownerId, view: 'session' });
       const summary = await this.resolver.summarize(target, true);
+      if (summary.state !== 'ready' && target.segment?.state === 'ready') {
+        // The segment is still tracked, so a failed look at the workspace keeps the last count.
+        return;
+      }
       const count = summary.files.length;
       if (target.segment?.endedAt === null) {
         this.lastCounts.set(ownerId, count);
@@ -327,33 +348,57 @@ export class WorkspaceChangesService {
         this.lastCounts.delete(ownerId);
       }
       this.emitCount({ ownerId, workspaceId: summary.workspaceId, state: summary.state, changedFileCount: count });
-    } catch {
-      // A failed refresh keeps the last known count.
+    } catch (error) {
+      this.report('refresh', error);
     }
   }
 
   private emitCount(count: ChangesCount): void {
     try {
       this.options.onCount(count);
-    } catch {
-      // A listener failure must not break change tracking.
+    } catch (error) {
+      this.report('refresh', error);
     }
   }
 
+  private async reviewNow(ownerId: string, paths: readonly string[]): Promise<ChangesSummary> {
+    const source: ChangesSource = { kind: 'session', ownerId, view: 'session' };
+    const { segment } = this.resolver.target(source);
+    const workspace = segment === null ? null : this.options.lookupWorkspace(segment.workspaceId);
+    if (segment?.state !== 'ready' || segment.baselineTree === null || workspace === null || !workspace.available) {
+      return this.summary(source);
+    }
+    const { workspaceId, baselineTree } = segment;
+    const current = await this.snapshots.get(workspaceId, workspace.canonicalPath, true);
+    const files = await this.engine.changedFiles(workspaceId, workspace.canonicalPath, baselineTree, current.tree);
+    const reviewed = await this.reviewedTree(segment, workspace.canonicalPath, current.tree, files, paths);
+    if (reviewed === null) {
+      return this.summary(source);
+    }
+    this.repository.recordReview({
+      id: this.createId(),
+      segmentId: segment.id,
+      fromTree: baselineTree,
+      toTree: reviewed.tree,
+      fileCount: reviewed.fileCount,
+      reviewedAt: this.now()
+    });
+    await this.refresh(ownerId);
+    return this.summary(source);
+  }
+
+  /** The baseline with the listed files taken from the current tree, or null when none of them changed. */
   private async reviewedTree(
     segment: ChangeSegment,
     workspacePath: string,
     currentTree: string,
     files: readonly ChangedFile[],
-    paths: readonly string[] | null
-  ): Promise<{ tree: string; fileCount: number }> {
-    if (paths === null) {
-      return { tree: currentTree, fileCount: files.length };
-    }
+    paths: readonly string[]
+  ): Promise<{ tree: string; fileCount: number } | null> {
     const wanted = new Set(paths);
     const chosen = files.filter(({ path }) => wanted.has(path));
     if (chosen.length === 0 || segment.baselineTree === null) {
-      return { tree: currentTree, fileCount: 0 };
+      return null;
     }
     const expanded = chosen.flatMap(({ path, oldPath }) => (oldPath === null ? [path] : [path, oldPath]));
     const tree = await this.engine.composeReviewed(

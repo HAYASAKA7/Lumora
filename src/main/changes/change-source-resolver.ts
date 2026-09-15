@@ -40,6 +40,8 @@ export interface ChangeSourceResolverOptions {
   lookupWorkspace(workspaceId: string): { canonicalPath: string; available: boolean } | null;
   isGitAvailable(): Promise<boolean>;
   now(): string;
+  /** Hears about failures a summary turns into an unavailable state. */
+  reportError(error: unknown): void;
 }
 
 /** Turns a changes source into the two trees it compares, and those trees into a summary. */
@@ -72,9 +74,7 @@ export class ChangeSourceResolver {
     if (segment === null) {
       throw new Error('No changes are tracked for this session.');
     }
-    const sharedWorkspace = repository.listOpenSegments().some(
-      (other) => other.workspaceId === segment.workspaceId && other.id !== segment.id
-    );
+    const sharedWorkspace = repository.hasOtherOpenSegment(segment.workspaceId, segment.ownerId);
     return {
       context: { source, workspaceId: segment.workspaceId, baselineLate: segment.baselineLate, sharedWorkspace },
       segment,
@@ -102,6 +102,7 @@ export class ChangeSourceResolver {
       const split = splitCommitted(sessionFiles, uncommitted);
       return readySummary(context, split.files, split.committed, now());
     } catch (error) {
+      this.options.reportError(error);
       return pendingSummary(target.context, 'unavailable', unavailableReasonFor(error));
     }
   }
@@ -110,7 +111,8 @@ export class ChangeSourceResolver {
     const { context, segment, review } = target;
     const unavailable = (reason: ChangesUnavailableReason): ChangeResolution =>
       ({ ready: false, context, state: 'unavailable', reason });
-    if (context.source.kind === 'session' && segment !== null
+    // Only the session view needs the baseline; the uncommitted view compares against HEAD.
+    if (context.source.kind === 'session' && context.source.view === 'session' && segment !== null
       && (segment.state !== 'ready' || segment.baselineTree === null)) {
       return segment.state === 'capturing'
         ? { ready: false, context, state: 'capturing', reason: null }

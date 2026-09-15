@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,7 +9,11 @@ import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { ChangesRepository } from './changes-repository';
 import { GitCommandError } from './git-runner';
-import { WorkspaceChangesService, type SnapshotEngineLike } from './workspace-changes-service';
+import {
+  WorkspaceChangesService,
+  type SnapshotEngineLike,
+  type WorkspaceChangesServiceOptions
+} from './workspace-changes-service';
 
 const workspaceId = 'a'.repeat(64);
 const file = (path: string, extra: Partial<ChangedFile> = {}): ChangedFile =>
@@ -24,10 +31,11 @@ let engine: { [K in keyof SnapshotEngineLike]: ReturnType<typeof vi.fn> };
 let counts: unknown[];
 let now: Date;
 let service: WorkspaceChangesService;
+let services: WorkspaceChangesService[];
 let idCounter = 0;
 
-function createService(overrides: Record<string, unknown> = {}) {
-  return new WorkspaceChangesService({
+function createService(overrides: Partial<WorkspaceChangesServiceOptions> = {}) {
+  const created = new WorkspaceChangesService({
     repository: new ChangesRepository(database),
     engine: engine as unknown as SnapshotEngineLike,
     lookupWorkspace: () => ({ canonicalPath: '/work', available: true }),
@@ -42,7 +50,14 @@ function createService(overrides: Record<string, unknown> = {}) {
     snapshotCacheMs: 0,
     ...overrides
   });
+  services.push(created);
+  return created;
 }
+
+const sessionSource = (ownerId: string, view: 'session' | 'uncommitted' = 'session') =>
+  ({ kind: 'session', ownerId, view }) as const;
+const begin = (target: WorkspaceChangesService, ownerId: string, ownerKind: 'terminal' | 'unified' = 'terminal') =>
+  target.begin({ ownerKind, ownerId, workspaceId, catalogSessionId: null });
 
 beforeEach(() => {
   database = new DatabaseSync(':memory:');
@@ -53,6 +68,7 @@ beforeEach(() => {
   );
   now = new Date('2026-09-15T01:00:00.000Z');
   counts = [];
+  services = [];
   engine = {
     snapshot: vi.fn(async () => ({ kind: 'repository', tree: 't-base', head: 'h1' })),
     changedFiles: vi.fn(async () => []),
@@ -64,15 +80,15 @@ beforeEach(() => {
   service = createService();
 });
 afterEach(() => {
-  service.dispose();
+  for (const created of services) created.dispose();
   database.close();
   vi.useRealTimers();
 });
 
 describe('WorkspaceChangesService', () => {
   it('records the baseline before the agent starts when it is quick', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    const summary = await service.summary({ kind: 'session', ownerId: 'r1', view: 'session' });
+    await begin(service, 'r1');
+    const summary = await service.summary(sessionSource('r1'));
     expect(summary).toMatchObject({ state: 'ready', baselineLate: false, files: [] });
     expect(counts).toEqual([{ ownerId: 'r1', workspaceId, state: 'ready', changedFileCount: 0 }]);
   });
@@ -81,53 +97,85 @@ describe('WorkspaceChangesService', () => {
     vi.useFakeTimers();
     const slow = deferred<{ kind: 'folder'; tree: string; head: null }>();
     engine.snapshot.mockReturnValueOnce(slow.promise);
-    const begun = service.begin({ ownerKind: 'unified', ownerId: 'c1', workspaceId, catalogSessionId: null });
+    const begun = begin(service, 'c1', 'unified');
     await vi.advanceTimersByTimeAsync(3_000);
     await begun;
-    expect((await service.summary({ kind: 'session', ownerId: 'c1', view: 'session' })).state).toBe('capturing');
+    expect((await service.summary(sessionSource('c1'))).state).toBe('capturing');
     slow.resolve({ kind: 'folder', tree: 't-base', head: null });
     await vi.advanceTimersByTimeAsync(0);
     engine.snapshot.mockResolvedValue({ kind: 'folder', tree: 't-now', head: null });
-    expect(await service.summary({ kind: 'session', ownerId: 'c1', view: 'session' })).toMatchObject({ state: 'ready', baselineLate: true });
+    expect(await service.summary(sessionSource('c1'))).toMatchObject({ state: 'ready', baselineLate: true });
+  });
+
+  it('does not count a late baseline for a session that already ended', async () => {
+    vi.useFakeTimers();
+    const slow = deferred<{ kind: 'folder'; tree: string; head: null }>();
+    engine.snapshot.mockReturnValueOnce(slow.promise);
+    const begun = begin(service, 'c1', 'unified');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await begun;
+    service.end('c1');
+    await vi.advanceTimersByTimeAsync(0);
+    counts = [];
+    slow.resolve({ kind: 'folder', tree: 't-base', head: null });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(counts).toEqual([]);
   });
 
   it('leaves no wait timer behind when the baseline is quick', async () => {
     vi.useFakeTimers();
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it('says why changes cannot be tracked', async () => {
     const noGit = createService({ gitAvailable: async () => false });
-    await noGit.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    expect((await noGit.summary({ kind: 'session', ownerId: 'r1', view: 'session' })).unavailableReason).toBe('git-missing');
-    noGit.dispose();
+    await begin(noGit, 'r1');
+    expect((await noGit.summary(sessionSource('r1'))).unavailableReason).toBe('git-missing');
 
     engine.snapshot.mockRejectedValueOnce(new GitCommandError('timeout'));
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r2', workspaceId, catalogSessionId: null });
-    expect((await service.summary({ kind: 'session', ownerId: 'r2', view: 'session' })).unavailableReason).toBe('too-large');
+    await begin(service, 'r2');
+    expect((await service.summary(sessionSource('r2'))).unavailableReason).toBe('too-large');
 
     const missing = createService({ lookupWorkspace: () => null });
-    await missing.begin({ ownerKind: 'terminal', ownerId: 'r3', workspaceId, catalogSessionId: null });
-    expect(await missing.summary({ kind: 'session', ownerId: 'r3', view: 'session' }))
+    await begin(missing, 'r3');
+    expect(await missing.summary(sessionSource('r3')))
       .toMatchObject({ state: 'unavailable', unavailableReason: 'workspace-unavailable', files: [], checkedAt: null });
-    missing.dispose();
   });
 
   it('never throws from begin, even for an unknown workspace or a repeated owner', async () => {
     await expect(service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId: 'b'.repeat(64), catalogSessionId: null })).resolves.toBeUndefined();
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r2', workspaceId, catalogSessionId: null });
-    await expect(service.begin({ ownerKind: 'terminal', ownerId: 'r2', workspaceId, catalogSessionId: null })).resolves.toBeUndefined();
-    await expect(service.summary({ kind: 'session', ownerId: 'unknown', view: 'session' })).rejects.toThrow();
+    await begin(service, 'r2');
+    await expect(begin(service, 'r2')).resolves.toBeUndefined();
+    const failingIds = createService({ createId: () => { throw new Error('no ids'); } });
+    await expect(begin(failingIds, 'r3')).resolves.toBeUndefined();
+    await expect(service.summary(sessionSource('unknown'))).rejects.toThrow();
+  });
+
+  it('reports failures it recovers from, and survives a failing reporter', async () => {
+    const reported: string[] = [];
+    const reporting = createService({ reportError: (operation) => { reported.push(operation); } });
+    engine.snapshot.mockRejectedValueOnce(new GitCommandError('failed'));
+    await begin(reporting, 'r1');
+    expect(reported).toEqual(['baseline']);
+
+    await begin(reporting, 'r2');
+    engine.changedFiles.mockRejectedValueOnce(new Error('diff failed'));
+    expect((await reporting.summary(sessionSource('r2'))).state).toBe('unavailable');
+    expect(reported).toContain('summary');
+
+    const throwing = createService({ reportError: () => { throw new Error('reporter broke'); } });
+    engine.snapshot.mockRejectedValueOnce(new GitCommandError('failed'));
+    await expect(begin(throwing, 'r3')).resolves.toBeUndefined();
   });
 
   it('separates files that now match a new commit, and reports sharing and counts', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    await service.begin({ ownerKind: 'unified', ownerId: 'c1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
+    await begin(service, 'c1', 'unified');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h2' });
     engine.changedFiles.mockImplementation(async (_w: string, _p: string, from: string) =>
       from === 't-head' ? [file('b.txt')] : [file('a.txt'), file('b.txt')]);
-    const summary = await service.summary({ kind: 'session', ownerId: 'r1', view: 'session' });
+    const summary = await service.summary(sessionSource('r1'));
     expect(summary.files.map(({ path }) => path)).toEqual(['b.txt']);
     expect(summary.committed.map(({ path }) => path)).toEqual(['a.txt']);
     expect(summary.sharedWorkspace).toBe(true);
@@ -137,33 +185,69 @@ describe('WorkspaceChangesService', () => {
     expect(service.counts()).toContainEqual({ ownerId: 'r1', workspaceId, state: 'ready', changedFileCount: 1 });
   });
 
-  it('coalesces concurrent refreshes for one session', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+  it('keeps the last count when a refresh fails for a moment', async () => {
+    await begin(service, 'r1');
+    engine.changedFiles.mockResolvedValue([file('a.txt')]);
+    await service.refresh('r1');
+    counts = [];
+    engine.snapshot.mockRejectedValueOnce(new GitCommandError('failed'));
+    await service.refresh('r1');
+    expect(counts).toEqual([]);
+    expect(service.counts()).toEqual([{ ownerId: 'r1', workspaceId, state: 'ready', changedFileCount: 1 }]);
+  });
+
+  it('coalesces concurrent refreshes for one session into one more run', async () => {
+    await begin(service, 'r1');
+    const first = deferred<{ kind: 'repository'; tree: string; head: string }>();
+    const second = deferred<{ kind: 'repository'; tree: string; head: string }>();
     engine.snapshot.mockClear();
-    await Promise.all([service.refresh('r1'), service.refresh('r1'), service.refresh('r1')]);
-    expect(engine.snapshot.mock.calls.length).toBeLessThanOrEqual(2);
+    engine.snapshot.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    let settled = 0;
+    const runs = [service.refresh('r1'), service.refresh('r1'), service.refresh('r1')]
+      .map((run) => run.then(() => { settled += 1; }));
+    await vi.waitFor(() => expect(engine.snapshot).toHaveBeenCalledTimes(1));
+    first.resolve({ kind: 'repository', tree: 't-now', head: 'h1' });
+    await vi.waitFor(() => expect(engine.snapshot).toHaveBeenCalledTimes(2));
+    expect(settled).toBe(0);
+    second.resolve({ kind: 'repository', tree: 't-now', head: 'h1' });
+    await Promise.all(runs);
+    expect(settled).toBe(3);
+    expect(engine.snapshot).toHaveBeenCalledTimes(2);
   });
 
   it('caps long file lists and marks them truncated', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     engine.changedFiles.mockResolvedValue(Array.from({ length: 5_001 }, (_, index) => file(`f${index}.txt`)));
-    const summary = await service.summary({ kind: 'session', ownerId: 'r1', view: 'session' });
+    const summary = await service.summary(sessionSource('r1'));
     expect(summary.files).toHaveLength(5_000);
     expect(summary.truncated).toBe(true);
   });
 
   it('shows uncommitted changes against HEAD, and says a folder is not a repository', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
-    const uncommitted = await service.summary({ kind: 'session', ownerId: 'r1', view: 'uncommitted' });
+    const uncommitted = await service.summary(sessionSource('r1', 'uncommitted'));
     expect(uncommitted.files.map(({ path }) => path)).toEqual(['a.txt']);
     expect(engine.changedFiles).toHaveBeenLastCalledWith(workspaceId, '/work', 't-head', 't-now');
 
     engine.snapshot.mockResolvedValue({ kind: 'folder', tree: 't-now', head: null });
     engine.headTree.mockResolvedValue(null);
-    expect(await service.summary({ kind: 'session', ownerId: 'r1', view: 'uncommitted' }))
+    expect(await service.summary(sessionSource('r1', 'uncommitted')))
       .toMatchObject({ state: 'unavailable', unavailableReason: 'not-a-repository' });
+  });
+
+  it('shows uncommitted changes while the session baseline is still being captured', async () => {
+    const quickWait = createService({ launchWaitMs: 0 });
+    const slow = deferred<{ kind: 'repository'; tree: string; head: string }>();
+    engine.snapshot.mockReturnValueOnce(slow.promise);
+    await begin(quickWait, 'r1');
+    engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
+    engine.changedFiles.mockResolvedValue([file('a.txt')]);
+    expect((await quickWait.summary(sessionSource('r1'))).state).toBe('capturing');
+    expect(await quickWait.summary(sessionSource('r1', 'uncommitted')))
+      .toMatchObject({ state: 'ready', files: [file('a.txt')] });
+    slow.resolve({ kind: 'repository', tree: 't-base', head: 'h1' });
   });
 
   it('shows a workspace\'s uncommitted changes, or why it cannot', async () => {
@@ -176,14 +260,14 @@ describe('WorkspaceChangesService', () => {
     const noGit = createService({ gitAvailable: async () => false });
     expect(await noGit.summary({ kind: 'workspace', workspaceId }))
       .toMatchObject({ state: 'unavailable', unavailableReason: 'git-missing' });
-    noGit.dispose();
   });
 
   it('lists what a review covered from its own trees', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
-    await service.markReviewed('r1', null);
+    engine.composeReviewed.mockResolvedValue('t-now');
+    await service.markReviewed('r1', ['a.txt']);
     const reviewId = service.history(workspaceId).segments[0]!.reviews[0]!.reviewId;
     engine.snapshot.mockClear();
     engine.changedFiles.mockClear();
@@ -194,19 +278,44 @@ describe('WorkspaceChangesService', () => {
     await expect(service.summary({ kind: 'review', reviewId: 'missing' })).rejects.toThrow();
   });
 
-  it('marks everything reviewed by moving the baseline, and some files by composing a tree', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+  it('marks the listed files reviewed by composing a tree that includes renamed old paths', async () => {
+    await begin(service, 'r1');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('a.txt'), file('new.txt', { status: 'renamed', oldPath: 'old.txt' })]);
     await service.markReviewed('r1', ['new.txt']);
     expect(engine.composeReviewed).toHaveBeenCalledWith(workspaceId, '/work', 't-base', 't-now', ['new.txt', 'old.txt']);
-    await service.markReviewed('r1', null);
+    await service.markReviewed('r1', ['a.txt', 'new.txt']);
+    expect(engine.composeReviewed).toHaveBeenLastCalledWith(workspaceId, '/work', 't-reviewed', 't-now', ['a.txt', 'new.txt', 'old.txt']);
     const history = service.history(workspaceId);
     expect(history.segments[0]!.reviews.map(({ fileCount }) => fileCount)).toEqual([2, 1]);
+    await expect(service.markReviewed('r1', [])).rejects.toThrow();
   });
 
-  it('records nothing when no chosen file has changed', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+  it('queues overlapping reviews so each starts from the one before', async () => {
+    await begin(service, 'r1');
+    engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
+    engine.changedFiles.mockResolvedValue([file('a.txt'), file('b.txt')]);
+    const composed = deferred<string>();
+    engine.composeReviewed.mockReturnValueOnce(composed.promise).mockResolvedValueOnce('t-r2');
+    const firstReview = service.markReviewed('r1', ['a.txt']);
+    const secondReview = service.markReviewed('r1', ['b.txt']);
+    await vi.waitFor(() => expect(engine.composeReviewed).toHaveBeenCalledTimes(1));
+    composed.resolve('t-r1');
+    await Promise.all([firstReview, secondReview]);
+
+    expect(engine.composeReviewed.mock.calls).toEqual([
+      [workspaceId, '/work', 't-base', 't-now', ['a.txt']],
+      [workspaceId, '/work', 't-r1', 't-now', ['b.txt']]
+    ]);
+    const repository = new ChangesRepository(database);
+    const segment = repository.getSegmentByOwner('r1')!;
+    expect(segment.baselineTree).toBe('t-r2');
+    expect(repository.listReviews(segment.id).map(({ fromTree, toTree }) => [fromTree, toTree]))
+      .toEqual([['t-r1', 't-r2'], ['t-base', 't-r1']]);
+  });
+
+  it('records nothing when no listed file has changed', async () => {
+    await begin(service, 'r1');
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
     await service.markReviewed('r1', ['other.txt']);
     expect(engine.composeReviewed).not.toHaveBeenCalled();
@@ -214,10 +323,10 @@ describe('WorkspaceChangesService', () => {
   });
 
   it('passes a rename\'s old path when loading its diff, and reports binary files without a patch', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('new.txt', { status: 'renamed', oldPath: 'old.txt' }), file('b.bin', { binary: true, additions: null, deletions: null })]);
-    const source = { kind: 'session', ownerId: 'r1', view: 'session' } as const;
+    const source = sessionSource('r1');
     await service.fileDiff(source, 'new.txt');
     expect(engine.fileDiff).toHaveBeenCalledWith(workspaceId, '/work', 't-base', 't-now', 'new.txt', 'old.txt');
     expect(await service.fileDiff(source, 'b.bin')).toEqual({ path: 'b.bin', patch: '', binary: true, truncated: false });
@@ -225,34 +334,41 @@ describe('WorkspaceChangesService', () => {
 
   it('refuses a diff while the baseline is still missing', async () => {
     const noGit = createService({ gitAvailable: async () => false });
-    await noGit.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    await expect(noGit.fileDiff({ kind: 'session', ownerId: 'r1', view: 'session' }, 'a.txt')).rejects.toThrow();
-    noGit.dispose();
+    await begin(noGit, 'r1');
+    await expect(noGit.fileDiff(sessionSource('r1'), 'a.txt')).rejects.toThrow();
   });
 
-  it('opens only paths inside the workspace', async () => {
-    const openPath = vi.fn(async () => '');
-    const scoped = createService({ openPath, lookupWorkspace: () => ({ canonicalPath: process.cwd(), available: true }) });
-    await scoped.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    await expect(scoped.open({ kind: 'session', ownerId: 'r1', view: 'session' }, '../escape.txt', 'open')).rejects.toThrow();
-    await scoped.open({ kind: 'session', ownerId: 'r1', view: 'session' }, 'package.json', 'open');
-    expect(openPath).toHaveBeenCalledTimes(1);
-    scoped.dispose();
-  });
+  describe('opening files', () => {
+    let root: string;
 
-  it('reveals a file in its folder, and reports a file the system could not open', async () => {
-    const showItemInFolder = vi.fn();
-    const failing = createService({ showItemInFolder, openPath: async () => 'No application', lookupWorkspace: () => ({ canonicalPath: process.cwd(), available: true }) });
-    await failing.open({ kind: 'workspace', workspaceId }, 'package.json', 'reveal');
-    expect(showItemInFolder).toHaveBeenCalledTimes(1);
-    await expect(failing.open({ kind: 'workspace', workspaceId }, 'package.json', 'open')).rejects.toThrow();
-    failing.dispose();
+    beforeEach(() => {
+      root = mkdtempSync(join(tmpdir(), 'lumora-changes-open-'));
+      writeFileSync(join(root, 'notes.txt'), 'hello');
+    });
+    afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+    it('opens only paths inside the workspace', async () => {
+      const openPath = vi.fn(async () => '');
+      const scoped = createService({ openPath, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      await begin(scoped, 'r1');
+      await expect(scoped.open(sessionSource('r1'), '../escape.txt', 'open')).rejects.toThrow();
+      await scoped.open(sessionSource('r1'), 'notes.txt', 'open');
+      expect(openPath).toHaveBeenCalledTimes(1);
+    });
+
+    it('reveals a file in its folder, and reports a file the system could not open', async () => {
+      const showItemInFolder = vi.fn();
+      const failing = createService({ showItemInFolder, openPath: async () => 'No application', lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      await failing.open({ kind: 'workspace', workspaceId }, 'notes.txt', 'reveal');
+      expect(showItemInFolder).toHaveBeenCalledWith(join(root, 'notes.txt'));
+      await expect(failing.open({ kind: 'workspace', workspaceId }, 'notes.txt', 'open')).rejects.toThrow();
+    });
   });
 
   it('refreshes only live terminal sessions on the timer', async () => {
     vi.useFakeTimers();
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
-    await service.begin({ ownerKind: 'unified', ownerId: 'c1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
+    await begin(service, 'c1', 'unified');
     counts = [];
     service.startTerminalTimer();
     await vi.advanceTimersByTimeAsync(30_000);
@@ -262,8 +378,19 @@ describe('WorkspaceChangesService', () => {
     expect(counts).toHaveLength(1);
   });
 
+  it('reports a timer tick that fails', async () => {
+    vi.useFakeTimers();
+    const repository = new ChangesRepository(database);
+    vi.spyOn(repository, 'listOpenSegments').mockImplementation(() => { throw new Error('database busy'); });
+    const reported: string[] = [];
+    const ticking = createService({ repository, reportError: (operation) => { reported.push(operation); } });
+    ticking.startTerminalTimer();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(reported).toEqual(['timer']);
+  });
+
   it('refreshes a session once more when it ends', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     counts = [];
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
     service.end('r1');
@@ -274,11 +401,29 @@ describe('WorkspaceChangesService', () => {
   });
 
   it('ends open segments and prunes old ones at startup, removing stores left empty', async () => {
-    await service.begin({ ownerKind: 'terminal', ownerId: 'r1', workspaceId, catalogSessionId: null });
+    await begin(service, 'r1');
     await service.startup();                                  // ends r1 at 2026-09-15
     now = new Date('2026-10-15T00:00:00.000Z');
     await service.startup();                                  // 30 days later: pruned
     expect(engine.removeWorkspace).toHaveBeenCalledWith(workspaceId);
     expect(service.history(workspaceId).segments).toEqual([]);
+  });
+
+  it('keeps a store at startup while other segments remain, and reports a store it could not remove', async () => {
+    await begin(service, 'r1');
+    await service.startup();
+    now = new Date('2026-10-15T00:00:00.000Z');
+    await begin(service, 'r2');
+    await service.startup();
+    expect(engine.removeWorkspace).not.toHaveBeenCalled();
+    expect(service.history(workspaceId).segments.map(({ ownerId }) => ownerId)).toEqual(['r2']);
+
+    const reported: string[] = [];
+    const reporting = createService({ reportError: (operation) => { reported.push(operation); } });
+    engine.removeWorkspace.mockRejectedValueOnce(new Error('locked'));
+    now = new Date('2026-11-15T00:00:00.000Z');
+    await reporting.startup();
+    expect(engine.removeWorkspace).toHaveBeenCalledWith(workspaceId);
+    expect(reported).toEqual(['startup']);
   });
 });
