@@ -82,7 +82,13 @@ import { registerAppearanceIpc } from './ipc/register-appearance-ipc';
 import { registerAgentIpc } from './ipc/register-agent-ipc';
 import { registerAboutIpc } from './ipc/register-about-ipc';
 import { registerClipboardIpc } from './ipc/register-clipboard-ipc';
+import { registerChangesIpc } from './ipc/register-changes-ipc';
 import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
+import { createChangesErrorReporter } from './changes/changes-error-reporter';
+import {
+  createLocalWorkspaceChanges,
+  type LocalWorkspaceChanges
+} from './changes/local-workspace-changes';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
 import { registerLocalizationIpc } from './ipc/register-localization-ipc';
 import { registerProviderIpc } from './ipc/register-provider-ipc';
@@ -353,6 +359,7 @@ let diagnosticPreferencesStore: DiagnosticPreferencesStore | null = null;
 let disposeDiagnosticProcessObservers: (() => void) | null = null;
 let localProcessSampler: LocalProcessSampler | null = null;
 let unifiedLaunchUsage: UnifiedLaunchUsageStore | null = null;
+let localWorkspaceChanges: LocalWorkspaceChanges | null = null;
 let cancelUnifiedCapabilityWarmup: (() => void) | null = null;
 let shutdownStarted = false;
 
@@ -909,6 +916,23 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
   });
   const structuredSessionGuard = new StructuredSessionGuard();
+  // Ends the segments the last run left open, so it runs before any session launches.
+  localWorkspaceChanges = await createLocalWorkspaceChanges({
+    databasePath: join(app.getPath('userData'), 'lumora.db'),
+    storeRoot: join(app.getPath('userData'), 'workspace-changes'),
+    locateGit: () => findExecutable('git', { platform, env: applicationEnvironment }),
+    onCount: (count) => {
+      if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.changesCountEvent, count);
+      }
+    },
+    openPath: (path) => shell.openPath(path),
+    showItemInFolder: (path) => shell.showItemInFolder(path),
+    reportError: createChangesErrorReporter({
+      record: async (input) => diagnosticService?.record(input)
+    })
+  });
+  const workspaceChanges = localWorkspaceChanges.service;
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
@@ -917,6 +941,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: applicationEnvironment,
     scanProviders: scanProvidersForLaunch,
     sessionGuard: structuredSessionGuard,
+    workspaceChanges: {
+      begin: (input) => workspaceChanges.begin(input),
+      end: (ownerId) => workspaceChanges.end(ownerId)
+    },
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     refreshProviderSessions: (provider) =>
@@ -969,7 +997,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     createAdapter: createStructuredAgentAdapterFactory(),
     sessionGuard: structuredSessionGuard,
     clientVersion: app.getVersion(),
-    images: structuredImageStore
+    images: structuredImageStore,
+    workspaceChanges: {
+      begin: (input) => workspaceChanges.begin(input),
+      end: (ownerId) => workspaceChanges.end(ownerId)
+    }
   });
   const agentLaunchRouter = new AgentLaunchRouter({
     consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
@@ -1180,6 +1212,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     appVersion: app.getVersion(),
     release: applicationReleaseRuntime.service,
     openProject: (url) => shell.openExternal(url)
+  });
+  registerChangesIpc({
+    ipc: ipcMain,
+    authorize: authorizeLocalIpc,
+    service: workspaceChanges
   });
   registerDiagnosticIpc({
     ipc: ipcMain,
@@ -1472,6 +1509,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sendRuntimeEvent: (event) => {
       if (event.type === 'state') {
         trayController?.refresh();
+        if (event.runtime.sessionId !== null) {
+          try {
+            workspaceChanges.linkCatalogSession(event.runtimeId, event.runtime.sessionId);
+          } catch {
+            // Linking a catalog session to its changes is best effort.
+          }
+        }
         if (
           event.runtime.state !== 'launching' &&
           event.runtime.state !== 'running'
@@ -1529,6 +1573,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sendEvent: (event) => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);
+      }
+      if (event.kind === 'turn.completed') {
+        void workspaceChanges.refresh(event.connectionId);
+      } else if (event.kind === 'runtime.metadata') {
+        try {
+          workspaceChanges.linkCatalogSession(event.connectionId, event.payload.catalogSessionId);
+        } catch {
+          // Linking a catalog session to its changes is best effort.
+        }
       }
       if (
         event.kind === 'runtime.status' ||
@@ -1712,6 +1765,9 @@ app.on('before-quit', (event) => {
       if (terminalRuntime === runtime) {
         terminalRuntime = null;
       }
+      // Every local session has ended its changes segment by now.
+      localWorkspaceChanges?.close();
+      localWorkspaceChanges = null;
       catalogRuntime?.close();
       catalogRuntime = null;
       disposeDiagnosticProcessObservers?.();
@@ -1750,6 +1806,8 @@ app.on('will-quit', () => {
   const closeDatabaseOwners = () => {
     terminalRuntime?.close();
     terminalRuntime = null;
+    localWorkspaceChanges?.close();
+    localWorkspaceChanges = null;
     catalogRuntime?.close();
     catalogRuntime = null;
   };

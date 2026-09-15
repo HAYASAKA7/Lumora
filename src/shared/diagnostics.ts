@@ -22,7 +22,8 @@ export const DiagnosticSubsystemSchema = z.enum([
   'helper',
   'transfer',
   'ipc',
-  'renderer'
+  'renderer',
+  'changes'
 ]);
 
 export const DiagnosticOutcomeSchema = z.enum([
