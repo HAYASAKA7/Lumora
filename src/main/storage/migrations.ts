@@ -595,6 +595,45 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       `ALTER TABLE structured_provider_preference_next
        RENAME TO structured_provider_preference`
     ]
+  },
+  {
+    version: 22,
+    isSchemaPresent: (database) => hasTable(database, 'workspace_change_segment'),
+    statements: [
+      `CREATE TABLE workspace_change_segment (
+        id TEXT PRIMARY KEY,
+        execution_target_id TEXT NOT NULL
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        workspace_id TEXT NOT NULL,
+        owner_kind TEXT NOT NULL CHECK (owner_kind IN ('terminal', 'unified')),
+        owner_id TEXT NOT NULL UNIQUE,
+        catalog_session_id TEXT,
+        snapshot_kind TEXT CHECK (snapshot_kind IS NULL OR snapshot_kind IN ('repository', 'folder')),
+        baseline_tree TEXT,
+        baseline_head TEXT,
+        baseline_late INTEGER NOT NULL DEFAULT 0 CHECK (baseline_late IN (0, 1)),
+        state TEXT NOT NULL CHECK (state IN ('capturing', 'ready', 'unavailable')),
+        unavailable_reason TEXT CHECK (unavailable_reason IS NULL OR unavailable_reason IN (
+          'git-missing', 'workspace-unavailable', 'too-large', 'failed'
+        )),
+        created_at TEXT NOT NULL,
+        ended_at TEXT,
+        FOREIGN KEY (execution_target_id, workspace_id)
+          REFERENCES workspace(execution_target_id, id) ON DELETE CASCADE
+      ) STRICT`,
+      `CREATE INDEX workspace_change_segment_workspace_idx
+       ON workspace_change_segment (execution_target_id, workspace_id, created_at DESC)`,
+      `CREATE TABLE workspace_change_review (
+        id TEXT PRIMARY KEY,
+        segment_id TEXT NOT NULL REFERENCES workspace_change_segment(id) ON DELETE CASCADE,
+        from_tree TEXT NOT NULL,
+        to_tree TEXT NOT NULL,
+        file_count INTEGER NOT NULL CHECK (file_count >= 0),
+        reviewed_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX workspace_change_review_segment_idx
+       ON workspace_change_review (segment_id, reviewed_at DESC)`
+    ]
   }
 ];
 

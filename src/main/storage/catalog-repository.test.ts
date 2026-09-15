@@ -127,7 +127,8 @@ describe('catalog migrations', () => {
       { version: 18 },
       { version: 19 },
       { version: 20 },
-      { version: 21 }
+      { version: 21 },
+      { version: 22 }
     ]);
     expect(
       database
@@ -148,7 +149,9 @@ describe('catalog migrations', () => {
         'remote_connection_credential',
         'runtime_reconciliation',
         'trust_decision',
-        'workspace'
+        'workspace',
+        'workspace_change_review',
+        'workspace_change_segment'
       ])
     );
 
