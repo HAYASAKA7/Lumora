@@ -81,6 +81,13 @@ interface RuntimeHostDependencies {
     provider: LaunchSpec['provider'],
     workspaceId: string
   ): Promise<readonly string[]>;
+  /** Local only: a baseline of the workspace, waited for briefly before the agent starts. */
+  beginWorkspaceChanges?(input: {
+    ownerId: string;
+    workspaceId: string;
+    sessionId: string | null;
+  }): Promise<void>;
+  endWorkspaceChanges?(ownerId: string): void;
   platform: SystemInfo['platform'];
   clock?: () => Date;
   createRuntimeId?: () => string;
@@ -263,6 +270,7 @@ export class RuntimeHost {
       }
       throw error;
     }
+    await this.beginWorkspaceChanges(runtimeId, spec);
     const launching = RuntimeSummarySchema.parse({
       id: runtimeId,
       displayName: spec.displayName,
@@ -319,6 +327,7 @@ export class RuntimeHost {
       });
       this.persistAndEmit(failed);
       this.sessionGuard.release(runtimeId);
+      this.endWorkspaceChanges(runtimeId);
       throw new TerminalRuntimeError('PTY_SPAWN_FAILED');
     }
 
@@ -664,6 +673,7 @@ export class RuntimeHost {
     }
     this.live.delete(runtimeId);
     this.sessionGuard.release(runtimeId);
+    this.endWorkspaceChanges(runtimeId);
     const runtime = RuntimeSummarySchema.parse({
       ...live.runtime,
       state: outcome.state,
@@ -678,6 +688,26 @@ export class RuntimeHost {
     });
     this.persistAndEmit(runtime);
     live.resolveExit(runtime);
+  }
+
+  private async beginWorkspaceChanges(runtimeId: string, spec: LaunchSpec): Promise<void> {
+    try {
+      await this.dependencies.beginWorkspaceChanges?.({
+        ownerId: runtimeId,
+        workspaceId: spec.workspaceId,
+        sessionId: spec.sessionId
+      });
+    } catch {
+      // Tracking changes never keeps a terminal from starting.
+    }
+  }
+
+  private endWorkspaceChanges(runtimeId: string): void {
+    try {
+      this.dependencies.endWorkspaceChanges?.(runtimeId);
+    } catch {
+      // A tracking failure must not disturb the runtime's final state.
+    }
   }
 
   private persistAndEmit(

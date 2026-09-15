@@ -52,6 +52,16 @@ interface StructuredAgentRuntimeHostOptions {
     ): readonly ResolvedStructuredImage[];
     cleanupConnection(connectionId: string): Promise<void>;
   };
+  /** Records what each Unified UI session changes in its workspace. */
+  workspaceChanges?: {
+    begin(input: {
+      ownerKind: 'unified';
+      ownerId: string;
+      workspaceId: string;
+      catalogSessionId: string | null;
+    }): Promise<void>;
+    end(ownerId: string): void;
+  };
 }
 
 export interface StructuredCatalogSessionIdentity {
@@ -78,6 +88,8 @@ interface LiveStructuredRuntime {
   commands: StructuredAgentCommand[];
   eventBytes: number;
   closePromise: Promise<StructuredAgentRuntimeSummary> | null;
+  /** Whether this session's workspace changes segment has been ended. */
+  changesEnded: boolean;
 }
 
 export type StructuredAgentRuntimeHostErrorCode =
@@ -204,7 +216,8 @@ export class StructuredAgentRuntimeHost {
       events: [],
       commands: [],
       eventBytes: 0,
-      closePromise: null
+      closePromise: null,
+      changesEnded: false
     };
     this.live.set(connectionId, runtime);
     this.emitStatus(runtime, 1, 'starting', null);
@@ -222,6 +235,12 @@ export class StructuredAgentRuntimeHost {
     signal?.addEventListener('abort', cancelLaunch, { once: true });
 
     try {
+      await this.beginWorkspaceChanges(connectionId, launch);
+      if (cancelled) {
+        throw new StructuredAgentRuntimeHostError(
+          'STRUCTURED_RUNTIME_START_CANCELLED'
+        );
+      }
       const adapter = await this.createAdapter(runtime, 1);
       runtime.adapter = adapter;
       if (cancelled) {
@@ -277,12 +296,14 @@ export class StructuredAgentRuntimeHost {
       if (cancelled || signal?.aborted) {
         this.guard.release(connectionId);
         this.live.delete(connectionId);
+        this.endWorkspaceChanges(runtime);
         throw new StructuredAgentRuntimeHostError(
           'STRUCTURED_RUNTIME_START_CANCELLED'
         );
       }
       this.failRuntime(runtime, 1);
       this.live.delete(connectionId);
+      this.endWorkspaceChanges(runtime);
       if (error instanceof StructuredSessionGuardError) {
         throw new StructuredAgentRuntimeHostError(
           'STRUCTURED_RUNTIME_ALREADY_ACTIVE'
@@ -637,6 +658,34 @@ export class StructuredAgentRuntimeHost {
       );
     }
     this.guard.release(runtime.summary.connectionId);
+    this.endWorkspaceChanges(runtime);
+  }
+
+  private async beginWorkspaceChanges(
+    connectionId: string,
+    launch: ResolvedStructuredAgentLaunch
+  ): Promise<void> {
+    try {
+      await this.options.workspaceChanges?.begin({
+        ownerKind: 'unified',
+        ownerId: connectionId,
+        workspaceId: launch.workspaceId,
+        catalogSessionId: launch.catalogSessionId
+      });
+    } catch {
+      // Tracking changes never keeps a session from starting.
+    }
+  }
+
+  /** Ends the session's changes segment the first time it closes or fails; a reconnect keeps it ended. */
+  private endWorkspaceChanges(runtime: LiveStructuredRuntime): void {
+    if (runtime.changesEnded) return;
+    runtime.changesEnded = true;
+    try {
+      this.options.workspaceChanges?.end(runtime.summary.connectionId);
+    } catch {
+      // A tracking failure must not disturb the session's final state.
+    }
   }
 
   private async closeOwned(
@@ -656,6 +705,7 @@ export class StructuredAgentRuntimeHost {
     this.updateSummary(runtime, { state: 'closed', error: null });
     this.emitStatus(runtime, generation, 'closed', null);
     this.guard.release(runtime.summary.connectionId);
+    this.endWorkspaceChanges(runtime);
     void this.options.images?.cleanupConnection(runtime.summary.connectionId);
   }
 

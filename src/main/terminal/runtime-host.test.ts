@@ -181,6 +181,12 @@ function harness(options: {
   };
   const startReconciliation = vi.fn();
   const captureSessionBaseline = vi.fn(async () => ['known-native']);
+  const beginWorkspaceChanges = vi.fn(async (_input: {
+    ownerId: string;
+    workspaceId: string;
+    sessionId: string | null;
+  }) => undefined);
+  const endWorkspaceChanges = vi.fn((_ownerId: string) => undefined);
   let waitCallCount = 0;
   let spawnCount = 0;
   const spawn = vi.fn(async (_options: PtySpawnOptions) => {
@@ -206,6 +212,8 @@ function harness(options: {
     spawn,
     startReconciliation,
     captureSessionBaseline,
+    beginWorkspaceChanges,
+    endWorkspaceChanges,
     platform: options.platform ?? 'linux',
     ...(options.sessionGuard === undefined
       ? {}
@@ -235,6 +243,8 @@ function harness(options: {
     spawn,
     startReconciliation,
     captureSessionBaseline,
+    beginWorkspaceChanges,
+    endWorkspaceChanges,
     resolveInvocation
   };
 }
@@ -987,5 +997,68 @@ describe('RuntimeHost', () => {
     });
     await resumed.host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
     expect(resumed.captureSessionBaseline).not.toHaveBeenCalled();
+  });
+  describe('workspace changes', () => {
+    it('takes a baseline with the runtime, workspace and session before spawning', async () => {
+      const { host, spawn, repository, beginWorkspaceChanges } = harness({
+        launch: { ...launchSpec, strategy: 'resume', sessionId: 'd'.repeat(64), nativeSessionId: 'native-1' }
+      });
+      beginWorkspaceChanges.mockImplementationOnce(async () => {
+        expect(spawn).not.toHaveBeenCalled();
+        expect(repository.saveRuntime).not.toHaveBeenCalled();
+      });
+
+      const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+      expect(beginWorkspaceChanges).toHaveBeenCalledExactlyOnceWith({
+        ownerId: runtime.id,
+        workspaceId: launchSpec.workspaceId,
+        sessionId: 'd'.repeat(64)
+      });
+    });
+
+    it('ends tracking once when the runtime exits', async () => {
+      const { host, pty, endWorkspaceChanges } = harness();
+      const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+      expect(endWorkspaceChanges).not.toHaveBeenCalled();
+
+      pty.emitExit(0);
+      pty.emitExit(1);
+
+      expect(endWorkspaceChanges).toHaveBeenCalledExactlyOnceWith(runtime.id);
+    });
+
+    it('ends tracking once when a terminated runtime is lost', async () => {
+      const { host, endWorkspaceChanges } = harness();
+      const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+      await host.terminate(runtime.id);
+      await host.shutdown();
+
+      expect(endWorkspaceChanges).toHaveBeenCalledExactlyOnceWith(runtime.id);
+    });
+
+    it('starts the runtime even when tracking fails', async () => {
+      const { host, beginWorkspaceChanges, endWorkspaceChanges, pty } = harness();
+      beginWorkspaceChanges.mockRejectedValueOnce(new Error('git exploded'));
+      endWorkspaceChanges.mockImplementationOnce(() => {
+        throw new Error('database closed');
+      });
+
+      const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+      expect(runtime.state).toBe('running');
+      expect(() => pty.emitExit(0)).not.toThrow();
+      expect(host.attach(runtime.id).runtime.state).toBe('completed');
+    });
+
+    it('ends tracking when the terminal cannot spawn', async () => {
+      const { host, endWorkspaceChanges } = harness({ spawnError: new Error('spawn failed') });
+
+      await expect(host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc')).rejects.toMatchObject({
+        code: 'PTY_SPAWN_FAILED'
+      });
+
+      expect(endWorkspaceChanges).toHaveBeenCalledExactlyOnceWith('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    });
   });
 });

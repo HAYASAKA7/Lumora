@@ -113,6 +113,16 @@ interface CreateTerminalRuntimeOptions {
   createProfileId?: () => string;
   spawn?: (options: PtySpawnOptions) => PtyProcess;
   sessionGuard?: StructuredSessionGuard;
+  /** Records what each local terminal session changes in its workspace. */
+  workspaceChanges?: {
+    begin(input: {
+      ownerKind: 'terminal';
+      ownerId: string;
+      workspaceId: string;
+      catalogSessionId: string | null;
+    }): Promise<void>;
+    end(ownerId: string): void;
+  };
 }
 
 export interface TerminalRuntime {
@@ -170,7 +180,8 @@ export async function createTerminalRuntime({
   clock = () => new Date(),
   createProfileId = () => randomBytes(32).toString('hex'),
   spawn = spawnPty,
-  sessionGuard
+  sessionGuard,
+  workspaceChanges
 }: CreateTerminalRuntimeOptions): Promise<TerminalRuntime> {
   const database = new DatabaseSync(databasePath);
   try {
@@ -280,7 +291,19 @@ export async function createTerminalRuntime({
     },
     platform,
     clock,
-    ...(sessionGuard === undefined ? {} : { sessionGuard })
+    ...(sessionGuard === undefined ? {} : { sessionGuard }),
+    ...(workspaceChanges === undefined
+      ? {}
+      : {
+          beginWorkspaceChanges: ({ ownerId, workspaceId, sessionId }) =>
+            workspaceChanges.begin({
+              ownerKind: 'terminal',
+              ownerId,
+              workspaceId,
+              catalogSessionId: sessionId
+            }),
+          endWorkspaceChanges: (ownerId) => workspaceChanges.end(ownerId)
+        })
   });
   let closed = false;
 

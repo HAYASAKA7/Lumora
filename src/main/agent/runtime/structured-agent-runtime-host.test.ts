@@ -34,7 +34,22 @@ function resolved(
   };
 }
 
-function harness(options: { maxTailEvents?: number } = {}) {
+function workspaceChangesSpy() {
+  return {
+    begin: vi.fn(async (_input: {
+      ownerKind: 'unified';
+      ownerId: string;
+      workspaceId: string;
+      catalogSessionId: string | null;
+    }) => undefined),
+    end: vi.fn((_ownerId: string) => undefined)
+  };
+}
+
+function harness(options: {
+  maxTailEvents?: number;
+  workspaceChanges?: ReturnType<typeof workspaceChangesSpy>;
+} = {}) {
   const contexts: StructuredAgentAdapterContext[] = [];
   const adapters: StructuredAgentAdapter[] = [];
   const dispatch = vi.fn(async () => undefined);
@@ -613,5 +628,94 @@ describe('StructuredAgentRuntimeHost', () => {
     await host.close('connection-1');
 
     expect(cleanupConnection).toHaveBeenCalledWith('connection-1');
+  });
+  describe('workspace changes', () => {
+    it('takes a baseline before the provider adapter is created', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      const { host, contexts } = harness({ workspaceChanges });
+      workspaceChanges.begin.mockImplementationOnce(async () => {
+        expect(contexts).toHaveLength(0);
+      });
+
+      await host.launch(newRequest);
+
+      expect(workspaceChanges.begin).toHaveBeenCalledExactlyOnceWith({
+        ownerKind: 'unified',
+        ownerId: 'connection-1',
+        workspaceId: 'workspace-1',
+        catalogSessionId: null
+      });
+      expect(contexts).toHaveLength(1);
+      expect(workspaceChanges.end).not.toHaveBeenCalled();
+    });
+
+    it('ends tracking once when the session closes', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      const { host } = harness({ workspaceChanges });
+      await host.launch(newRequest);
+
+      await host.close('connection-1');
+      await host.close('connection-1');
+      await host.shutdown();
+
+      expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
+    });
+
+    it('ends tracking once when the session fails, and a reconnect keeps the same segment', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      const { host, contexts } = harness({ workspaceChanges });
+      await host.launch(newRequest);
+      await host.reconnect('connection-1');
+      expect(workspaceChanges.end).not.toHaveBeenCalled();
+
+      contexts[1]!.callbacks.exited(new Error('provider stopped'));
+      contexts[1]!.callbacks.exited(new Error('provider stopped again'));
+      await host.reconnect('connection-1');
+      await host.close('connection-1');
+
+      expect(workspaceChanges.begin).toHaveBeenCalledOnce();
+      expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
+    });
+
+    it('starts the session when tracking fails and ends it when startup fails', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      workspaceChanges.begin.mockRejectedValueOnce(new Error('git exploded'));
+      const { host } = harness({ workspaceChanges });
+      await expect(host.launch(newRequest)).resolves.toMatchObject({ state: 'ready' });
+
+      const failingChanges = workspaceChangesSpy();
+      failingChanges.end.mockImplementation(() => {
+        throw new Error('database closed');
+      });
+      const failing = new StructuredAgentRuntimeHost({
+        resolveLaunch: async () => resolved(),
+        createAdapter: () => ({
+          open: async () => { throw new Error('provider startup failed'); },
+          dispatch: async () => undefined,
+          close: async () => undefined
+        }),
+        createConnectionId: () => 'failed-connection',
+        workspaceChanges: failingChanges
+      });
+      await expect(failing.launch(newRequest)).rejects.toMatchObject({ code: 'STRUCTURED_RUNTIME_FAILED' });
+      expect(failingChanges.end).toHaveBeenCalledExactlyOnceWith('failed-connection');
+    });
+
+    it('ends tracking when the launch is cancelled while the baseline is taken', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      const controller = new AbortController();
+      workspaceChanges.begin.mockImplementationOnce(async () => {
+        controller.abort();
+      });
+      const { host, contexts } = harness({ workspaceChanges });
+
+      await expect(host.launch(newRequest, controller.signal)).rejects.toMatchObject({
+        code: 'STRUCTURED_RUNTIME_START_CANCELLED'
+      });
+
+      expect(contexts).toHaveLength(0);
+      expect(host.list()).toEqual([]);
+      expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
+    });
   });
 });
