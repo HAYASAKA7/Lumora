@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { isLaunchableFile, resolveOpenTarget } from './safe-open';
+import { isLaunchableFile, opensAsLaunchable, resolveOpenTarget } from './safe-open';
 
 describe('isLaunchableFile', () => {
   it.each([
@@ -19,6 +19,14 @@ describe('isLaunchableFile', () => {
       expect(isLaunchableFile(path)).toBe(false);
     }
   );
+});
+
+describe('opensAsLaunchable', () => {
+  it('judges a file by both the name asked for and the file it really is', () => {
+    expect(opensAsLaunchable('notes.txt', 'C:\work\tool.exe')).toBe(true);
+    expect(opensAsLaunchable('run.bat', '/work/run.txt')).toBe(true);
+    expect(opensAsLaunchable('notes.txt', '/work/notes.txt')).toBe(false);
+  });
 });
 
 describe('resolveOpenTarget', () => {
@@ -40,7 +48,22 @@ describe('resolveOpenTarget', () => {
 
   it('finds a file inside the workspace', async () => {
     await expect(resolveOpenTarget(workspace, 'sub/notes.txt'))
-      .resolves.toEqual({ exists: true, path: join(workspace, 'sub', 'notes.txt') });
+      .resolves.toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'notes.txt')) });
+  });
+
+  it('returns the real path a link inside the workspace leads to', async (context) => {
+    writeFileSync(join(workspace, 'sub', 'build.bat'), '@echo off');
+    try {
+      symlinkSync(join(workspace, 'sub', 'build.bat'), join(workspace, 'notes.txt'), 'file');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+        context.skip('Creating file symlinks needs privileges on this Windows account.');
+      }
+      throw error;
+    }
+
+    await expect(resolveOpenTarget(workspace, 'notes.txt'))
+      .resolves.toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
   });
 
   it('refuses paths that leave the workspace by name or through a link', async () => {
@@ -51,8 +74,8 @@ describe('resolveOpenTarget', () => {
 
   it('points a missing file at its nearest folder inside the workspace', async () => {
     await expect(resolveOpenTarget(workspace, 'sub/deleted.txt'))
-      .resolves.toEqual({ exists: false, path: join(workspace, 'sub') });
+      .resolves.toEqual({ exists: false, path: realpathSync(join(workspace, 'sub')) });
     await expect(resolveOpenTarget(workspace, 'gone/deeper/deleted.txt'))
-      .resolves.toEqual({ exists: false, path: workspace });
+      .resolves.toEqual({ exists: false, path: realpathSync(workspace) });
   });
 });

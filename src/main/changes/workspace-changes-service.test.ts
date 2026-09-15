@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -374,7 +374,8 @@ describe('WorkspaceChangesService', () => {
     let root: string;
 
     beforeEach(() => {
-      root = mkdtempSync(join(tmpdir(), 'lumora-changes-open-'));
+      // Opened paths are real paths, so compare against the real temporary folder.
+      root = realpathSync(mkdtempSync(join(tmpdir(), 'lumora-changes-open-')));
       writeFileSync(join(root, 'notes.txt'), 'hello');
     });
     afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -423,6 +424,26 @@ describe('WorkspaceChangesService', () => {
 
       expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')]]);
       expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'index.ts'));
+    });
+
+    it('reveals a harmless-looking link to a file that would run', async (context) => {
+      writeFileSync(join(root, 'build.bat'), '@echo off');
+      try {
+        symlinkSync(join(root, 'build.bat'), join(root, 'readme.txt'), 'file');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+          context.skip('Creating file symlinks needs privileges on this Windows account.');
+        }
+        throw error;
+      }
+      const openPath = vi.fn(async () => '');
+      const showItemInFolder = vi.fn();
+      const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+
+      await scoped.open({ kind: 'workspace', workspaceId }, 'readme.txt', 'open');
+
+      expect(openPath).not.toHaveBeenCalled();
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync(join(root, 'build.bat')));
     });
 
     it('cannot open a deleted file but reveals the folder it was in', async () => {
