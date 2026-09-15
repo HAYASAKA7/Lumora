@@ -339,7 +339,16 @@
     "details-kind-gpu": "图形",
     "details-kind-utility": "实用工具",
     "details-kind-process": "进程",
-    "details-summary": "{memory} · CPU {cpu} · {count, plural, other {# 个进程}}"
+    "details-summary": "{memory} · CPU {cpu} · {count, plural, other {# 个进程}}",
+    "events-details-title": "事件详细信息",
+    "events-details-description": "{count, plural, other {诊断日志中最近的 # 条事件}}，按从新到旧排列。如需保留完整日志，请导出诊断。",
+    "events-field-outcome": "结果",
+    "events-field-target": "目标",
+    "events-field-provider": "提供商",
+    "events-field-code": "代码",
+    "events-field-duration": "耗时",
+    "events-field-counts": "计数",
+    "events-field-correlation": "关联 ID"
   },
   "security": {
     "eyebrow": "执行边界",

@@ -215,6 +215,14 @@ two take their readings at different moments.
   <img src="screenshots/0.5/settings/settings_diagnostics_details.png" alt="Lumora Diagnostics process details listing Lumora and agent processes with PID, memory, and CPU" width="1100">
 </p>
 
+**Recent events** lists the ten newest journal events. **Event details**, the
+information button beside the stored count, opens the 100 most recent events,
+newest first, in a window of the same fixed size that scrolls. Each event shows
+when it was recorded, its severity, subsystem, and operation, and then each
+field it recorded: outcome, whether it came from this computer or a remote one,
+the provider, code, duration, counts, and the correlation ID that ties together
+events from one operation. Export diagnostics to keep the whole journal.
+
 The bounded journal excludes prompts, terminal output, session content,
 credentials, environment values, and filesystem paths. Lumora never uploads a
 diagnostic report. Choosing **Export diagnostics** always lets the user select

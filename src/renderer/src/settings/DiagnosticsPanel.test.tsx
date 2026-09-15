@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  DiagnosticEvent,
   DiagnosticProcessDetails,
   DiagnosticResources,
   DiagnosticSummary,
@@ -449,6 +450,75 @@ describe('DiagnosticsPanel', () => {
     view.rerender(<DiagnosticsPanel active={false} api={api} />);
 
     expect(screen.queryByRole('dialog', { name: 'Process details' })).toBeNull();
+  });
+
+  it('lists the ten newest events and opens every event with its recorded fields', async () => {
+    const api = createApi();
+    const events: DiagnosticEvent[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+      recordedAt: `2026-08-13T07:${String(index + 10).padStart(2, '0')}:00.000Z`,
+      severity: 'info',
+      subsystem: 'catalog',
+      operation: `refresh-${index + 1}`,
+      outcome: 'succeeded',
+      correlationId: '00000000-0000-4000-8000-000000000002',
+      targetKind: 'local'
+    }));
+    events[11] = {
+      ...events[11]!,
+      severity: 'warning',
+      subsystem: 'provider',
+      operation: 'version-check',
+      outcome: 'failed',
+      provider: 'codex',
+      code: 'VERSION_CHECK_TIMED_OUT',
+      durationMs: 2_500,
+      counts: { queued: 2, cacheHits: 1 }
+    };
+    api.getDiagnosticSummary.mockResolvedValue({
+      ...summary,
+      journal: { storedEvents: 12, invalidRecords: 0 },
+      recentEvents: events
+    });
+    render(<DiagnosticsPanel active api={api} />);
+
+    const region = await screen.findByRole('region', { name: 'Recent events' });
+    const onPage = within(region).getAllByRole('listitem').map((item) => item.querySelector('strong')?.textContent);
+    expect(onPage).toHaveLength(10);
+    expect(onPage[0]).toBe('provider \u00b7 version-check');
+    expect(onPage).not.toContain('catalog \u00b7 refresh-2');
+
+    fireEvent.click(within(region).getByRole('button', { name: 'Event details' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Event details' });
+    expect(within(dialog).getByText('The 12 most recent events in the diagnostic journal, newest first. Export diagnostics to keep the whole journal.')).toBeVisible();
+    const entries = within(dialog).getAllByRole('listitem');
+    expect(entries).toHaveLength(12);
+    expect(entries.at(-1)).toHaveTextContent('catalog \u00b7 refresh-1');
+
+    const newest = within(entries[0]!);
+    expect(newest.getByText('warning')).toHaveClass('is-warning');
+    const field = (label: string) => newest.getByText(label).nextElementSibling;
+    expect(field('Outcome')).toHaveTextContent('failed');
+    expect(field('Target')).toHaveTextContent('local');
+    expect(field('Provider')).toHaveTextContent('Codex');
+    expect(field('Code')).toHaveTextContent('VERSION_CHECK_TIMED_OUT');
+    expect(field('Duration')).toHaveTextContent('2.5 sec');
+    expect(field('Counts')).toHaveTextContent('queued 2 \u00b7 cacheHits 1');
+    expect(field('Correlation ID')).toHaveTextContent('00000000-0000-4000-8000-000000000002');
+    // Fields an event did not record are left out rather than shown empty.
+    expect(within(entries[1]!).queryByText('Provider')).toBeNull();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Event details' })).toBeNull();
+  });
+
+  it('offers event details only when there are events', async () => {
+    const api = createApi();
+    api.getDiagnosticSummary.mockResolvedValue({ ...summary, recentEvents: [] });
+    render(<DiagnosticsPanel active api={api} />);
+
+    expect(await screen.findByText('No diagnostic events recorded.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Event details' })).toBeDisabled();
   });
 
   it('says when only Lumora\u2019s own processes could be read, without exposing a failure', async () => {

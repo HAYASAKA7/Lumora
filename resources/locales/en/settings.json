@@ -339,7 +339,16 @@
     "details-kind-gpu": "Graphics",
     "details-kind-utility": "Utility",
     "details-kind-process": "Process",
-    "details-summary": "{memory} · {cpu} CPU · {count, plural, one {# process} other {# processes}}"
+    "details-summary": "{memory} · {cpu} CPU · {count, plural, one {# process} other {# processes}}",
+    "events-details-title": "Event details",
+    "events-details-description": "{count, plural, one {The most recent event} other {The # most recent events}} in the diagnostic journal, newest first. Export diagnostics to keep the whole journal.",
+    "events-field-outcome": "Outcome",
+    "events-field-target": "Target",
+    "events-field-provider": "Provider",
+    "events-field-code": "Code",
+    "events-field-duration": "Duration",
+    "events-field-counts": "Counts",
+    "events-field-correlation": "Correlation ID"
   },
   "security": {
     "eyebrow": "Execution boundary",

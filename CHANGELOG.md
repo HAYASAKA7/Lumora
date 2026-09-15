@@ -7,6 +7,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Keep **Recent events** in **Diagnostics** short. The page lists the ten
+  newest events, and **Event details** opens the 100 most recent in a
+  fixed-size window that scrolls, each with every field it recorded: time,
+  severity, outcome, target, provider, code, duration, counts, and correlation
+  ID.
+
 ### Fixed
 
 - Delete a remote computer that has been connected before. Lumora keeps the

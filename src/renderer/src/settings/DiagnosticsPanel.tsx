@@ -9,6 +9,7 @@ import { useLocalization } from '../localization/useLocalization';
 import { IconButton } from '../ui/IconButton';
 import { InfoIcon, RefreshIcon } from '../ui/icons';
 import { DiagnosticsDetailsDialog } from './DiagnosticsDetailsDialog';
+import { DiagnosticsEventsDialog } from './DiagnosticsEventsDialog';
 import { formatBytes } from './diagnostic-format';
 import { useDiagnosticResources } from './use-diagnostic-sampling';
 
@@ -30,6 +31,9 @@ interface DiagnosticsPanelProps {
   api?: DiagnosticApi;
 }
 
+/** The page lists the newest few; Event details holds every event the summary carries. */
+const EVENTS_ON_PAGE = 10;
+
 type DiagnosticStatus =
   | { state: 'idle' | 'loading' }
   | { state: 'ready'; summary: DiagnosticSummary }
@@ -48,6 +52,8 @@ export function DiagnosticsPanel({
   const [storageError, setStorageError] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const closeDetails = useCallback(() => setDetailsOpen(false), []);
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const closeEvents = useCallback(() => setEventsOpen(false), []);
   const refreshGeneration = useRef(0);
 
   const resourceStatus = useDiagnosticResources(api, active);
@@ -313,18 +319,27 @@ export function DiagnosticsPanel({
                 <p className="card-label">{t('settings.diagnostics.bounded-journal')}</p>
                 <h3 id="diagnostic-events-title">{t('settings.diagnostics.recent-events')}</h3>
               </div>
-              <span>
-                {t('settings.diagnostics.stored-events', { count: summary.journal.storedEvents })}
-                {summary.journal.invalidRecords > 0
-                  ? ` · ${t('settings.diagnostics.invalid-events', { count: summary.journal.invalidRecords })}`
-                  : ''}
-              </span>
+              <div className="diagnostics-events-heading-actions">
+                <span>
+                  {t('settings.diagnostics.stored-events', { count: summary.journal.storedEvents })}
+                  {summary.journal.invalidRecords > 0
+                    ? ` · ${t('settings.diagnostics.invalid-events', { count: summary.journal.invalidRecords })}`
+                    : ''}
+                </span>
+                <IconButton
+                  disabled={summary.recentEvents.length === 0}
+                  label={t('settings.diagnostics.events-details-title')}
+                  onClick={() => setEventsOpen(true)}
+                >
+                  <InfoIcon />
+                </IconButton>
+              </div>
             </div>
             {summary.recentEvents.length === 0 ? (
               <p className="diagnostics-events-empty">{t('settings.diagnostics.no-events')}</p>
             ) : (
               <ul>
-                {[...summary.recentEvents].reverse().map((event) => (
+                {[...summary.recentEvents].reverse().slice(0, EVENTS_ON_PAGE).map((event) => (
                   <li key={event.id}>
                     <div>
                       <strong>{event.subsystem} · {event.operation}</strong>
@@ -341,6 +356,9 @@ export function DiagnosticsPanel({
 
       {detailsOpen && active ? (
         <DiagnosticsDetailsDialog api={api} onClose={closeDetails} />
+      ) : null}
+      {eventsOpen && active && summary !== null ? (
+        <DiagnosticsEventsDialog events={summary.recentEvents} onClose={closeEvents} />
       ) : null}
     </div>
   );
