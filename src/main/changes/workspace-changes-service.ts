@@ -11,7 +11,7 @@ import type {
 import { ChangeSourceResolver } from './change-source-resolver';
 import type { ChangeSegment, ChangesRepository } from './changes-repository';
 import { unavailableReasonFor } from './changes-summary';
-import { opensAsLaunchable, resolveOpenTarget } from './safe-open';
+import { resolveOpenTarget, shouldRevealInstead } from './safe-open';
 import { SnapshotCache } from './snapshot-cache';
 import type { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
@@ -217,7 +217,7 @@ export class WorkspaceChangesService {
       throw new Error('The file no longer exists.');
     }
     // A file that would run is shown in its folder rather than started.
-    if (action === 'reveal' || !target.exists || opensAsLaunchable(path, target.path)) {
+    if (action === 'reveal' || !target.exists || await shouldRevealInstead(path, target.path)) {
       this.options.showItemInFolder(target.path);
       return;
     }

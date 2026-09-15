@@ -413,6 +413,7 @@ describe('WorkspaceChangesService', () => {
       writeFileSync(join(root, 'build.bat'), '@echo off');
       writeFileSync(join(root, 'Tool.lnk'), 'shortcut');
       writeFileSync(join(root, 'index.ts'), 'export {};');
+      writeFileSync(join(root, 'tool.py'), 'print(1)');
       const openPath = vi.fn(async () => '');
       const showItemInFolder = vi.fn();
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
@@ -420,9 +421,10 @@ describe('WorkspaceChangesService', () => {
 
       await scoped.open(source, 'build.bat', 'open');
       await scoped.open(source, 'Tool.lnk', 'open');
+      await scoped.open(source, 'tool.py', 'open');
       await scoped.open(source, 'index.ts', 'open');
 
-      expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')]]);
+      expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')], [join(root, 'tool.py')]]);
       expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'index.ts'));
     });
 

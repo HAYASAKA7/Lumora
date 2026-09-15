@@ -1,31 +1,89 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isLaunchableFile, opensAsLaunchable, resolveOpenTarget } from './safe-open';
+import { isLaunchableFile, opensAsLaunchable, resolveOpenTarget, shouldRevealInstead } from './safe-open';
+
+const windows = { platform: 'win32', pathExt: '.COM;.EXE;.BAT;.CMD' } as const;
+const linux = { platform: 'linux', pathExt: undefined } as const;
 
 describe('isLaunchableFile', () => {
   it.each([
     'setup.exe', 'run.BAT', 'tools/script.cmd', 'deploy.ps1', 'Shortcut.lnk', 'site.url', 'app.appref-ms',
-    'build.sh', 'start.command', 'Tool.app', 'installer.MSI', 'macro.vbs', 'index.js', 'settings.reg'
+    'build.sh', 'start.command', 'Tool.app', 'installer.MSI', 'macro.vbs', 'index.js', 'settings.reg',
+    'tool.py', 'gui.PYW', 'task.rb', 'report.pl', 'help.chm', 'addin.xll', 'launch.jnlp', 'setup.zsh',
+    'config.fish', 'types.ps1xml', 'plugin.dll', 'driver.sys', 'folder.library-ms', 'console.msc'
   ])('treats %s as something that runs', (path) => {
-    expect(isLaunchableFile(path)).toBe(true);
+    expect(isLaunchableFile(path, windows)).toBe(true);
+    expect(isLaunchableFile(path, linux)).toBe(true);
   });
 
   it.each(['src/index.ts', 'README.md', 'image.png', 'Makefile', 'notes.txt', 'data.json'])(
     'treats %s as a document',
     (path) => {
-      expect(isLaunchableFile(path)).toBe(false);
+      expect(isLaunchableFile(path, windows)).toBe(false);
+      expect(isLaunchableFile(path, linux)).toBe(false);
     }
   );
+
+  it('treats every PATHEXT extension as something that runs on Windows only', () => {
+    expect(isLaunchableFile('tool.foo', { platform: 'win32', pathExt: '.COM;.EXE;.FOO' })).toBe(true);
+    expect(isLaunchableFile('TOOL.Foo', { platform: 'win32', pathExt: ' .com ; .Foo ;' })).toBe(true);
+    expect(isLaunchableFile('tool.foo', { platform: 'win32', pathExt: undefined })).toBe(false);
+    expect(isLaunchableFile('tool.foo', { platform: 'linux', pathExt: '.COM;.EXE;.FOO' })).toBe(false);
+  });
 });
 
 describe('opensAsLaunchable', () => {
   it('judges a file by both the name asked for and the file it really is', () => {
-    expect(opensAsLaunchable('notes.txt', 'C:\work\tool.exe')).toBe(true);
-    expect(opensAsLaunchable('run.bat', '/work/run.txt')).toBe(true);
-    expect(opensAsLaunchable('notes.txt', '/work/notes.txt')).toBe(false);
+    expect(opensAsLaunchable('notes.txt', 'C:/work/tool.exe', windows)).toBe(true);
+    expect(opensAsLaunchable('run.bat', '/work/run.txt', linux)).toBe(true);
+    expect(opensAsLaunchable('notes.txt', '/work/notes.txt', linux)).toBe(false);
+  });
+});
+
+describe('shouldRevealInstead', () => {
+  const statWith = (mode: number, isFile = true) => vi.fn(async () => ({ mode, isFile: () => isFile }));
+
+  it('reveals a regular file with any execute bit on macOS and Linux', async () => {
+    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { ...linux, stat: statWith(0o100744) }))
+      .resolves.toBe(true);
+    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { platform: 'darwin', pathExt: undefined, stat: statWith(0o100601) }))
+      .resolves.toBe(true);
+    await expect(shouldRevealInstead('src/index.ts', '/work/src/index.ts', { ...linux, stat: statWith(0o100644) }))
+      .resolves.toBe(false);
+    await expect(shouldRevealInstead('src', '/work/src', { ...linux, stat: statWith(0o40755, false) }))
+      .resolves.toBe(false);
+  });
+
+  it('reveals a file whose mode cannot be read', async () => {
+    const stat = vi.fn(async () => {
+      throw new Error('EACCES');
+    });
+    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { ...linux, stat })).resolves.toBe(true);
+  });
+
+  it('ignores execute bits on Windows but still judges by name', async () => {
+    const stat = statWith(0o100777);
+    await expect(shouldRevealInstead('notes.txt', 'C:/work/notes.txt', { ...windows, stat })).resolves.toBe(false);
+    await expect(shouldRevealInstead('tool.py', 'C:/work/tool.py', { ...windows, stat })).resolves.toBe(true);
+    expect(stat).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.platform === 'win32')('reveals an extensionless executable on disk', async () => {
+    const folder = mkdtempSync(join(tmpdir(), 'lumora-safe-exec-'));
+    try {
+      writeFileSync(join(folder, 'tool'), '#!/bin/sh\n');
+      chmodSync(join(folder, 'tool'), 0o755);
+      writeFileSync(join(folder, 'notes'), 'hello');
+      chmodSync(join(folder, 'notes'), 0o644);
+
+      await expect(shouldRevealInstead('tool', join(folder, 'tool'))).resolves.toBe(true);
+      await expect(shouldRevealInstead('notes', join(folder, 'notes'))).resolves.toBe(false);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
   });
 });
 
