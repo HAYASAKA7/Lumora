@@ -12,6 +12,17 @@ let engine: WorkspaceSnapshotEngine;
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' });
 const countFiles = (directory: string): number => readdirSync(directory, { recursive: true })
   .filter((entry) => statSync(join(directory, String(entry))).isFile()).length;
+const listEntries = (directory: string): string[] => existsSync(directory)
+  ? readdirSync(directory, { recursive: true }).map(String).sort()
+  : [];
+const hasGitLfs = (() => {
+  try {
+    execFileSync('git', ['lfs', 'version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'lumora-snapshots-'));
@@ -143,6 +154,26 @@ describe('WorkspaceSnapshotEngine — repository', () => {
     expect(WorkspaceSnapshotEngine.resolveInside(repo, 'dir/c.txt')).toBe(join(repo, 'dir', 'c.txt'));
     expect(WorkspaceSnapshotEngine.resolveInside(repo, '../outside.txt')).toBeNull();
   });
+
+  it.skipIf(!hasGitLfs)('keeps Git LFS objects out of the repository and matches the committed pointers', async () => {
+    const repo = join(root, 'lfs');
+    git(root, 'init', '-q', repo);
+    git(repo, 'config', 'user.email', 'test@example.invalid');
+    git(repo, 'config', 'user.name', 'Test');
+    git(repo, 'lfs', 'install', '--local');
+    git(repo, 'lfs', 'track', '*.bin');
+    writeFileSync(join(repo, 'kept.bin'), Buffer.from(Array.from({ length: 2048 }, (_, i) => i % 256)));
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-qm', 'init');
+    writeFileSync(join(repo, 'new.bin'), Buffer.from(Array.from({ length: 3000 }, (_, i) => (i * 7) % 256)));
+    const lfsBefore = listEntries(join(repo, '.git', 'lfs'));
+
+    const current = await engine.snapshot('w5', repo);
+    const head = await engine.headTree('w5', repo);
+
+    expect(listEntries(join(repo, '.git', 'lfs'))).toEqual(lfsBefore);
+    expect((await engine.changedFiles('w5', repo, head!, current.tree)).map(({ path }) => path)).toEqual(['new.bin']);
+  }, 60_000);
 
   it('retries with a fresh index when git cannot use the copied one', async () => {
     const repo = makeRepository();

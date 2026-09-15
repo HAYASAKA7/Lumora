@@ -202,16 +202,17 @@ export class WorkspaceSnapshotEngine {
     const indexPath = join(this.storePath(workspaceId), `index-${randomUUID()}`);
     // Seeding with the real index reuses its stat cache; without one (no commits yet) git starts empty.
     await copyFile(layout.indexPath, indexPath).catch(() => undefined);
+    // A copied split index still works, though git may refresh the mtime of the repository's shared index file.
     let tree: string;
     try {
-      tree = await this.writeRepositoryTree(workspacePath, { ...baseEnv, GIT_INDEX_FILE: indexPath });
+      tree = await this.writeRepositoryTree(workspaceId, workspacePath, { ...baseEnv, GIT_INDEX_FILE: indexPath });
     } catch (error) {
       if (!(error instanceof GitCommandError) || error.reason !== 'failed') throw error;
-      // The copied index may be unusable here (a split index, say); an empty index rebuilds it from the files.
+      // The copied index is unusable; an empty index rebuilds the listing from the files themselves.
       await removeIndex(indexPath);
       const freshIndexPath = join(this.storePath(workspaceId), `index-${randomUUID()}`);
       try {
-        tree = await this.writeRepositoryTree(workspacePath, { ...baseEnv, GIT_INDEX_FILE: freshIndexPath });
+        tree = await this.writeRepositoryTree(workspaceId, workspacePath, { ...baseEnv, GIT_INDEX_FILE: freshIndexPath });
       } finally {
         await removeIndex(freshIndexPath);
       }
@@ -222,9 +223,14 @@ export class WorkspaceSnapshotEngine {
     return { kind: 'repository', tree, head: head?.trim() || null };
   }
 
-  private async writeRepositoryTree(workspacePath: string, env: Env): Promise<string> {
-    await this.git(workspacePath, ['add', '-A', '--', ':/'], env, undefined, SNAPSHOT_TIMEOUT_MS);
-    return (await this.git(workspacePath, ['write-tree'], env, undefined, SNAPSHOT_TIMEOUT_MS)).trim();
+  /**
+   * `add` runs clean filters; pointing Git LFS at Lumora's store keeps its objects out of the repository
+   * while the index still receives the same pointer blobs a commit would.
+   */
+  private async writeRepositoryTree(workspaceId: string, workspacePath: string, env: Env): Promise<string> {
+    const lfs = ['-c', `lfs.storage=${join(this.storePath(workspaceId), 'lfs')}`];
+    await this.git(workspacePath, [...lfs, 'add', '-A', '--', ':/'], env, undefined, SNAPSHOT_TIMEOUT_MS);
+    return (await this.git(workspacePath, [...lfs, 'write-tree'], env, undefined, SNAPSHOT_TIMEOUT_MS)).trim();
   }
 
   private async snapshotFolder(workspaceId: string, workspacePath: string): Promise<Snapshot> {
