@@ -24,6 +24,24 @@ function renderView(api: ChangesApi, source: ChangesSource = sessionSource) {
   return renderWithLocalization(<ChangesView active api={api} source={source} />);
 }
 
+function committedGroup(): HTMLDetailsElement {
+  const details = screen.getByText(/^Committed \(/).closest('details');
+  if (details === null) throw new Error('no committed group');
+  return details;
+}
+
+function setCommittedOpen(open: boolean): void {
+  const details = committedGroup();
+  act(() => {
+    details.open = open;
+    details.dispatchEvent(new Event('toggle'));
+  });
+}
+
+function openCommitted(): void {
+  setCommittedOpen(true);
+}
+
 function manyFiles(count: number): ChangesSummary {
   return summaryFor(sessionSource, {
     files: Array.from({ length: count }, (_, index) => changed(`src/file-${index}.ts`))
@@ -49,6 +67,7 @@ describe('ChangesView', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getByText(/Tracking started after the agent began/).closest('[aria-live="polite"]')).not.toBeNull();
     expect(screen.getByText('Committed (1 file)')).toBeInTheDocument();
+    openCommitted();
     expect(screen.getByRole('list', { name: 'Committed files' })).toBeInTheDocument();
     expect(screen.getByText('Select a file to see its changes.')).toBeInTheDocument();
 
@@ -125,6 +144,10 @@ describe('ChangesView', () => {
     expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'src/new.ts', 'open');
     expect(await screen.findByRole('alert')).toHaveTextContent(ACTION_FAILED);
 
+    // A successful action clears the earlier failure so the copy failure below is its own.
+    fireEvent.click(within(openFileMenu('src/new.ts')).getByRole('menuitem', { name: 'Show in folder' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+
     api.writeClipboardText.mockRejectedValueOnce(new Error('denied'));
     fireEvent.click(within(openFileMenu('src/new.ts')).getByRole('menuitem', { name: 'Copy path' }));
     await waitFor(() => expect(api.writeClipboardText).toHaveBeenCalledTimes(2));
@@ -136,6 +159,7 @@ describe('ChangesView', () => {
     renderView(api);
     await findFileList();
 
+    openCommitted();
     const menu = openFileMenu('docs/readme.md');
     expect(within(menu).queryByRole('menuitem', { name: 'Mark reviewed' })).not.toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Open' }));
@@ -219,6 +243,30 @@ describe('ChangesView', () => {
 
     expect(list.querySelectorAll(':scope > li')).toHaveLength(600);
     expect(screen.getByText('Show more (4,400 files not shown)')).toBeInTheDocument();
+  });
+
+  it('moves focus to the first newly shown row when the last page appears', async () => {
+    const { api } = fakeChangesApi(() => manyFiles(301));
+    renderView(api);
+    const list = await findFileList();
+
+    fireEvent.click(screen.getByText('Show more (1 file not shown)'));
+
+    expect(list.querySelectorAll(':scope > li')).toHaveLength(301);
+    expect(screen.queryByText(/^Show more/)).not.toBeInTheDocument();
+    expect(selectButton('src/file-300.ts')).toHaveFocus();
+  });
+
+  it('renders committed rows only while the committed group is open', async () => {
+    const { api } = fakeChangesApi();
+    renderView(api);
+    await findFileList();
+
+    expect(screen.queryByRole('list', { name: 'Committed files' })).not.toBeInTheDocument();
+    setCommittedOpen(true);
+    expect(screen.getByRole('list', { name: 'Committed files' })).toBeInTheDocument();
+    setCommittedOpen(false);
+    expect(screen.queryByRole('list', { name: 'Committed files' })).not.toBeInTheDocument();
   });
 
   it.each([

@@ -65,6 +65,7 @@ export function ChangesView({ active, api, onSourceChange, source }: ChangesView
   const [actionFailed, setActionFailed] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [pages, setPages] = useState(FIRST_PAGE);
+  const [committedOpen, setCommittedOpen] = useState(false);
   const [seen, setSeen] = useState<{ summary: Load<ChangesSummary>; sourceKey: string }>({ summary, sourceKey });
   if (seen.summary !== summary || seen.sourceKey !== sourceKey) {
     // A new summary replaces whatever a failed action said about the old one.
@@ -195,19 +196,25 @@ export function ChangesView({ active, api, onSourceChange, source }: ChangesView
               />
             ) : null}
             {value.committed.length > 0 ? (
-              <details className="changes-committed">
+              <details
+                className="changes-committed"
+                onToggle={(event) => setCommittedOpen(event.currentTarget.open)}
+                open={committedOpen}
+              >
                 <summary>{t('terminal.changes.committed', { count: value.committed.length })}</summary>
-                <ChangesFileGroup
-                  files={value.committed}
-                  handlers={handlers}
-                  label={t('terminal.changes.committed-files')}
-                  menuItems={committedMenu}
-                  onShowMore={() =>
-                    setPages((current) => ({ ...current, committed: current.committed + CHANGES_PAGE_SIZE }))
-                  }
-                  selectedPath={selectedPath}
-                  visibleCount={pages.committed}
-                />
+                {committedOpen ? (
+                  <ChangesFileGroup
+                    files={value.committed}
+                    handlers={handlers}
+                    label={t('terminal.changes.committed-files')}
+                    menuItems={committedMenu}
+                    onShowMore={() =>
+                      setPages((current) => ({ ...current, committed: current.committed + CHANGES_PAGE_SIZE }))
+                    }
+                    selectedPath={selectedPath}
+                    visibleCount={pages.committed}
+                  />
+                ) : null}
               </details>
             ) : null}
           </>

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 import type { ChangedFile } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
@@ -31,10 +31,27 @@ export function ChangesFileGroup({
   const visible = files.length > visibleCount ? files.slice(0, visibleCount) : files;
   const tabStopPath = visible.some((file) => file.path === selectedPath) ? selectedPath : visible[0]?.path;
   const hidden = files.length - visible.length;
+  const listRef = useRef<HTMLUListElement | null>(null);
+  // The index of the first row a "Show more" revealed, until the new rows render.
+  const revealedFrom = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const from = revealedFrom.current;
+    if (from === null || from >= visible.length) return;
+    revealedFrom.current = null;
+    // Focus follows the new rows only when the button it was on has gone.
+    if (hidden > 0) return;
+    listRef.current?.children[from]?.querySelector<HTMLButtonElement>('button.changes-file-select')?.focus();
+  }, [hidden, visible.length]);
+
+  const showMore = () => {
+    revealedFrom.current = visible.length;
+    onShowMore();
+  };
 
   return (
     <>
-      <ul aria-label={label} className="changes-file-list">
+      <ul aria-label={label} className="changes-file-list" ref={listRef}>
         {visible.map((file) => (
           <ChangesFileRow
             file={file}
@@ -47,7 +64,7 @@ export function ChangesFileGroup({
         ))}
       </ul>
       {hidden > 0 ? (
-        <button className="changes-show-more" onClick={onShowMore} type="button">
+        <button className="changes-show-more" onClick={showMore} type="button">
           {t('terminal.changes.show-more', { count: hidden })}
         </button>
       ) : null}
