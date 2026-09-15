@@ -10,6 +10,14 @@ import {
   type SystemInfo
 } from '../../shared/contracts';
 
+/** Tables that restrict deleting their target, in an order that satisfies their references to each other. */
+const REMOTE_TARGET_OWNED_TABLES = [
+  'runtime_instance',
+  'session',
+  'terminal_profile',
+  'workspace'
+] as const;
+
 interface ExecutionTargetRow {
   id: string;
   kind: string;
@@ -165,9 +173,28 @@ export class ExecutionTargetRepository {
     if (executionTargetId === 'local') {
       throw new Error('The permanent local execution target cannot be deleted.');
     }
-    this.database.prepare(
-      `DELETE FROM execution_target WHERE id = ? AND kind = 'remote'`
-    ).run(executionTargetId);
+    /*
+     * What a target discovered refers to it without cascading, so a target
+     * that was ever scanned could not be deleted. Its runtimes go first, then
+     * its sessions, terminal profiles and workspaces; the rest follows the
+     * target through their own cascades. One transaction keeps the target and
+     * its catalog together if any step fails.
+     */
+    this.database.exec('BEGIN IMMEDIATE');
+    try {
+      for (const table of REMOTE_TARGET_OWNED_TABLES) {
+        this.database.prepare(
+          `DELETE FROM ${table} WHERE execution_target_id = ?`
+        ).run(executionTargetId);
+      }
+      this.database.prepare(
+        `DELETE FROM execution_target WHERE id = ? AND kind = 'remote'`
+      ).run(executionTargetId);
+      this.database.exec('COMMIT');
+    } catch (error) {
+      this.database.exec('ROLLBACK');
+      throw error;
+    }
   }
 }
 

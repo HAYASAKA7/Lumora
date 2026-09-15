@@ -32,7 +32,8 @@ General navigation and terminal behavior follow the local application. See
 Profiles can be edited or deleted from the local Remote page. Lumora closes the
 profile's isolated window and active SSH/helper resources before either
 mutation. Deletion requires an in-app confirmation and never removes files from
-the remote computer.
+the remote computer. It removes what Lumora stored locally about that computer:
+its workspaces, session list, terminal profiles, runtime history, and settings.
 
 Passwords and private-key passphrases remain connection-only by default. Each
 profile can instead enable **Remember password** or **Remember passphrase**.

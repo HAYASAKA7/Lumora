@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Delete a remote computer that has been connected before. Lumora keeps the
+  workspaces, sessions, and terminal profiles it found on a remote computer,
+  and deleting the computer did not remove them first, so any computer that had
+  ever been scanned failed with **Lumora could not delete this remote
+  computer**, connected or not. Deleting now removes that stored data along with
+  the computer; nothing on the remote computer itself is touched.
+
 ## [0.5.13] - 2026-09-14
 
 ### Fixed

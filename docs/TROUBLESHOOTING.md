@@ -421,6 +421,20 @@ the remote provider's own session directory and permissions if it remains
 empty. Remote provider discovery, catalogs, and SSH PTY execution are available
 in the current experimental remote feature.
 
+### A remote computer cannot be deleted
+
+**Symptom:** Deleting a remote computer from the **Remote** page fails with
+**Lumora could not delete this remote computer. Disconnect it and try again.**,
+even though it is not connected.
+
+**Likely cause:** Fixed after 0.5.13. Earlier versions could not delete a
+remote computer that had ever been scanned, because the workspaces, sessions,
+and terminal profiles Lumora stored for it were left in place.
+
+**Resolution:** Update Lumora and delete the computer again. Deleting removes
+only what Lumora stored locally about that computer; files on the remote
+computer are not touched.
+
 ## Diagnostics and abnormal shutdown
 
 ### Lumora reports that the previous run ended unexpectedly
