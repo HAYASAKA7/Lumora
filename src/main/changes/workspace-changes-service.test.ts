@@ -389,6 +389,58 @@ describe('WorkspaceChangesService', () => {
     expect(reported).toEqual(['timer']);
   });
 
+  describe('after dispose', () => {
+    it('ignores late session calls without touching the repository or reporting', async () => {
+      const repository = new ChangesRepository(database);
+      const reportError = vi.fn();
+      const disposed = createService({ repository, reportError });
+      await begin(disposed, 'r1');
+      disposed.dispose();
+      const closed = () => {
+        throw new Error('database is not open');
+      };
+      const touched = [
+        vi.spyOn(repository, 'createSegment').mockImplementation(closed),
+        vi.spyOn(repository, 'endSegment').mockImplementation(closed),
+        vi.spyOn(repository, 'linkCatalogSession').mockImplementation(closed),
+        vi.spyOn(repository, 'getSegmentByOwner').mockImplementation(closed)
+      ];
+      counts = [];
+
+      await begin(disposed, 'r2');
+      disposed.end('r1');
+      disposed.linkCatalogSession('r1', 'session-1');
+      await disposed.refresh('r1');
+
+      for (const spy of touched) expect(spy).not.toHaveBeenCalled();
+      expect(engine.snapshot).toHaveBeenCalledOnce();
+      expect(reportError).not.toHaveBeenCalled();
+      expect(counts).toEqual([]);
+    });
+
+    it('does not report the closed database a running refresh runs into', async () => {
+      const repository = new ChangesRepository(database);
+      const reportError = vi.fn();
+      const disposing = createService({ repository, reportError });
+      await begin(disposing, 'r1');
+      const listing = deferred<ChangedFile[]>();
+      engine.changedFiles.mockReturnValueOnce(listing.promise);
+      counts = [];
+
+      const running = disposing.refresh('r1');
+      await vi.waitFor(() => expect(engine.changedFiles).toHaveBeenCalled());
+      disposing.dispose();
+      vi.spyOn(repository, 'getSegmentByOwner').mockImplementation(() => {
+        throw new Error('database is not open');
+      });
+      listing.reject(new Error('database is not open'));
+      await running;
+
+      expect(reportError).not.toHaveBeenCalled();
+      expect(counts).toEqual([]);
+    });
+  });
+
   it('refreshes a session once more when it ends', async () => {
     await begin(service, 'r1');
     counts = [];

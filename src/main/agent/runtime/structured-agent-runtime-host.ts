@@ -475,6 +475,7 @@ export class StructuredAgentRuntimeHost {
       // A failed session keeps its images for a reconnect; closing it is when
       // they can no longer be sent.
       if (runtime.summary.state === 'failed') {
+        this.endWorkspaceChanges(runtime);
         void this.options.images?.cleanupConnection(connectionId);
       }
       return Promise.resolve(runtime.summary);
@@ -657,8 +658,9 @@ export class StructuredAgentRuntimeHost {
         'The structured provider connection stopped unexpectedly.'
       );
     }
+    // An established session can be reconnected, so its changes keep being
+    // tracked until it is closed.
     this.guard.release(runtime.summary.connectionId);
-    this.endWorkspaceChanges(runtime);
   }
 
   private async beginWorkspaceChanges(
@@ -677,7 +679,7 @@ export class StructuredAgentRuntimeHost {
     }
   }
 
-  /** Ends the session's changes segment the first time it closes or fails; a reconnect keeps it ended. */
+  /** Ends the session's changes segment once: when it is closed, or when its launch fails or is cancelled. */
   private endWorkspaceChanges(runtime: LiveStructuredRuntime): void {
     if (runtime.changesEnded) return;
     runtime.changesEnded = true;

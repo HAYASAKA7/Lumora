@@ -4,7 +4,7 @@ import type { ChangesCount } from '../../shared/changes';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
 import { ChangesRepository } from './changes-repository';
-import { runGit as defaultRunGit, type RunGit } from './git-runner';
+import { GitCommandError, runGit as defaultRunGit, type RunGit } from './git-runner';
 import {
   WorkspaceChangesService,
   type ChangesOperation
@@ -22,6 +22,26 @@ export interface LocalWorkspaceChangesOptions {
   showItemInFolder(path: string): void;
   reportError?(operation: ChangesOperation, error: unknown): void;
   runGit?: RunGit;
+}
+
+/** The name the engine is built with; never run, since every call is given the path git was found at. */
+const UNRESOLVED_GIT = 'git';
+
+/**
+ * Runs git only from the absolute path it was found at. A bare name would let
+ * Windows pick up a git.exe from inside the workspace it runs in.
+ */
+export function runGitFromResolvedPath(
+  runGit: RunGit,
+  resolveGitPath: () => Promise<string | null>
+): RunGit {
+  return async (options) => {
+    const gitPath = await resolveGitPath();
+    if (gitPath === null) {
+      throw new GitCommandError('unavailable');
+    }
+    return runGit({ ...options, gitPath });
+  };
 }
 
 export interface LocalWorkspaceChanges {
@@ -54,10 +74,9 @@ export async function createLocalWorkspaceChanges(
   const service = new WorkspaceChangesService({
     repository: new ChangesRepository(database),
     engine: new WorkspaceSnapshotEngine({
-      gitPath: 'git',
+      gitPath: UNRESOLVED_GIT,
       storeRoot: options.storeRoot,
-      runGit: async (gitOptions) =>
-        runGit({ ...gitOptions, gitPath: (await resolveGitPath()) ?? gitOptions.gitPath })
+      runGit: runGitFromResolvedPath(runGit, resolveGitPath)
     }),
     lookupWorkspace: (workspaceId) => workspaces.getWorkspace(workspaceId),
     gitAvailable: async () => (await resolveGitPath()) !== null,

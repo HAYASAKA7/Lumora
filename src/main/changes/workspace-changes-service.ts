@@ -69,6 +69,8 @@ export class WorkspaceChangesService {
   private readonly reviewQueues = new Map<string, Promise<void>>();
   private readonly lastCounts = new Map<string, number>();
   private terminalTimer: ReturnType<typeof setInterval> | null = null;
+  /** Set at shutdown, once the database is about to close: late session calls then do nothing. */
+  private disposed = false;
 
   constructor(private readonly options: WorkspaceChangesServiceOptions) {
     this.repository = options.repository;
@@ -90,6 +92,7 @@ export class WorkspaceChangesService {
   }
 
   async begin(input: BeginInput): Promise<void> {
+    if (this.disposed) return;
     try {
       const segmentId = this.createId();
       this.repository.createSegment({ ...input, id: segmentId, createdAt: this.now() });
@@ -110,16 +113,19 @@ export class WorkspaceChangesService {
   }
 
   end(ownerId: string): void {
+    if (this.disposed) return;
     this.repository.endSegment(ownerId, this.now());
     void this.refresh(ownerId);
   }
 
   linkCatalogSession(ownerId: string, catalogSessionId: string): void {
+    if (this.disposed) return;
     this.repository.linkCatalogSession(ownerId, catalogSessionId);
   }
 
   /** Recounts a session's changes; calls made while one runs are folded into one more run. */
   refresh(ownerId: string): Promise<void> {
+    if (this.disposed) return Promise.resolve();
     const running = this.refreshes.get(ownerId);
     if (running !== undefined) {
       running.again = true;
@@ -130,7 +136,7 @@ export class WorkspaceChangesService {
       do {
         run.again = false;
         await this.refreshOnce(ownerId);
-      } while (run.again);
+      } while (run.again && !this.disposed);
       this.refreshes.delete(ownerId);
     })();
     this.refreshes.set(ownerId, run);
@@ -238,6 +244,7 @@ export class WorkspaceChangesService {
   }
 
   dispose(): void {
+    this.disposed = true;
     if (this.terminalTimer !== null) {
       clearInterval(this.terminalTimer);
       this.terminalTimer = null;
@@ -270,6 +277,8 @@ export class WorkspaceChangesService {
   }
 
   private report(operation: ChangesOperation, error: unknown): void {
+    // Work still running at shutdown fails on the closed database; that is expected.
+    if (this.disposed) return;
     try {
       this.options.reportError?.(operation, error);
     } catch {
@@ -354,6 +363,7 @@ export class WorkspaceChangesService {
   }
 
   private emitCount(count: ChangesCount): void {
+    if (this.disposed) return;
     try {
       this.options.onCount(count);
     } catch (error) {

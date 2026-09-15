@@ -110,6 +110,28 @@ describe('createLocalWorkspaceChanges', () => {
     expect(reportError).toHaveBeenCalledWith('baseline', expect.any(GitCommandError));
   });
 
+  it('never runs git by a bare name when git was not found', async () => {
+    const runGit = vi.fn(async (_options: GitRunOptions): Promise<never> => {
+      throw new Error('git must not run');
+    });
+    const reportError = vi.fn();
+    const changes = await open({ runGit, reportError });
+    seed((database) => {
+      const repository = new ChangesRepository(database);
+      repository.createSegment({
+        id: 'segment-ready', workspaceId, ownerKind: 'terminal', ownerId: 'runtime-ready',
+        catalogSessionId: null, createdAt: new Date().toISOString()
+      });
+      repository.recordBaseline('segment-ready', { snapshotKind: 'repository', tree: 'b'.repeat(40), head: null, late: false });
+    });
+
+    const summary = await changes.service.summary({ kind: 'session', ownerId: 'runtime-ready', view: 'session' });
+
+    expect(summary).toMatchObject({ state: 'unavailable', unavailableReason: 'git-missing' });
+    expect(runGit).not.toHaveBeenCalled();
+    expect(reportError).toHaveBeenCalledWith('summary', expect.objectContaining({ reason: 'unavailable' }));
+  });
+
   it('closes once', async () => {
     const changes = await open();
 

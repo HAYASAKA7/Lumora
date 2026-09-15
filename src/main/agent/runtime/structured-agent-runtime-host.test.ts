@@ -661,19 +661,35 @@ describe('StructuredAgentRuntimeHost', () => {
       expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
     });
 
-    it('ends tracking once when the session fails, and a reconnect keeps the same segment', async () => {
+    it('keeps tracking a session that fails and is reconnected', async () => {
       const workspaceChanges = workspaceChangesSpy();
       const { host, contexts } = harness({ workspaceChanges });
       await host.launch(newRequest);
       await host.reconnect('connection-1');
-      expect(workspaceChanges.end).not.toHaveBeenCalled();
 
       contexts[1]!.callbacks.exited(new Error('provider stopped'));
-      contexts[1]!.callbacks.exited(new Error('provider stopped again'));
+      expect(host.snapshot('connection-1').runtime.state).toBe('failed');
       await host.reconnect('connection-1');
-      await host.close('connection-1');
 
       expect(workspaceChanges.begin).toHaveBeenCalledOnce();
+      expect(workspaceChanges.end).not.toHaveBeenCalled();
+
+      await host.close('connection-1');
+      await host.close('connection-1');
+      expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
+    });
+
+    it('ends tracking once when a failed session is closed', async () => {
+      const workspaceChanges = workspaceChangesSpy();
+      const { host, contexts } = harness({ workspaceChanges });
+      await host.launch(newRequest);
+
+      contexts[0]!.callbacks.exited(new Error('provider stopped'));
+      expect(workspaceChanges.end).not.toHaveBeenCalled();
+      await host.close('connection-1');
+      await host.close('connection-1');
+      await host.shutdown();
+
       expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
     });
 
