@@ -210,13 +210,15 @@ describe('ChangesView', () => {
     renderView(api);
 
     const list = await findFileList();
-    expect(within(list).getAllByRole('listitem')).toHaveLength(300);
-    const more = screen.getByRole('button', { name: 'Show more (4,700 files not shown)' });
+    // Role queries over hundreds of rows are slow in jsdom; count the rows directly.
+    expect(list.querySelectorAll(':scope > li')).toHaveLength(300);
+    const more = screen.getByText('Show more (4,700 files not shown)');
+    expect(more.tagName).toBe('BUTTON');
 
     fireEvent.click(more);
 
-    expect(within(list).getAllByRole('listitem')).toHaveLength(600);
-    expect(screen.getByRole('button', { name: 'Show more (4,400 files not shown)' })).toBeInTheDocument();
+    expect(list.querySelectorAll(':scope > li')).toHaveLength(600);
+    expect(screen.getByText('Show more (4,400 files not shown)')).toBeInTheDocument();
   });
 
   it.each([
