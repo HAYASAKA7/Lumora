@@ -415,6 +415,7 @@
     "view-session": "This session",
     "view-uncommitted": "All uncommitted",
     "refresh": "Refresh changes",
+    "refreshing": "Refreshing changes…",
     "capturing": "Taking a snapshot of the workspace…",
     "late": "Tracking started after the agent began, so its first edits may be missing.",
     "shared": "Another session is working in this workspace; its changes appear here too.",

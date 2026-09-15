@@ -7949,3 +7949,295 @@ button {
   .remote-window-nav { overflow-x: auto; }
   .remote-window-tab { flex: 1 0 auto; }
 }
+
+/* The changes panel docks beside a session and resizes from its left edge. */
+.changes-panel {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: var(--changes-panel-width, 480px);
+  min-width: 320px;
+  min-height: 0;
+  color: var(--text);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+
+.changes-panel[data-maximized='true'] {
+  width: auto;
+}
+
+.changes-panel-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.changes-panel-resize:hover,
+.changes-panel-resize:focus-visible {
+  background: var(--blue);
+  outline: none;
+}
+
+.changes-panel-header,
+.changes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.changes-panel-header {
+  padding-block: 6px;
+}
+
+.changes-panel-header h2 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
+.changes-panel-actions,
+.changes-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.changes-toolbar .secondary-button {
+  min-height: 32px;
+  padding-block: 5px;
+}
+
+/* A two-choice switch between the session and every uncommitted change. */
+.changes-view-switch {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.changes-view-switch-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.changes-view-switch-button[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.changes-view-switch-button:focus-visible,
+.changes-file-select:focus-visible,
+.changes-file-menu:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 1px;
+}
+
+/* Narrow panels stack the file list over the diff and wide ones set them side by side. */
+.changes-view {
+  display: grid;
+  grid-template-areas: 'toolbar' 'notices' 'files' 'diff';
+  grid-template-rows: auto auto minmax(0, 0.45fr) minmax(0, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.changes-view.is-wide {
+  grid-template-areas: 'toolbar toolbar' 'notices notices' 'files diff';
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr);
+}
+
+.changes-toolbar {
+  grid-area: toolbar;
+}
+
+.changes-notices {
+  grid-area: notices;
+}
+
+.changes-notices:not(:empty) {
+  padding-bottom: 8px;
+}
+
+.changes-notice {
+  margin: 8px 12px 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.changes-notice-error {
+  color: var(--danger);
+}
+
+.changes-files {
+  grid-area: files;
+  min-height: 0;
+  overflow: auto;
+}
+
+.changes-empty,
+.changes-diff-message,
+.changes-diff-renamed {
+  margin: 0;
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.changes-diff-renamed {
+  padding-block: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.changes-file-list {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.changes-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  border-radius: 7px;
+}
+
+.changes-file-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.changes-file-select:hover {
+  background: var(--surface-subtle);
+}
+
+.changes-file-row button[aria-pressed='true'] {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.changes-file-status {
+  width: 1.3em;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.changes-file-status-added {
+  color: var(--success);
+}
+
+.changes-file-status-deleted {
+  color: var(--danger);
+}
+
+.changes-file-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changes-file-counts {
+  display: inline-flex;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.changes-file-additions {
+  color: var(--success);
+}
+
+.changes-file-deletions {
+  color: var(--danger);
+}
+
+.changes-file-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.changes-file-menu:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+
+.changes-committed {
+  margin: 4px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.changes-committed > summary {
+  padding: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 620;
+}
+
+.changes-diff {
+  grid-area: diff;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--line-soft);
+}
+
+.changes-view.is-wide .changes-diff {
+  border-top: 0;
+  border-left: 1px solid var(--line-soft);
+}
+
+.changes-diff .structured-diff-patch {
+  max-height: none;
+  margin: 0;
+  overflow: visible;
+  border-top: 0;
+  border-radius: 0;
+}
