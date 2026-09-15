@@ -29,9 +29,12 @@ function fields(output: Buffer): string[] {
   return parts;
 }
 
+/** Built from escapes so the source file holds no literal control characters. */
+const CONTROL_CHARACTER = new RegExp('[\\u0000-\\u001f]');
+
 /** Git reports paths relative to the workspace; anything else is dropped rather than trusted. */
 export function isContainedPath(path: string): boolean {
-  if (path.length === 0 || /^[\\/]/.test(path) || /^[A-Za-z]:/.test(path)) {
+  if (path.length === 0 || /^[\\/]/.test(path) || /^[A-Za-z]:/.test(path) || CONTROL_CHARACTER.test(path)) {
     return false;
   }
   return !path.split(/[\\/]/).some((segment) => segment === '..');
@@ -39,6 +42,14 @@ export function isContainedPath(path: string): boolean {
 
 function parseCount(value: string): number | null {
   return /^\d+$/.test(value) ? Number(value) : null;
+}
+
+/** Splits `adds\tdels\tpath` at its first two tabs only; the path keeps any tab of its own. */
+function splitNumstatLine(line: string): [string, string, string] {
+  const first = line.indexOf('\t');
+  const second = first === -1 ? -1 : line.indexOf('\t', first + 1);
+  if (second === -1) return [line, '', ''];
+  return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)];
 }
 
 /** Reads `git diff-tree -z --name-status` output. */
@@ -67,7 +78,7 @@ export function parseNumstat(output: Buffer): Map<string, LineCounts> {
   const parts = fields(output);
   const counts = new Map<string, LineCounts>();
   for (let index = 0; index < parts.length;) {
-    const [added = '', deleted = '', inlinePath = ''] = (parts[index++] ?? '').split('\t');
+    const [added, deleted, inlinePath] = splitNumstatLine(parts[index++] ?? '');
     let path = inlinePath;
     if (inlinePath === '') {
       index++; // the old path of a rename or copy

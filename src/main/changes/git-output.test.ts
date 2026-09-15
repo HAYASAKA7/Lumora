@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mergeChangedFiles, parseNameStatus, parseNumstat } from './git-output';
+import { isContainedPath, mergeChangedFiles, parseNameStatus, parseNumstat } from './git-output';
 
 describe('git -z output', () => {
   it('reads name-status entries including renames and non-ASCII names', () => {
@@ -37,6 +37,20 @@ describe('git -z output', () => {
       new Map()
     );
     expect(files.map(({ path }) => path)).toEqual(['B.txt', 'a.txt', 'b.txt']);
+  });
+
+  it('keeps a numstat path whole instead of cutting it at a later tab', () => {
+    const output = Buffer.from('1\t0\tname\twith-tab.txt\0' + '2\t0\tplain.txt\0', 'utf8');
+    expect([...parseNumstat(output).keys()]).toEqual(['plain.txt']);
+  });
+
+  it('rejects paths containing control characters', () => {
+    expect(isContainedPath('ok/file.txt')).toBe(true);
+    expect(isContainedPath('..env')).toBe(true);
+    for (const code of [0, 9, 10, 13, 31]) {
+      expect(isContainedPath(`bad${String.fromCharCode(code)}name.txt`)).toBe(false);
+    }
+    expect(isContainedPath(`still${String.fromCharCode(32)}fine.txt`)).toBe(true);
   });
 
   it('ignores paths that would escape the workspace', () => {
