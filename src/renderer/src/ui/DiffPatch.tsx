@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, useMemo } from 'react';
 
 export function diffLineClass(line: string): string {
   if (line.startsWith('@@')) return 'structured-diff-hunk';
@@ -19,12 +19,14 @@ interface DiffPatchProps {
   className?: string;
 }
 
-export function DiffPatch({ patch, className = 'structured-diff-patch' }: DiffPatchProps): ReactNode {
+function DiffPatchView({ patch, className = 'structured-diff-patch' }: DiffPatchProps) {
+  const lines = useMemo(() => patch.split('\n'), [patch]);
   return (
     <pre className={className}>
       <code>
-        {patch.split('\n').map((line, lineNumber) => (
-          <span className={diffLineClass(line)} key={`${lineNumber}:${line}`}>
+        {lines.map((line, lineNumber) => (
+          // A patch is rendered whole and never reordered; the line number is a stable key.
+          <span className={diffLineClass(line)} key={lineNumber}>
             {line || ' '}{'\n'}
           </span>
         ))}
@@ -32,3 +34,5 @@ export function DiffPatch({ patch, className = 'structured-diff-patch' }: DiffPa
     </pre>
   );
 }
+
+export const DiffPatch = memo(DiffPatchView);

@@ -1,5 +1,5 @@
 import type { StructuredAgentDiffView } from './structured-agent-state';
-import { DiffPatch } from '../changes/DiffPatch';
+import { DiffPatch } from '../ui/DiffPatch';
 import { OverflowTooltip } from '../ui/Tooltip';
 
 interface StructuredDiffProps {

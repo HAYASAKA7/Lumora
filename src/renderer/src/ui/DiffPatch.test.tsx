@@ -42,6 +42,11 @@ describe('DiffPatch', () => {
     expect(spans[1]?.textContent).toBe('-old\n');
   });
 
+  it('renders repeated identical lines', () => {
+    const { container } = render(<DiffPatch patch={'+same\n+same\n+same'} />);
+    expect(container.querySelectorAll('code > span')).toHaveLength(3);
+  });
+
   it('accepts a custom class name', () => {
     const { container } = render(<DiffPatch patch="+x" className="changes-patch" />);
     expect(container.querySelector('pre.changes-patch')).not.toBeNull();
