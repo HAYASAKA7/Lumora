@@ -82,7 +82,8 @@
     "sessions-visible": "세션 표시",
     "sessions-hidden": "세션 숨김",
     "restore-all": "모두 다시 표시",
-    "restore-selected": "선택 항목 다시 표시"
+    "restore-selected": "선택 항목 다시 표시",
+    "changes": "변경 사항"
   },
   "sessions": {
     "title": "모든 세션",
@@ -116,7 +117,8 @@
     "column-updated": "업데이트",
     "column-tokens": "토큰",
     "column-source": "소스",
-    "load-more": "세션 더 불러오기"
+    "load-more": "세션 더 불러오기",
+    "view-changes": "변경 사항 보기"
   },
   "loading": {
     "catalog": "카탈로그 불러오는 중",

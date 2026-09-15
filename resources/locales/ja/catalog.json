@@ -82,7 +82,8 @@
     "sessions-visible": "セッションを表示",
     "sessions-hidden": "セッションを非表示",
     "restore-all": "すべて再表示",
-    "restore-selected": "選択項目を再表示"
+    "restore-selected": "選択項目を再表示",
+    "changes": "変更"
   },
   "sessions": {
     "title": "すべてのセッション",
@@ -116,7 +117,8 @@
     "column-updated": "更新日時",
     "column-tokens": "トークン",
     "column-source": "ソース",
-    "load-more": "セッションをさらに読み込む"
+    "load-more": "セッションをさらに読み込む",
+    "view-changes": "変更を表示"
   },
   "loading": {
     "catalog": "カタログを読み込み中",

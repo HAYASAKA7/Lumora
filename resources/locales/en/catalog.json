@@ -82,7 +82,8 @@
     "sessions-visible": "Sessions visible",
     "sessions-hidden": "Sessions hidden",
     "restore-all": "Restore all",
-    "restore-selected": "Restore selected"
+    "restore-selected": "Restore selected",
+    "changes": "Changes"
   },
   "sessions": {
     "title": "All sessions",
@@ -116,7 +117,8 @@
     "column-updated": "Updated",
     "column-tokens": "Tokens",
     "column-source": "Source",
-    "load-more": "Load more sessions"
+    "load-more": "Load more sessions",
+    "view-changes": "View changes"
   },
   "loading": {
     "catalog": "Loading catalog",
