@@ -2546,6 +2546,7 @@ function AppContent(): ReactNode {
                   }}
                   showTabBar={!sidebarExpanded}
                   snapshots={structuredSnapshots}
+                  visible={structuredTerminalActive}
                 />
               </RegionErrorBoundary>
             </div>

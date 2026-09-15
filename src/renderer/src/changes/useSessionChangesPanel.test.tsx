@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { fakeChangesApi } from '../test/changes-test-support';
+import type { ChangesSummary } from '../../../shared/contracts';
+import { fakeChangesApi, selectButton, sessionSummary } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
 import { ChangesPanel } from './ChangesPanel';
 import { useSessionChangesPanel } from './useSessionChangesPanel';
@@ -45,6 +46,33 @@ describe('useSessionChangesPanel', () => {
     fireEvent.click(changesButton());
     expect(panel()).toBeNull();
     expect(screen.getByTestId('workspace')).not.toHaveClass('has-changes-panel');
+  });
+
+  it('moves focus from the close button to the file list once it first loads', async () => {
+    const { api } = fakeChangesApi();
+    let finish!: (summary: ChangesSummary) => void;
+    api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    renderWithLocalization(<Harness api={api} ownerId="r1" />);
+
+    fireEvent.click(changesButton());
+    expect(screen.getByRole('button', { name: 'Close changes' })).toHaveFocus();
+
+    await act(async () => finish(sessionSummary));
+    expect(selectButton('src/login.ts')).toHaveFocus();
+  });
+
+  it('leaves focus where the user moved it before the file list loads', async () => {
+    const { api } = fakeChangesApi();
+    let finish!: (summary: ChangesSummary) => void;
+    api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    renderWithLocalization(<Harness api={api} ownerId="r1" />);
+
+    fireEvent.click(changesButton());
+    const maximize = screen.getByRole('button', { name: 'Maximize changes' });
+    maximize.focus();
+
+    await act(async () => finish(sessionSummary));
+    expect(maximize).toHaveFocus();
   });
 
   it('returns focus to the button when the panel closes itself', async () => {

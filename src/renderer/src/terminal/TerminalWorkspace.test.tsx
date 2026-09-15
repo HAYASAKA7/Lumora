@@ -665,7 +665,8 @@ describe('TerminalWorkspace changes', () => {
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(button).toHaveClass('secondary-button', 'changes-button');
     expect(screen.getByRole('tab', { name: /Release notes/ })).toHaveTextContent('2 changed');
-    expect(screen.getByRole('tab', { name: /Repository cleanup/ })).toHaveTextContent('5 changed');
+    // The header button carries the active session's count.
+    expect(screen.getByRole('tab', { name: /Repository cleanup/ })).not.toHaveTextContent('changed');
   });
 
   it('opens the session changes beside the terminal and closes them again', async () => {

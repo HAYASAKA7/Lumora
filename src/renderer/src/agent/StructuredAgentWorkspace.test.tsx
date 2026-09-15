@@ -1665,7 +1665,7 @@ describe('StructuredAgentWorkspace changes', () => {
   };
 
   function renderChanges(options: { changesEnabled?: boolean } = {}) {
-    const { api: changesApi } = fakeChangesApi();
+    const { api: changesApi, emit } = fakeChangesApi();
     const api = {
       ...changesApi,
       dispatchStructuredAgentAction: vi.fn(async () => undefined)
@@ -1688,7 +1688,7 @@ describe('StructuredAgentWorkspace changes', () => {
     const activate = (connectionId: string) => view.rerender(
       <StructuredAgentWorkspace {...props} activeConnectionId={connectionId} changesEnabled />
     );
-    return { activate, changesApi, view };
+    return { activate, changesApi, emit, props, view };
   }
 
   const section = () => document.querySelector('.structured-agent-workspace') as HTMLElement;
@@ -1701,6 +1701,49 @@ describe('StructuredAgentWorkspace changes', () => {
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(button).toHaveClass('secondary-button', 'changes-button');
     expect(screen.getByRole('tab', { name: /Release notes/ })).toHaveTextContent('2 changed');
+    expect(screen.getByRole('tab', { name: /Repository cleanup/ })).not.toHaveTextContent('changed');
+  });
+
+  it('keeps focus in the changes panel when the session becomes ready again', async () => {
+    const { changesApi, props, view } = renderChanges();
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+    await act(async () => undefined);
+    const panel = changesPanel() as HTMLElement;
+    expect(panel.contains(document.activeElement)).toBe(true);
+
+    const withState = (state: 'ready' | 'reconnecting') => [
+      { ...snapshot, runtime: { ...snapshot.runtime, state } },
+      second
+    ];
+    view.rerender(
+      <StructuredAgentWorkspace {...props} activeConnectionId="connection-1" changesEnabled snapshots={withState('reconnecting')} />
+    );
+    view.rerender(
+      <StructuredAgentWorkspace
+        {...props}
+        activeConnectionId="connection-1"
+        changesEnabled
+        focusRequestKey={1}
+        snapshots={withState('ready')}
+      />
+    );
+
+    expect(changesPanel()?.contains(document.activeElement)).toBe(true);
+    expect(screen.getByRole('textbox')).not.toHaveFocus();
+    expect(changesApi.getChangesSummary).toHaveBeenCalled();
+  });
+
+  it('pauses the changes panel while the Unified UI surface is hidden', async () => {
+    const { changesApi, emit, props, view } = renderChanges();
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+    await waitFor(() => expect(changesApi.getChangesSummary).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <StructuredAgentWorkspace {...props} activeConnectionId="connection-1" changesEnabled visible={false} />
+    );
+    await act(async () => emit('connection-1'));
+
+    expect(changesApi.getChangesSummary).toHaveBeenCalledTimes(1);
   });
 
   it('opens the session changes beside the conversation and closes them again', async () => {

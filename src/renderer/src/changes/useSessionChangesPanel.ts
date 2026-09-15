@@ -38,14 +38,35 @@ export interface SessionChangesPanel {
 
 type FocusRequest = 'panel' | 'button' | null;
 
+const LIST_TAB_STOP = '.changes-file-select[tabindex="0"]';
+
 function firstPanelTarget(panel: HTMLElement): HTMLElement | null {
-  return panel.querySelector<HTMLElement>('.changes-file-select[tabindex="0"]') ??
+  return panel.querySelector<HTMLElement>(LIST_TAB_STOP) ??
     panel.querySelector<HTMLElement>('.changes-panel-actions .close-button');
 }
 
 /**
+ * Moves focus from the close button to the file list when the list first
+ * appears, unless focus has moved on by then. Returns a cleanup.
+ */
+function focusListWhenLoaded(panel: HTMLElement, closeButton: HTMLElement): () => void {
+  if (typeof MutationObserver === 'undefined') return () => undefined;
+  const observer = new MutationObserver(() => {
+    const tabStop = panel.querySelector<HTMLElement>(LIST_TAB_STOP);
+    if (tabStop === null) return;
+    observer.disconnect();
+    if (panel.ownerDocument.activeElement === closeButton) tabStop.focus();
+  });
+  observer.observe(panel, { childList: true, subtree: true });
+  return () => observer.disconnect();
+}
+
+/**
  * Keeps which sessions have their changes panel open, so each session tab
- * shows its own panel state, and moves focus into a panel it opens.
+ * shows its own panel state. Opening moves focus into the panel: to the file
+ * list when it is already shown, otherwise to the close button and then on to
+ * the file list once it first loads if focus is still on the close button.
+ * Closing from the panel's own controls returns focus to the Changes button.
  */
 export function useSessionChangesPanel({ enabled, ownerId }: SessionChangesPanelOptions): SessionChangesPanel {
   const panelId = useId();
@@ -83,7 +104,10 @@ export function useSessionChangesPanel({ enabled, ownerId }: SessionChangesPanel
       return;
     }
     const panel = buttonRef.current?.ownerDocument.getElementById(panelId);
-    if (panel !== null && panel !== undefined) firstPanelTarget(panel)?.focus();
+    if (panel === null || panel === undefined) return undefined;
+    const target = firstPanelTarget(panel);
+    target?.focus();
+    return target === null || target.matches(LIST_TAB_STOP) ? undefined : focusListWhenLoaded(panel, target);
   }, [isOpen, panelId]);
 
   const toggle = () => {

@@ -25,6 +25,7 @@ import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
 import { DEFAULT_TERMINAL_FONT_SIZE } from '../../../shared/contracts';
 import { IconButton } from '../ui/IconButton';
 import { InfoIcon } from '../ui/icons';
+import { ChangesButton, changeCountSuffix } from '../changes/ChangesButton';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import { useSessionChangesPanel } from '../changes/useSessionChangesPanel';
 
@@ -131,6 +132,7 @@ export function TerminalWorkspace({
   const changes = useSessionChangesPanel({ enabled: changesEnabled, ownerId: runtime?.id });
   if (runtime === undefined) return null;
   const changeCount = (runtimeId: string) => (changesEnabled ? changeCounts?.get(runtimeId) ?? 0 : 0);
+  const activeChangeCount = changeCount(runtime.id);
   const preview = previews.get(runtime.id);
   const workspace = workspaces.find((item) => item.id === runtime.workspaceId);
   const isLive = runtime.state === 'launching' || runtime.state === 'running';
@@ -327,9 +329,7 @@ export function TerminalWorkspace({
               <small>
                 {providerDefinition(item.provider).displayName} ·{' '}
                 {t(runtimeStateMessageKeys[item.state])}
-                {changeCount(item.id) > 0
-                  ? ` · ${t('terminal.changes.tab-count', { count: changeCount(item.id) })}`
-                  : null}
+                {item.id === runtime.id ? null : changeCountSuffix(t, changeCount(item.id))}
               </small>
             </button>
           );
@@ -362,9 +362,7 @@ export function TerminalWorkspace({
             <InfoIcon />
           </IconButton>
           {changesEnabled ? (
-            <button className="secondary-button changes-button" type="button" {...changes.buttonProps}>
-              {t('terminal.changes.button', { count: changeCount(runtime.id) })}
-            </button>
+            <ChangesButton control={changes.buttonProps} count={activeChangeCount} />
           ) : null}
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
             {stopping ? t('terminal.runtime.state-stopping') : t('common.actions.stop')}

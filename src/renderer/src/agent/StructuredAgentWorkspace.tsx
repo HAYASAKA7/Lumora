@@ -45,6 +45,7 @@ import {
 } from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
 import { CrossIcon, FileIcon, InfoIcon, PaperclipIcon, SendIcon } from '../ui/icons';
+import { ChangesButton, changeCountSuffix } from '../changes/ChangesButton';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import { useSessionChangesPanel } from '../changes/useSessionChangesPanel';
 
@@ -61,6 +62,8 @@ interface StructuredAgentWorkspaceProps {
   onActivate(connectionId: string): void;
   onClose(connectionId: string): void;
   onReconnect(connectionId: string): void;
+  /** False while the Unified UI surface is hidden; a hidden changes panel loads nothing. */
+  visible?: boolean;
 }
 
 const approvalKeys: Record<StructuredAgentApprovalDecision, string> = {
@@ -141,7 +144,8 @@ export function StructuredAgentWorkspace({
   showTabBar = true,
   onActivate,
   onClose,
-  onReconnect
+  onReconnect,
+  visible = true
 }: StructuredAgentWorkspaceProps): ReactNode {
   const { t } = useLocalization();
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
@@ -267,7 +271,10 @@ export function StructuredAgentWorkspace({
       : { ...current, [connectionId]: selectedValue });
   }, [advertisedModeCommand?.selectedValue, snapshot?.runtime.connectionId]);
   useEffect(() => {
-    if (runtime?.state === 'ready') composer.current?.focus();
+    if (runtime?.state !== 'ready') return;
+    // Someone reading changes keeps their place when the session becomes ready.
+    if (document.activeElement?.closest('.changes-panel') != null) return;
+    composer.current?.focus();
   }, [focusRequestKey, runtime?.connectionId, runtime?.state]);
   useEffect(() => {
     if (sending || !restoreComposerFocus.current) return;
@@ -792,9 +799,9 @@ export function StructuredAgentWorkspace({
             <small>
               {providerDefinition(item.runtime.providerId).displayName} ·{' '}
               {t(`terminal.unified.state-${item.runtime.state}`)}
-              {changeCount(item.runtime.connectionId) > 0
-                ? ` · ${t('terminal.changes.tab-count', { count: changeCount(item.runtime.connectionId) })}`
-                : null}
+              {item.runtime.connectionId === runtime.connectionId
+                ? null
+                : changeCountSuffix(t, changeCount(item.runtime.connectionId))}
             </small>
           </button>
         ))}
@@ -815,9 +822,7 @@ export function StructuredAgentWorkspace({
             <InfoIcon />
           </IconButton>
           {changesEnabled ? (
-            <button className="secondary-button changes-button" data-lumora-command type="button" {...changes.buttonProps}>
-              {t('terminal.changes.button', { count: changeCount(runtime.connectionId) })}
-            </button>
+            <ChangesButton command control={changes.buttonProps} count={changeCount(runtime.connectionId)} />
           ) : null}
           {runtime.state === 'failed' ? (
             <button className="secondary-button" data-lumora-command onClick={() => onReconnect(runtime.connectionId)} type="button">
@@ -1343,7 +1348,7 @@ export function StructuredAgentWorkspace({
         />
       )}
       {changes.panelProps === null ? null : (
-        <ChangesPanel api={api} key={runtime.connectionId} {...changes.panelProps} />
+        <ChangesPanel active={visible} api={api} key={runtime.connectionId} {...changes.panelProps} />
       )}
       {detailsOpen ? (
         <StructuredSessionDetailsDialog
