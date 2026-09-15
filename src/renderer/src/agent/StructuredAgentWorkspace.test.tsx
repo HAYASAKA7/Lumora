@@ -1,10 +1,11 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
   LumoraApi,
   StructuredAgentRuntimeSnapshot
 } from '../../../shared/contracts';
+import { fakeChangesApi } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
 import { StructuredAgentWorkspace } from './StructuredAgentWorkspace';
 
@@ -1653,5 +1654,95 @@ describe('StructuredAgentWorkspace', () => {
     fireEvent.keyDown(composer, { key: 'Enter' });
 
     expect(dispatchStructuredAgentAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('StructuredAgentWorkspace changes', () => {
+  const second: StructuredAgentRuntimeSnapshot = {
+    ...snapshot,
+    runtime: { ...snapshot.runtime, connectionId: 'connection-2', title: 'Release notes' },
+    events: []
+  };
+
+  function renderChanges(options: { changesEnabled?: boolean } = {}) {
+    const { api: changesApi } = fakeChangesApi();
+    const api = {
+      ...changesApi,
+      dispatchStructuredAgentAction: vi.fn(async () => undefined)
+    } as unknown as LumoraApi;
+    const props = {
+      api,
+      changeCounts: new Map([['connection-1', 5], ['connection-2', 2]]),
+      onActivate: vi.fn(),
+      onClose: vi.fn(),
+      onReconnect: vi.fn(),
+      snapshots: [snapshot, second]
+    };
+    const view = renderWithLocalization(
+      <StructuredAgentWorkspace
+        {...props}
+        activeConnectionId="connection-1"
+        changesEnabled={options.changesEnabled ?? true}
+      />
+    );
+    const activate = (connectionId: string) => view.rerender(
+      <StructuredAgentWorkspace {...props} activeConnectionId={connectionId} changesEnabled />
+    );
+    return { activate, changesApi, view };
+  }
+
+  const section = () => document.querySelector('.structured-agent-workspace') as HTMLElement;
+  const changesPanel = () => screen.queryByRole('complementary', { name: 'Changes' });
+
+  it('shows change counts on the header button and on background tabs', () => {
+    renderChanges();
+
+    const button = screen.getByRole('button', { name: 'Changes 5' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(button).toHaveClass('secondary-button', 'changes-button');
+    expect(screen.getByRole('tab', { name: /Release notes/ })).toHaveTextContent('2 changed');
+  });
+
+  it('opens the session changes beside the conversation and closes them again', async () => {
+    const { changesApi } = renderChanges();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+
+    const panel = changesPanel();
+    expect(panel?.parentElement).toBe(section());
+    expect(section()).toHaveClass('has-changes-panel');
+    expect(panel?.contains(document.activeElement)).toBe(true);
+    await waitFor(() => expect(changesApi.getChangesSummary).toHaveBeenCalledWith({
+      kind: 'session', ownerId: 'connection-1', view: 'session'
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Maximize changes' }));
+    expect(section()).toHaveClass('changes-maximized');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
+    expect(changesPanel()).toBeNull();
+    expect(section()).not.toHaveClass('changes-maximized');
+    expect(screen.getByRole('button', { name: 'Changes 5' })).toHaveFocus();
+  });
+
+  it('keeps each tab its own changes panel state', async () => {
+    const { activate } = renderChanges();
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+    await act(async () => undefined);
+
+    activate('connection-2');
+    expect(changesPanel()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Changes 2' })).toHaveAttribute('aria-expanded', 'false');
+
+    activate('connection-1');
+    expect(changesPanel()).not.toBeNull();
+    await act(async () => undefined);
+  });
+
+  it('offers no changes unless enabled', () => {
+    renderChanges({ changesEnabled: false });
+
+    expect(screen.queryByRole('button', { name: /^Changes/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Release notes/ })).not.toHaveTextContent('changed');
   });
 });

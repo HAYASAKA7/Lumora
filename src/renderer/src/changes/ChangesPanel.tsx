@@ -29,6 +29,8 @@ const WIDTH_PROPERTY = '--changes-panel-width';
 interface ChangesPanelProps {
   api: ChangesApi;
   source: ChangesSource;
+  /** Lets a control that opens the panel name it through aria-controls. */
+  id?: string;
   /** False while the panel is kept mounted but hidden; nothing loads then. */
   active?: boolean;
   onClose(): void;
@@ -48,6 +50,7 @@ interface Drag {
 export function ChangesPanel({
   active = true,
   api,
+  id,
   onClose,
   onMaximizedChange,
   onSourceChange,
@@ -185,6 +188,7 @@ export function ChangesPanel({
       aria-label={t('terminal.changes.panel-title')}
       className="changes-panel"
       data-maximized={maximized}
+      id={id}
       onKeyDown={handleKeyDown}
       ref={panelRef}
       style={{ [WIDTH_PROPERTY]: `${shownWidth}px` } as CSSProperties}

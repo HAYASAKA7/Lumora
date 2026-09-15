@@ -1,13 +1,15 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
   LaunchPreview,
+  LumoraApi,
   RuntimeSummary,
   SystemInfo,
   WorkspaceSummary
 } from '../../../shared/contracts';
 import { TerminalWorkspace } from './TerminalWorkspace';
+import { fakeChangesApi } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
@@ -614,5 +616,100 @@ describe('TerminalWorkspace', () => {
       screen.getByRole('dialog', { name: 'Terminal details' })
     ).getByLabelText('Launch inspector');
     expect(within(inspector).getByText(label)).toBeInTheDocument();
+  });
+});
+
+describe('TerminalWorkspace changes', () => {
+  const second: RuntimeSummary = {
+    ...runtime,
+    id: '0198f8b6-18f3-7ca0-9f0f-123456789abe',
+    displayName: 'Release notes',
+    state: 'running',
+    endedAt: null,
+    exitCode: null
+  };
+
+  function renderChanges(options: { activeRuntimeId?: string; changesEnabled?: boolean } = {}) {
+    const { api } = fakeChangesApi();
+    const props = {
+      api: api as unknown as LumoraApi,
+      changeCounts: new Map([[runtime.id, 5], [second.id, 2]]),
+      onActivate: vi.fn(),
+      onRuntimeChange: vi.fn(),
+      platform: 'win32' as const,
+      previews: new Map(),
+      runtimes: [runtime, second],
+      visible: true,
+      workspaces: [workspace]
+    };
+    const view = render(
+      <TerminalWorkspace
+        {...props}
+        activeRuntimeId={options.activeRuntimeId ?? runtime.id}
+        changesEnabled={options.changesEnabled ?? true}
+      />
+    );
+    const activate = (runtimeId: string) => view.rerender(
+      <TerminalWorkspace {...props} activeRuntimeId={runtimeId} changesEnabled />
+    );
+    return { activate, api };
+  }
+
+  const section = () => screen.getByRole('region', { name: 'Managed terminals' });
+  const changesPanel = () => screen.queryByRole('complementary', { name: 'Changes' });
+
+  it('shows change counts on the header button and on background tabs', () => {
+    renderChanges();
+
+    const button = screen.getByRole('button', { name: 'Changes 5' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(button).toHaveClass('secondary-button', 'changes-button');
+    expect(screen.getByRole('tab', { name: /Release notes/ })).toHaveTextContent('2 changed');
+    expect(screen.getByRole('tab', { name: /Repository cleanup/ })).toHaveTextContent('5 changed');
+  });
+
+  it('opens the session changes beside the terminal and closes them again', async () => {
+    const { api } = renderChanges();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+
+    const panel = changesPanel();
+    expect(panel).not.toBeNull();
+    expect(panel?.parentElement).toBe(section());
+    expect(section()).toHaveClass('has-changes-panel');
+    expect(panel?.contains(document.activeElement)).toBe(true);
+    expect(screen.getByRole('button', { name: 'Changes 5' })).toHaveAttribute('aria-expanded', 'true');
+    await waitFor(() => expect(api.getChangesSummary).toHaveBeenCalledWith({
+      kind: 'session', ownerId: runtime.id, view: 'session'
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Maximize changes' }));
+    expect(section()).toHaveClass('changes-maximized');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+    expect(changesPanel()).toBeNull();
+    expect(section()).not.toHaveClass('has-changes-panel');
+    expect(section()).not.toHaveClass('changes-maximized');
+  });
+
+  it('keeps each tab its own changes panel state', async () => {
+    const { activate } = renderChanges();
+    fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
+    await act(async () => undefined);
+
+    activate(second.id);
+    expect(changesPanel()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Changes 2' })).toHaveAttribute('aria-expanded', 'false');
+
+    activate(runtime.id);
+    expect(changesPanel()).not.toBeNull();
+    await act(async () => undefined);
+  });
+
+  it('offers no changes unless enabled', () => {
+    renderChanges({ changesEnabled: false });
+
+    expect(screen.queryByRole('button', { name: /^Changes/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Release notes/ })).not.toHaveTextContent('changed');
   });
 });

@@ -44,6 +44,7 @@ import {
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import { StructuredAgentWorkspace } from './agent/StructuredAgentWorkspace';
+import { useChangeCounts } from './changes/useChangeCounts';
 import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from './catalog/HideWorkspaceDialog';
 import { projectCatalogVisibility } from './catalog/catalog-visibility';
@@ -383,6 +384,7 @@ function AppContent(): ReactNode {
     Awaited<ReturnType<typeof window.lumora.getTerminalProfiles>>
   >([]);
   const [runtimes, setRuntimes] = useState<RuntimeSummary[]>([]);
+  const changeCounts = useChangeCounts(window.lumora);
   const [openRuntimeIds, setOpenRuntimeIds] = useState<string[]>([]);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
   const [structuredSnapshots, setStructuredSnapshots] = useState<
@@ -2487,6 +2489,8 @@ function AppContent(): ReactNode {
               >
               <TerminalWorkspace
                 activeRuntimeId={activeRuntimeId ?? openRuntimes[0]!.id}
+                changeCounts={changeCounts}
+                changesEnabled
                 focusRequestKey={terminalFocusRequestKey}
                 fontFamily={resolveTerminalFontFamily(
                   appearance.terminalFontFamily
@@ -2530,6 +2534,8 @@ function AppContent(): ReactNode {
                     activeStructuredConnectionId ??
                     structuredSnapshots[0]!.runtime.connectionId
                   }
+                  changeCounts={changeCounts}
+                  changesEnabled
                   focusRequestKey={terminalFocusRequestKey}
                   onActivate={activateStructuredRuntime}
                   onClose={(connectionId) => {

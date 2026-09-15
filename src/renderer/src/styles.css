@@ -7969,6 +7969,56 @@ button {
   max-width: none;
 }
 
+/* The session header button keeps its count on one line. */
+.changes-button {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A docked changes panel takes a second column beside the session body. */
+.terminal-workspace.has-changes-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* Rows stay fixed so a hidden tab bar leaves the body and panel aligned. */
+.terminal-workspace.has-changes-panel > .terminal-tabbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.terminal-workspace.has-changes-panel > .terminal-header {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.terminal-workspace.has-changes-panel > .terminal-grid {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+}
+
+.terminal-workspace.has-changes-panel > .structured-agent-body,
+.terminal-workspace.has-changes-panel > .structured-composer {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.terminal-workspace.has-changes-panel > .changes-panel {
+  grid-column: 2;
+  grid-row: 3 / -1;
+}
+
+.terminal-workspace.changes-maximized > .changes-panel {
+  grid-column: 1 / -1;
+}
+
+/* Hidden bodies keep their size so a terminal does not refit while maximized. */
+.terminal-workspace.changes-maximized > .terminal-grid,
+.terminal-workspace.changes-maximized > .structured-agent-body,
+.terminal-workspace.changes-maximized > .structured-composer {
+  visibility: hidden;
+}
+
 .changes-panel-resize {
   position: absolute;
   top: 0;

@@ -25,6 +25,8 @@ import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
 import { DEFAULT_TERMINAL_FONT_SIZE } from '../../../shared/contracts';
 import { IconButton } from '../ui/IconButton';
 import { InfoIcon } from '../ui/icons';
+import { ChangesPanel } from '../changes/ChangesPanel';
+import { useSessionChangesPanel } from '../changes/useSessionChangesPanel';
 
 const runtimeStateMessageKeys: Record<RuntimeState, string> = {
   launching: 'terminal.runtime.state-launching',
@@ -38,6 +40,10 @@ const runtimeStateMessageKeys: Record<RuntimeState, string> = {
 interface TerminalWorkspaceProps {
   api?: LumoraApi;
   backgroundOpacity?: number;
+  /** Changed file counts by runtime id. */
+  changeCounts?: ReadonlyMap<string, number>;
+  /** Offers the docked changes panel; local sessions only. */
+  changesEnabled?: boolean;
   fontFamily?: string;
   fontSize?: number;
   runtimes: readonly RuntimeSummary[];
@@ -68,6 +74,8 @@ const TAB_DRAG_THRESHOLD = 5;
 export function TerminalWorkspace({
   api = window.lumora,
   backgroundOpacity = 1,
+  changeCounts,
+  changesEnabled = false,
   fontFamily = DEFAULT_TERMINAL_FONT_STACK,
   fontSize = DEFAULT_TERMINAL_FONT_SIZE,
   runtimes,
@@ -120,7 +128,9 @@ export function TerminalWorkspace({
   }, [runtimes]);
 
   const runtime = runtimes.find((item) => item.id === activeRuntimeId) ?? runtimes[0];
+  const changes = useSessionChangesPanel({ enabled: changesEnabled, ownerId: runtime?.id });
   if (runtime === undefined) return null;
+  const changeCount = (runtimeId: string) => (changesEnabled ? changeCounts?.get(runtimeId) ?? 0 : 0);
   const preview = previews.get(runtime.id);
   const workspace = workspaces.find((item) => item.id === runtime.workspaceId);
   const isLive = runtime.state === 'launching' || runtime.state === 'running';
@@ -252,7 +262,7 @@ export function TerminalWorkspace({
   };
 
   return (
-    <section className="terminal-workspace" aria-label={t('terminal.runtime.managed-label')}>
+    <section className={`terminal-workspace${changes.workspaceClassName}`} aria-label={t('terminal.runtime.managed-label')}>
       <div
         className="terminal-tabbar"
         hidden={!showTabBar}
@@ -317,6 +327,9 @@ export function TerminalWorkspace({
               <small>
                 {providerDefinition(item.provider).displayName} ·{' '}
                 {t(runtimeStateMessageKeys[item.state])}
+                {changeCount(item.id) > 0
+                  ? ` · ${t('terminal.changes.tab-count', { count: changeCount(item.id) })}`
+                  : null}
               </small>
             </button>
           );
@@ -348,6 +361,11 @@ export function TerminalWorkspace({
           >
             <InfoIcon />
           </IconButton>
+          {changesEnabled ? (
+            <button className="secondary-button changes-button" type="button" {...changes.buttonProps}>
+              {t('terminal.changes.button', { count: changeCount(runtime.id) })}
+            </button>
+          ) : null}
           <button className="secondary-button" disabled={!isLive || stopping} onClick={stop} type="button">
             {stopping ? t('terminal.runtime.state-stopping') : t('common.actions.stop')}
           </button>
@@ -384,6 +402,10 @@ export function TerminalWorkspace({
           </div>
         ))}
       </div>
+
+      {changes.panelProps === null ? null : (
+        <ChangesPanel active={visible} api={api} key={runtime.id} {...changes.panelProps} />
+      )}
 
       {detailsOpen ? (
         <TerminalDetailsDialog

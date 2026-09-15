@@ -16,6 +16,7 @@ import {
 } from '../../shared/contracts';
 import type {
   CatalogSnapshot,
+  ChangesCount,
   DeveloperEnvironmentScanResult,
   LaunchPreview,
   ProviderScanResult,
@@ -301,6 +302,8 @@ interface CatalogApiOverrides {
   getTransferCapabilities?: ReturnType<typeof vi.fn>;
   prepareSessionExport?: ReturnType<typeof vi.fn>;
   executeSessionExport?: ReturnType<typeof vi.fn>;
+  getChangesCounts?: ReturnType<typeof vi.fn>;
+  onChangesCount?: (listener: (count: ChangesCount) => void) => () => void;
 }
 
 function deferred<T>() {
@@ -452,7 +455,14 @@ function setSystemInfoResult(
       chooseTransferWorkspace: vi.fn().mockResolvedValue(null),
       getTransferHistory: vi.fn().mockResolvedValue([]),
       cancelTransferOperation: vi.fn().mockResolvedValue(undefined),
-      onTransferEvent: vi.fn(() => () => undefined)
+      onTransferEvent: vi.fn(() => () => undefined),
+      getChangesCounts: catalogApi.getChangesCounts ?? vi.fn().mockResolvedValue([]),
+      onChangesCount: catalogApi.onChangesCount ?? vi.fn(() => () => undefined),
+      getChangesSummary: vi.fn(() => new Promise(() => undefined)),
+      getChangesFileDiff: vi.fn(() => new Promise(() => undefined)),
+      markChangesReviewed: vi.fn(),
+      openChangedFile: vi.fn().mockResolvedValue(undefined),
+      getChangesHistory: vi.fn().mockResolvedValue({ segments: [] })
     }
   });
 }
@@ -678,6 +688,57 @@ describe('App', () => {
     expect(await screen.findByRole('heading', {
       name: 'Second structured session'
     })).toBeVisible();
+  }, 15_000);
+
+  it('shows change counts from the app state on the session changes button', async () => {
+    const session: StructuredAgentRuntimeSummary = {
+      connectionId: 'structured-changes',
+      providerId: 'codex',
+      nativeSessionId: 'native-changes',
+      catalogSessionId: null,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Changes session',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:01.000Z',
+      error: null
+    };
+    let countListener: ((count: ChangesCount) => void) | undefined;
+    const unsubscribe = vi.fn();
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([session]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue({
+        runtime: session,
+        boundary: null,
+        events: []
+      }),
+      getChangesCounts: vi.fn().mockResolvedValue([{
+        ownerId: session.connectionId,
+        workspaceId: session.workspaceId,
+        state: 'ready',
+        changedFileCount: 3
+      }]),
+      onChangesCount: (listener) => {
+        countListener = listener;
+        return unsubscribe;
+      }
+    });
+    const view = renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    expect(await screen.findByRole('button', { name: 'Changes 3' })).toBeVisible();
+
+    act(() => countListener?.({
+      ownerId: session.connectionId,
+      workspaceId: session.workspaceId,
+      state: 'ready',
+      changedFileCount: 4
+    }));
+    expect(screen.getByRole('button', { name: 'Changes 4' })).toBeVisible();
+
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalled();
   }, 15_000);
 
   it('warns before exiting with active local or remote agents', async () => {

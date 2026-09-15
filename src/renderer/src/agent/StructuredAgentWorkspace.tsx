@@ -45,10 +45,16 @@ import {
 } from './structured-image-attachments';
 import { IconButton } from '../ui/IconButton';
 import { CrossIcon, FileIcon, InfoIcon, PaperclipIcon, SendIcon } from '../ui/icons';
+import { ChangesPanel } from '../changes/ChangesPanel';
+import { useSessionChangesPanel } from '../changes/useSessionChangesPanel';
 
 interface StructuredAgentWorkspaceProps {
   api?: LumoraApi;
   activeConnectionId: string;
+  /** Changed file counts by connection id. */
+  changeCounts?: ReadonlyMap<string, number>;
+  /** Offers the docked changes panel; local sessions only. */
+  changesEnabled?: boolean;
   focusRequestKey?: number;
   snapshots: readonly StructuredAgentRuntimeSnapshot[];
   showTabBar?: boolean;
@@ -128,6 +134,8 @@ function reduceSnapshotIntoCache(
 export function StructuredAgentWorkspace({
   api = window.lumora,
   activeConnectionId,
+  changeCounts,
+  changesEnabled = false,
   focusRequestKey = 0,
   snapshots,
   showTabBar = true,
@@ -180,6 +188,11 @@ export function StructuredAgentWorkspace({
   const snapshot = snapshots.find(
     (candidate) => candidate.runtime.connectionId === activeConnectionId
   ) ?? snapshots[0];
+  const changes = useSessionChangesPanel({
+    enabled: changesEnabled,
+    ownerId: snapshot?.runtime.connectionId
+  });
+  const changeCount = (connectionId: string) => (changesEnabled ? changeCounts?.get(connectionId) ?? 0 : 0);
   const snapshotCommands = snapshot?.commands ?? [];
   const advertisedModelCommand = snapshotCommands.find(({ name, choices, selectedValue }) => (
     name.toLocaleLowerCase() === '/model' &&
@@ -755,7 +768,7 @@ export function StructuredAgentWorkspace({
   return (
     <section
       aria-label={t('terminal.unified.workspace-label')}
-      className="terminal-workspace structured-agent-workspace"
+      className={`terminal-workspace structured-agent-workspace${changes.workspaceClassName}`}
     >
       <div
         aria-label={t('terminal.runtime.tabs-label')}
@@ -779,6 +792,9 @@ export function StructuredAgentWorkspace({
             <small>
               {providerDefinition(item.runtime.providerId).displayName} ·{' '}
               {t(`terminal.unified.state-${item.runtime.state}`)}
+              {changeCount(item.runtime.connectionId) > 0
+                ? ` · ${t('terminal.changes.tab-count', { count: changeCount(item.runtime.connectionId) })}`
+                : null}
             </small>
           </button>
         ))}
@@ -798,6 +814,11 @@ export function StructuredAgentWorkspace({
           >
             <InfoIcon />
           </IconButton>
+          {changesEnabled ? (
+            <button className="secondary-button changes-button" data-lumora-command type="button" {...changes.buttonProps}>
+              {t('terminal.changes.button', { count: changeCount(runtime.connectionId) })}
+            </button>
+          ) : null}
           {runtime.state === 'failed' ? (
             <button className="secondary-button" data-lumora-command onClick={() => onReconnect(runtime.connectionId)} type="button">
               {t('terminal.unified.reconnect')}
@@ -1320,6 +1341,9 @@ export function StructuredAgentWorkspace({
             void api.openTerminalLink(url).catch(() => setActionError(true));
           }}
         />
+      )}
+      {changes.panelProps === null ? null : (
+        <ChangesPanel api={api} key={runtime.connectionId} {...changes.panelProps} />
       )}
       {detailsOpen ? (
         <StructuredSessionDetailsDialog

@@ -1658,6 +1658,9 @@ describe('RemoteTargetWindow', () => {
       .not.toBeInTheDocument();
     expect(await screen.findByLabelText(`${session.title} terminal content`))
       .toBeInTheDocument();
+    // Changes read the local file system only, so a remote terminal offers none.
+    expect(screen.queryByRole('button', { name: /^Changes/ })).not.toBeInTheDocument();
+    expect(document.querySelector('.changes-button')).toBeNull();
 
     act(() => runtimeListener({
       type: 'state',
