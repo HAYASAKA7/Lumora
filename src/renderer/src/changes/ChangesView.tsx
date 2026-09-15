@@ -7,6 +7,7 @@ import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
 import type { ChangesFileAction, ChangesFileNavigation, ChangesFileRowHandlers } from './ChangesFileRow';
+import { ChangesModeSwitch } from './ChangesModeSwitch';
 import { ChangesDiff, ChangesNotices } from './ChangesStatus';
 import { useWorkspaceChanges, type ChangesApi, type Load } from './useWorkspaceChanges';
 
@@ -18,6 +19,8 @@ interface ChangesViewProps {
   source: ChangesSource;
   active: boolean;
   onSourceChange?(source: ChangesSource): void;
+  /** Replaces the session view switch; receives the loaded summary's workspace id. */
+  toolbarStart?(workspaceId: string | null): ReactNode;
 }
 
 function useIsWide(root: RefObject<HTMLDivElement | null>): boolean {
@@ -53,7 +56,7 @@ function navigationTarget(files: readonly ChangedFile[], path: string, key: Chan
 
 const FIRST_PAGE = { files: CHANGES_PAGE_SIZE, committed: CHANGES_PAGE_SIZE };
 
-export function ChangesView({ active, api, onSourceChange, source }: ChangesViewProps): ReactNode {
+export function ChangesView({ active, api, onSourceChange, source, toolbarStart }: ChangesViewProps): ReactNode {
   const { t } = useLocalization();
   const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } =
     useWorkspaceChanges(api, source, active);
@@ -141,20 +144,15 @@ export function ChangesView({ active, api, onSourceChange, source }: ChangesView
   return (
     <div className={`changes-view${wide ? ' is-wide' : ''}`} ref={rootRef}>
       <div className="changes-toolbar">
-        {source.kind === 'session' ? (
-          <div className="changes-view-switch">
-            {(['session', 'uncommitted'] as const).map((view) => (
-              <button
-                aria-pressed={source.view === view}
-                className="changes-view-switch-button"
-                key={view}
-                onClick={() => onSourceChange?.({ ...source, view })}
-                type="button"
-              >
-                {t(`terminal.changes.view-${view}`)}
-              </button>
-            ))}
-          </div>
+        {toolbarStart !== undefined ? toolbarStart(value?.workspaceId ?? null) : source.kind === 'session' ? (
+          <ChangesModeSwitch
+            onSelect={(view) => onSourceChange?.({ ...source, view })}
+            options={(['session', 'uncommitted'] as const).map((view) => ({
+              id: view,
+              label: t(`terminal.changes.view-${view}`)
+            }))}
+            selected={source.view}
+          />
         ) : <span />}
         <div className="changes-toolbar-actions">
           {reviewable ? (

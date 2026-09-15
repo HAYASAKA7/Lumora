@@ -453,7 +453,8 @@
     "history-unified": "Unified UI session",
     "history-started": "Started {time}",
     "history-batch": "{count, plural, one {# file reviewed} other {# files reviewed}} · {time}",
-    "history-back": "Back to all uncommitted",
+    "history-back": "Back to history",
+    "history-list": "Change history",
     "error": "Lumora could not read changes. Try again.",
     "action-failed": "That didn't work. Try again."
   }

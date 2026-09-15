@@ -279,6 +279,100 @@ describe('ChangesPanel', () => {
     expect(onParentKeyDown).not.toHaveBeenCalled();
   });
 
+  describe('history', () => {
+    const workspaceSource: ChangesSource = { kind: 'workspace', workspaceId: 'ws-1' };
+    const reviewSource: ChangesSource = { kind: 'review', reviewId: 'review-1' };
+    const history = {
+      segments: [{
+        ownerId: 'owner-1',
+        ownerKind: 'terminal' as const,
+        catalogSessionId: null,
+        createdAt: '2026-09-15T00:00:00.000Z',
+        endedAt: null,
+        reviews: [{ reviewId: 'review-1', fileCount: 2, reviewedAt: '2026-09-15T01:00:00.000Z' }]
+      }]
+    };
+
+    function historyApi() {
+      const fake = fakeChangesApi((source) =>
+        source.kind === 'review'
+          ? summaryFor(source, { files: [summaryFile('src/reviewed.ts')] })
+          : sessionSummary
+      );
+      fake.api.getChangesHistory.mockResolvedValue(history);
+      return fake;
+    }
+
+    function summaryFile(path: string) {
+      return { path, oldPath: null, status: 'modified' as const, additions: 1, deletions: 0, binary: false };
+    }
+
+    it('switches a workspace source to history, opens a batch and goes back', async () => {
+      const { api } = historyApi();
+      renderPanel(api, { source: workspaceSource });
+      await findFileList();
+
+      expect(screen.getByRole('button', { name: 'All uncommitted' })).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'History' }));
+      expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute('aria-pressed', 'true');
+      await screen.findByRole('list', { name: 'Change history' });
+      expect(api.getChangesHistory).toHaveBeenCalledWith('ws-1');
+
+      fireEvent.click(screen.getByRole('button', { name: /^2 files reviewed · / }));
+      expect(await screen.findByText('src/reviewed.ts')).toBeInTheDocument();
+      expect(api.getChangesSummary).toHaveBeenLastCalledWith(reviewSource);
+      expect(screen.queryByRole('button', { name: 'History' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Back to history' }));
+      expect(await screen.findByRole('list', { name: 'Change history' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.click(screen.getByRole('button', { name: 'All uncommitted' }));
+      await findFileList();
+      expect(api.getChangesSummary).toHaveBeenLastCalledWith(workspaceSource);
+    });
+
+    it('opens straight into history', async () => {
+      const { api } = historyApi();
+      render(api, workspaceSource, 'history');
+      expect(await screen.findByRole('list', { name: 'Change history' })).toBeInTheDocument();
+      expect(api.getChangesSummary).not.toHaveBeenCalled();
+    });
+
+    it('offers history for a session once its workspace is known', async () => {
+      const { api } = historyApi();
+      let finish!: (summary: typeof sessionSummary) => void;
+      api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+      renderPanel(api);
+
+      expect(screen.getByRole('button', { name: 'History' })).toBeDisabled();
+      await act(async () => finish(sessionSummary));
+      await findFileList();
+      fireEvent.click(screen.getByRole('button', { name: 'History' }));
+      await screen.findByRole('list', { name: 'Change history' });
+      expect(api.getChangesHistory).toHaveBeenCalledWith('ws-1');
+      expect(screen.getByRole('button', { name: 'This session' })).toHaveAttribute('aria-pressed', 'false');
+
+      fireEvent.click(screen.getByRole('button', { name: /^2 files reviewed · / }));
+      await screen.findByText('src/reviewed.ts');
+      fireEvent.click(screen.getByRole('button', { name: 'Back to history' }));
+      await screen.findByRole('list', { name: 'Change history' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'This session' }));
+      await findFileList();
+      expect(api.getChangesSummary).toHaveBeenLastCalledWith(sessionSource);
+      expect(screen.getByRole('button', { name: 'Mark all reviewed' })).toBeInTheDocument();
+    });
+
+    function render(api: ChangesApi, source: ChangesSource, initialMode: 'changes' | 'history') {
+      return renderWithLocalization(
+        <div>
+          <ChangesPanel api={api} initialMode={initialMode} onClose={vi.fn()} source={source} />
+        </div>
+      );
+    }
+  });
+
   it('renders no native tooltips or selects', async () => {
     const { api } = fakeChangesApi();
     const { container } = renderPanel(api);

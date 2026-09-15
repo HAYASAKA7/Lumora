@@ -8345,3 +8345,83 @@ button {
   border-top: 0;
   border-radius: 0;
 }
+
+.changes-view-switch-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* The review history lists each session segment and its reviewed batches. */
+.changes-history-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.changes-history-scroll {
+  min-height: 0;
+  overflow: auto;
+}
+
+.changes-history {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+.changes-history-segment {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.changes-history-segment[data-highlighted='true'] {
+  background: var(--blue-soft);
+  border-color: var(--blue);
+}
+
+.changes-history-segment h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.changes-history-started,
+.changes-history-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.changes-history-batches {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.changes-history-batch {
+  min-height: 28px;
+  padding: 4px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+.changes-history-batch:hover {
+  background: var(--surface-subtle);
+}
+
+.changes-history-batch:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 1px;
+}

@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-  type ReactNode
-} from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
@@ -19,14 +11,14 @@ import {
   readPanelWidth,
   writePanelWidth
 } from './changes-panel-preference';
-import { ChangesView } from './ChangesView';
+import { ChangesPanelContent, type ChangesPanelMode } from './ChangesPanelContent';
+import { useResizeDrag } from './useResizeDrag';
 import type { ChangesApi } from './useWorkspaceChanges';
 
 /** How far one arrow key press moves the panel's edge. */
 const KEYBOARD_RESIZE_STEP = 24;
 /** Written on the parent so the parent's layout can size the panel's column. */
 const COLUMN_WIDTH_PROPERTY = '--changes-column-width';
-const GUIDE_OFFSET_PROPERTY = '--changes-resize-guide-offset';
 
 interface ChangesPanelProps {
   api: ChangesApi;
@@ -38,15 +30,10 @@ interface ChangesPanelProps {
   onClose(): void;
   onSourceChange?(source: ChangesSource): void;
   onMaximizedChange?(maximized: boolean): void;
-}
-
-interface Drag {
-  pointerId: number;
-  target: HTMLElement;
-  startX: number;
-  startWidth: number;
-  width: number;
-  cancelOnEscape(event: globalThis.KeyboardEvent): void;
+  /** Opens a source straight into its workspace's review history. */
+  initialMode?: ChangesPanelMode;
+  sessionTitle?(catalogSessionId: string): string | null;
+  highlightSessionId?: string | null;
 }
 
 /** The width the panel may take from; the window's width before the panel has a parent to measure. */
@@ -58,15 +45,17 @@ function measureAvailable(panel: HTMLElement | null): number {
 export function ChangesPanel({
   active = true,
   api,
+  highlightSessionId = null,
   id,
+  initialMode = 'changes',
   onClose,
   onMaximizedChange,
   onSourceChange,
+  sessionTitle,
   source
 }: ChangesPanelProps): ReactNode {
   const { t } = useLocalization();
   const panelRef = useRef<HTMLElement | null>(null);
-  const drag = useRef<Drag | null>(null);
   const sourceKey = JSON.stringify(source);
   const [trackedKey, setTrackedKey] = useState(sourceKey);
   const [currentSource, setCurrentSource] = useState(source);
@@ -114,36 +103,7 @@ export function ChangesPanel({
     writePanelWidth(window, clamped);
   };
 
-  const showGuide = (target: HTMLElement, offset: number | null) => {
-    if (offset === null) {
-      delete target.dataset.dragging;
-      target.style.removeProperty(GUIDE_OFFSET_PROPERTY);
-      return;
-    }
-    target.dataset.dragging = 'true';
-    target.style.setProperty(GUIDE_OFFSET_PROPERTY, `${offset}px`);
-  };
-
-  /** Ends a drag; returns it so the caller can commit or restore. */
-  const endDrag = (): Drag | null => {
-    const current = drag.current;
-    if (current === null) return null;
-    drag.current = null;
-    window.removeEventListener('keydown', current.cancelOnEscape, true);
-    showGuide(current.target, null);
-    if (current.target.hasPointerCapture?.(current.pointerId)) {
-      current.target.releasePointerCapture(current.pointerId);
-    }
-    return current;
-  };
-
-  const cancelDrag = () => {
-    endDrag();
-  };
-  const cancelDragRef = useRef(cancelDrag);
-  cancelDragRef.current = cancelDrag;
-
-  useEffect(() => () => cancelDragRef.current(), []);
+  const { cancelDrag, handlers: dragHandlers } = useResizeDrag({ availableWidth, commitWidth, shownWidth });
 
   const changeSource = (next: ChangesSource) => {
     setCurrentSource(next);
@@ -168,45 +128,6 @@ export function ChangesPanel({
     if (target === undefined) return;
     event.preventDefault();
     commitWidth(target);
-  };
-
-  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || drag.current !== null) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const cancelOnEscape = (keyEvent: globalThis.KeyboardEvent) => {
-      if (keyEvent.key !== 'Escape') return;
-      keyEvent.preventDefault();
-      keyEvent.stopPropagation();
-      cancelDragRef.current();
-    };
-    window.addEventListener('keydown', cancelOnEscape, true);
-    drag.current = {
-      pointerId: event.pointerId,
-      target: event.currentTarget,
-      startX: event.clientX,
-      startWidth: shownWidth,
-      width: shownWidth,
-      cancelOnEscape
-    };
-  };
-
-  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
-    const current = drag.current;
-    if (current === null || current.pointerId !== event.pointerId) return;
-    // Only a guide follows the pointer so the session beside the panel resizes once on release.
-    current.width = clampPanelWidth(current.startWidth + current.startX - event.clientX, availableWidth);
-    showGuide(current.target, current.startWidth - current.width);
-  };
-
-  const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (drag.current?.pointerId !== event.pointerId) return;
-    const current = endDrag();
-    if (current !== null) commitWidth(current.width);
-  };
-
-  const abandonDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (drag.current?.pointerId === event.pointerId) cancelDrag();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -236,11 +157,7 @@ export function ChangesPanel({
           aria-valuenow={shownWidth}
           className="changes-panel-resize"
           onKeyDown={handleResizeKey}
-          onLostPointerCapture={abandonDrag}
-          onPointerCancel={abandonDrag}
-          onPointerDown={startDrag}
-          onPointerMove={moveDrag}
-          onPointerUp={finishDrag}
+          {...dragHandlers}
           role="separator"
           tabIndex={0}
         />
@@ -257,7 +174,16 @@ export function ChangesPanel({
           <CloseButton label={t('terminal.changes.close')} onClose={onClose} />
         </div>
       </div>
-      <ChangesView active={active} api={api} onSourceChange={changeSource} source={currentSource} />
+      <ChangesPanelContent
+        active={active}
+        api={api}
+        highlightSessionId={highlightSessionId}
+        initialMode={initialMode}
+        key={trackedKey}
+        onSourceChange={changeSource}
+        sessionTitle={sessionTitle}
+        source={currentSource}
+      />
     </aside>
   );
 }
