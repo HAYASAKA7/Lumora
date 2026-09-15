@@ -79,6 +79,6 @@ describe('createChangesErrorReporter', () => {
     const report = createChangesErrorReporter({ record, clock: () => new Date() });
 
     expect(() => report('startup', new Error('boom'))).not.toThrow();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(record).toHaveBeenCalledOnce());
   });
 });

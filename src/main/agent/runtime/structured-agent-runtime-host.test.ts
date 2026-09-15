@@ -733,5 +733,23 @@ describe('StructuredAgentRuntimeHost', () => {
       expect(host.list()).toEqual([]);
       expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
     });
+
+    it.each(['close', 'shutdown'] as const)(
+      'starts no provider when the session is stopped by %s while the baseline is taken',
+      async (stop) => {
+        const workspaceChanges = workspaceChangesSpy();
+        const { host, contexts } = harness({ workspaceChanges });
+        workspaceChanges.begin.mockImplementationOnce(async ({ ownerId }) => {
+          if (stop === 'close') await host.close(ownerId);
+          else await host.shutdown();
+        });
+
+        await expect(host.launch(newRequest)).rejects.toBeInstanceOf(StructuredAgentRuntimeHostError);
+
+        expect(contexts).toHaveLength(0);
+        expect(host.list()).toEqual([]);
+        expect(workspaceChanges.end).toHaveBeenCalledExactlyOnceWith('connection-1');
+      }
+    );
   });
 });

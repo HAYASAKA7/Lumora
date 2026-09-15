@@ -241,6 +241,10 @@ export class StructuredAgentRuntimeHost {
           'STRUCTURED_RUNTIME_START_CANCELLED'
         );
       }
+      // Closed or shut down during the baseline wait: start no provider process.
+      if (runtime.summary.state !== 'starting') {
+        throw new StructuredAgentRuntimeHostError('STRUCTURED_RUNTIME_FAILED');
+      }
       const adapter = await this.createAdapter(runtime, 1);
       runtime.adapter = adapter;
       if (cancelled) {

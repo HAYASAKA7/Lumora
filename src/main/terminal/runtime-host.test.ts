@@ -1000,10 +1000,13 @@ describe('RuntimeHost', () => {
   });
   describe('workspace changes', () => {
     it('takes a baseline with the runtime, workspace and session before spawning', async () => {
+      const sessionGuard = new StructuredSessionGuard();
       const { host, spawn, repository, beginWorkspaceChanges } = harness({
+        sessionGuard,
         launch: { ...launchSpec, strategy: 'resume', sessionId: 'd'.repeat(64), nativeSessionId: 'native-1' }
       });
-      beginWorkspaceChanges.mockImplementationOnce(async () => {
+      beginWorkspaceChanges.mockImplementationOnce(async ({ ownerId }) => {
+        expect(sessionGuard.claimOf(ownerId)).not.toBeNull();
         expect(spawn).not.toHaveBeenCalled();
         expect(repository.saveRuntime).not.toHaveBeenCalled();
       });
