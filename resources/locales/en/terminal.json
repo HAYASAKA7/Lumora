@@ -423,7 +423,9 @@
     "empty-uncommitted": "No uncommitted changes.",
     "empty-review": "No files in this review.",
     "committed": "{count, plural, one {Committed (# file)} other {Committed (# files)}}",
+    "committed-files": "Committed files",
     "truncated": "Only the first 5,000 files are listed.",
+    "show-more": "Show more ({count, plural, one {# file} other {# files}} not shown)",
     "unavailable-git-missing": "Install git to see what changed in this workspace.",
     "unavailable-workspace-unavailable": "This workspace folder is not available.",
     "unavailable-too-large": "This workspace is too large to track changes in.",
@@ -452,6 +454,7 @@
     "history-started": "Started {time}",
     "history-batch": "{count, plural, one {# file reviewed} other {# files reviewed}} · {time}",
     "history-back": "Back to all uncommitted",
-    "error": "Lumora could not read changes. Try again."
+    "error": "Lumora could not read changes. Try again.",
+    "action-failed": "That didn't work. Try again."
   }
 }

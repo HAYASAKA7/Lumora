@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react';
+import { memo, useCallback, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangedFile } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
@@ -7,6 +7,9 @@ import { ChevronDownIcon } from '../ui/icons';
 import { OverflowTooltip } from '../ui/Tooltip';
 
 export type ChangesFileAction = 'mark-reviewed' | 'open-file' | 'reveal-file' | 'copy-path';
+export type ChangesFileNavigation = 'ArrowUp' | 'ArrowDown' | 'Home' | 'End';
+
+const NAVIGATION_KEYS: ReadonlySet<string> = new Set<ChangesFileNavigation>(['ArrowUp', 'ArrowDown', 'Home', 'End']);
 
 const STATUS_LETTER: Record<ChangedFile['status'], string> = {
   added: 'A',
@@ -16,49 +19,47 @@ const STATUS_LETTER: Record<ChangedFile['status'], string> = {
   'type-changed': 'T'
 };
 
+export interface ChangesFileRowHandlers {
+  onSelect(path: string): void;
+  /** Moves the selection within the row's list. */
+  onNavigate(path: string, key: ChangesFileNavigation): void;
+  onAction(path: string, action: ChangesFileAction): void;
+  registerButton(path: string, node: HTMLButtonElement | null): void;
+}
+
 interface ChangesFileRowProps {
   file: ChangedFile;
   selected: boolean;
-  /** Offers "Mark reviewed" in the file's menu. */
-  reviewable: boolean;
-  onSelect(): void;
-  /** Moves the selection to the neighbouring file in the same list. */
-  onMove(direction: -1 | 1): void;
-  onAction(action: ChangesFileAction): void;
-  buttonRef(node: HTMLButtonElement | null): void;
+  /** The one row of its list that the Tab key reaches. */
+  tabStop: boolean;
+  menuItems: readonly ActionMenuItem<ChangesFileAction>[];
+  handlers: ChangesFileRowHandlers;
 }
 
-export function ChangesFileRow({
-  buttonRef,
-  file,
-  onAction,
-  onMove,
-  onSelect,
-  reviewable,
-  selected
-}: ChangesFileRowProps): ReactNode {
+function ChangesFileRowView({ file, handlers, menuItems, selected, tabStop }: ChangesFileRowProps): ReactNode {
   const { t } = useLocalization();
-  const items: ActionMenuItem<ChangesFileAction>[] = [
-    ...(reviewable ? [{ id: 'mark-reviewed' as const, label: t('terminal.changes.mark-reviewed') }] : []),
-    { id: 'open-file', label: t('terminal.changes.open-file') },
-    { id: 'reveal-file', label: t('terminal.changes.reveal-file') },
-    { id: 'copy-path', label: t('terminal.changes.copy-path') }
-  ];
+  const { path } = file;
+  const setButton = useCallback(
+    (node: HTMLButtonElement | null) => handlers.registerButton(path, node),
+    [handlers, path]
+  );
+  const choose = useCallback((action: ChangesFileAction) => handlers.onAction(path, action), [handlers, path]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (!NAVIGATION_KEYS.has(event.key)) return;
     event.preventDefault();
-    onMove(event.key === 'ArrowDown' ? 1 : -1);
+    handlers.onNavigate(path, event.key as ChangesFileNavigation);
   };
 
   return (
     <li className="changes-file-row">
       <button
-        aria-pressed={selected}
+        aria-current={selected ? 'true' : undefined}
         className="changes-file-select"
-        onClick={onSelect}
+        onClick={() => handlers.onSelect(path)}
         onKeyDown={handleKeyDown}
-        ref={buttonRef}
+        ref={setButton}
+        tabIndex={tabStop ? 0 : -1}
         type="button"
       >
         <span
@@ -68,8 +69,8 @@ export function ChangesFileRow({
         >
           {STATUS_LETTER[file.status]}
         </span>
-        <OverflowTooltip content={file.path}>
-          <span className="changes-file-path">{file.path}</span>
+        <OverflowTooltip content={path}>
+          <span className="changes-file-path">{path}</span>
         </OverflowTooltip>
         {file.binary || file.additions === null || file.deletions === null ? null : (
           <span className="changes-file-counts">
@@ -81,12 +82,14 @@ export function ChangesFileRow({
       <ActionMenu
         align="end"
         className="changes-file-menu"
-        items={items}
+        items={menuItems}
         label={t('terminal.changes.file-actions')}
-        onSelect={onAction}
+        onSelect={choose}
       >
         <ChevronDownIcon />
       </ActionMenu>
     </li>
   );
 }
+
+export const ChangesFileRow = memo(ChangesFileRowView);

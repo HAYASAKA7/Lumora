@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import type { ChangedFile, ChangesFileDiff, ChangesSource, ChangesSummary } from '../../../shared/contracts';
+import type { ChangedFile, ChangesSource, ChangesSummary } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
-import { DiffPatch } from '../ui/DiffPatch';
+import type { ActionMenuItem } from '../ui/ActionMenu';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
-import { ChangesFileRow, type ChangesFileAction } from './ChangesFileRow';
+import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
+import type { ChangesFileAction, ChangesFileNavigation, ChangesFileRowHandlers } from './ChangesFileRow';
+import { ChangesDiff, ChangesNotices } from './ChangesStatus';
 import { useWorkspaceChanges, type ChangesApi, type Load } from './useWorkspaceChanges';
 
 /** The view places the file list beside the diff from this width on. */
@@ -18,16 +20,21 @@ interface ChangesViewProps {
   onSourceChange?(source: ChangesSource): void;
 }
 
-function useIsWide(): [boolean, (node: HTMLDivElement | null) => void] {
-  const [node, setNode] = useState<HTMLDivElement | null>(null);
+function useIsWide(root: RefObject<HTMLDivElement | null>): boolean {
   const [wide, setWide] = useState(false);
-  useEffect(() => {
-    if (node === null || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(() => setWide(node.clientWidth >= WIDE_LAYOUT_MIN_WIDTH));
+  useLayoutEffect(() => {
+    const node = root.current;
+    if (node === null) return undefined;
+    setWide(node.getBoundingClientRect().width >= WIDE_LAYOUT_MIN_WIDTH);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      if (entry !== undefined) setWide(entry.contentRect.width >= WIDE_LAYOUT_MIN_WIDTH);
+    });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [node]);
-  return [wide, setNode];
+  }, [root]);
+  return wide;
 }
 
 function emptyKey(source: ChangesSource): string {
@@ -36,61 +43,102 @@ function emptyKey(source: ChangesSource): string {
   return 'terminal.changes.empty-uncommitted';
 }
 
+function navigationTarget(files: readonly ChangedFile[], path: string, key: ChangesFileNavigation): ChangedFile | undefined {
+  const index = files.findIndex((file) => file.path === path);
+  if (index < 0) return undefined;
+  if (key === 'Home') return files[0];
+  if (key === 'End') return files[files.length - 1];
+  return files[Math.min(files.length - 1, Math.max(0, index + (key === 'ArrowDown' ? 1 : -1)))];
+}
+
+const FIRST_PAGE = { files: CHANGES_PAGE_SIZE, committed: CHANGES_PAGE_SIZE };
+
 export function ChangesView({ active, api, onSourceChange, source }: ChangesViewProps): ReactNode {
   const { t } = useLocalization();
-  const changes = useWorkspaceChanges(api, source, active);
-  const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } = changes;
-  const [actionFailed, setActionFailed] = useState(false);
-  const [wide, setRoot] = useIsWide();
-  const buttons = useRef(new Map<string, HTMLButtonElement>());
-  const sourceKey = JSON.stringify(source);
+  const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } =
+    useWorkspaceChanges(api, source, active);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const wide = useIsWide(rootRef);
   const reviewable = source.kind === 'session' && source.view === 'session';
+  const sourceKey = JSON.stringify(source);
 
-  useEffect(() => setActionFailed(false), [sourceKey]);
-
-  const attempt = (work: () => Promise<void>) => {
+  const [actionFailed, setActionFailed] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [pages, setPages] = useState(FIRST_PAGE);
+  const [seen, setSeen] = useState<{ summary: Load<ChangesSummary>; sourceKey: string }>({ summary, sourceKey });
+  if (seen.summary !== summary || seen.sourceKey !== sourceKey) {
+    // A new summary replaces whatever a failed action said about the old one.
+    setSeen({ summary, sourceKey });
     setActionFailed(false);
-    work().catch(() => setActionFailed(true));
-  };
-
-  const act = (file: ChangedFile, action: ChangesFileAction) => {
-    if (action === 'mark-reviewed') attempt(() => markReviewed([file.path]));
-    else if (action === 'copy-path') attempt(() => api.writeClipboardText(file.path));
-    else attempt(() => api.openChangedFile(source, file.path, action === 'open-file' ? 'open' : 'reveal'));
-  };
-
-  const renderList = (files: readonly ChangedFile[], label?: string, canReview = false) => (
-    <ul aria-label={label} className="changes-file-list">
-      {files.map((file, index) => (
-        <ChangesFileRow
-          buttonRef={(node) => {
-            if (node === null) buttons.current.delete(file.path);
-            else buttons.current.set(file.path, node);
-          }}
-          file={file}
-          key={file.path}
-          onAction={(action) => act(file, action)}
-          onMove={(direction) => {
-            const next = files[index + direction];
-            if (next === undefined) return;
-            setSelectedPath(next.path);
-            buttons.current.get(next.path)?.focus();
-          }}
-          onSelect={() => setSelectedPath(file.path)}
-          reviewable={canReview}
-          selected={selectedPath === file.path}
-        />
-      ))}
-    </ul>
-  );
+    if (seen.sourceKey !== sourceKey) setPages(FIRST_PAGE);
+  }
 
   const value = summary.state === 'ready' ? summary.value : null;
-  const selectedFile = value === null || selectedPath === null
+  const latest = useRef({ api, source, markReviewed, value, pages });
+  latest.current = { api, source, markReviewed, value, pages };
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const markingAllRef = useRef(false);
+
+  const attempt = useCallback((work: () => Promise<void>) => {
+    setActionFailed(false);
+    work().catch(() => setActionFailed(true));
+  }, []);
+
+  const handlers = useMemo<ChangesFileRowHandlers>(() => ({
+    onSelect: (path) => setSelectedPath(path),
+    onNavigate: (path, key) => {
+      const current = latest.current;
+      if (current.value === null) return;
+      const inFiles = current.value.files.some((file) => file.path === path);
+      const group = inFiles ? current.value.files : current.value.committed;
+      const visible = group.slice(0, inFiles ? current.pages.files : current.pages.committed);
+      const target = navigationTarget(visible, path, key);
+      if (target === undefined) return;
+      setSelectedPath(target.path);
+      buttons.current.get(target.path)?.focus();
+    },
+    onAction: (path, action) => {
+      const current = latest.current;
+      if (action === 'mark-reviewed') attempt(() => current.markReviewed([path]));
+      else if (action === 'copy-path') attempt(() => current.api.writeClipboardText(path));
+      else attempt(() => current.api.openChangedFile(current.source, path, action === 'open-file' ? 'open' : 'reveal'));
+    },
+    registerButton: (path, node) => {
+      if (node === null) buttons.current.delete(path);
+      else buttons.current.set(path, node);
+    }
+  }), [attempt, setSelectedPath]);
+
+  const markAll = () => {
+    const current = latest.current;
+    if (markingAllRef.current || current.value === null) return;
+    markingAllRef.current = true;
+    setMarkingAll(true);
+    setActionFailed(false);
+    current.markReviewed(current.value.files.map((file) => file.path))
+      .catch(() => setActionFailed(true))
+      .finally(() => {
+        markingAllRef.current = false;
+        setMarkingAll(false);
+      });
+  };
+
+  const fileMenu = useMemo<ActionMenuItem<ChangesFileAction>[]>(() => [
+    ...(reviewable ? [{ id: 'mark-reviewed' as const, label: t('terminal.changes.mark-reviewed') }] : []),
+    { id: 'open-file', label: t('terminal.changes.open-file') },
+    { id: 'reveal-file', label: t('terminal.changes.reveal-file') },
+    { id: 'copy-path', label: t('terminal.changes.copy-path') }
+  ], [reviewable, t]);
+  const committedMenu = useMemo(() => fileMenu.filter((item) => item.id !== 'mark-reviewed'), [fileMenu]);
+
+  const listed = value !== null && value.state !== 'unavailable';
+  const selectedFile = !listed || selectedPath === null
     ? null
-    : [...value.files, ...value.committed].find((file) => file.path === selectedPath) ?? null;
+    : value.files.find((file) => file.path === selectedPath) ??
+      value.committed.find((file) => file.path === selectedPath) ?? null;
 
   return (
-    <div className={`changes-view${wide ? ' is-wide' : ''}`} ref={setRoot}>
+    <div className={`changes-view${wide ? ' is-wide' : ''}`} ref={rootRef}>
       <div className="changes-toolbar">
         {source.kind === 'session' ? (
           <div className="changes-view-switch">
@@ -111,8 +159,8 @@ export function ChangesView({ active, api, onSourceChange, source }: ChangesView
           {reviewable ? (
             <button
               className="secondary-button"
-              disabled={value === null || value.files.length === 0}
-              onClick={() => attempt(() => markReviewed((value?.files ?? []).map((file) => file.path)))}
+              disabled={markingAll || value === null || value.files.length === 0}
+              onClick={markAll}
               type="button"
             >
               {t('terminal.changes.mark-all-reviewed')}
@@ -130,76 +178,44 @@ export function ChangesView({ active, api, onSourceChange, source }: ChangesView
       </div>
       <ChangesNotices actionFailed={actionFailed} summary={summary} />
       <div className="changes-files">
-        {value === null || value.state === 'unavailable' ? null : (
+        {!listed ? null : (
           <>
             {value.files.length === 0 && value.state !== 'capturing' ? (
               <p className="changes-empty">{t(emptyKey(source))}</p>
             ) : null}
-            {value.files.length > 0 ? renderList(value.files, t('terminal.changes.file-list'), reviewable) : null}
+            {value.files.length > 0 ? (
+              <ChangesFileGroup
+                files={value.files}
+                handlers={handlers}
+                label={t('terminal.changes.file-list')}
+                menuItems={fileMenu}
+                onShowMore={() => setPages((current) => ({ ...current, files: current.files + CHANGES_PAGE_SIZE }))}
+                selectedPath={selectedPath}
+                visibleCount={pages.files}
+              />
+            ) : null}
             {value.committed.length > 0 ? (
               <details className="changes-committed">
                 <summary>{t('terminal.changes.committed', { count: value.committed.length })}</summary>
-                {renderList(value.committed)}
+                <ChangesFileGroup
+                  files={value.committed}
+                  handlers={handlers}
+                  label={t('terminal.changes.committed-files')}
+                  menuItems={committedMenu}
+                  onShowMore={() =>
+                    setPages((current) => ({ ...current, committed: current.committed + CHANGES_PAGE_SIZE }))
+                  }
+                  selectedPath={selectedPath}
+                  visibleCount={pages.committed}
+                />
               </details>
             ) : null}
           </>
         )}
       </div>
       <div className="changes-diff">
-        <ChangesDiff diff={diff} oldPath={selectedFile?.oldPath ?? null} />
+        {listed ? <ChangesDiff diff={diff} oldPath={selectedFile?.oldPath ?? null} /> : null}
       </div>
     </div>
-  );
-}
-
-function ChangesNotices({ actionFailed, summary }: { actionFailed: boolean; summary: Load<ChangesSummary> }): ReactNode {
-  const { t } = useLocalization();
-  const value = summary.state === 'ready' ? summary.value : null;
-  const notice = (key: string) => (
-    <p className="changes-notice" key={key} role="status">{t(`terminal.changes.${key}`)}</p>
-  );
-  const reason = value?.state === 'unavailable' ? value.unavailableReason ?? 'failed' : null;
-  return (
-    <div className="changes-notices">
-      {summary.state === 'loading' ? (
-        <p className="changes-notice" role="status">{t('common.states.loading')}</p>
-      ) : null}
-      {summary.state === 'error' || actionFailed ? (
-        <p className="changes-notice changes-notice-error" role="alert">{t('terminal.changes.error')}</p>
-      ) : null}
-      {reason === null ? null : (
-        <p
-          className={`changes-notice${reason === 'failed' ? ' changes-notice-error' : ''}`}
-          role={reason === 'failed' ? 'alert' : 'status'}
-        >
-          {t(`terminal.changes.unavailable-${reason}`)}
-        </p>
-      )}
-      {value?.state === 'capturing' ? notice('capturing') : null}
-      {value?.baselineLate === true ? notice('late') : null}
-      {value?.sharedWorkspace === true ? notice('shared') : null}
-      {value?.truncated === true ? notice('truncated') : null}
-    </div>
-  );
-}
-
-function ChangesDiff({ diff, oldPath }: { diff: Load<ChangesFileDiff> | null; oldPath: string | null }): ReactNode {
-  const { t } = useLocalization();
-  if (diff === null) return <p className="changes-diff-message">{t('terminal.changes.select-file')}</p>;
-  if (diff.state === 'loading') {
-    return <p className="changes-diff-message" role="status">{t('common.states.loading')}</p>;
-  }
-  if (diff.state === 'error') {
-    return <p className="changes-diff-message changes-notice-error" role="alert">{t('terminal.changes.error')}</p>;
-  }
-  if (diff.value.binary) return <p className="changes-diff-message">{t('terminal.changes.binary')}</p>;
-  if (diff.value.truncated) return <p className="changes-diff-message">{t('terminal.changes.patch-truncated')}</p>;
-  return (
-    <>
-      {oldPath === null ? null : (
-        <p className="changes-diff-renamed">{t('terminal.changes.renamed-from', { path: oldPath })}</p>
-      )}
-      <DiffPatch patch={diff.value.patch} />
-    </>
   );
 }
