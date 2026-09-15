@@ -75,14 +75,29 @@ describe('useWorkspaceChanges', () => {
   });
 
   it('does nothing while inactive', async () => {
-    const { api } = fakeApi();
+    const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, false));
     await act(async () => {
       await result.current.reload();
     });
+    act(() => emit(count('owner-1')));
     expect(api.getChangesSummary).not.toHaveBeenCalled();
     expect(api.onChangesCount).not.toHaveBeenCalled();
     expect(result.current.summary).toEqual({ state: 'loading' });
+  });
+
+  it('stops reacting to count events once inactive and keeps the last summary', async () => {
+    const { api, emit } = fakeApi();
+    const { result, rerender } = renderHook(
+      ({ active }: { active: boolean }) => useWorkspaceChanges(api, sessionSource, active),
+      { initialProps: { active: true } }
+    );
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    rerender({ active: false });
+    act(() => emit(count('owner-1')));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(1);
+    expect(result.current.summary.state).toBe('ready');
+    expect(result.current.refreshing).toBe(false);
   });
 
   it('reloads on a count event for its owner and ignores other owners', async () => {
@@ -223,7 +238,7 @@ describe('useWorkspaceChanges', () => {
     expect(result.current.diff?.state).toBe('ready');
   });
 
-  it('ignores a stale summary that resolves after a newer one', async () => {
+  it('coalesces reloads requested while one is in flight into one more load', async () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
@@ -234,11 +249,145 @@ describe('useWorkspaceChanges', () => {
       .mockResolvedValueOnce(summary(['new.txt']));
     act(() => emit(count('owner-1')));
     act(() => emit(count('owner-1')));
-    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['new.txt']) }));
+    act(() => emit(count('owner-1')));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(2);
+
     await act(async () => {
       resolveSlow(summary(['old.txt']));
     });
-    expect(result.current.summary).toEqual({ state: 'ready', value: summary(['new.txt']) });
+    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['new.txt']) }));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports refreshing while a reload runs over a ready summary', async () => {
+    const { api, emit } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    expect(result.current.refreshing).toBe(false);
+
+    let resolveSlow!: (value: ChangesSummary) => void;
+    api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { resolveSlow = resolve; }));
+    act(() => emit(count('owner-1')));
+    expect(result.current.refreshing).toBe(true);
+    expect(result.current.summary.state).toBe('ready');
+
+    await act(async () => {
+      resolveSlow(summary(['a.txt']));
+    });
+    expect(result.current.refreshing).toBe(false);
+  });
+
+  it('keeps the same diff object when a refreshed diff is unchanged', async () => {
+    const { api, emit } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    act(() => result.current.setSelectedPath('a.txt'));
+    await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
+    const first = result.current.diff;
+
+    act(() => emit(count('owner-1')));
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.diff).toBe(first);
+  });
+
+  it('ignores a diff that answers for the previous source', async () => {
+    const { api } = fakeApi();
+    const { result, rerender } = renderHook(
+      ({ source }: { source: ChangesSource }) => useWorkspaceChanges(api, source, true),
+      { initialProps: { source: sessionSource } }
+    );
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    let resolveOld!: (value: ChangesFileDiff) => void;
+    api.getChangesFileDiff.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+    act(() => result.current.setSelectedPath('a.txt'));
+
+    const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
+    api.getChangesSummary.mockResolvedValue(summary(['a.txt'], uncommitted));
+    rerender({ source: uncommitted });
+    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['a.txt'], uncommitted) }));
+    act(() => result.current.setSelectedPath('a.txt'));
+    await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
+
+    await act(async () => {
+      resolveOld({ path: 'a.txt', patch: '+from the old source', binary: false, truncated: false });
+    });
+    expect(result.current.diff).toEqual({
+      state: 'ready',
+      value: { path: 'a.txt', patch: '+a.txt', binary: false, truncated: false }
+    });
+    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(uncommitted, 'a.txt');
+  });
+
+  it('drops a review result that lands after the source changed', async () => {
+    const { api } = fakeApi();
+    const { result, rerender } = renderHook(
+      ({ source }: { source: ChangesSource }) => useWorkspaceChanges(api, source, true),
+      { initialProps: { source: sessionSource } }
+    );
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    let resolveReview!: (value: ChangesSummary) => void;
+    api.markChangesReviewed.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.markReviewed(['a.txt']);
+    });
+
+    const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
+    api.getChangesSummary.mockResolvedValue(summary(['u.txt'], uncommitted));
+    rerender({ source: uncommitted });
+    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['u.txt'], uncommitted) }));
+
+    await act(async () => {
+      resolveReview(summary(['b.txt']));
+      await pending;
+    });
+    expect(result.current.summary).toEqual({ state: 'ready', value: summary(['u.txt'], uncommitted) });
+  });
+
+  it('loads again instead of storing a review result when a newer summary landed meanwhile', async () => {
+    const { api, emit } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    let resolveReview!: (value: ChangesSummary) => void;
+    api.markChangesReviewed.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.markReviewed(['a.txt']);
+    });
+
+    api.getChangesSummary.mockResolvedValueOnce(summary(['c.txt'])).mockResolvedValueOnce(summary(['d.txt']));
+    act(() => emit(count('owner-1')));
+    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['c.txt']) }));
+
+    await act(async () => {
+      resolveReview(summary(['b.txt']));
+      await pending;
+    });
+    await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['d.txt']) }));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects when marking reviewed fails and leaves the state unchanged', async () => {
+    const { api } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    act(() => result.current.setSelectedPath('a.txt'));
+    const before = result.current.summary;
+    api.markChangesReviewed.mockRejectedValueOnce(new Error('denied'));
+
+    let failure: unknown = null;
+    await act(async () => {
+      await result.current.markReviewed(['a.txt']).catch((error: unknown) => {
+        failure = error;
+      });
+    });
+    expect(failure).toBeInstanceOf(Error);
+    expect(result.current.summary).toBe(before);
+    expect(result.current.selectedPath).toBe('a.txt');
   });
 
   it('resets the selection and reloads when the source changes', async () => {
