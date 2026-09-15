@@ -95,3 +95,25 @@ export const ChangesCountSchema = z.strictObject({
   changedFileCount: z.number().int().min(0)
 });
 export type ChangesCount = z.infer<typeof ChangesCountSchema>;
+
+export const ChangesFileDiffRequestSchema = z.strictObject({
+  source: ChangesSourceSchema,
+  path: PathSchema
+});
+
+export const ChangesReviewRequestSchema = z.strictObject({
+  ownerId: OwnerIdSchema,
+  paths: z.array(PathSchema).min(1).max(5_000)
+});
+
+export const ChangesHistoryRequestSchema = z.strictObject({
+  workspaceId: WorkspaceIdSchema
+});
+
+export const ChangesOpenRequestSchema = z.strictObject({
+  source: ChangesSourceSchema,
+  path: PathSchema,
+  action: z.enum(['open', 'reveal'])
+});
+
+export const ChangesCountListSchema = z.array(ChangesCountSchema).max(256);

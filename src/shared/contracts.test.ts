@@ -654,6 +654,17 @@ describe('IPC_CHANNELS', () => {
     );
   });
 
+  it('defines the workspace changes channels', () => {
+    expect(IPC_CHANNELS.changesSummaryGet).toBe('lumora:changes:summary:get');
+    expect(IPC_CHANNELS.changesReviewMark).toBe('lumora:changes:review:mark');
+    expect(IPC_CHANNELS.changesCountEvent).toBe('lumora:changes:count:event');
+  });
+
+  it('keeps every channel name unique', () => {
+    const channels = Object.values(IPC_CHANNELS);
+    expect(new Set(channels).size).toBe(channels.length);
+  });
+
   it('names every channel inside the Lumora namespace', () => {
     expect(Object.values(IPC_CHANNELS)).not.toHaveLength(0);
 

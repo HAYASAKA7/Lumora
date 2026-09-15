@@ -7,6 +7,16 @@ import {
   AgentRuntimeStartResultSchema,
   AppearanceBackgroundStateSchema,
   AppearancePresentationSchema,
+  ChangesCountListSchema,
+  ChangesCountSchema,
+  ChangesFileDiffRequestSchema,
+  ChangesFileDiffSchema,
+  ChangesHistoryRequestSchema,
+  ChangesHistorySchema,
+  ChangesOpenRequestSchema,
+  ChangesReviewRequestSchema,
+  ChangesSourceSchema,
+  ChangesSummarySchema,
   CatalogQuerySchema,
   CatalogSnapshotSchema,
   ClipboardTextSchema,
@@ -372,6 +382,33 @@ export function createLumoraApi(
     async resetDiagnosticExportDirectory() {
       const value = await invoke(IPC_CHANNELS.diagnosticExportDirectoryReset);
       return DiagnosticStorageSettingsSchema.parse(value);
+    },
+    async getChangesSummary(source) {
+      const value = await invoke(IPC_CHANNELS.changesSummaryGet, ChangesSourceSchema.parse(source));
+      return ChangesSummarySchema.parse(value);
+    },
+    async getChangesFileDiff(source, path) {
+      const request = ChangesFileDiffRequestSchema.parse({ source, path });
+      return ChangesFileDiffSchema.parse(await invoke(IPC_CHANNELS.changesFileDiffGet, request));
+    },
+    async markChangesReviewed(ownerId, paths) {
+      const request = ChangesReviewRequestSchema.parse({ ownerId, paths: [...paths] });
+      return ChangesSummarySchema.parse(await invoke(IPC_CHANNELS.changesReviewMark, request));
+    },
+    async getChangesHistory(workspaceId) {
+      const request = ChangesHistoryRequestSchema.parse({ workspaceId });
+      return ChangesHistorySchema.parse(await invoke(IPC_CHANNELS.changesHistoryGet, request));
+    },
+    async openChangedFile(source, path, action) {
+      await invoke(IPC_CHANNELS.changesFileOpen, ChangesOpenRequestSchema.parse({ source, path, action }));
+    },
+    async getChangesCounts() {
+      return ChangesCountListSchema.parse(await invoke(IPC_CHANNELS.changesCountsGet));
+    },
+    onChangesCount(listener) {
+      return subscribe(IPC_CHANNELS.changesCountEvent, (value) => {
+        listener(ChangesCountSchema.parse(value));
+      });
     },
     async claimStartupPresentation() {
       startupPresentationClaim ??= invoke(

@@ -274,6 +274,51 @@ describe('createLumoraApi', () => {
     await expect(invalidApi.getDiagnosticStorageSettings()).rejects.toBeDefined();
   });
 
+  it('validates workspace changes requests and count events', async () => {
+    const source = { kind: 'session', ownerId: 'runtime-1', view: 'session' } as const;
+    const summary = {
+      source,
+      workspaceId: 'workspace-1',
+      state: 'ready',
+      unavailableReason: null,
+      baselineLate: false,
+      sharedWorkspace: false,
+      files: [{ path: 'src/a.ts', oldPath: null, status: 'modified', additions: 2, deletions: 1, binary: false }],
+      committed: [],
+      truncated: false,
+      checkedAt: '2026-09-15T01:00:00.000Z'
+    } as const;
+    const invoke = vi.fn(async (channel: string) => {
+      if (channel === IPC_CHANNELS.changesSummaryGet) return summary;
+      return null;
+    });
+    const count = { ownerId: 'runtime-1', workspaceId: 'workspace-1', state: 'ready', changedFileCount: 3 } as const;
+    let receiver: ((value: unknown) => void) | null = null;
+    const api = createLumoraApi(invoke, (channel, listener) => {
+      expect(channel).toBe(IPC_CHANNELS.changesCountEvent);
+      receiver = listener;
+      return () => undefined;
+    });
+
+    await expect(api.getChangesSummary(source)).resolves.toEqual(summary);
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesSummaryGet, source);
+
+    invoke.mockClear();
+    await expect(api.getChangesSummary({ kind: 'session', ownerId: '../x', view: 'session' })).rejects.toBeDefined();
+    await expect(api.markChangesReviewed('runtime-1', [])).rejects.toBeDefined();
+    expect(invoke).not.toHaveBeenCalled();
+
+    await expect(api.openChangedFile(source, 'src/a.ts', 'reveal')).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'reveal' });
+
+    const listener = vi.fn();
+    api.onChangesCount(listener);
+    const deliver = receiver as unknown as (value: unknown) => void;
+    deliver(count);
+    expect(listener).toHaveBeenCalledWith(count);
+    expect(() => deliver({ ...count, changedFileCount: -1 })).toThrow();
+  });
+
   it('uses target-derived remote discovery and provider-preference channels', async () => {
     const invocations: Array<{ channel: string; args: readonly unknown[] }> = [];
     const snapshot = {

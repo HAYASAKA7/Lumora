@@ -22,6 +22,13 @@ import type {
   DiagnosticStorageSettings,
   DiagnosticSummary
 } from './diagnostics';
+import type {
+  ChangesCount,
+  ChangesFileDiff,
+  ChangesHistory,
+  ChangesSource,
+  ChangesSummary
+} from './changes';
 import {
   StructuredAgentRuntimeSummarySchema,
   type StructuredAgentAction,
@@ -40,6 +47,7 @@ import type {
 } from './agent/provider-capabilities';
 export * from './session-transfer';
 export * from './diagnostics';
+export * from './changes';
 export * from './agent/contracts';
 export * from './agent/provider-capabilities';
 
@@ -2376,6 +2384,13 @@ export const IPC_CHANNELS = {
   diagnosticJournalDirectoryReset: 'lumora:diagnostics:journal-directory:reset',
   diagnosticExportDirectoryChoose: 'lumora:diagnostics:export-directory:choose',
   diagnosticExportDirectoryReset: 'lumora:diagnostics:export-directory:reset',
+  changesSummaryGet: 'lumora:changes:summary:get',
+  changesFileDiffGet: 'lumora:changes:file-diff:get',
+  changesReviewMark: 'lumora:changes:review:mark',
+  changesHistoryGet: 'lumora:changes:history:get',
+  changesFileOpen: 'lumora:changes:file:open',
+  changesCountsGet: 'lumora:changes:counts:get',
+  changesCountEvent: 'lumora:changes:count:event',
   environmentScan: 'lumora:environment:scan',
   nodeDownloadOpen: 'lumora:environment:node-download:open',
   providerScan: 'lumora:providers:scan',
@@ -2543,6 +2558,13 @@ export interface LumoraApi {
   resetDiagnosticJournalDirectory(): Promise<DiagnosticStorageSettings>;
   chooseDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   resetDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
+  getChangesSummary(source: ChangesSource): Promise<ChangesSummary>;
+  getChangesFileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff>;
+  markChangesReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary>;
+  getChangesHistory(workspaceId: string): Promise<ChangesHistory>;
+  openChangedFile(source: ChangesSource, path: string, action: 'open' | 'reveal'): Promise<void>;
+  getChangesCounts(): Promise<ChangesCount[]>;
+  onChangesCount(listener: (count: ChangesCount) => void): () => void;
   getSystemInfo(): Promise<SystemInfo>;
   getApplicationAboutInfo(): Promise<ApplicationAboutInfo>;
   getApplicationReleaseStatus(): Promise<ApplicationReleaseStatus>;
