@@ -1,22 +1,10 @@
 import type { StructuredAgentDiffView } from './structured-agent-state';
+import { DiffPatch } from '../changes/DiffPatch';
 import { OverflowTooltip } from '../ui/Tooltip';
 
 interface StructuredDiffProps {
   diff: StructuredAgentDiffView;
   label: string;
-}
-
-function lineClass(line: string): string {
-  if (line.startsWith('@@')) return 'structured-diff-hunk';
-  if (
-    line.startsWith('diff --git ') || line.startsWith('index ') ||
-    line.startsWith('---') || line.startsWith('+++') ||
-    line.startsWith('new file mode ') || line.startsWith('deleted file mode ') ||
-    line.startsWith('rename from ') || line.startsWith('rename to ')
-  ) return 'structured-diff-metadata';
-  if (line.startsWith('+')) return 'structured-diff-addition';
-  if (line.startsWith('-')) return 'structured-diff-deletion';
-  return 'structured-diff-context';
 }
 
 export function StructuredDiff({ diff, label }: StructuredDiffProps) {
@@ -41,15 +29,7 @@ export function StructuredDiff({ diff, label }: StructuredDiffProps) {
           <code>{file.pathLabel}</code>
         </p>
       )}
-      <pre className="structured-diff-patch">
-        <code>
-          {file.patch.split('\n').map((line, lineNumber) => (
-            <span className={lineClass(line)} key={`${lineNumber}:${line}`}>
-              {line || ' '}{'\n'}
-            </span>
-          ))}
-        </code>
-      </pre>
+      <DiffPatch patch={file.patch} />
     </details>
   ));
 }
