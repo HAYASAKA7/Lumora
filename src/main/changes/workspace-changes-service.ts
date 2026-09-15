@@ -1,0 +1,364 @@
+import { randomUUID } from 'node:crypto';
+
+import type {
+  ChangedFile,
+  ChangesCount,
+  ChangesFileDiff,
+  ChangesHistory,
+  ChangesSource,
+  ChangesSummary
+} from '../../shared/changes';
+import { ChangeSourceResolver } from './change-source-resolver';
+import type { ChangeSegment, ChangesRepository } from './changes-repository';
+import { unavailableReasonFor } from './changes-summary';
+import { SnapshotCache } from './snapshot-cache';
+import { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
+
+export type SnapshotEngineLike = Pick<
+  WorkspaceSnapshotEngine,
+  'snapshot' | 'changedFiles' | 'fileDiff' | 'headTree' | 'composeReviewed' | 'removeWorkspace'
+>;
+
+export interface WorkspaceChangesServiceOptions {
+  repository: ChangesRepository;
+  engine: SnapshotEngineLike;
+  lookupWorkspace(workspaceId: string): { canonicalPath: string; available: boolean } | null;
+  gitAvailable(): Promise<boolean>;
+  onCount(count: ChangesCount): void;
+  /** Electron's shell.openPath: an empty string on success. */
+  openPath(path: string): Promise<string>;
+  showItemInFolder(path: string): void;
+  clock?: () => Date;
+  createId?: () => string;
+  launchWaitMs?: number;
+  snapshotCacheMs?: number;
+  terminalRefreshMs?: number;
+}
+
+export interface BeginInput {
+  ownerKind: 'terminal' | 'unified';
+  ownerId: string;
+  workspaceId: string;
+  catalogSessionId: string | null;
+}
+
+const RETENTION_MS = 14 * 24 * 60 * 60 * 1_000;
+const MAX_HISTORY_ENTRIES = 500;
+
+interface RefreshRun {
+  again: boolean;
+  done: Promise<void>;
+}
+
+/** Tracks what each session changed in its workspace, from a baseline taken as it starts. */
+export class WorkspaceChangesService {
+  private readonly repository: ChangesRepository;
+  private readonly engine: SnapshotEngineLike;
+  private readonly clock: () => Date;
+  private readonly createId: () => string;
+  private readonly launchWaitMs: number;
+  private readonly terminalRefreshMs: number;
+  private readonly snapshots: SnapshotCache;
+  private readonly resolver: ChangeSourceResolver;
+  private readonly refreshes = new Map<string, RefreshRun>();
+  private readonly lastCounts = new Map<string, number>();
+  private terminalTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(private readonly options: WorkspaceChangesServiceOptions) {
+    this.repository = options.repository;
+    this.engine = options.engine;
+    this.clock = options.clock ?? (() => new Date());
+    this.createId = options.createId ?? randomUUID;
+    this.launchWaitMs = options.launchWaitMs ?? 3_000;
+    this.terminalRefreshMs = options.terminalRefreshMs ?? 30_000;
+    this.snapshots = new SnapshotCache(this.engine, this.clock, options.snapshotCacheMs ?? 2_000);
+    this.resolver = new ChangeSourceResolver({
+      repository: this.repository,
+      engine: this.engine,
+      snapshots: this.snapshots,
+      lookupWorkspace: (workspaceId) => options.lookupWorkspace(workspaceId),
+      isGitAvailable: () => this.isGitAvailable(),
+      now: () => this.now()
+    });
+  }
+
+  async begin(input: BeginInput): Promise<void> {
+    const segmentId = this.createId();
+    try {
+      this.repository.createSegment({ ...input, id: segmentId, createdAt: this.now() });
+    } catch {
+      return;
+    }
+    try {
+      const workspace = this.options.lookupWorkspace(input.workspaceId);
+      if (workspace === null || !workspace.available) {
+        this.repository.markUnavailable(segmentId, 'workspace-unavailable');
+        return;
+      }
+      if (!(await this.isGitAvailable())) {
+        this.repository.markUnavailable(segmentId, 'git-missing');
+        return;
+      }
+      await this.waitForBaseline(segmentId, input, workspace.canonicalPath);
+    } catch {
+      // Tracking changes must never keep a session from starting.
+    }
+  }
+
+  end(ownerId: string): void {
+    this.repository.endSegment(ownerId, this.now());
+    void this.refresh(ownerId);
+  }
+
+  linkCatalogSession(ownerId: string, catalogSessionId: string): void {
+    this.repository.linkCatalogSession(ownerId, catalogSessionId);
+  }
+
+  /** Recounts a session's changes; calls made while one runs are folded into one more run. */
+  refresh(ownerId: string): Promise<void> {
+    const running = this.refreshes.get(ownerId);
+    if (running !== undefined) {
+      running.again = true;
+      return running.done;
+    }
+    const run: RefreshRun = { again: false, done: Promise.resolve() };
+    run.done = (async () => {
+      do {
+        run.again = false;
+        await this.refreshOnce(ownerId);
+      } while (run.again);
+      this.refreshes.delete(ownerId);
+    })();
+    this.refreshes.set(ownerId, run);
+    return run.done;
+  }
+
+  counts(): ChangesCount[] {
+    return this.repository.listOpenSegments().map((segment) => ({
+      ownerId: segment.ownerId,
+      workspaceId: segment.workspaceId,
+      state: segment.state,
+      changedFileCount: this.lastCounts.get(segment.ownerId) ?? 0
+    }));
+  }
+
+  async summary(source: ChangesSource): Promise<ChangesSummary> {
+    return this.resolver.summarize(this.resolver.target(source), false);
+  }
+
+  async fileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff> {
+    const resolution = await this.resolver.resolve(this.resolver.target(source), false);
+    if (!resolution.ready) {
+      throw new Error('Changes are not available for this source.');
+    }
+    const { context: { workspaceId }, workspacePath, from, to } = resolution;
+    const entries = await this.engine.changedFiles(workspaceId, workspacePath, from, to);
+    const entry = entries.find((candidate) => candidate.path === path);
+    if (entry?.binary === true) {
+      return { path, patch: '', binary: true, truncated: false };
+    }
+    const diff = await this.engine.fileDiff(workspaceId, workspacePath, from, to, path, entry?.oldPath ?? null);
+    return { path, patch: diff.patch, binary: false, truncated: diff.truncated };
+  }
+
+  async markReviewed(ownerId: string, paths: readonly string[] | null): Promise<ChangesSummary> {
+    const source: ChangesSource = { kind: 'session', ownerId, view: 'session' };
+    const { segment } = this.resolver.target(source);
+    const workspace = segment === null ? null : this.options.lookupWorkspace(segment.workspaceId);
+    if (segment?.state !== 'ready' || segment.baselineTree === null || workspace === null || !workspace.available) {
+      return this.summary(source);
+    }
+    const { workspaceId, baselineTree } = segment;
+    const current = await this.snapshots.get(workspaceId, workspace.canonicalPath, true);
+    const files = await this.engine.changedFiles(workspaceId, workspace.canonicalPath, baselineTree, current.tree);
+    const reviewed = await this.reviewedTree(segment, workspace.canonicalPath, current.tree, files, paths);
+    if (reviewed.fileCount === 0) {
+      return this.summary(source);
+    }
+    this.repository.recordReview({
+      id: this.createId(),
+      segmentId: segment.id,
+      fromTree: baselineTree,
+      toTree: reviewed.tree,
+      fileCount: reviewed.fileCount,
+      reviewedAt: this.now()
+    });
+    await this.refresh(ownerId);
+    return this.summary(source);
+  }
+
+  history(workspaceId: string): ChangesHistory {
+    const segments = this.repository.listWorkspaceSegments(workspaceId).slice(0, MAX_HISTORY_ENTRIES);
+    return {
+      segments: segments.map((segment) => ({
+        ownerId: segment.ownerId,
+        ownerKind: segment.ownerKind,
+        catalogSessionId: segment.catalogSessionId,
+        createdAt: segment.createdAt,
+        endedAt: segment.endedAt,
+        reviews: this.repository.listReviews(segment.id).slice(0, MAX_HISTORY_ENTRIES).map((review) => ({
+          reviewId: review.id,
+          fileCount: review.fileCount,
+          reviewedAt: review.reviewedAt
+        }))
+      }))
+    };
+  }
+
+  async open(source: ChangesSource, path: string, action: 'open' | 'reveal'): Promise<void> {
+    const { context: { workspaceId } } = this.resolver.target(source);
+    const workspace = this.options.lookupWorkspace(workspaceId);
+    if (workspace === null || !workspace.available) {
+      throw new Error('The workspace is not available.');
+    }
+    const target = WorkspaceSnapshotEngine.resolveInside(workspace.canonicalPath, path);
+    if (target === null) {
+      throw new Error('The path is outside the workspace.');
+    }
+    if (action === 'reveal') {
+      this.options.showItemInFolder(target);
+      return;
+    }
+    const failure = await this.options.openPath(target);
+    if (failure !== '') {
+      throw new Error('The file could not be opened.');
+    }
+  }
+
+  startTerminalTimer(): void {
+    if (this.terminalTimer !== null) return;
+    this.terminalTimer = setInterval(() => {
+      for (const segment of this.repository.listOpenSegments()) {
+        if (segment.ownerKind === 'terminal' && segment.state === 'ready') {
+          void this.refresh(segment.ownerId);
+        }
+      }
+    }, this.terminalRefreshMs);
+    this.terminalTimer.unref?.();
+  }
+
+  dispose(): void {
+    if (this.terminalTimer !== null) {
+      clearInterval(this.terminalTimer);
+      this.terminalTimer = null;
+    }
+  }
+
+  /** Ends segments left open by the last run and drops those that ended more than 14 days ago. */
+  async startup(): Promise<void> {
+    const now = this.clock();
+    this.repository.endOpenSegments(now.toISOString());
+    const cutoff = new Date(now.getTime() - RETENTION_MS).toISOString();
+    const pruned = this.repository.pruneEndedBefore(cutoff);
+    for (const workspaceId of new Set(pruned.map((entry) => entry.workspaceId))) {
+      if (this.repository.hasSegments(workspaceId)) continue;
+      this.snapshots.delete(workspaceId);
+      try {
+        await this.engine.removeWorkspace(workspaceId);
+      } catch {
+        // A store that could not be removed stays until the workspace is pruned again.
+      }
+    }
+  }
+
+  private now(): string {
+    return this.clock().toISOString();
+  }
+
+  private async isGitAvailable(): Promise<boolean> {
+    try {
+      return await this.options.gitAvailable();
+    } catch {
+      return false;
+    }
+  }
+
+  /** Resolves when the baseline is recorded or the launch wait ends, whichever comes first. */
+  private async waitForBaseline(segmentId: string, input: BeginInput, workspacePath: string): Promise<void> {
+    let waited = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const wait = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        waited = true;
+        resolve();
+      }, this.launchWaitMs);
+    });
+    const capture = this.captureBaseline(segmentId, input, workspacePath, () => waited);
+    try {
+      await Promise.race([capture, wait]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async captureBaseline(
+    segmentId: string,
+    input: BeginInput,
+    workspacePath: string,
+    late: () => boolean
+  ): Promise<void> {
+    try {
+      const snapshot = await this.engine.snapshot(input.workspaceId, workspacePath);
+      this.snapshots.set(input.workspaceId, snapshot);
+      this.repository.recordBaseline(segmentId, {
+        snapshotKind: snapshot.kind,
+        tree: snapshot.tree,
+        head: snapshot.head,
+        late: late()
+      });
+      this.emitCount({ ownerId: input.ownerId, workspaceId: input.workspaceId, state: 'ready', changedFileCount: 0 });
+    } catch (error) {
+      try {
+        this.repository.markUnavailable(segmentId, unavailableReasonFor(error));
+      } catch {
+        // The segment may have gone with its workspace.
+      }
+    }
+  }
+
+  private async refreshOnce(ownerId: string): Promise<void> {
+    try {
+      const target = this.resolver.target({ kind: 'session', ownerId, view: 'session' });
+      const summary = await this.resolver.summarize(target, true);
+      const count = summary.files.length;
+      if (target.segment?.endedAt === null) {
+        this.lastCounts.set(ownerId, count);
+      } else {
+        this.lastCounts.delete(ownerId);
+      }
+      this.emitCount({ ownerId, workspaceId: summary.workspaceId, state: summary.state, changedFileCount: count });
+    } catch {
+      // A failed refresh keeps the last known count.
+    }
+  }
+
+  private emitCount(count: ChangesCount): void {
+    try {
+      this.options.onCount(count);
+    } catch {
+      // A listener failure must not break change tracking.
+    }
+  }
+
+  private async reviewedTree(
+    segment: ChangeSegment,
+    workspacePath: string,
+    currentTree: string,
+    files: readonly ChangedFile[],
+    paths: readonly string[] | null
+  ): Promise<{ tree: string; fileCount: number }> {
+    if (paths === null) {
+      return { tree: currentTree, fileCount: files.length };
+    }
+    const wanted = new Set(paths);
+    const chosen = files.filter(({ path }) => wanted.has(path));
+    if (chosen.length === 0 || segment.baselineTree === null) {
+      return { tree: currentTree, fileCount: 0 };
+    }
+    const expanded = chosen.flatMap(({ path, oldPath }) => (oldPath === null ? [path] : [path, oldPath]));
+    const tree = await this.engine.composeReviewed(
+      segment.workspaceId, workspacePath, segment.baselineTree, currentTree, expanded
+    );
+    return { tree, fileCount: chosen.length };
+  }
+}
