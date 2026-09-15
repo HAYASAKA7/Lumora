@@ -1,8 +1,8 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode
@@ -24,7 +24,9 @@ import type { ChangesApi } from './useWorkspaceChanges';
 
 /** How far one arrow key press moves the panel's edge. */
 const KEYBOARD_RESIZE_STEP = 24;
-const WIDTH_PROPERTY = '--changes-panel-width';
+/** Written on the parent so the parent's layout can size the panel's column. */
+const COLUMN_WIDTH_PROPERTY = '--changes-column-width';
+const GUIDE_OFFSET_PROPERTY = '--changes-resize-guide-offset';
 
 interface ChangesPanelProps {
   api: ChangesApi;
@@ -47,6 +49,12 @@ interface Drag {
   cancelOnEscape(event: globalThis.KeyboardEvent): void;
 }
 
+/** The width the panel may take from; the window's width before the panel has a parent to measure. */
+function measureAvailable(panel: HTMLElement | null): number {
+  const parentWidth = panel?.parentElement?.clientWidth ?? 0;
+  return parentWidth > 0 ? parentWidth : window.innerWidth;
+}
+
 export function ChangesPanel({
   active = true,
   api,
@@ -63,6 +71,7 @@ export function ChangesPanel({
   const [trackedKey, setTrackedKey] = useState(sourceKey);
   const [currentSource, setCurrentSource] = useState(source);
   const [width, setWidth] = useState(() => readPanelWidth(window));
+  const [availableWidth, setAvailableWidth] = useState(() => window.innerWidth);
   const [maximized, setMaximized] = useState(false);
 
   if (trackedKey !== sourceKey) {
@@ -70,23 +79,49 @@ export function ChangesPanel({
     setCurrentSource(source);
   }
 
-  const available = (): number => {
-    const parentWidth = panelRef.current?.parentElement?.clientWidth ?? 0;
-    return parentWidth > 0 ? parentWidth : window.innerWidth;
-  };
-  const shownWidth = clampPanelWidth(width, available());
-  const maxWidth = clampPanelWidth(Number.MAX_SAFE_INTEGER, available());
+  const shownWidth = clampPanelWidth(width, availableWidth);
+  const maxWidth = clampPanelWidth(Number.MAX_SAFE_INTEGER, availableWidth);
 
-  const showWidth = (value: number) => {
-    panelRef.current?.style.setProperty(WIDTH_PROPERTY, `${value}px`);
-  };
+  useLayoutEffect(() => {
+    const parent = panelRef.current?.parentElement;
+    if (parent === null || parent === undefined) return undefined;
+    const measure = () => setAvailableWidth(measureAvailable(panelRef.current));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    // A narrower parent narrows the shown width without changing the saved one.
+    const observer = new ResizeObserver(measure);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    panelRef.current?.parentElement?.style.setProperty(COLUMN_WIDTH_PROPERTY, `${shownWidth}px`);
+  }, [shownWidth]);
+
+  useLayoutEffect(() => {
+    const parent = panelRef.current?.parentElement;
+    return () => {
+      parent?.style.removeProperty(COLUMN_WIDTH_PROPERTY);
+    };
+  }, []);
 
   const commitWidth = (next: number) => {
-    const clamped = clampPanelWidth(next, available());
-    showWidth(clamped);
+    const available = measureAvailable(panelRef.current);
+    setAvailableWidth(available);
+    const clamped = clampPanelWidth(next, available);
     if (clamped === shownWidth) return;
     setWidth(clamped);
     writePanelWidth(window, clamped);
+  };
+
+  const showGuide = (target: HTMLElement, offset: number | null) => {
+    if (offset === null) {
+      delete target.dataset.dragging;
+      target.style.removeProperty(GUIDE_OFFSET_PROPERTY);
+      return;
+    }
+    target.dataset.dragging = 'true';
+    target.style.setProperty(GUIDE_OFFSET_PROPERTY, `${offset}px`);
   };
 
   /** Ends a drag; returns it so the caller can commit or restore. */
@@ -95,6 +130,7 @@ export function ChangesPanel({
     if (current === null) return null;
     drag.current = null;
     window.removeEventListener('keydown', current.cancelOnEscape, true);
+    showGuide(current.target, null);
     if (current.target.hasPointerCapture?.(current.pointerId)) {
       current.target.releasePointerCapture(current.pointerId);
     }
@@ -102,8 +138,7 @@ export function ChangesPanel({
   };
 
   const cancelDrag = () => {
-    const current = endDrag();
-    if (current !== null) showWidth(current.startWidth);
+    endDrag();
   };
   const cancelDragRef = useRef(cancelDrag);
   cancelDragRef.current = cancelDrag;
@@ -159,9 +194,9 @@ export function ChangesPanel({
   const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current;
     if (current === null || current.pointerId !== event.pointerId) return;
-    // The edge follows the pointer without re-rendering; the width commits on release.
-    current.width = clampPanelWidth(current.startWidth + current.startX - event.clientX, available());
-    showWidth(current.width);
+    // Only a guide follows the pointer so the session beside the panel resizes once on release.
+    current.width = clampPanelWidth(current.startWidth + current.startX - event.clientX, availableWidth);
+    showGuide(current.target, current.startWidth - current.width);
   };
 
   const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
@@ -191,7 +226,6 @@ export function ChangesPanel({
       id={id}
       onKeyDown={handleKeyDown}
       ref={panelRef}
-      style={{ [WIDTH_PROPERTY]: `${shownWidth}px` } as CSSProperties}
     >
       {maximized ? null : (
         <div

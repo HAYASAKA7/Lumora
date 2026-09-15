@@ -22,13 +22,16 @@ function rule(selector: string): string {
 }
 
 describe('changes panel style contract', () => {
-  it('docks the panel in a second column beside the session body', () => {
-    expect(rule('.terminal-workspace.has-changes-panel')).toContain('grid-template-columns: minmax(0, 1fr) auto');
+  it('docks the panel in a second column sized by the width the panel writes', () => {
+    expect(rule('.terminal-workspace.has-changes-panel')).toContain(
+      'grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px)'
+    );
     expect(rule('.terminal-workspace.has-changes-panel > .terminal-tabbar')).toContain('grid-column: 1 / -1');
     expect(rule('.terminal-workspace.has-changes-panel > .terminal-header')).toContain('grid-column: 1 / -1');
     const panel = rule('.terminal-workspace.has-changes-panel > .changes-panel');
     expect(panel).toContain('grid-column: 2');
     expect(panel).toContain('grid-row: 3 / -1');
+    expect(panel).toContain('width: auto');
     expect(panel).not.toContain('overflow');
     for (const body of ['.terminal-grid', '.structured-agent-body', '.structured-composer']) {
       const placed = rule(`.terminal-workspace.has-changes-panel > ${body}`);
@@ -37,20 +40,35 @@ describe('changes panel style contract', () => {
     }
   });
 
-  it('keeps the terminal body in its row when the tab bar is hidden', () => {
-    expect(rule('.terminal-workspace.has-changes-panel > .terminal-tabbar')).toContain('grid-row: 1');
-    expect(rule('.terminal-workspace.has-changes-panel > .terminal-header')).toContain('grid-row: 2');
-    expect(rule('.terminal-workspace.has-changes-panel > .terminal-grid')).toContain('grid-row: 3');
+  it('clamps the panel width in script rather than with a percentage', () => {
+    const panel = rule('.changes-panel');
+    expect(panel).toContain('width: var(--changes-column-width, 480px)');
+    expect(panel).not.toContain('max-width');
+    expect(panel).not.toContain('overflow: hidden');
   });
 
-  it('hides the session body without resizing it while the panel is maximized', () => {
+  it('pins the terminal rows whether or not a panel is open', () => {
+    expect(rule('.terminal-workspace > .terminal-tabbar')).toContain('grid-row: 1');
+    expect(rule('.terminal-workspace > .terminal-header')).toContain('grid-row: 2');
+    expect(rule('.terminal-workspace > .terminal-grid')).toContain('grid-row: 3');
+  });
+
+  it('hides the session body without resizing its column while the panel is maximized', () => {
     expect(rule('.terminal-workspace.changes-maximized > .changes-panel')).toContain('grid-column: 1 / -1');
+    expect(styles).not.toMatch(/\.changes-maximized[^{]*\{[^}]*grid-template-columns/);
     for (const body of ['.terminal-grid', '.structured-agent-body', '.structured-composer']) {
       const hidden = rule(`.terminal-workspace.changes-maximized > ${body}`);
       expect(hidden).toContain('visibility: hidden');
       expect(hidden).not.toContain('display');
     }
+  });
+
+  it('shows a guide at the dragged edge only while dragging', () => {
     expect(rule('.changes-panel-resize')).toContain('left: -3px');
-    expect(rule('.changes-panel')).not.toContain('overflow: hidden');
+    const guide = rule('.changes-panel-resize::after');
+    expect(guide).toContain('display: none');
+    expect(guide).toContain('transform: translateX(var(--changes-resize-guide-offset, 0px))');
+    expect(guide).toContain('pointer-events: none');
+    expect(rule(".changes-panel-resize[data-dragging='true']::after")).toContain('display: block');
   });
 });

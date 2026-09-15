@@ -5163,6 +5163,19 @@ button {
   color: var(--danger);
 }
 
+/* Rows stay pinned so a hidden tab bar leaves the header and terminals in place. */
+.terminal-workspace > .terminal-tabbar {
+  grid-row: 1;
+}
+
+.terminal-workspace > .terminal-header {
+  grid-row: 2;
+}
+
+.terminal-workspace > .terminal-grid {
+  grid-row: 3;
+}
+
 .terminal-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -7955,9 +7968,8 @@ button {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: var(--changes-panel-width, 480px);
+  width: var(--changes-column-width, 480px);
   min-width: 320px;
-  max-width: 70%;
   min-height: 0;
   color: var(--text);
   background: var(--surface);
@@ -7966,7 +7978,6 @@ button {
 
 .changes-panel[data-maximized='true'] {
   width: auto;
-  max-width: none;
 }
 
 /* The session header button keeps its count on one line. */
@@ -7975,25 +7986,18 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* A docked changes panel takes a second column beside the session body. */
+/* A docked changes panel takes a second column sized by the width the panel writes on the section. */
 .terminal-workspace.has-changes-panel {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px);
 }
 
-/* Rows stay fixed so a hidden tab bar leaves the body and panel aligned. */
-.terminal-workspace.has-changes-panel > .terminal-tabbar {
-  grid-column: 1 / -1;
-  grid-row: 1;
-}
-
+.terminal-workspace.has-changes-panel > .terminal-tabbar,
 .terminal-workspace.has-changes-panel > .terminal-header {
   grid-column: 1 / -1;
-  grid-row: 2;
 }
 
 .terminal-workspace.has-changes-panel > .terminal-grid {
   grid-column: 1;
-  grid-row: 3;
   min-width: 0;
 }
 
@@ -8006,13 +8010,16 @@ button {
 .terminal-workspace.has-changes-panel > .changes-panel {
   grid-column: 2;
   grid-row: 3 / -1;
+  width: auto;
+  min-width: 0;
 }
 
+/* A maximized panel spans both columns while the columns keep their widths. */
 .terminal-workspace.changes-maximized > .changes-panel {
   grid-column: 1 / -1;
 }
 
-/* Hidden bodies keep their size so a terminal does not refit while maximized. */
+/* Hidden bodies keep their column width so a terminal does not refit while maximized. */
 .terminal-workspace.changes-maximized > .terminal-grid,
 .terminal-workspace.changes-maximized > .structured-agent-body,
 .terminal-workspace.changes-maximized > .structured-composer {
@@ -8028,6 +8035,24 @@ button {
   width: 6px;
   cursor: col-resize;
   touch-action: none;
+}
+
+/* A guide shows where a dragged edge will land until the drag is released. */
+.changes-panel-resize::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  display: none;
+  width: 2px;
+  content: '';
+  background: var(--blue);
+  pointer-events: none;
+  transform: translateX(var(--changes-resize-guide-offset, 0px));
+}
+
+.changes-panel-resize[data-dragging='true']::after {
+  display: block;
 }
 
 .changes-panel-resize:hover {

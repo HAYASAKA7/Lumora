@@ -50,8 +50,40 @@ function panelWidth(): number {
   return Number(separator().getAttribute('aria-valuenow'));
 }
 
-function cssWidth(): string {
-  return screen.getByRole('complementary', { name: 'Changes' }).style.getPropertyValue('--changes-panel-width');
+function columnWidth(): string {
+  const parent = screen.getByRole('complementary', { name: 'Changes' }).parentElement;
+  return parent?.style.getPropertyValue('--changes-column-width') ?? '';
+}
+
+function guideShown(): boolean {
+  return separator().dataset.dragging === 'true';
+}
+
+function guideOffset(): string {
+  return separator().style.getPropertyValue('--changes-resize-guide-offset');
+}
+
+function stubResizeObserver() {
+  const callbacks: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
+  vi.stubGlobal('ResizeObserver', class {
+    private readonly record: { callback: ResizeObserverCallback; targets: Element[] };
+    constructor(callback: ResizeObserverCallback) {
+      this.record = { callback, targets: [] };
+      callbacks.push(this.record);
+    }
+    observe(target: Element) {
+      this.record.targets.push(target);
+    }
+    disconnect() {
+      this.record.targets = [];
+    }
+    unobserve() {}
+  });
+  return (target: Element) => {
+    for (const record of callbacks.filter((entry) => entry.targets.includes(target))) {
+      record.callback([], {} as ResizeObserver);
+    }
+  };
 }
 
 beforeEach(() => {
@@ -60,6 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe('ChangesPanel', () => {
@@ -117,8 +150,10 @@ describe('ChangesPanel', () => {
     const setItem = vi.spyOn(window.localStorage, 'setItem');
 
     const start = panelWidth();
+    expect(columnWidth()).toBe(`${start}px`);
     fireEvent.keyDown(separator(), { key: 'ArrowLeft' });
     expect(panelWidth()).toBe(start + 24);
+    expect(columnWidth()).toBe(`${start + 24}px`);
     expect(window.localStorage.getItem(CHANGES_PANEL_WIDTH_KEY)).toBe(String(start + 24));
     fireEvent.keyDown(separator(), { key: 'ArrowRight' });
     expect(panelWidth()).toBe(start);
@@ -159,10 +194,15 @@ describe('ChangesPanel', () => {
     const start = panelWidth();
     fireEvent.pointerDown(separator(), { clientX: 500, pointerId: 1, button: 0 });
     fireEvent.pointerMove(separator(), { clientX: 460, pointerId: 1 });
-    expect(cssWidth()).toBe(`${start + 40}px`);
+    // The column keeps its width while a guide shows where the edge will land.
+    expect(columnWidth()).toBe(`${start}px`);
+    expect(guideShown()).toBe(true);
+    expect(guideOffset()).toBe('-40px');
     expect(window.localStorage.getItem(CHANGES_PANEL_WIDTH_KEY)).toBeNull();
     fireEvent.pointerUp(separator(), { clientX: 460, pointerId: 1 });
 
+    expect(guideShown()).toBe(false);
+    expect(columnWidth()).toBe(`${start + 40}px`);
     expect(panelWidth()).toBe(start + 40);
     expect(window.localStorage.getItem(CHANGES_PANEL_WIDTH_KEY)).toBe(String(start + 40));
   });
@@ -175,17 +215,51 @@ describe('ChangesPanel', () => {
 
     fireEvent.pointerDown(separator(), { clientX: 500, pointerId: 1, button: 0 });
     fireEvent.pointerMove(separator(), { clientX: 400, pointerId: 1 });
+    expect(guideShown()).toBe(true);
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
-    expect(cssWidth()).toBe(`${start}px`);
+    expect(guideShown()).toBe(false);
+    expect(columnWidth()).toBe(`${start}px`);
     fireEvent.pointerUp(separator(), { clientX: 400, pointerId: 1 });
     expect(panelWidth()).toBe(start);
 
     fireEvent.pointerDown(separator(), { clientX: 500, pointerId: 2, button: 0 });
     fireEvent.pointerMove(separator(), { clientX: 420, pointerId: 2 });
     fireEvent.pointerCancel(separator(), { pointerId: 2 });
-    expect(cssWidth()).toBe(`${start}px`);
+    expect(guideShown()).toBe(false);
+    expect(columnWidth()).toBe(`${start}px`);
     expect(window.localStorage.getItem(CHANGES_PANEL_WIDTH_KEY)).toBeNull();
+  });
+
+  it('clamps the column to the parent width as the parent resizes without saving it', async () => {
+    const resize = stubResizeObserver();
+    let parentWidth = 1000;
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.querySelector(':scope > .changes-panel') === null ? 0 : parentWidth;
+    });
+    window.localStorage.setItem(CHANGES_PANEL_WIDTH_KEY, '640');
+    const setItem = vi.spyOn(window.localStorage, 'setItem');
+    const { api } = fakeChangesApi();
+    const { unmount } = renderPanel(api);
+    await findFileList();
+    const parent = screen.getByRole('complementary', { name: 'Changes' }).parentElement as HTMLElement;
+
+    expect(columnWidth()).toBe('640px');
+    expect(separator()).toHaveAttribute('aria-valuemax', '700');
+
+    parentWidth = 600;
+    act(() => resize(parent));
+    expect(columnWidth()).toBe('420px');
+    expect(separator()).toHaveAttribute('aria-valuemax', '420');
+
+    parentWidth = 1200;
+    act(() => resize(parent));
+    expect(columnWidth()).toBe('640px');
+    expect(setItem).not.toHaveBeenCalled();
+
+    unmount();
+    expect(parent.style.getPropertyValue('--changes-column-width')).toBe('');
+    clientWidth.mockRestore();
   });
 
   it('closes on Escape without letting it reach the parent unless a file menu is open', async () => {
