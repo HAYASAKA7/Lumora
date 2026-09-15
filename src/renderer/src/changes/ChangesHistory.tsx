@@ -1,122 +1,137 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react';
 
 import type { ChangesHistory as History } from '../../../shared/contracts';
+import { ProgressiveListControl, useProgressiveList } from '../catalog/progressive-list';
 import { useLocalization } from '../localization/useLocalization';
-import type { ChangesApi, Load } from './useWorkspaceChanges';
+import type { Load } from './useWorkspaceChanges';
 
-type Segment = History['segments'][number];
+/** Segments shown before the list asks for more. */
+const HISTORY_PAGE_SIZE = 100;
 
 interface ChangesHistoryProps {
-  api: ChangesApi;
-  workspaceId: string;
-  /** False while hidden; nothing loads then. */
-  active: boolean;
+  history: Load<History>;
   /** The catalog title of a session, or null when it is not known. */
-  sessionTitle?(catalogSessionId: string): string | null;
+  sessionTitle?: ((catalogSessionId: string) => string | null) | undefined;
   /** Segments of this catalog session are marked and scrolled into view. */
-  highlightSessionId?: string | null;
+  highlightSessionId?: string | null | undefined;
   onOpenReview(reviewId: string): void;
 }
 
-interface Loaded {
-  workspaceId: string;
-  load: Load<History>;
+interface Row {
+  ownerId: string;
+  heading: string;
+  started: string;
+  highlighted: boolean;
+  batches: { reviewId: string; label: string }[];
 }
 
-function useHistory(api: ChangesApi, workspaceId: string, active: boolean): Load<History> {
-  const apiRef = useRef(api);
-  apiRef.current = api;
-  const [loaded, setLoaded] = useState<Loaded>({ workspaceId, load: { state: 'loading' } });
-
-  useEffect(() => {
-    if (!active) return undefined;
-    let current = true;
-    apiRef.current.getChangesHistory(workspaceId).then(
-      (value) => {
-        if (current) setLoaded({ workspaceId, load: { state: 'ready', value } });
-      },
-      () => {
-        if (current) setLoaded({ workspaceId, load: { state: 'error' } });
-      }
-    );
-    return () => {
-      current = false;
-    };
-  }, [active, workspaceId]);
-
-  return loaded.workspaceId === workspaceId ? loaded.load : { state: 'loading' };
-}
-
-export function ChangesHistory({
-  active,
-  api,
-  highlightSessionId = null,
-  onOpenReview,
-  sessionTitle,
-  workspaceId
-}: ChangesHistoryProps): ReactNode {
+function useRows(
+  history: Load<History>,
+  sessionTitle: ChangesHistoryProps['sessionTitle'],
+  highlightSessionId: string | null
+): Row[] | null {
   const { formatDate, formatTime, t } = useLocalization();
-  const history = useHistory(api, workspaceId, active);
+  return useMemo(() => {
+    if (history.state !== 'ready') return null;
+    const when = (iso: string) => {
+      const date = new Date(iso);
+      return `${formatDate(date)} ${formatTime(date)}`;
+    };
+    return history.value.segments.map((segment) => {
+      const title = segment.catalogSessionId === null ? null : sessionTitle?.(segment.catalogSessionId) ?? null;
+      return {
+        ownerId: segment.ownerId,
+        heading: title ?? t(`terminal.changes.history-${segment.ownerKind}`),
+        started: t('terminal.changes.history-started', { time: when(segment.createdAt) }),
+        highlighted: highlightSessionId !== null && segment.catalogSessionId === highlightSessionId,
+        batches: segment.reviews.map((review) => ({
+          reviewId: review.reviewId,
+          label: t('terminal.changes.history-batch', { count: review.fileCount, time: when(review.reviewedAt) })
+        }))
+      };
+    });
+  }, [formatDate, formatTime, highlightSessionId, history, sessionTitle, t]);
+}
+
+/** Scrolls the nearest history scroll container so the first highlighted segment sits at its top. */
+function scrollToHighlight(list: HTMLElement | null): void {
+  const segment = list?.querySelector<HTMLElement>('[data-highlighted="true"]');
+  if (list === null || segment === null || segment === undefined) return;
+  const container = list.closest<HTMLElement>('.changes-history-scroll') ?? list.parentElement;
+  if (container === null) return;
+  container.scrollTop += segment.getBoundingClientRect().top - container.getBoundingClientRect().top;
+}
+
+export const ChangesHistory = memo(function ChangesHistory({
+  highlightSessionId = null,
+  history,
+  onOpenReview,
+  sessionTitle
+}: ChangesHistoryProps): ReactNode {
+  const { t } = useLocalization();
+  const rows = useRows(history, sessionTitle, highlightSessionId);
   const listRef = useRef<HTMLUListElement | null>(null);
+  const highlightIndex = rows?.findIndex((row) => row.highlighted) ?? -1;
+  const progress = useProgressiveList({
+    itemCount: rows?.length ?? 0,
+    resetKey: `${highlightSessionId ?? ''}:${highlightIndex}`,
+    initialCount: Math.max(HISTORY_PAGE_SIZE, highlightIndex + 1),
+    batchSize: HISTORY_PAGE_SIZE
+  });
 
-  const highlighted = (segment: Segment) =>
-    highlightSessionId !== null && segment.catalogSessionId === highlightSessionId;
-  const segments = history.state === 'ready' ? history.value.segments : null;
-  const hasHighlight = segments?.some(highlighted) ?? false;
-
+  /** The highlight already scrolled to, so a refresh does not move the list again. */
+  const scrolledTo = useRef<string | null>(null);
   useEffect(() => {
-    if (!hasHighlight) return;
-    const first = listRef.current?.querySelector<HTMLElement>('[data-highlighted="true"]');
-    // jsdom and older engines may lack scrollIntoView.
-    if (typeof first?.scrollIntoView === 'function') first.scrollIntoView({ block: 'nearest' });
-  }, [hasHighlight, highlightSessionId, segments]);
-
-  const when = (iso: string) => {
-    const date = new Date(iso);
-    return `${formatDate(date)} ${formatTime(date)}`;
-  };
-
-  const heading = (segment: Segment) => {
-    const title = segment.catalogSessionId === null ? null : sessionTitle?.(segment.catalogSessionId) ?? null;
-    return title ?? t(`terminal.changes.history-${segment.ownerKind}`);
-  };
+    if (highlightIndex < 0 || scrolledTo.current === highlightSessionId) return;
+    scrolledTo.current = highlightSessionId;
+    scrollToHighlight(listRef.current);
+  }, [highlightIndex, highlightSessionId]);
 
   if (history.state === 'error') {
     return <p className="changes-notice changes-notice-error" role="alert">{t('terminal.changes.error')}</p>;
   }
-  if (segments === null) return null;
-  if (segments.length === 0) return <p className="changes-empty">{t('terminal.changes.history-empty')}</p>;
+  if (rows === null) return null;
 
   return (
-    <ul aria-label={t('terminal.changes.history-list')} className="changes-history" ref={listRef}>
-      {segments.map((segment) => (
-        <li
-          className="changes-history-segment"
-          data-highlighted={highlighted(segment) ? 'true' : undefined}
-          key={segment.ownerId}
-        >
-          <h3>{heading(segment)}</h3>
-          <p className="changes-history-started">
-            {t('terminal.changes.history-started', { time: when(segment.createdAt) })}
-          </p>
-          {segment.reviews.length === 0 ? (
-            <p className="changes-history-empty">{t('terminal.changes.history-empty')}</p>
-          ) : (
-            <div className="changes-history-batches">
-              {segment.reviews.map((review) => (
-                <button
-                  className="changes-history-batch"
-                  key={review.reviewId}
-                  onClick={() => onOpenReview(review.reviewId)}
-                  type="button"
-                >
-                  {t('terminal.changes.history-batch', { count: review.fileCount, time: when(review.reviewedAt) })}
-                </button>
-              ))}
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      {highlightSessionId !== null && highlightIndex < 0 ? (
+        <p className="changes-notice">{t('terminal.changes.history-no-session')}</p>
+      ) : null}
+      {rows.length === 0 ? <p className="changes-empty">{t('terminal.changes.history-empty')}</p> : (
+        <ul aria-label={t('terminal.changes.history-list')} className="changes-history" ref={listRef}>
+          {rows.slice(0, progress.visibleCount).map((row) => (
+            <li
+              className="changes-history-segment"
+              data-highlighted={row.highlighted ? 'true' : undefined}
+              key={row.ownerId}
+            >
+              <h3>{row.heading}</h3>
+              <p className="changes-history-started">{row.started}</p>
+              {row.batches.length === 0 ? (
+                <p className="changes-history-empty">{t('terminal.changes.history-empty')}</p>
+              ) : (
+                <div className="changes-history-batches">
+                  {row.batches.map((batch) => (
+                    <button
+                      className="changes-history-batch"
+                      key={batch.reviewId}
+                      onClick={() => onOpenReview(batch.reviewId)}
+                      type="button"
+                    >
+                      {batch.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ProgressiveListControl
+        hasMore={progress.hasMore}
+        label={t('terminal.changes.history-show-more')}
+        onLoadMore={progress.showMore}
+      />
+    </>
   );
-}
+});

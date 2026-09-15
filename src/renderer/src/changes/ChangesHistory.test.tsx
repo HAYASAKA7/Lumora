@@ -1,10 +1,10 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChangesHistory as History } from '../../../shared/contracts';
-import { fakeChangesApi } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
 import { ChangesHistory } from './ChangesHistory';
+import type { Load } from './useWorkspaceChanges';
 
 const history: History = {
   segments: [
@@ -38,29 +38,33 @@ const history: History = {
   ]
 };
 
-interface Options {
-  active?: boolean;
-  workspaceId?: string;
-  highlightSessionId?: string | null;
+const ready = (value: History): Load<History> => ({ state: 'ready', value });
+
+function segmentOf(index: number, ownerKind: 'terminal' | 'unified' = 'terminal'): History['segments'][number] {
+  return {
+    ownerId: `owner-${index}`,
+    ownerKind,
+    catalogSessionId: `session-${index}`,
+    createdAt: '2026-09-15T00:00:00.000Z',
+    endedAt: null,
+    reviews: [{ reviewId: `review-${index}`, fileCount: 1, reviewedAt: '2026-09-15T00:10:00.000Z' }]
+  };
 }
 
-function setup(options: Options = {}) {
-  const { api } = fakeChangesApi();
-  api.getChangesHistory.mockResolvedValue(history);
+function renderHistory(load: Load<History>, highlightSessionId: string | null = null) {
   const onOpenReview = vi.fn();
   const sessionTitle = (id: string) => (id === 'session-2' ? 'Fix the login flow' : null);
-  const element = (next: Options) => (
-    <ChangesHistory
-      active={next.active ?? true}
-      api={api}
-      highlightSessionId={next.highlightSessionId ?? null}
-      onOpenReview={onOpenReview}
-      sessionTitle={sessionTitle}
-      workspaceId={next.workspaceId ?? 'ws-1'}
-    />
+  const view = renderWithLocalization(
+    <div className="changes-history-scroll">
+      <ChangesHistory
+        highlightSessionId={highlightSessionId}
+        history={load}
+        onOpenReview={onOpenReview}
+        sessionTitle={sessionTitle}
+      />
+    </div>
   );
-  const view = renderWithLocalization(element(options));
-  return { api, onOpenReview, rerender: (next: Options) => view.rerender(element(next)) };
+  return { ...view, onOpenReview };
 }
 
 afterEach(() => {
@@ -68,10 +72,10 @@ afterEach(() => {
 });
 
 describe('ChangesHistory', () => {
-  it('lists segments newest first with titles or kind fallbacks and their batches', async () => {
-    const { api, onOpenReview } = setup();
+  it('lists segments newest first with titles or kind fallbacks and their batches', () => {
+    const { onOpenReview } = renderHistory(ready(history));
 
-    const list = await screen.findByRole('list', { name: 'Change history' });
+    const list = screen.getByRole('list', { name: 'Change history' });
     const segments = within(list).getAllByRole('listitem');
     expect(segments).toHaveLength(3);
     expect(within(segments[0]!).getByRole('heading', { name: 'Fix the login flow' })).toBeInTheDocument();
@@ -79,70 +83,60 @@ describe('ChangesHistory', () => {
     expect(within(segments[2]!).getByRole('heading', { name: 'Unified UI session' })).toBeInTheDocument();
     expect(within(segments[0]!).getByText(/^Started /)).toBeInTheDocument();
     expect(within(segments[1]!).getByText('Nothing reviewed yet.')).toBeInTheDocument();
-    expect(api.getChangesHistory).toHaveBeenCalledWith('ws-1');
 
-    const batch = within(segments[0]!).getByRole('button', { name: /^3 files reviewed · / });
     expect(within(segments[0]!).getByRole('button', { name: /^1 file reviewed · / })).toBeInTheDocument();
-    fireEvent.click(batch);
+    fireEvent.click(within(segments[0]!).getByRole('button', { name: /^3 files reviewed · / }));
     expect(onOpenReview).toHaveBeenCalledWith('review-3');
   });
 
-  it('says nothing was reviewed when there are no segments', async () => {
-    const { api } = fakeChangesApi();
-    renderWithLocalization(
-      <ChangesHistory active api={api} onOpenReview={vi.fn()} workspaceId="ws-1" />
-    );
-    expect(await screen.findByText('Nothing reviewed yet.')).toBeInTheDocument();
+  it('says nothing was reviewed when there are no segments and shows nothing while loading', () => {
+    const { unmount } = renderHistory({ state: 'loading' });
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing reviewed yet.')).not.toBeInTheDocument();
+    unmount();
+
+    renderHistory(ready({ segments: [] }));
+    expect(screen.getByText('Nothing reviewed yet.')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Change history' })).not.toBeInTheDocument();
   });
 
-  it('shows an alert when the history cannot be read', async () => {
-    const { api } = fakeChangesApi();
-    api.getChangesHistory.mockRejectedValue(new Error('broken'));
-    renderWithLocalization(
-      <ChangesHistory active api={api} onOpenReview={vi.fn()} workspaceId="ws-1" />
-    );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Lumora could not read changes. Try again.');
+  it('shows an alert when the history cannot be read', () => {
+    renderHistory({ state: 'error' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Lumora could not read changes. Try again.');
   });
 
-  it('marks and scrolls to the highlighted session', async () => {
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
-    setup({ highlightSessionId: 'session-2' });
+  it('marks the highlighted session and scrolls only its container to it', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.classList.contains('changes-history-scroll') ? 100 : this.dataset.highlighted === 'true' ? 340 : 0;
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) };
+    });
+    const { container } = renderHistory(ready(history), 'session-2');
 
-    const list = await screen.findByRole('list', { name: 'Change history' });
-    const segments = within(list).getAllByRole('listitem');
+    const segments = within(screen.getByRole('list', { name: 'Change history' })).getAllByRole('listitem');
     expect(segments[0]).toHaveAttribute('data-highlighted', 'true');
     expect(segments[1]).not.toHaveAttribute('data-highlighted');
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    const scroller = container.querySelector<HTMLElement>('.changes-history-scroll')!;
+    expect(scroller.scrollTop).toBe(240);
+    expect(screen.queryByText('No changes were recorded for this session.')).not.toBeInTheDocument();
   });
 
-  it('loads nothing while inactive and reloads for another workspace', async () => {
-    const { api, rerender } = setup({ active: false });
-    await act(async () => undefined);
-    expect(api.getChangesHistory).not.toHaveBeenCalled();
-
-    rerender({ active: true });
-    await screen.findByRole('list', { name: 'Change history' });
-    rerender({ active: true, workspaceId: 'ws-2' });
-    await act(async () => undefined);
-    expect(api.getChangesHistory).toHaveBeenLastCalledWith('ws-2');
+  it('notes when the highlighted session recorded no changes', () => {
+    renderHistory(ready(history), 'session-without-changes');
+    expect(screen.getByText('No changes were recorded for this session.')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Change history' })).toBeInTheDocument();
   });
 
-  it('ignores a response for a workspace no longer shown', async () => {
-    const { api } = fakeChangesApi();
-    let finishFirst!: (value: History) => void;
-    api.getChangesHistory
-      .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }))
-      .mockResolvedValueOnce({ segments: [] });
-    const element = (workspaceId: string) => (
-      <ChangesHistory active api={api} onOpenReview={vi.fn()} workspaceId={workspaceId} />
-    );
-    const view = renderWithLocalization(element('ws-1'));
-    view.rerender(element('ws-2'));
-    expect(await screen.findByText('Nothing reviewed yet.')).toBeInTheDocument();
-    await act(async () => finishFirst(history));
-    expect(screen.queryByRole('list', { name: 'Change history' })).not.toBeInTheDocument();
+  it('shows long histories in pages and keeps a highlighted segment on the first page', () => {
+    const many: History = { segments: Array.from({ length: 150 }, (_, index) => segmentOf(index)) };
+    const { unmount } = renderHistory(ready(many));
+    expect(within(screen.getByRole('list', { name: 'Change history' })).getAllByRole('listitem')).toHaveLength(100);
+    fireEvent.click(screen.getByRole('button', { name: 'Show earlier sessions' }));
+    expect(within(screen.getByRole('list', { name: 'Change history' })).getAllByRole('listitem')).toHaveLength(150);
+    unmount();
+
+    renderHistory(ready(many), 'session-120');
+    const shown = within(screen.getByRole('list', { name: 'Change history' })).getAllByRole('listitem');
+    expect(shown).toHaveLength(121);
+    expect(shown[120]).toHaveAttribute('data-highlighted', 'true');
   });
 });

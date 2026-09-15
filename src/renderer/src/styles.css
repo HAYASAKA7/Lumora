@@ -8390,6 +8390,11 @@ button {
   opacity: 0.5;
 }
 
+/* The content wrapper only catches keys so the view inside stays a direct grid item of the panel. */
+.changes-panel-content {
+  display: contents;
+}
+
 /* The review history lists each session segment and its reviewed batches. */
 .changes-history-view {
   display: grid;

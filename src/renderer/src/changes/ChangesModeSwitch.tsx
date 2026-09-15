@@ -22,9 +22,7 @@ export function ChangesModeSwitch<T extends string>({ onSelect, options, selecte
           className="changes-view-switch-button"
           disabled={option.disabled === true}
           key={option.id}
-          onClick={() => {
-            if (option.id !== selected) onSelect(option.id);
-          }}
+          onClick={() => onSelect(option.id)}
           type="button"
         >
           {option.label}

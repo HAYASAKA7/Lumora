@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import type { ChangedFile, ChangesSource, ChangesSummary } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
@@ -19,8 +19,10 @@ interface ChangesViewProps {
   source: ChangesSource;
   active: boolean;
   onSourceChange?(source: ChangesSource): void;
-  /** Replaces the session view switch; receives the loaded summary's workspace id. */
-  toolbarStart?(workspaceId: string | null): ReactNode;
+  /** Replaces the session view switch. */
+  toolbarStart?: ReactNode;
+  /** Called with the loaded summary's workspace id whenever it changes. */
+  onWorkspaceKnown?(workspaceId: string): void;
 }
 
 function useIsWide(root: RefObject<HTMLDivElement | null>): boolean {
@@ -56,7 +58,14 @@ function navigationTarget(files: readonly ChangedFile[], path: string, key: Chan
 
 const FIRST_PAGE = { files: CHANGES_PAGE_SIZE, committed: CHANGES_PAGE_SIZE };
 
-export function ChangesView({ active, api, onSourceChange, source, toolbarStart }: ChangesViewProps): ReactNode {
+export function ChangesView({
+  active,
+  api,
+  onSourceChange,
+  onWorkspaceKnown,
+  source,
+  toolbarStart
+}: ChangesViewProps): ReactNode {
   const { t } = useLocalization();
   const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } =
     useWorkspaceChanges(api, source, active);
@@ -78,6 +87,10 @@ export function ChangesView({ active, api, onSourceChange, source, toolbarStart 
   }
 
   const value = summary.state === 'ready' ? summary.value : null;
+  const knownWorkspaceId = value?.workspaceId ?? null;
+  useEffect(() => {
+    if (knownWorkspaceId !== null) onWorkspaceKnown?.(knownWorkspaceId);
+  }, [knownWorkspaceId, onWorkspaceKnown]);
   const latest = useRef({ api, source, markReviewed, value, pages });
   latest.current = { api, source, markReviewed, value, pages };
   const buttons = useRef(new Map<string, HTMLButtonElement>());
@@ -144,7 +157,7 @@ export function ChangesView({ active, api, onSourceChange, source, toolbarStart 
   return (
     <div className={`changes-view${wide ? ' is-wide' : ''}`} ref={rootRef}>
       <div className="changes-toolbar">
-        {toolbarStart !== undefined ? toolbarStart(value?.workspaceId ?? null) : source.kind === 'session' ? (
+        {toolbarStart !== undefined ? toolbarStart : source.kind === 'session' ? (
           <ChangesModeSwitch
             onSelect={(view) => onSourceChange?.({ ...source, view })}
             options={(['session', 'uncommitted'] as const).map((view) => ({

@@ -1,20 +1,28 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { IconButton } from '../ui/IconButton';
+import { RefreshIcon } from '../ui/icons';
 import { ChangesHistory } from './ChangesHistory';
 import { ChangesModeSwitch, type ChangesModeOption } from './ChangesModeSwitch';
 import { ChangesView } from './ChangesView';
+import { useChangesHistory } from './useChangesHistory';
 import type { ChangesApi } from './useWorkspaceChanges';
 
 export type ChangesPanelMode = 'changes' | 'history';
 
 type Choice = 'session' | 'uncommitted' | 'history';
 
+/** The pressed choice in the mode switch. */
+export const PRESSED_MODE_SELECTOR = '.changes-view-switch-button[aria-pressed="true"]';
+const OPEN_MENU_SELECTOR = '[aria-haspopup="menu"][aria-expanded="true"]';
+
 interface ChangesPanelContentProps {
   api: ChangesApi;
   source: ChangesSource;
   active: boolean;
+  /** History is honoured once the workspace id is known. */
   initialMode: ChangesPanelMode;
   sessionTitle?: ((catalogSessionId: string) => string | null) | undefined;
   highlightSessionId?: string | null | undefined;
@@ -24,7 +32,7 @@ interface ChangesPanelContentProps {
 /**
  * Switches the panel between a source's changes and its workspace's review
  * history. A batch opened from the history shows as a review source with a way
- * back to the history it came from.
+ * back to the history it came from; Escape takes that way back too.
  */
 export function ChangesPanelContent({
   active,
@@ -36,49 +44,59 @@ export function ChangesPanelContent({
   source
 }: ChangesPanelContentProps): ReactNode {
   const { t } = useLocalization();
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<ChangesPanelMode>(initialMode);
   /** The source a review opened from the history returns to. */
   const [returnTo, setReturnTo] = useState<ChangesSource | null>(null);
   const [sessionWorkspaceId, setSessionWorkspaceId] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState(0);
 
-  if (source.kind === 'review') {
-    const back = returnTo;
-    return (
-      <ChangesView
-        active={active}
-        api={api}
-        source={source}
-        toolbarStart={() => back === null ? <span /> : (
-          <button
-            className="secondary-button"
-            onClick={() => {
-              setReturnTo(null);
-              setMode('history');
-              onSourceChange(back);
-            }}
-            type="button"
-          >
-            {t('terminal.changes.history-back')}
-          </button>
-        )}
-      />
-    );
-  }
+  const historyWorkspaceId = source.kind === 'workspace'
+    ? source.workspaceId
+    : source.kind === 'session' ? sessionWorkspaceId : null;
+  const showHistory = source.kind !== 'review' && mode === 'history' && historyWorkspaceId !== null;
+  const history = useChangesHistory(api, historyWorkspaceId ?? '', active && showHistory);
 
-  const historyWorkspaceId = source.kind === 'workspace' ? source.workspaceId : sessionWorkspaceId;
+  const latest = useRef({ source, onSourceChange });
+  useLayoutEffect(() => {
+    latest.current = { source, onSourceChange };
+  });
 
-  const renderSwitch = (knownWorkspaceId: string | null) => {
+  useEffect(() => {
+    if (focusRequest > 0) rootRef.current?.querySelector<HTMLElement>(PRESSED_MODE_SELECTOR)?.focus();
+  }, [focusRequest]);
+
+  const openReview = useCallback((reviewId: string) => {
+    setReturnTo(latest.current.source);
+    latest.current.onSourceChange({ kind: 'review', reviewId });
+  }, []);
+
+  const goBack = () => {
+    if (returnTo === null) return;
+    setReturnTo(null);
+    setMode('history');
+    onSourceChange(returnTo);
+    setFocusRequest((value) => value + 1);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || source.kind !== 'review' || returnTo === null) return;
+    if (event.currentTarget.querySelector(OPEN_MENU_SELECTOR) !== null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    goBack();
+  };
+
+  const modeSwitch = () => {
     const options: ChangesModeOption<Choice>[] = [
       ...(source.kind === 'session' ? [{ id: 'session' as const, label: t('terminal.changes.view-session') }] : []),
       { id: 'uncommitted', label: t('terminal.changes.view-uncommitted') },
-      { id: 'history', label: t('terminal.changes.history'), disabled: knownWorkspaceId === null }
+      { id: 'history', label: t('terminal.changes.history'), disabled: historyWorkspaceId === null }
     ];
-    const selected: Choice = mode === 'history' ? 'history' : source.kind === 'session' ? source.view : 'uncommitted';
+    const selected: Choice = showHistory ? 'history' : source.kind === 'session' ? source.view : 'uncommitted';
     const select = (choice: Choice) => {
       if (choice === 'history') {
-        if (knownWorkspaceId === null) return;
-        setSessionWorkspaceId(knownWorkspaceId);
-        setMode('history');
+        if (historyWorkspaceId !== null) setMode('history');
         return;
       }
       setMode('changes');
@@ -87,35 +105,62 @@ export function ChangesPanelContent({
     return <ChangesModeSwitch onSelect={select} options={options} selected={selected} />;
   };
 
-  if (mode === 'history' && historyWorkspaceId !== null) {
-    return (
+  let body: ReactNode;
+  if (source.kind === 'review') {
+    body = (
+      <ChangesView
+        active={active}
+        api={api}
+        source={source}
+        toolbarStart={returnTo === null ? <span /> : (
+          <button className="secondary-button" onClick={goBack} type="button">
+            {t('terminal.changes.history-back')}
+          </button>
+        )}
+      />
+    );
+  } else if (showHistory) {
+    body = (
       <div className="changes-history-view">
-        <div className="changes-toolbar">{renderSwitch(historyWorkspaceId)}</div>
+        <div className="changes-toolbar">
+          {modeSwitch()}
+          <div className="changes-toolbar-actions">
+            <IconButton
+              busy={history.refreshing}
+              busyLabel={t('terminal.changes.refreshing')}
+              label={t('terminal.changes.refresh')}
+              onClick={history.reload}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </div>
+        </div>
         <div className="changes-history-scroll">
           <ChangesHistory
-            active={active}
-            api={api}
             highlightSessionId={highlightSessionId}
-            onOpenReview={(reviewId) => {
-              setReturnTo(source);
-              onSourceChange({ kind: 'review', reviewId });
-            }}
-            workspaceId={historyWorkspaceId}
-            {...(sessionTitle === undefined ? {} : { sessionTitle })}
+            history={history.history}
+            onOpenReview={openReview}
+            sessionTitle={sessionTitle}
           />
         </div>
       </div>
     );
+  } else {
+    body = (
+      <ChangesView
+        active={active}
+        api={api}
+        onSourceChange={onSourceChange}
+        source={source}
+        toolbarStart={modeSwitch()}
+        {...(source.kind === 'session' ? { onWorkspaceKnown: setSessionWorkspaceId } : {})}
+      />
+    );
   }
 
   return (
-    <ChangesView
-      active={active}
-      api={api}
-      onSourceChange={onSourceChange}
-      source={source}
-      toolbarStart={(summaryWorkspaceId) =>
-        renderSwitch(source.kind === 'workspace' ? source.workspaceId : summaryWorkspaceId)}
-    />
+    <div className="changes-panel-content" onKeyDown={handleKeyDown} ref={rootRef}>
+      {body}
+    </div>
   );
 }
