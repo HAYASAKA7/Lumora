@@ -40,6 +40,9 @@ export interface WorkspaceChanges {
 
 const LOADING: Load<never> = { state: 'loading' };
 
+/** How long a new selection must stay put before its diff is fetched. */
+export const DIFF_SELECTION_DELAY_MS = 150;
+
 interface DiffEntry {
   source: ChangesSource;
   path: string;
@@ -88,6 +91,8 @@ export function useWorkspaceChanges(
   /** Counts stored summaries, so a response that started before a newer one is dropped. */
   const storedSummaries = useRef(0);
   const inFlight = useRef<InFlightReload | null>(null);
+  /** The last diff actually requested, so a refresh of the same file skips the selection delay. */
+  const lastDiffRequest = useRef<{ source: ChangesSource; path: string } | null>(null);
 
   if (trackedKey !== sourceKey) {
     // Reset during render so no effect runs against the previous source's selection.
@@ -169,12 +174,21 @@ export function useWorkspaceChanges(
           : { source: stableSource, path, load }
       );
     };
-    apiRef.current.getChangesFileDiff(stableSource, path).then(
-      (value) => store({ state: 'ready', value }, value),
-      () => store({ state: 'error' })
-    );
+    const fetchDiff = () => {
+      lastDiffRequest.current = { source: stableSource, path };
+      apiRef.current.getChangesFileDiff(stableSource, path).then(
+        (value) => store({ state: 'ready', value }, value),
+        () => store({ state: 'error' })
+      );
+    };
+    const previous = lastDiffRequest.current;
+    // Refreshing the open file answers at once; a new selection waits so arrowing through files fetches once.
+    const refresh = previous !== null && previous.source === stableSource && previous.path === path;
+    const timer = refresh ? null : setTimeout(fetchDiff, DIFF_SELECTION_DELAY_MS);
+    if (refresh) fetchDiff();
     return () => {
       cancelled = true;
+      if (timer !== null) clearTimeout(timer);
     };
   }, [active, selectedPath, stableSource, summaryRevision]);
 

@@ -145,6 +145,53 @@ describe('useWorkspaceChanges', () => {
     });
   });
 
+  it('fetches only the last of several quick selections', async () => {
+    const { api } = fakeApi(summary(['a.txt', 'b.txt', 'c.txt']));
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+
+    vi.useFakeTimers();
+    try {
+      act(() => result.current.setSelectedPath('a.txt'));
+      act(() => vi.advanceTimersByTime(60));
+      act(() => result.current.setSelectedPath('b.txt'));
+      act(() => vi.advanceTimersByTime(60));
+      act(() => result.current.setSelectedPath('c.txt'));
+      expect(result.current.selectedPath).toBe('c.txt');
+      expect(result.current.diff).toEqual({ state: 'loading' });
+      act(() => vi.advanceTimersByTime(149));
+      expect(api.getChangesFileDiff).not.toHaveBeenCalled();
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1);
+      expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'c.txt');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes the diff of the same path without waiting', async () => {
+    const { api, emit } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    act(() => result.current.setSelectedPath('a.txt'));
+    await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        emit(count('owner-1'));
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.getChangesFileDiff).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reports a failed diff as an error', async () => {
     const { api } = fakeApi();
     api.getChangesFileDiff.mockRejectedValueOnce(new Error('nope'));
@@ -315,6 +362,7 @@ describe('useWorkspaceChanges', () => {
     let resolveOld!: (value: ChangesFileDiff) => void;
     api.getChangesFileDiff.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
     act(() => result.current.setSelectedPath('a.txt'));
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1));
 
     const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
     api.getChangesSummary.mockResolvedValue(summary(['a.txt'], uncommitted));
