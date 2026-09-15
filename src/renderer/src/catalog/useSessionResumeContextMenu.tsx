@@ -28,6 +28,8 @@ interface SessionResumeContextMenuOptions {
     interactionRoute: AgentInteractionRoute
   ) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  /** Shows View changes when given; left out where changes are not offered. */
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
 }
 
 const UNIFIED_REASON_KEYS = {
@@ -42,12 +44,14 @@ function SessionResumeMenu({
   closeMenu,
   menu,
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: {
   closeMenu(): void;
   menu: SessionMenuState;
   onResume: SessionResumeContextMenuOptions['onResume'];
   onResumeOptions: SessionResumeContextMenuOptions['onResumeOptions'];
+  onViewChanges: SessionResumeContextMenuOptions['onViewChanges'];
 }): ReactNode {
   const { t } = useLocalization();
   const unifiedChoice = useSessionRouteChoice(menu.session.provider);
@@ -56,7 +60,15 @@ function SessionResumeMenu({
     if (!menu.running) unifiedChoice.resolve();
   }, [menu.running, unifiedChoice.resolve]);
 
-  const items: readonly ContextMenuItem[] = menu.running
+  const viewChanges: readonly ContextMenuItem[] = onViewChanges === undefined
+    ? []
+    : [{
+        id: 'view-changes',
+        label: t('catalog.sessions.view-changes'),
+        onSelect: () => onViewChanges(menu.session)
+      }];
+
+  const resumeItems: readonly ContextMenuItem[] = menu.running
     ? [{
         id: 'open-running',
         label: t('common.actions.open'),
@@ -101,6 +113,7 @@ function SessionResumeMenu({
           onSelect: () => onResumeOptions?.(menu.session)
         }
       ];
+  const items = [...resumeItems, ...viewChanges];
 
   return (
     <ContextMenu
@@ -114,7 +127,8 @@ function SessionResumeMenu({
 
 export function useSessionResumeContextMenu({
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: SessionResumeContextMenuOptions) {
   const [menu, setMenu] = useState<SessionMenuState | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -125,9 +139,9 @@ export function useSessionResumeContextMenu({
     disabledReason: string | null,
     anchor: { x: number; y: number }
   ) => {
-    if (onResume === undefined && onResumeOptions === undefined) return;
+    if (onResume === undefined && onResumeOptions === undefined && onViewChanges === undefined) return;
     setMenu({ anchor, disabledReason, running, session });
-  }, [onResume, onResumeOptions]);
+  }, [onResume, onResumeOptions, onViewChanges]);
 
   const openFromPointer = useCallback((
     event: MouseEvent<HTMLElement>,
@@ -169,6 +183,7 @@ export function useSessionResumeContextMenu({
         menu={menu}
         onResume={onResume}
         onResumeOptions={onResumeOptions}
+        onViewChanges={onViewChanges}
       />
     ),
     openFromKeyboard,

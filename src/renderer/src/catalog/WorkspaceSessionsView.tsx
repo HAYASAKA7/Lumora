@@ -21,6 +21,12 @@ import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
+import { ChangesPanel } from '../changes/ChangesPanel';
+import type { ChangesApi } from '../changes/useWorkspaceChanges';
+import {
+  useWorkspaceChangesPanel,
+  type WorkspaceChangesRequest
+} from '../changes/useWorkspaceChangesPanel';
 
 const SESSION_BATCH_SIZE = 40;
 const EMPTY_SESSION_IDS: ReadonlySet<string> = new Set();
@@ -37,7 +43,15 @@ interface WorkspaceSessionsViewProps {
   onRetry(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  /** Shows View changes in each session's menu when given. */
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
   operationError: string | null;
+  /** Offers the workspace's changes panel; left off for remote catalogs. */
+  changesEnabled?: boolean | undefined;
+  changesApi?: ChangesApi | undefined;
+  /** Opens the changes panel in a mode when it names this workspace. */
+  changesRequest?: WorkspaceChangesRequest | null | undefined;
+  sessionTitle?: ((catalogSessionId: string) => string | null) | undefined;
 }
 
 const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
@@ -47,7 +61,8 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   providerScan,
   profiles,
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: {
   session: SessionSummary;
   running: boolean;
@@ -56,6 +71,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
@@ -69,7 +85,7 @@ const WorkspaceSessionCard = memo(function WorkspaceSessionCard({
   const actionDescription = running
     ? t('catalog.sessions.open-running')
     : t('catalog.sessions.resume');
-  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions, onViewChanges });
   return (
     <>
     <Tooltip content={disabledReason} multiline>
@@ -163,9 +179,16 @@ export function WorkspaceSessionsView({
   onRetry,
   onResume,
   onResumeOptions,
-  operationError
+  onViewChanges,
+  operationError,
+  changesEnabled = false,
+  changesApi,
+  changesRequest = null,
+  sessionTitle
 }: WorkspaceSessionsViewProps): ReactNode {
   const { t } = useLocalization();
+  const changesShown = changesEnabled && changesApi !== undefined;
+  const changes = useWorkspaceChangesPanel({ enabled: changesShown, request: changesRequest, workspaceId });
   const sessions =
     status.state === 'ready'
       ? status.snapshot.sessions.filter(
@@ -233,88 +256,109 @@ export function WorkspaceSessionsView({
   return (
     <section
       aria-labelledby="workspace-session-title"
-      className="catalog-panel workspace-detail"
+      className={`catalog-panel workspace-detail${changes.className}`}
     >
-      <div className="workspace-detail-toolbar">
-        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-          {t('catalog.workspaces.back')}
-        </button>
-        <div className="catalog-actions">
-          <span className={`origin-badge origin-${workspace.origin}`}>
-            {t(`catalog.workspaces.origin-${workspace.origin}`)}
-          </span>
-          <IconButton
-            busy={isRefreshing}
-            busyLabel={t('catalog.workspaces.loading-sessions')}
-            disabled={isRefreshing}
-            label={t('catalog.workspaces.refresh-sessions')}
-            onClick={onRefresh}
-            tabIndex={-1}
-          >
-            <RefreshIcon />
-          </IconButton>
+      <div className="workspace-detail-main">
+        <div className="workspace-detail-toolbar">
+          <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+            {t('catalog.workspaces.back')}
+          </button>
+          <div className="catalog-actions">
+            <span className={`origin-badge origin-${workspace.origin}`}>
+              {t(`catalog.workspaces.origin-${workspace.origin}`)}
+            </span>
+            {changesShown ? (
+              <button className="secondary-button" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
+                {t('catalog.workspaces.changes')}
+              </button>
+            ) : null}
+            <IconButton
+              busy={isRefreshing}
+              busyLabel={t('catalog.workspaces.loading-sessions')}
+              disabled={isRefreshing}
+              label={t('catalog.workspaces.refresh-sessions')}
+              onClick={onRefresh}
+              tabIndex={-1}
+            >
+              <RefreshIcon />
+            </IconButton>
 
-        </div>
-      </div>
-
-      {operationError === null ? null : (
-        <div className="catalog-operation-error" role="alert">
-          {operationError}
-        </div>
-      )}
-
-      <header className="workspace-detail-header">
-        <div>
-          <p className="card-label">{t('catalog.workspaces.history-label')}</p>
-          <h2 id="workspace-session-title">{t('catalog.workspaces.history-title', { workspace: workspace.displayName })}</h2>
-        </div>
-        {!workspace.available ? (
-          <span className="availability-badge">{t('catalog.workspaces.unavailable')}</span>
-        ) : null}
-      </header>
-      <p className="workspace-path">{workspace.canonicalPath}</p>
-      <div className="workspace-metadata workspace-detail-metadata">
-        <span>
-          {t('catalog.sessions.count', { count: workspace.sessionCount })}
-        </span>
-        {SESSION_PROVIDER_IDS.filter(
-          (provider) => (workspace.providerCounts[provider] ?? 0) > 0
-        ).map((provider) => (
-          <span key={provider}>
-            {providerDefinition(provider).displayName}{' '}
-            {workspace.providerCounts[provider]}
-          </span>
-        ))}
-      </div>
-
-
-      {sessions.length === 0 ? (
-        <div className="catalog-empty">
-          <h3>{t('catalog.workspaces.sessions-empty-title')}</h3>
-          <p>{t('catalog.workspaces.sessions-empty-description')}</p>
-        </div>
-      ) : (
-        <>
-          <div className="workspace-session-list">
-            {sessions.slice(0, progress.visibleCount).map((session) => (
-              <WorkspaceSessionCard
-                key={session.id}
-                onResume={onResume}
-                onResumeOptions={onResumeOptions}
-                profiles={profiles}
-                providerScan={providerScan}
-                running={runningSessionIds.has(session.id)}
-                session={session}
-                workspace={workspace}
-              />
-            ))}
           </div>
-          <ProgressiveListControl
-            hasMore={progress.hasMore}
-            label={t('catalog.sessions.load-more')}
-            onLoadMore={progress.showMore}
-          />
-        </>
+        </div>
+
+        {operationError === null ? null : (
+          <div className="catalog-operation-error" role="alert">
+            {operationError}
+          </div>
+        )}
+
+        <header className="workspace-detail-header">
+          <div>
+            <p className="card-label">{t('catalog.workspaces.history-label')}</p>
+            <h2 id="workspace-session-title">{t('catalog.workspaces.history-title', { workspace: workspace.displayName })}</h2>
+          </div>
+          {!workspace.available ? (
+            <span className="availability-badge">{t('catalog.workspaces.unavailable')}</span>
+          ) : null}
+        </header>
+        <p className="workspace-path">{workspace.canonicalPath}</p>
+        <div className="workspace-metadata workspace-detail-metadata">
+          <span>
+            {t('catalog.sessions.count', { count: workspace.sessionCount })}
+          </span>
+          {SESSION_PROVIDER_IDS.filter(
+            (provider) => (workspace.providerCounts[provider] ?? 0) > 0
+          ).map((provider) => (
+            <span key={provider}>
+              {providerDefinition(provider).displayName}{' '}
+              {workspace.providerCounts[provider]}
+            </span>
+          ))}
+        </div>
+
+
+        {sessions.length === 0 ? (
+          <div className="catalog-empty">
+            <h3>{t('catalog.workspaces.sessions-empty-title')}</h3>
+            <p>{t('catalog.workspaces.sessions-empty-description')}</p>
+          </div>
+        ) : (
+          <>
+            <div className="workspace-session-list">
+              {sessions.slice(0, progress.visibleCount).map((session) => (
+                <WorkspaceSessionCard
+                  key={session.id}
+                  onResume={onResume}
+                  onResumeOptions={onResumeOptions}
+                  onViewChanges={onViewChanges}
+                  profiles={profiles}
+                  providerScan={providerScan}
+                  running={runningSessionIds.has(session.id)}
+                  session={session}
+                  workspace={workspace}
+                />
+              ))}
+            </div>
+            <ProgressiveListControl
+              hasMore={progress.hasMore}
+              label={t('catalog.sessions.load-more')}
+              onLoadMore={progress.showMore}
+            />
+          </>
+        )}
+      </div>
+      {changes.panelProps === null || changesApi === undefined ? null : (
+        <ChangesPanel
+          api={changesApi}
+          highlightSessionId={changes.panelProps.highlightSessionId}
+          id={changes.panelProps.id}
+          initialMode={changes.panelProps.initialMode}
+          key={changes.panelProps.panelKey}
+          onClose={changes.panelProps.onClose}
+          onMaximizedChange={changes.panelProps.onMaximizedChange}
+          source={changes.panelProps.source}
+          {...(sessionTitle === undefined ? {} : { sessionTitle })}
+        />
       )}
     </section>
   );

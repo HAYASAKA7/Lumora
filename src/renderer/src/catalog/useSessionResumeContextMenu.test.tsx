@@ -63,14 +63,16 @@ function MenuHarness({
   disabledReason = null,
   onResume,
   onResumeOptions,
+  onViewChanges,
   running = false
 }: {
   disabledReason?: string | null;
   onResume: (session: SessionSummary, route: AgentInteractionRoute) => void;
   onResumeOptions: (session: SessionSummary) => void;
+  onViewChanges?: (session: SessionSummary) => void;
   running?: boolean;
 }): ReactNode {
-  const menu = useSessionResumeContextMenu({ onResume, onResumeOptions });
+  const menu = useSessionResumeContextMenu({ onResume, onResumeOptions, onViewChanges });
   return (
     <>
       <button
@@ -187,6 +189,40 @@ describe('useSessionResumeContextMenu', () => {
     expect(screen.getAllByRole('menuitem')).toHaveLength(1);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Open' }));
     expect(onResume).toHaveBeenCalledWith(session, 'automatic');
+  });
+
+  it('offers View changes after the resume items only when a handler is given', async () => {
+    const onViewChanges = vi.fn();
+    const { rerender } = render(
+      <TestLocalizationProvider snapshot={snapshot}>
+        <MenuHarness onResume={vi.fn()} onResumeOptions={vi.fn()} />
+      </TestLocalizationProvider>
+    );
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Session card' }));
+    expect(screen.queryByRole('menuitem', { name: 'View changes' })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+
+    rerender(
+      <TestLocalizationProvider snapshot={snapshot}>
+        <MenuHarness onResume={vi.fn()} onResumeOptions={vi.fn()} onViewChanges={onViewChanges} />
+      </TestLocalizationProvider>
+    );
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Session card' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items[items.length - 1]).toHaveAccessibleName('View changes');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View changes' }));
+    expect(onViewChanges).toHaveBeenCalledWith(session);
+  });
+
+  it('offers View changes for a running session too', () => {
+    const onViewChanges = vi.fn();
+    render(
+      <TestLocalizationProvider snapshot={snapshot}>
+        <MenuHarness onResume={vi.fn()} onResumeOptions={vi.fn()} onViewChanges={onViewChanges} running />
+      </TestLocalizationProvider>
+    );
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Session card' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Open', 'View changes']);
   });
 
   it('exposes the same choices from Shift+F10', async () => {

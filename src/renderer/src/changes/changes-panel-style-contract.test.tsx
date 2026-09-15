@@ -40,6 +40,17 @@ describe('changes panel style contract', () => {
     }
   });
 
+  it('docks the panel beside the workspace page content', () => {
+    expect(rule('.workspace-detail.has-changes-panel')).toContain(
+      'grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px)'
+    );
+    expect(rule('.workspace-detail.has-changes-panel > .workspace-detail-main')).toContain('grid-column: 1');
+    const panel = rule('.workspace-detail.has-changes-panel > .changes-panel');
+    expect(panel).toContain('grid-column: 2');
+    expect(panel).toContain('width: auto');
+    expect(rule('.workspace-detail.changes-maximized > .changes-panel')).toContain('grid-column: 1 / -1');
+  });
+
   it('clamps the panel width in script rather than with a percentage', () => {
     const panel = rule('.changes-panel');
     expect(panel).toContain('width: var(--changes-column-width, 480px)');

@@ -303,6 +303,7 @@ interface CatalogApiOverrides {
   prepareSessionExport?: ReturnType<typeof vi.fn>;
   executeSessionExport?: ReturnType<typeof vi.fn>;
   getChangesCounts?: ReturnType<typeof vi.fn>;
+  getChangesHistory?: ReturnType<typeof vi.fn>;
   onChangesCount?: (listener: (count: ChangesCount) => void) => () => void;
 }
 
@@ -462,7 +463,7 @@ function setSystemInfoResult(
       getChangesFileDiff: vi.fn(() => new Promise(() => undefined)),
       markChangesReviewed: vi.fn(),
       openChangedFile: vi.fn().mockResolvedValue(undefined),
-      getChangesHistory: vi.fn().mockResolvedValue({ segments: [] })
+      getChangesHistory: catalogApi.getChangesHistory ?? vi.fn().mockResolvedValue({ segments: [] })
     }
   });
 }
@@ -4231,6 +4232,43 @@ describe('App', () => {
     expect(
       within(dialog).getByText('D:\\Projects\\AI\\Lumora-fresh')
     ).toBeInTheDocument();
+  });
+
+  it('opens a session workspace with its change history from View changes', async () => {
+    const session = readyCatalog.sessions[0]!;
+    const getChangesHistory = vi.fn().mockResolvedValue({
+      segments: [{
+        ownerId: 'owner-1',
+        ownerKind: 'terminal',
+        catalogSessionId: session.id,
+        createdAt: '2026-07-11T03:00:00.000Z',
+        endedAt: null,
+        reviews: []
+      }]
+    });
+    setSystemInfoResult(undefined, undefined, { getChangesHistory });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    const row = (await within(screen.getByRole('main')).findByText('Catalog implementation')).closest('tr');
+    fireEvent.contextMenu(row!, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View changes' }));
+
+    expect(await screen.findByRole('heading', { name: 'Lumora sessions' })).toBeInTheDocument();
+    const panel = await screen.findByRole('complementary', { name: 'Changes' });
+    expect(within(panel).getByRole('button', { name: 'History' })).toHaveAttribute('aria-pressed', 'true');
+    const segment = within(await within(panel).findByRole('list', { name: 'Change history' })).getByRole('listitem');
+    expect(segment).toHaveAttribute('data-highlighted', 'true');
+    expect(within(segment).getByRole('heading', { name: 'Catalog implementation' })).toBeInTheDocument();
+    expect(getChangesHistory).toHaveBeenCalledWith(session.workspaceId);
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to workspaces' }));
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+    }));
+    expect(await screen.findByRole('heading', { name: 'Lumora sessions' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
   });
 
   it('keeps workspace-detail refresh errors inside the detail route', async () => {

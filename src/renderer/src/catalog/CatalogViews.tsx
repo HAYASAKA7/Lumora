@@ -294,6 +294,7 @@ interface SessionsViewProps {
   onRefresh(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
 }
 
 function diagnosticIdentity(
@@ -309,7 +310,8 @@ const SessionRow = memo(function SessionRow({
   providerScan,
   profiles,
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: {
   session: SessionSummary;
   running: boolean;
@@ -318,6 +320,7 @@ const SessionRow = memo(function SessionRow({
   profiles: readonly TerminalProfile[];
   onResume?: ((session: SessionSummary) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatDate, formatNumber, formatTime, t } = useLocalization();
   const disabledReason = onResume === undefined || running
@@ -331,7 +334,7 @@ const SessionRow = memo(function SessionRow({
   const actionDescription = running
     ? t('catalog.sessions.open-running')
     : t('catalog.sessions.resume');
-  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions, onViewChanges });
   return (
     <>
     <Tooltip content={disabledReason} multiline>
@@ -436,7 +439,8 @@ export function SessionsView({
   onDismissDiagnostic,
   onRefresh,
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: SessionsViewProps): ReactNode {
   const { t } = useLocalization();
   const sessionCount =
@@ -598,6 +602,7 @@ export function SessionsView({
                       key={session.id}
                       onResume={onResume}
                       onResumeOptions={onResumeOptions}
+                      onViewChanges={onViewChanges}
                       profiles={profiles}
                       providerScan={providerScan}
                       running={runningSessionIds.has(session.id)}
@@ -632,7 +637,8 @@ export function CatalogHomeSummary({
   onRecover,
   onOpenProviderUpdates,
   onResume,
-  onResumeOptions
+  onResumeOptions,
+  onViewChanges
 }: {
   status: CatalogViewStatus;
   availableProviderUpdates?: readonly ProviderId[];
@@ -647,9 +653,10 @@ export function CatalogHomeSummary({
   onOpenProviderUpdates?(): void;
   onResume?: ((session: SessionSummary) => void) | undefined;
   onResumeOptions?: ((session: SessionSummary) => void) | undefined;
+  onViewChanges?: ((session: SessionSummary) => void) | undefined;
 }): ReactNode {
   const { formatNumber, t } = useLocalization();
-  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions });
+  const resumeMenu = useSessionResumeContextMenu({ onResume, onResumeOptions, onViewChanges });
   const [attentionOpen, setAttentionOpen] = useState(false);
   if (status.state === 'loading') {
     return (

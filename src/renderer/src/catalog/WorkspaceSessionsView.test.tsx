@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,6 +8,7 @@ import type {
   TerminalProfile
 } from '../../../shared/contracts';
 import { WorkspaceSessionsView } from './WorkspaceSessionsView';
+import { fakeChangesApi, summaryFor } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
@@ -392,5 +394,112 @@ describe('WorkspaceSessionsView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh sessions' }));
     expect(onRefresh).toHaveBeenCalledOnce();
+  });
+
+  describe('changes', () => {
+    const sessionId = snapshot.sessions[0]!.id;
+
+    function changesApi() {
+      const fake = fakeChangesApi((source) => summaryFor(source));
+      fake.api.getChangesHistory.mockResolvedValue({
+        segments: [{
+          ownerId: 'owner-1',
+          ownerKind: 'terminal',
+          catalogSessionId: sessionId,
+          createdAt: '2026-07-15T01:00:00.000Z',
+          endedAt: null,
+          reviews: []
+        }]
+      });
+      return fake.api;
+    }
+
+    function view(overrides: Partial<ComponentProps<typeof WorkspaceSessionsView>> = {}) {
+      return (
+        <WorkspaceSessionsView
+          isRefreshing={false}
+          onBack={vi.fn()}
+          onRefresh={vi.fn()}
+          onResume={vi.fn()}
+          onRetry={vi.fn()}
+          operationError={null}
+          profiles={[profile]}
+          providerScan={providerScan}
+          status={{ state: 'ready', snapshot }}
+          workspaceId={workspaceId}
+          {...overrides}
+        />
+      );
+    }
+
+    it('toggles a changes panel for the workspace from the toolbar', async () => {
+      const api = changesApi();
+      const { container } = render(view({ changesApi: api, changesEnabled: true }));
+
+      const button = screen.getByRole('button', { name: 'Changes' });
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      fireEvent.click(button);
+
+      const panel = screen.getByRole('complementary', { name: 'Changes' });
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(button).toHaveAttribute('aria-controls', panel.id);
+      expect(panel.parentElement).toHaveClass('workspace-detail', 'has-changes-panel');
+      expect(await screen.findByText('No uncommitted changes.')).toBeInTheDocument();
+      expect(api.getChangesSummary).toHaveBeenCalledWith({ kind: 'workspace', workspaceId });
+      expect(screen.getByRole('button', { name: 'All uncommitted' })).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.click(button);
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+      expect(container.querySelector('.has-changes-panel')).toBeNull();
+    });
+
+    it('opens the history highlighting the requested session', async () => {
+      const api = changesApi();
+      const request = { workspaceId, mode: 'history' as const, highlightSessionId: sessionId, key: 1 };
+      const { rerender } = render(view({
+        changesApi: api,
+        changesEnabled: true,
+        changesRequest: request,
+        sessionTitle: (id) => (id === sessionId ? 'Workspace drill-down' : null)
+      }));
+
+      const list = await screen.findByRole('list', { name: 'Change history' });
+      const segment = within(list).getByRole('listitem');
+      expect(segment).toHaveAttribute('data-highlighted', 'true');
+      expect(within(segment).getByRole('heading', { name: 'Workspace drill-down' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute('aria-pressed', 'true');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+      rerender(view({ changesApi: api, changesEnabled: true, changesRequest: request }));
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+
+      rerender(view({ changesApi: api, changesEnabled: true, changesRequest: { ...request, key: 2 } }));
+      expect(await screen.findByRole('list', { name: 'Change history' })).toBeInTheDocument();
+    });
+
+    it('ignores a request for another workspace', async () => {
+      const api = changesApi();
+      render(view({
+        changesApi: api,
+        changesEnabled: true,
+        changesRequest: { workspaceId: otherWorkspaceId, mode: 'history', highlightSessionId: null, key: 1 }
+      }));
+      await act(async () => undefined);
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+    });
+
+    it('offers no changes where they are not enabled', () => {
+      render(view({ changesApi: changesApi() }));
+      expect(screen.queryByRole('button', { name: 'Changes' })).not.toBeInTheDocument();
+    });
+
+    it('offers View changes from a session card menu', () => {
+      const onViewChanges = vi.fn();
+      render(view({ onViewChanges }));
+      fireEvent.contextMenu(screen.getByText('Workspace drill-down').closest('article')!);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'View changes' }));
+      expect(onViewChanges).toHaveBeenCalledWith(snapshot.sessions[0]);
+    });
   });
 });

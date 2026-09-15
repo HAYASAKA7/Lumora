@@ -27,6 +27,8 @@ interface SidebarSessionListProps {
   onActivateStructuredRuntime?(connectionId: string): void;
   onResumeSession(session: SessionSummary): void;
   onResumeSessionOptions?(session: SessionSummary): void;
+  /** Shows View changes in each session's menu when given. */
+  onViewSessionChanges?(session: SessionSummary): void;
   preferenceHost?: SidebarSessionPreferenceHost;
   preferenceScope: string;
   recent: readonly SessionSummary[];
@@ -76,6 +78,7 @@ export function SidebarSessionList({
   onActivateStructuredRuntime,
   onResumeSession,
   onResumeSessionOptions,
+  onViewSessionChanges,
   preferenceHost = window,
   preferenceScope,
   recent,
@@ -85,7 +88,8 @@ export function SidebarSessionList({
   const { t } = useLocalization();
   const resumeMenu = useSessionResumeContextMenu({
     onResume: onResumeSession,
-    onResumeOptions: onResumeSessionOptions
+    onResumeOptions: onResumeSessionOptions,
+    onViewChanges: onViewSessionChanges
   });
   const [sections, setSections] = useState<SidebarSessionSections>(() =>
     readSidebarSessionSections(preferenceHost, preferenceScope)

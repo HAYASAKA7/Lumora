@@ -3209,13 +3209,20 @@ button {
   font-size: 0.72rem;
 }
 
-.workspace-detail {
+.workspace-detail,
+.workspace-detail-main {
   display: grid;
   gap: 18px;
 }
 
+.workspace-detail-main {
+  min-width: 0;
+  align-content: start;
+}
+
 .workspace-detail > .catalog-state,
-.workspace-detail > .catalog-empty {
+.workspace-detail > .catalog-empty,
+.workspace-detail-main > .catalog-empty {
   max-width: none;
 }
 
@@ -3255,7 +3262,7 @@ button {
   letter-spacing: -0.015em;
 }
 
-.workspace-detail > .workspace-path {
+.workspace-detail-main > .workspace-path {
   margin-top: -8px;
 }
 
@@ -8017,6 +8024,38 @@ button {
 /* A maximized panel spans both columns while the columns keep their widths. */
 .terminal-workspace.changes-maximized > .changes-panel {
   grid-column: 1 / -1;
+}
+
+/* A workspace page docks the panel beside its sessions and keeps it in view while the page scrolls. */
+.workspace-detail.has-changes-panel {
+  grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px);
+  align-items: start;
+}
+
+.workspace-detail.has-changes-panel > .workspace-detail-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workspace-detail.has-changes-panel > .changes-panel {
+  position: sticky;
+  top: 0;
+  grid-column: 2;
+  grid-row: 1;
+  width: auto;
+  min-width: 0;
+  height: calc(100vh - 220px);
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.workspace-detail.changes-maximized > .changes-panel {
+  grid-column: 1 / -1;
+}
+
+.workspace-detail.changes-maximized > .workspace-detail-main {
+  display: none;
 }
 
 /* Hidden bodies keep their column width so a terminal does not refit while maximized. */
