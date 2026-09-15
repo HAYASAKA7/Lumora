@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-09-15
+
 ### Changed
 
 - Keep **Recent events** in **Diagnostics** short. The page lists the ten

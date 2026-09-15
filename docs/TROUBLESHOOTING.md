@@ -427,7 +427,7 @@ in the current experimental remote feature.
 **Lumora could not delete this remote computer. Disconnect it and try again.**,
 even though it is not connected.
 
-**Likely cause:** Fixed after 0.5.13. Earlier versions could not delete a
+**Likely cause:** Fixed in 0.5.14. Earlier versions could not delete a
 remote computer that had ever been scanned, because the workspaces, sessions,
 and terminal profiles Lumora stored for it were left in place.
 
