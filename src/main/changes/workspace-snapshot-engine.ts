@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { ChangedFile } from '../../shared/changes';
@@ -202,15 +202,29 @@ export class WorkspaceSnapshotEngine {
     const indexPath = join(this.storePath(workspaceId), `index-${randomUUID()}`);
     // Seeding with the real index reuses its stat cache; without one (no commits yet) git starts empty.
     await copyFile(layout.indexPath, indexPath).catch(() => undefined);
-    const env: Env = { ...baseEnv, GIT_INDEX_FILE: indexPath };
+    let tree: string;
     try {
-      await this.git(workspacePath, ['add', '-A', '--', ':/'], env, undefined, SNAPSHOT_TIMEOUT_MS);
-      const tree = (await this.git(workspacePath, ['write-tree'], env, undefined, SNAPSHOT_TIMEOUT_MS)).trim();
-      const head = await this.tryGit(workspacePath, ['rev-parse', '--verify', '-q', 'HEAD'], env);
-      return { kind: 'repository', tree, head: head?.trim() || null };
+      tree = await this.writeRepositoryTree(workspacePath, { ...baseEnv, GIT_INDEX_FILE: indexPath });
+    } catch (error) {
+      if (!(error instanceof GitCommandError) || error.reason !== 'failed') throw error;
+      // The copied index may be unusable here (a split index, say); an empty index rebuilds it from the files.
+      await removeIndex(indexPath);
+      const freshIndexPath = join(this.storePath(workspaceId), `index-${randomUUID()}`);
+      try {
+        tree = await this.writeRepositoryTree(workspacePath, { ...baseEnv, GIT_INDEX_FILE: freshIndexPath });
+      } finally {
+        await removeIndex(freshIndexPath);
+      }
     } finally {
       await removeIndex(indexPath);
     }
+    const head = await this.tryGit(workspacePath, ['rev-parse', '--verify', '-q', 'HEAD'], baseEnv);
+    return { kind: 'repository', tree, head: head?.trim() || null };
+  }
+
+  private async writeRepositoryTree(workspacePath: string, env: Env): Promise<string> {
+    await this.git(workspacePath, ['add', '-A', '--', ':/'], env, undefined, SNAPSHOT_TIMEOUT_MS);
+    return (await this.git(workspacePath, ['write-tree'], env, undefined, SNAPSHOT_TIMEOUT_MS)).trim();
   }
 
   private async snapshotFolder(workspaceId: string, workspacePath: string): Promise<Snapshot> {
@@ -231,8 +245,13 @@ export class WorkspaceSnapshotEngine {
     const gitDir = join(store, 'folder.git');
     const exists = await stat(join(gitDir, 'HEAD')).then(() => true, () => false);
     if (!exists) await this.git(store, ['init', '-q', '--bare', gitDir], {});
-    await mkdir(join(gitDir, 'info'), { recursive: true });
-    await writeFile(join(gitDir, 'info', 'exclude'), `${DEFAULT_FOLDER_EXCLUDES.join('\n')}\n`, 'utf8');
+    const excludePath = join(gitDir, 'info', 'exclude');
+    const excludes = `${DEFAULT_FOLDER_EXCLUDES.join('\n')}\n`;
+    const current = await readFile(excludePath, 'utf8').catch(() => null);
+    if (current !== excludes) {
+      await mkdir(join(gitDir, 'info'), { recursive: true });
+      await writeFile(excludePath, excludes, 'utf8');
+    }
     return gitDir;
   }
 

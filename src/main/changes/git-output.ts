@@ -95,5 +95,5 @@ export function mergeChangedFiles(
       status: entry.status,
       ...(counts.get(entry.path) ?? UNKNOWN_COUNTS)
     }))
-    .sort((left, right) => left.path.localeCompare(right.path));
+    .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
 }

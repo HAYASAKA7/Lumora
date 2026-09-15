@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { runGit } from './git-runner';
-import { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
+import { GitCommandError, runGit, type RunGit } from './git-runner';
+import { DEFAULT_FOLDER_EXCLUDES, WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
 let root: string;
 let engine: WorkspaceSnapshotEngine;
@@ -143,6 +143,31 @@ describe('WorkspaceSnapshotEngine — repository', () => {
     expect(WorkspaceSnapshotEngine.resolveInside(repo, 'dir/c.txt')).toBe(join(repo, 'dir', 'c.txt'));
     expect(WorkspaceSnapshotEngine.resolveInside(repo, '../outside.txt')).toBeNull();
   });
+
+  it('retries with a fresh index when git cannot use the copied one', async () => {
+    const repo = makeRepository();
+    writeFileSync(join(repo, 'a.txt'), 'changed\n');
+    const addIndexes: string[] = [];
+    const flakyRunGit: RunGit = async (options) => {
+      if (options.args.includes('add')) {
+        addIndexes.push(options.env?.GIT_INDEX_FILE ?? '');
+        if (addIndexes.length === 1) {
+          expect(existsSync(options.env!.GIT_INDEX_FILE!)).toBe(true);
+          throw new GitCommandError('failed');
+        }
+        expect(existsSync(options.env!.GIT_INDEX_FILE!)).toBe(false);
+      }
+      return runGit(options);
+    };
+    const flaky = new WorkspaceSnapshotEngine({ gitPath: 'git', storeRoot: join(root, 'flaky-store'), runGit: flakyRunGit });
+
+    const snapshot = await flaky.snapshot('w1', repo);
+
+    expect(addIndexes).toHaveLength(2);
+    expect(addIndexes[1]).not.toBe(addIndexes[0]);
+    expect(snapshot.tree).toBe((await engine.snapshot('w1', repo)).tree);
+    expect(readdirSync(join(root, 'flaky-store', 'w1')).filter((name) => name.startsWith('index-'))).toEqual([]);
+  });
 });
 
 describe('WorkspaceSnapshotEngine — folder', () => {
@@ -179,6 +204,24 @@ describe('WorkspaceSnapshotEngine — folder', () => {
     const reviewed = await engine.composeReviewed('w3', folder, baseline.tree, current.tree, ['x.txt']);
     expect((await engine.changedFiles('w3', folder, reviewed, current.tree)).map(({ path }) => path)).toEqual(['y.txt']);
     expect(readFileSync(join(root, 'store', 'w3', 'folder.index')).equals(indexBefore)).toBe(true);
+  });
+
+  it('rewrites the shadow repository excludes only when they differ', async () => {
+    const folder = join(root, 'plain');
+    mkdirSync(folder);
+    writeFileSync(join(folder, 'x.txt'), 'x\n');
+    const baseline = await engine.snapshot('w3', folder);
+    const exclude = join(root, 'store', 'w3', 'folder.git', 'info', 'exclude');
+    const past = new Date('2020-01-01T00:00:00Z');
+    utimesSync(exclude, past, past);
+
+    const current = await engine.snapshot('w3', folder);
+    await engine.changedFiles('w3', folder, baseline.tree, current.tree);
+    expect(statSync(exclude).mtimeMs).toBe(past.getTime());
+
+    writeFileSync(exclude, 'stale\n');
+    await engine.snapshot('w3', folder);
+    expect(readFileSync(exclude, 'utf8')).toBe(`${DEFAULT_FOLDER_EXCLUDES.join('\n')}\n`);
   });
 
   it('removes a workspace store', async () => {

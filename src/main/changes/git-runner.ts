@@ -46,6 +46,13 @@ function failureReason(error: ExecError): GitFailureReason {
   return 'failed';
 }
 
+/** The process environment without any GIT_* variable, which could point git at another repository. */
+function environmentWithoutGitSettings(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith('GIT_'))
+  );
+}
+
 export const runGit: RunGit = ({
   gitPath,
   cwd,
@@ -63,7 +70,7 @@ export const runGit: RunGit = ({
         cwd,
         encoding: 'buffer',
         env: {
-          ...process.env,
+          ...environmentWithoutGitSettings(),
           ...env,
           GIT_OPTIONAL_LOCKS: '0',
           GIT_TERMINAL_PROMPT: '0',

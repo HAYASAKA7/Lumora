@@ -40,6 +40,26 @@ describe('runGit', () => {
     })).rejects.toMatchObject({ reason: 'output-too-large' });
   });
 
+  it('ignores git settings inherited from its own environment', async () => {
+    const inherited = { GIT_DIR: process.env.GIT_DIR, git_index_file: process.env.git_index_file };
+    process.env.GIT_DIR = join(root, 'bogus.git');
+    process.env.git_index_file = join(root, 'bogus-index');
+    try {
+      writeFileSync(join(root, 'a.txt'), 'a\n');
+      const { stdout } = await runGit({ gitPath, cwd: root, args: ['status', '--porcelain', '-z'] });
+      expect(stdout.toString('utf8')).toBe('?? a.txt\0');
+      const { stdout: dir } = await runGit({
+        gitPath, cwd: root, args: ['rev-parse', '--git-dir'], env: { GIT_DIR: join(root, '.git') }
+      });
+      expect(dir.toString('utf8').trim()).toBe(join(root, '.git'));
+    } finally {
+      for (const [name, value] of Object.entries(inherited)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
   it('reports a missing git executable as unavailable', async () => {
     await expect(runGit({ gitPath: join(root, 'no-git.exe'), cwd: root, args: ['--version'] }))
       .rejects.toMatchObject({ reason: 'unavailable' });
