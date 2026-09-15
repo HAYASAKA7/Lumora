@@ -10,7 +10,9 @@ const LAUNCHABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   '.application', '.gadget', '.scf', '.inf', '.sh', '.command', '.app',
   '.py', '.pyw', '.pyz', '.pyc', '.rb', '.pl', '.ws', '.vb', '.msc', '.chm', '.cab', '.diagcab',
   '.settingcontent-ms', '.library-ms', '.search-ms', '.xll', '.mst', '.jnlp', '.zsh', '.bash',
-  '.tool', '.csh', '.ksh', '.fish', '.ps1xml', '.psc1', '.mof', '.ocx', '.dll', '.sys', '.drv'
+  '.tool', '.csh', '.ksh', '.fish', '.ps1xml', '.psc1', '.mof', '.ocx', '.dll', '.sys', '.drv',
+  '.terminal', '.fileloc', '.webloc', '.inetloc', '.workflow', '.action', '.pkg', '.mpkg', '.dmg', '.scpt',
+  '.desktop'
 ]);
 
 /** Execute permission for owner, group, or others. */

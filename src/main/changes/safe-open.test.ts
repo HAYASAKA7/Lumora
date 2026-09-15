@@ -13,7 +13,8 @@ describe('isLaunchableFile', () => {
     'setup.exe', 'run.BAT', 'tools/script.cmd', 'deploy.ps1', 'Shortcut.lnk', 'site.url', 'app.appref-ms',
     'build.sh', 'start.command', 'Tool.app', 'installer.MSI', 'macro.vbs', 'index.js', 'settings.reg',
     'tool.py', 'gui.PYW', 'task.rb', 'report.pl', 'help.chm', 'addin.xll', 'launch.jnlp', 'setup.zsh',
-    'config.fish', 'types.ps1xml', 'plugin.dll', 'driver.sys', 'folder.library-ms', 'console.msc'
+    'config.fish', 'types.ps1xml', 'plugin.dll', 'driver.sys', 'folder.library-ms', 'console.msc',
+    'Shell.terminal', 'Link.webloc', 'Build.workflow', 'Installer.pkg', 'Disk.DMG', 'script.scpt', 'app.desktop'
   ])('treats %s as something that runs', (path) => {
     expect(isLaunchableFile(path, windows)).toBe(true);
     expect(isLaunchableFile(path, linux)).toBe(true);
