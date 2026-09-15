@@ -184,6 +184,45 @@ describe('useWorkspaceChanges', () => {
     await waitFor(() => expect(result.current.selectedPath).toBeNull());
   });
 
+  it('fetches the open diff again when the summary reloads without flashing loading', async () => {
+    const { api, emit } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    act(() => result.current.setSelectedPath('a.txt'));
+    await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
+    expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1);
+
+    let resolveDiff!: (value: ChangesFileDiff) => void;
+    api.getChangesFileDiff.mockImplementationOnce(() => new Promise((resolve) => { resolveDiff = resolve; }));
+    act(() => emit(count('owner-1')));
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(2));
+    expect(result.current.diff).toEqual({
+      state: 'ready',
+      value: { path: 'a.txt', patch: '+a.txt', binary: false, truncated: false }
+    });
+
+    const refreshed = { path: 'a.txt', patch: '+a.txt\n+more', binary: false, truncated: false };
+    await act(async () => {
+      resolveDiff(refreshed);
+    });
+    expect(result.current.diff).toEqual({ state: 'ready', value: refreshed });
+  });
+
+  it('fetches the open diff again after reload()', async () => {
+    const { api } = fakeApi();
+    const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    act(() => result.current.setSelectedPath('b.txt'));
+    await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
+
+    await act(async () => {
+      await result.current.reload();
+    });
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(2));
+    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(sessionSource, 'b.txt');
+    expect(result.current.diff?.state).toBe('ready');
+  });
+
   it('ignores a stale summary that resolves after a newer one', async () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));

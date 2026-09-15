@@ -60,6 +60,8 @@ export function useWorkspaceChanges(
   const [summary, setSummary] = useState<Load<ChangesSummary>>(LOADING);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [diffEntry, setDiffEntry] = useState<DiffEntry | null>(null);
+  /** Bumped whenever a summary lands, so the open diff is fetched again. */
+  const [summaryRevision, setSummaryRevision] = useState(0);
   const generation = useRef(0);
 
   if (trackedKey !== sourceKey) {
@@ -72,6 +74,7 @@ export function useWorkspaceChanges(
 
   const storeSummary = useCallback((value: ChangesSummary, reviewed: readonly string[] = []) => {
     setSummary({ state: 'ready', value });
+    setSummaryRevision((revision) => revision + 1);
     setSelectedPath((current) =>
       current !== null && (reviewed.includes(current) || !listsPath(value, current)) ? null : current
     );
@@ -110,7 +113,12 @@ export function useWorkspaceChanges(
     if (!active || selectedPath === null) return undefined;
     let cancelled = false;
     const path = selectedPath;
-    setDiffEntry({ source: sourceKey, path, load: LOADING });
+    // Keep showing the current diff for this file while a refreshed one loads.
+    setDiffEntry((current) =>
+      current !== null && current.source === sourceKey && current.path === path
+        ? current
+        : { source: sourceKey, path, load: LOADING }
+    );
     apiRef.current.getChangesFileDiff(stableSource, path).then(
       (value) => {
         if (!cancelled) setDiffEntry({ source: sourceKey, path, load: { state: 'ready', value } });
@@ -122,7 +130,7 @@ export function useWorkspaceChanges(
     return () => {
       cancelled = true;
     };
-  }, [active, selectedPath, sourceKey, stableSource]);
+  }, [active, selectedPath, sourceKey, stableSource, summaryRevision]);
 
   const markReviewed = useCallback(async (paths: readonly string[]): Promise<void> => {
     if (stableSource.kind !== 'session' || paths.length === 0) return;
