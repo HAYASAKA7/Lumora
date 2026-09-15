@@ -181,6 +181,17 @@ describe('useWorkspaceChanges', () => {
     expect(api.markChangesReviewed).not.toHaveBeenCalled();
   });
 
+  it('does not mark reviews for the uncommitted view of a session', async () => {
+    const source: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
+    const { api } = fakeApi(summary(['a.txt'], source));
+    const { result } = renderHook(() => useWorkspaceChanges(api, source, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    await act(async () => {
+      await result.current.markReviewed(['a.txt']);
+    });
+    expect(api.markChangesReviewed).not.toHaveBeenCalled();
+  });
+
   it('gives an error when the summary fails', async () => {
     const { api } = fakeApi();
     api.getChangesSummary.mockRejectedValueOnce(new Error('broken'));

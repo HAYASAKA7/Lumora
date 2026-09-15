@@ -31,8 +31,8 @@ export interface WorkspaceChanges {
   /** Reloads the summary; calls made while one is in flight share one follow-up load. */
   reload(): Promise<void>;
   /**
-   * Marks paths reviewed for a session source and stores the returned summary;
-   * a no-op for other sources. Rejects when the API call fails, leaving the
+   * Marks paths reviewed for a session source in its session view and stores
+   * the returned summary; a no-op for other sources and views. Rejects when the API call fails, leaving the
    * state unchanged.
    */
   markReviewed(paths: readonly string[]): Promise<void>;
@@ -179,7 +179,7 @@ export function useWorkspaceChanges(
   }, [active, selectedPath, stableSource, summaryRevision]);
 
   const markReviewed = useCallback(async (paths: readonly string[]): Promise<void> => {
-    if (stableSource.kind !== 'session' || paths.length === 0) return;
+    if (stableSource.kind !== 'session' || stableSource.view !== 'session' || paths.length === 0) return;
     const epochBefore = epoch.current;
     const storedBefore = storedSummaries.current;
     const value = await apiRef.current.markChangesReviewed(stableSource.ownerId, paths);

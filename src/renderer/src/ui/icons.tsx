@@ -78,6 +78,16 @@ export function ChevronDownIcon(): ReactNode {
   return <Glyph path="M6 8l4 4 4-4" />;
 }
 
+/** Lets a panel take all the room it can: corners pushed out to the edges. */
+export function MaximizeIcon(): ReactNode {
+  return <Glyph path="M4 8V4h4M12 4h4v4M16 12v4h-4M8 16H4v-4" />;
+}
+
+/** Returns a panel to its own size: corners drawn back in toward the middle. */
+export function RestoreIcon(): ReactNode {
+  return <Glyph path="M8 4v4H4M16 8h-4V4M12 16v-4h4M4 12h4v4" />;
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;
