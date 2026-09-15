@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -354,6 +354,56 @@ describe('WorkspaceChangesService', () => {
       await expect(scoped.open(sessionSource('r1'), '../escape.txt', 'open')).rejects.toThrow();
       await scoped.open(sessionSource('r1'), 'notes.txt', 'open');
       expect(openPath).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses a file reached through a link that leaves the workspace', async () => {
+      const outside = mkdtempSync(join(tmpdir(), 'lumora-changes-outside-'));
+      try {
+        writeFileSync(join(outside, 'secret.txt'), 'secret');
+        symlinkSync(outside, join(root, 'linked'), 'junction');
+        const openPath = vi.fn(async () => '');
+        const showItemInFolder = vi.fn();
+        const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+        const source = { kind: 'workspace', workspaceId } as const;
+
+        await expect(scoped.open(source, 'linked/secret.txt', 'open')).rejects.toThrow();
+        await expect(scoped.open(source, 'linked/secret.txt', 'reveal')).rejects.toThrow();
+        expect(openPath).not.toHaveBeenCalled();
+        expect(showItemInFolder).not.toHaveBeenCalled();
+      } finally {
+        rmSync(join(root, 'linked'), { recursive: false, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('reveals files that would run instead of opening them', async () => {
+      writeFileSync(join(root, 'build.bat'), '@echo off');
+      writeFileSync(join(root, 'Tool.lnk'), 'shortcut');
+      writeFileSync(join(root, 'index.ts'), 'export {};');
+      const openPath = vi.fn(async () => '');
+      const showItemInFolder = vi.fn();
+      const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      const source = { kind: 'workspace', workspaceId } as const;
+
+      await scoped.open(source, 'build.bat', 'open');
+      await scoped.open(source, 'Tool.lnk', 'open');
+      await scoped.open(source, 'index.ts', 'open');
+
+      expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')]]);
+      expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'index.ts'));
+    });
+
+    it('cannot open a deleted file but reveals the folder it was in', async () => {
+      const openPath = vi.fn(async () => '');
+      const showItemInFolder = vi.fn();
+      const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      const source = { kind: 'workspace', workspaceId } as const;
+
+      await expect(scoped.open(source, 'deleted.txt', 'open')).rejects.toThrow();
+      await scoped.open(source, 'deleted.txt', 'reveal');
+
+      expect(openPath).not.toHaveBeenCalled();
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(root);
     });
 
     it('reveals a file in its folder, and reports a file the system could not open', async () => {

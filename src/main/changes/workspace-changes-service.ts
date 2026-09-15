@@ -11,8 +11,9 @@ import type {
 import { ChangeSourceResolver } from './change-source-resolver';
 import type { ChangeSegment, ChangesRepository } from './changes-repository';
 import { unavailableReasonFor } from './changes-summary';
+import { isLaunchableFile, resolveOpenTarget } from './safe-open';
 import { SnapshotCache } from './snapshot-cache';
-import { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
+import type { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
 export type SnapshotEngineLike = Pick<
   WorkspaceSnapshotEngine,
@@ -213,15 +214,16 @@ export class WorkspaceChangesService {
     if (workspace === null || !workspace.available) {
       throw new Error('The workspace is not available.');
     }
-    const target = WorkspaceSnapshotEngine.resolveInside(workspace.canonicalPath, path);
-    if (target === null) {
-      throw new Error('The path is outside the workspace.');
+    const target = await resolveOpenTarget(workspace.canonicalPath, path);
+    if (!target.exists && action === 'open') {
+      throw new Error('The file no longer exists.');
     }
-    if (action === 'reveal') {
-      this.options.showItemInFolder(target);
+    // A file that would run is shown in its folder rather than started.
+    if (action === 'reveal' || !target.exists || isLaunchableFile(target.path)) {
+      this.options.showItemInFolder(target.path);
       return;
     }
-    const failure = await this.options.openPath(target);
+    const failure = await this.options.openPath(target.path);
     if (failure !== '') {
       throw new Error('The file could not be opened.');
     }
