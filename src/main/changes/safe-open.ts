@@ -12,7 +12,7 @@ const LAUNCHABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   '.settingcontent-ms', '.library-ms', '.search-ms', '.xll', '.mst', '.jnlp', '.zsh', '.bash',
   '.tool', '.csh', '.ksh', '.fish', '.ps1xml', '.psc1', '.mof', '.ocx', '.dll', '.sys', '.drv',
   '.terminal', '.fileloc', '.webloc', '.inetloc', '.workflow', '.action', '.pkg', '.mpkg', '.dmg', '.scpt',
-  '.desktop'
+  '.desktop', '.deb', '.rpm', '.appimage', '.run', '.flatpakref', '.flatpakrepo', '.snap'
 ]);
 
 /** Execute permission for owner, group, or others. */
