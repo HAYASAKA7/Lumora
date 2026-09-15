@@ -4,6 +4,7 @@ import type { ChangesCount } from '../../shared/changes';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { TerminalRepository } from '../storage/terminal-repository';
 import { ChangesRepository } from './changes-repository';
+import { createGitLocator } from './git-locator';
 import { GitCommandError, runGit as defaultRunGit, type RunGit } from './git-runner';
 import {
   WorkspaceChangesService,
@@ -15,8 +16,9 @@ export interface LocalWorkspaceChangesOptions {
   databasePath: string;
   /** Where the snapshot object stores live, outside every workspace. */
   storeRoot: string;
-  /** Finds git on this computer; asked once, when tracking first needs it. */
+  /** Finds git on this computer, when tracking needs it; see createGitLocator. */
   locateGit(): Promise<string | null>;
+  platform: NodeJS.Platform;
   onCount(count: ChangesCount): void;
   openPath(path: string): Promise<string>;
   showItemInFolder(path: string): void;
@@ -66,11 +68,7 @@ export async function createLocalWorkspaceChanges(
   }
   const workspaces = new TerminalRepository(database);
   const runGit = options.runGit ?? defaultRunGit;
-  let gitPath: Promise<string | null> | null = null;
-  const resolveGitPath = (): Promise<string | null> => {
-    gitPath ??= options.locateGit().catch(() => null);
-    return gitPath;
-  };
+  const resolveGitPath = createGitLocator({ locate: options.locateGit, platform: options.platform });
   const service = new WorkspaceChangesService({
     repository: new ChangesRepository(database),
     engine: new WorkspaceSnapshotEngine({

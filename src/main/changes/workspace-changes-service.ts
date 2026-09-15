@@ -72,6 +72,8 @@ export class WorkspaceChangesService {
   private terminalTimer: ReturnType<typeof setInterval> | null = null;
   /** Set at shutdown, once the database is about to close: late session calls then do nothing. */
   private disposed = false;
+  /** Set as the app starts quitting: sessions still end, but nothing is recounted. */
+  private shuttingDown = false;
 
   constructor(private readonly options: WorkspaceChangesServiceOptions) {
     this.repository = options.repository;
@@ -102,10 +104,6 @@ export class WorkspaceChangesService {
         this.repository.markUnavailable(segmentId, 'workspace-unavailable');
         return;
       }
-      if (!(await this.isGitAvailable('baseline'))) {
-        this.repository.markUnavailable(segmentId, 'git-missing');
-        return;
-      }
       await this.waitForBaseline(segmentId, input, workspace.canonicalPath);
     } catch (error) {
       // Tracking changes must never keep a session from starting.
@@ -116,7 +114,7 @@ export class WorkspaceChangesService {
   end(ownerId: string): void {
     if (this.disposed) return;
     this.repository.endSegment(ownerId, this.now());
-    void this.refresh(ownerId);
+    if (!this.shuttingDown) void this.refresh(ownerId);
   }
 
   linkCatalogSession(ownerId: string, catalogSessionId: string): void {
@@ -126,7 +124,7 @@ export class WorkspaceChangesService {
 
   /** Recounts a session's changes; calls made while one runs are folded into one more run. */
   refresh(ownerId: string): Promise<void> {
-    if (this.disposed) return Promise.resolve();
+    if (this.disposed || this.shuttingDown) return Promise.resolve();
     const running = this.refreshes.get(ownerId);
     if (running !== undefined) {
       running.again = true;
@@ -230,7 +228,7 @@ export class WorkspaceChangesService {
   }
 
   startTerminalTimer(): void {
-    if (this.terminalTimer !== null) return;
+    if (this.terminalTimer !== null || this.shuttingDown || this.disposed) return;
     this.terminalTimer = setInterval(() => {
       try {
         for (const segment of this.repository.listOpenSegments()) {
@@ -245,8 +243,21 @@ export class WorkspaceChangesService {
     this.terminalTimer.unref?.();
   }
 
+  /**
+   * Called as the app starts quitting, before its sessions are stopped: they
+   * still end their segments, but no refresh starts that could outlive the database.
+   */
+  beginShutdown(): void {
+    this.shuttingDown = true;
+    this.stopTerminalTimer();
+  }
+
   dispose(): void {
     this.disposed = true;
+    this.stopTerminalTimer();
+  }
+
+  private stopTerminalTimer(): void {
     if (this.terminalTimer !== null) {
       clearInterval(this.terminalTimer);
       this.terminalTimer = null;
@@ -297,7 +308,10 @@ export class WorkspaceChangesService {
     }
   }
 
-  /** Resolves when the baseline is recorded or the launch wait ends, whichever comes first. */
+  /**
+   * Resolves when the baseline is recorded or the launch wait ends, whichever
+   * comes first. Looking for git counts toward the wait.
+   */
   private async waitForBaseline(segmentId: string, input: BeginInput, workspacePath: string): Promise<void> {
     let waited = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -307,11 +321,28 @@ export class WorkspaceChangesService {
         resolve();
       }, this.launchWaitMs);
     });
-    const capture = this.captureBaseline(segmentId, input, workspacePath, () => waited);
+    const capture = this.trackAfterGitCheck(segmentId, input, workspacePath, () => waited);
     try {
       await Promise.race([capture, wait]);
     } finally {
       clearTimeout(timer);
+    }
+  }
+
+  private async trackAfterGitCheck(
+    segmentId: string,
+    input: BeginInput,
+    workspacePath: string,
+    late: () => boolean
+  ): Promise<void> {
+    if (await this.isGitAvailable('baseline')) {
+      await this.captureBaseline(segmentId, input, workspacePath, late);
+      return;
+    }
+    try {
+      this.repository.markUnavailable(segmentId, 'git-missing');
+    } catch (error) {
+      this.report('baseline', error);
     }
   }
 

@@ -31,6 +31,7 @@ async function open(overrides: Partial<Parameters<typeof createLocalWorkspaceCha
     databasePath,
     storeRoot: join(root, 'store'),
     locateGit: async () => null,
+    platform: 'linux',
     onCount: vi.fn(),
     openPath: async () => '',
     showItemInFolder: vi.fn(),

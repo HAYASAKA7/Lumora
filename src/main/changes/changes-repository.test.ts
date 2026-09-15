@@ -119,6 +119,20 @@ describe('ChangesRepository', () => {
     expect(repository.hasSegments(workspaceId)).toBe(true);
   });
 
+  it('skips linking a catalog session that is already linked', () => {
+    repository.createSegment({ id: 's1', workspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    const writes = () => (database.prepare('SELECT total_changes() AS count').get() as { count: number }).count;
+
+    repository.linkCatalogSession('r1', 'cat-1');
+    const afterLink = writes();
+    repository.linkCatalogSession('r1', 'cat-1');
+    expect(writes()).toBe(afterLink);
+
+    repository.linkCatalogSession('r1', 'cat-2');
+    expect(writes()).toBe(afterLink + 1);
+    expect(repository.getSegmentByOwner('r1')?.catalogSessionId).toBe('cat-2');
+  });
+
   it('ends every open segment at startup', () => {
     repository.createSegment({ id: 's1', workspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
     repository.endOpenSegments('2026-09-15T03:00:00.000Z');

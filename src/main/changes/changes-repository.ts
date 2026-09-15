@@ -208,8 +208,9 @@ export class ChangesRepository {
   linkCatalogSession(ownerId: string, catalogSessionId: string): void {
     this.prepare(
       `UPDATE workspace_change_segment SET catalog_session_id = ?
-       WHERE execution_target_id = ? AND owner_id = ?`
-    ).run(catalogSessionId, this.executionTargetId, ownerId);
+       WHERE execution_target_id = ? AND owner_id = ?
+         AND (catalog_session_id IS NULL OR catalog_session_id <> ?)`
+    ).run(catalogSessionId, this.executionTargetId, ownerId, catalogSessionId);
   }
 
   /**

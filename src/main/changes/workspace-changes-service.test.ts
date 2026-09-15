@@ -107,6 +107,38 @@ describe('WorkspaceChangesService', () => {
     expect(await service.summary(sessionSource('c1'))).toMatchObject({ state: 'ready', baselineLate: true });
   });
 
+  it('counts a slow git lookup toward the launch wait', async () => {
+    vi.useFakeTimers();
+    const lookup = deferred<boolean>();
+    const slow = createService({ gitAvailable: () => lookup.promise });
+    let settled = false;
+    const begun = begin(slow, 'c1', 'unified').then(() => { settled = true; });
+
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await begun;
+    expect((await slow.summary(sessionSource('c1'))).state).toBe('capturing');
+
+    lookup.resolve(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await slow.summary(sessionSource('c1'))).toMatchObject({ state: 'ready', baselineLate: true });
+  });
+
+  it('marks git missing even when the lookup answers after the wait', async () => {
+    vi.useFakeTimers();
+    const lookup = deferred<boolean>();
+    const slow = createService({ gitAvailable: () => lookup.promise });
+    const begun = begin(slow, 'c1', 'unified');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await begun;
+
+    lookup.resolve(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await slow.summary(sessionSource('c1'))).toMatchObject({ state: 'unavailable', unavailableReason: 'git-missing' });
+    expect(engine.snapshot).not.toHaveBeenCalled();
+  });
+
   it('does not count a late baseline for a session that already ended', async () => {
     vi.useFakeTimers();
     const slow = deferred<{ kind: 'folder'; tree: string; head: null }>();
@@ -500,6 +532,27 @@ describe('WorkspaceChangesService', () => {
     expect(service.counts()).toEqual([]);
     service.linkCatalogSession('r1', 'cat-1');
     expect(service.history(workspaceId).segments[0]).toMatchObject({ catalogSessionId: 'cat-1', endedAt: now.toISOString() });
+  });
+
+  it('only records sessions ending once the app is shutting down', async () => {
+    vi.useFakeTimers();
+    await begin(service, 'r1');
+    await begin(service, 'c1', 'unified');
+    service.startTerminalTimer();
+    engine.snapshot.mockClear();
+    engine.changedFiles.mockClear();
+    counts = [];
+
+    service.beginShutdown();
+    service.end('r1');
+    await service.refresh('c1');
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(service.history(workspaceId).segments.find(({ ownerId }) => ownerId === 'r1')?.endedAt)
+      .toBe(now.toISOString());
+    expect(engine.snapshot).not.toHaveBeenCalled();
+    expect(engine.changedFiles).not.toHaveBeenCalled();
+    expect(counts).toEqual([]);
   });
 
   it('ends open segments and prunes old ones at startup, removing stores left empty', async () => {

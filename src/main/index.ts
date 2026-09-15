@@ -921,6 +921,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     storeRoot: join(app.getPath('userData'), 'workspace-changes'),
     locateGit: () => findExecutable('git', { platform, env: applicationEnvironment }),
+    platform,
     onCount: (count) => {
       if (mainWindow !== null && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send(IPC_CHANNELS.changesCountEvent, count);
@@ -933,6 +934,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     })
   });
   const workspaceChanges = localWorkspaceChanges.service;
+  const workspaceChangesHooks = {
+    begin: (input: Parameters<typeof workspaceChanges.begin>[0]) => workspaceChanges.begin(input),
+    end: (ownerId: string) => workspaceChanges.end(ownerId)
+  };
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
@@ -941,10 +946,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: applicationEnvironment,
     scanProviders: scanProvidersForLaunch,
     sessionGuard: structuredSessionGuard,
-    workspaceChanges: {
-      begin: (input) => workspaceChanges.begin(input),
-      end: (ownerId) => workspaceChanges.end(ownerId)
-    },
+    workspaceChanges: workspaceChangesHooks,
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     refreshProviderSessions: (provider) =>
@@ -998,10 +1000,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sessionGuard: structuredSessionGuard,
     clientVersion: app.getVersion(),
     images: structuredImageStore,
-    workspaceChanges: {
-      begin: (input) => workspaceChanges.begin(input),
-      end: (ownerId) => workspaceChanges.end(ownerId)
-    }
+    workspaceChanges: workspaceChangesHooks
   });
   const agentLaunchRouter = new AgentLaunchRouter({
     consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
@@ -1696,6 +1695,8 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault();
   shutdownStarted = true;
+  // Sessions stopped from here on end their changes without starting a recount.
+  localWorkspaceChanges?.service.beginShutdown();
   const runtime = terminalRuntime;
   const remoteRuntime = remoteTargetRuntime;
   const transfer = transferRuntime;
