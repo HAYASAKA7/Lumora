@@ -1,14 +1,19 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 
+import type {
+  ChangeOwnerKind,
+  ChangeSegmentState,
+  ChangeSegmentUnavailableReason
+} from '../../shared/changes';
 import {
   ExecutionTargetIdSchema,
   LOCAL_EXECUTION_TARGET_ID,
   type ExecutionTargetId
 } from '../../shared/contracts';
 
-export type UnavailableReason = 'git-missing' | 'workspace-unavailable' | 'too-large' | 'failed';
-export type SegmentOwnerKind = 'terminal' | 'unified';
-export type SegmentState = 'capturing' | 'ready' | 'unavailable';
+export type UnavailableReason = ChangeSegmentUnavailableReason;
+export type SegmentOwnerKind = ChangeOwnerKind;
+export type SegmentState = ChangeSegmentState;
 
 export interface ChangeSegment {
   id: string;
@@ -207,7 +212,11 @@ export class ChangesRepository {
     ).run(catalogSessionId, this.executionTargetId, ownerId);
   }
 
-  /** Records a review batch and moves the segment's baseline to what was reviewed, together. */
+  /**
+   * Records a review batch and moves the segment's baseline to what was
+   * reviewed, together. Refused when the baseline is no longer the review's
+   * starting tree, so a stale review cannot overwrite a newer one.
+   */
   recordReview(review: ChangeReview): void {
     this.database.exec('BEGIN IMMEDIATE');
     try {
@@ -225,10 +234,10 @@ export class ChangesRepository {
       );
       const moved = this.prepare(
         `UPDATE workspace_change_segment SET baseline_tree = ?
-         WHERE execution_target_id = ? AND id = ?`
-      ).run(review.toTree, this.executionTargetId, review.segmentId);
+         WHERE execution_target_id = ? AND id = ? AND baseline_tree = ?`
+      ).run(review.toTree, this.executionTargetId, review.segmentId, review.fromTree);
       if (moved.changes !== 1) {
-        throw new Error('The change segment does not exist.');
+        throw new Error('The change segment no longer starts from the reviewed tree.');
       }
       this.database.exec('COMMIT');
     } catch (error) {
@@ -237,13 +246,15 @@ export class ChangesRepository {
     }
   }
 
-  listReviews(segmentId: string): ChangeReview[] {
+  /** Newest first; a negative limit lists every review. */
+  listReviews(segmentId: string, limit = -1): ChangeReview[] {
     const rows = this.prepare(
       `SELECT ${REVIEW_COLUMNS} FROM workspace_change_review r
        JOIN workspace_change_segment s ON s.id = r.segment_id
        WHERE s.execution_target_id = ? AND r.segment_id = ?
-       ORDER BY r.reviewed_at DESC, r.rowid DESC`
-    ).all(this.executionTargetId, segmentId) as unknown as ReviewRow[];
+       ORDER BY r.reviewed_at DESC, r.rowid DESC
+       LIMIT ?`
+    ).all(this.executionTargetId, segmentId, limit) as unknown as ReviewRow[];
     return rows.map(toReview);
   }
 
@@ -256,12 +267,14 @@ export class ChangesRepository {
     return row === undefined ? null : toReview(row);
   }
 
-  listWorkspaceSegments(workspaceId: string): ChangeSegment[] {
+  /** Newest first; a negative limit lists every segment. */
+  listWorkspaceSegments(workspaceId: string, limit = -1): ChangeSegment[] {
     const rows = this.prepare(
       `SELECT ${SEGMENT_COLUMNS} FROM workspace_change_segment
        WHERE execution_target_id = ? AND workspace_id = ?
-       ORDER BY created_at DESC, rowid DESC`
-    ).all(this.executionTargetId, workspaceId) as unknown as SegmentRow[];
+       ORDER BY created_at DESC, rowid DESC
+       LIMIT ?`
+    ).all(this.executionTargetId, workspaceId, limit) as unknown as SegmentRow[];
     return rows.map(toSegment);
   }
 
@@ -282,6 +295,15 @@ export class ChangesRepository {
        RETURNING id, workspace_id`
     ).all(this.executionTargetId, cutoff) as unknown as Array<{ id: string; workspace_id: string }>;
     return rows.map((row) => ({ segmentId: row.id, workspaceId: row.workspace_id }));
+  }
+
+  /** Whether a live segment other than this owner's works in the same workspace. */
+  hasOtherOpenSegment(workspaceId: string, ownerId: string): boolean {
+    return this.prepare(
+      `SELECT 1 FROM workspace_change_segment
+       WHERE execution_target_id = ? AND workspace_id = ? AND ended_at IS NULL AND owner_id <> ?
+       LIMIT 1`
+    ).get(this.executionTargetId, workspaceId, ownerId) !== undefined;
   }
 
   hasSegments(workspaceId: string): boolean {

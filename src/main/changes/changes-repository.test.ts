@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { CatalogRepository } from '../storage/catalog-repository';
+import { ExecutionTargetRepository } from '../storage/execution-target-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { ChangesRepository } from './changes-repository';
 
@@ -57,6 +58,52 @@ describe('ChangesRepository', () => {
     expect(() => repository.recordReview({ id: 'v1', segmentId: 's1', fromTree: 't1', toTree: 't2', fileCount: -1, reviewedAt: '2026-09-15T01:10:00.000Z' })).toThrow();
     expect(repository.getSegmentByOwner('r1')?.baselineTree).toBe('t1');
     expect(repository.listReviews('s1')).toEqual([]);
+  });
+
+  it('refuses a review whose starting tree is no longer the baseline', () => {
+    repository.createSegment({ id: 's1', workspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    repository.recordBaseline('s1', { snapshotKind: 'repository', tree: 't1', head: null, late: false });
+    repository.recordReview({ id: 'v1', segmentId: 's1', fromTree: 't1', toTree: 't2', fileCount: 1, reviewedAt: '2026-09-15T01:10:00.000Z' });
+    expect(() => repository.recordReview({ id: 'v2', segmentId: 's1', fromTree: 't1', toTree: 't3', fileCount: 1, reviewedAt: '2026-09-15T01:20:00.000Z' })).toThrow();
+    expect(repository.getSegmentByOwner('r1')?.baselineTree).toBe('t2');
+    expect(repository.listReviews('s1').map(({ id }) => id)).toEqual(['v1']);
+  });
+
+  it('tells whether another open segment shares the workspace', () => {
+    repository.createSegment({ id: 's1', workspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    expect(repository.hasOtherOpenSegment(workspaceId, 'r1')).toBe(false);
+    repository.createSegment({ id: 's2', workspaceId, ownerKind: 'unified', ownerId: 'c1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    expect(repository.hasOtherOpenSegment(workspaceId, 'r1')).toBe(true);
+    repository.endSegment('c1', '2026-09-15T02:00:00.000Z');
+    expect(repository.hasOtherOpenSegment(workspaceId, 'r1')).toBe(false);
+  });
+
+  it('limits listed segments and reviews', () => {
+    for (const index of [1, 2, 3]) {
+      repository.createSegment({ id: `s${index}`, workspaceId, ownerKind: 'terminal', ownerId: `r${index}`, catalogSessionId: null, createdAt: `2026-09-15T0${index}:00:00.000Z` });
+    }
+    repository.recordBaseline('s1', { snapshotKind: 'repository', tree: 't1', head: null, late: false });
+    repository.recordReview({ id: 'v1', segmentId: 's1', fromTree: 't1', toTree: 't2', fileCount: 1, reviewedAt: '2026-09-15T01:10:00.000Z' });
+    repository.recordReview({ id: 'v2', segmentId: 's1', fromTree: 't2', toTree: 't3', fileCount: 1, reviewedAt: '2026-09-15T01:20:00.000Z' });
+    expect(repository.listWorkspaceSegments(workspaceId, 2).map(({ id }) => id)).toEqual(['s3', 's2']);
+    expect(repository.listReviews('s1', 1).map(({ id }) => id)).toEqual(['v2']);
+  });
+
+  it('keeps owner ids unique within one execution target only', () => {
+    const remoteId = '2abb0a0d-0a65-4027-8919-ff8cc9b9aefb';
+    const remoteWorkspaceId = 'b'.repeat(64);
+    new ExecutionTargetRepository(database).createRemote({ id: remoteId, displayName: 'Build server' });
+    new CatalogRepository(database, remoteId).registerWorkspace(
+      { id: remoteWorkspaceId, canonicalPath: '/work', identityKey: '/work', displayName: 'work', available: true },
+      'manual',
+      '2026-09-15T00:00:00.000Z'
+    );
+    const remote = new ChangesRepository(database, remoteId);
+    repository.createSegment({ id: 's1', workspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    remote.createSegment({ id: 's2', workspaceId: remoteWorkspaceId, ownerKind: 'terminal', ownerId: 'r1', catalogSessionId: null, createdAt: '2026-09-15T01:00:00.000Z' });
+    expect(repository.getSegmentByOwner('r1')?.id).toBe('s1');
+    expect(remote.getSegmentByOwner('r1')?.id).toBe('s2');
+    expect(remote.listOpenSegments().map(({ id }) => id)).toEqual(['s2']);
   });
 
   it('lists a workspace\'s segments newest first, links a catalog session, and prunes ended segments', () => {

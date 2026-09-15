@@ -606,7 +606,7 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
           REFERENCES execution_target(id) ON DELETE CASCADE,
         workspace_id TEXT NOT NULL,
         owner_kind TEXT NOT NULL CHECK (owner_kind IN ('terminal', 'unified')),
-        owner_id TEXT NOT NULL UNIQUE,
+        owner_id TEXT NOT NULL,
         catalog_session_id TEXT,
         snapshot_kind TEXT CHECK (snapshot_kind IS NULL OR snapshot_kind IN ('repository', 'folder')),
         baseline_tree TEXT,
@@ -619,10 +619,14 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
         created_at TEXT NOT NULL,
         ended_at TEXT,
         FOREIGN KEY (execution_target_id, workspace_id)
-          REFERENCES workspace(execution_target_id, id) ON DELETE CASCADE
+          REFERENCES workspace(execution_target_id, id) ON DELETE CASCADE,
+        UNIQUE (execution_target_id, owner_id)
       ) STRICT`,
       `CREATE INDEX workspace_change_segment_workspace_idx
        ON workspace_change_segment (execution_target_id, workspace_id, created_at DESC)`,
+      `CREATE INDEX workspace_change_segment_open_idx
+       ON workspace_change_segment (execution_target_id, workspace_id)
+       WHERE ended_at IS NULL`,
       `CREATE TABLE workspace_change_review (
         id TEXT PRIMARY KEY,
         segment_id TEXT NOT NULL REFERENCES workspace_change_segment(id) ON DELETE CASCADE,
