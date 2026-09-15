@@ -39,6 +39,20 @@ describe('useChangeCounts', () => {
     expect(api.getChangesCounts).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the same map when a count event repeats the known count', async () => {
+    const { api, emit } = fakeApi(async () => [count('r1', 2)]);
+    const { result } = renderHook(() => useChangeCounts(api));
+    await waitFor(() => expect(result.current.get('r1')).toBe(2));
+    const before = result.current;
+
+    // The same map lets React bail out, so the workspaces do not re-render.
+    act(() => emit(count('r1', 2)));
+    expect(result.current).toBe(before);
+
+    act(() => emit(count('r1', 3)));
+    expect(result.current).not.toBe(before);
+  });
+
   it('keeps an event that arrives before the load finishes', async () => {
     let finish!: (counts: ChangesCount[]) => void;
     const { api, emit } = fakeApi(() => new Promise((resolve) => { finish = resolve; }));

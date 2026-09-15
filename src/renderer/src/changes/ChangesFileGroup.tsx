@@ -37,8 +37,10 @@ export function ChangesFileGroup({
 
   useLayoutEffect(() => {
     const from = revealedFrom.current;
-    if (from === null || from >= visible.length) return;
+    if (from === null) return;
     revealedFrom.current = null;
+    // Nothing new appeared, for example when the list shrank meanwhile.
+    if (from >= visible.length) return;
     // Focus follows the new rows only when the button it was on has gone.
     if (hidden > 0) return;
     listRef.current?.children[from]?.querySelector<HTMLButtonElement>('button.changes-file-select')?.focus();

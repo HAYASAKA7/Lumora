@@ -15,7 +15,9 @@ export function useChangeCounts(api: ChangeCountsApi): ReadonlyMap<string, numbe
   useEffect(() => {
     let current = true;
     const unsubscribe = api.onChangesCount((count) => {
-      setCounts((existing) => new Map(existing).set(count.ownerId, count.changedFileCount));
+      setCounts((existing) => (existing.get(count.ownerId) === count.changedFileCount
+        ? existing
+        : new Map(existing).set(count.ownerId, count.changedFileCount)));
     });
     api.getChangesCounts().then(
       (loaded) => {
@@ -26,6 +28,7 @@ export function useChangeCounts(api: ChangeCountsApi): ReadonlyMap<string, numbe
           return next;
         });
       },
+      // Without the initial counts the badges start empty and fill in as count events arrive.
       () => undefined
     );
     return () => {
