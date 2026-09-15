@@ -34,6 +34,7 @@ export function StartupOverlay({
 }: StartupOverlayProps): ReactNode {
   const { t } = useLocalization();
   const [mediaFinished, setMediaFinished] = useState(false);
+  const [mediaFailed, setMediaFailed] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const releaseStarted = useRef(false);
   const fadeTimer = useRef<number | null>(null);
@@ -96,7 +97,13 @@ export function StartupOverlay({
     >
       {shouldPlay === true ? (
         <div className="startup-media-stage">
-          {mediaFinished ? (
+          {/*
+           * A finished video keeps showing its last frame, so it stays in place
+           * rather than giving way to an image that would have to appear again.
+           * It has no poster: a poster of the last frame showed the ending before
+           * the video began. The image stands in only when the video cannot play.
+           */}
+          {mediaFailed ? (
             <img
               alt={t('shell.startup.final-frame')}
               className="startup-media"
@@ -108,9 +115,11 @@ export function StartupOverlay({
               className="startup-media"
               muted
               onEnded={() => setMediaFinished(true)}
-              onError={() => setMediaFinished(true)}
+              onError={() => {
+                setMediaFailed(true);
+                setMediaFinished(true);
+              }}
               playsInline
-              poster={posterSrc}
               src={videoSrc}
             />
           )}

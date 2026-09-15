@@ -48,6 +48,8 @@ describe('StartupOverlay', () => {
     expect(video).toHaveAttribute('playsinline');
     expect(video).toHaveProperty('muted', true);
     expect(video?.parentElement).toHaveClass('startup-media-stage');
+    // A poster of the last frame showed the ending first, and then the video began.
+    expect(video).not.toHaveAttribute('poster');
   });
 
   it('holds the final frame until startup work settles, then fades away', () => {
@@ -64,11 +66,16 @@ describe('StartupOverlay', () => {
       />
     );
 
-    fireEvent.ended(document.querySelector('video')!);
+    const video = document.querySelector('video')!;
+    fireEvent.ended(video);
 
-    expect(screen.getByRole('img', { name: 'Lumora startup final frame' })).toHaveAttribute(
-      'src',
-      posterSrc
+    // The finished video keeps showing its last frame; replacing it with an
+    // image made the picture blink out and fade back in.
+    expect(document.querySelector('video')).toBe(video);
+    expect(screen.queryByRole('img', { name: 'Lumora startup final frame' })).toBeNull();
+    expect(screen.getByRole('status', { name: 'Lumora is starting' })).toHaveAttribute(
+      'data-state',
+      'holding-final-frame'
     );
     expect(onDismissed).not.toHaveBeenCalled();
 
@@ -129,7 +136,11 @@ describe('StartupOverlay', () => {
 
     fireEvent.error(document.querySelector('video')!);
 
-    expect(screen.getByRole('img', { name: 'Lumora startup final frame' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Lumora startup final frame' })).toHaveAttribute(
+      'src',
+      posterSrc
+    );
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('renders nothing when this process has already presented startup', () => {

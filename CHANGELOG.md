@@ -17,6 +17,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Play the startup animation once, without a blink at the end. The window first
+  showed the animation's final frame and then started the video from the
+  beginning, and when the video ended it was replaced by that frame as an image
+  that faded in again. The video now starts on its own first frame and stays on
+  its last one; the image is shown only if the video cannot play.
 - Delete a remote computer that has been connected before. Lumora keeps the
   workspaces, sessions, and terminal profiles it found on a remote computer,
   and deleting the computer did not remove them first, so any computer that had
