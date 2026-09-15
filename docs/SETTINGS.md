@@ -223,6 +223,10 @@ field it recorded: outcome, whether it came from this computer or a remote one,
 the provider, code, duration, counts, and the correlation ID that ties together
 events from one operation. Export diagnostics to keep the whole journal.
 
+<p align="center">
+  <img src="screenshots/0.5/settings/settings_diagnostics_recent_events_details.png" alt="Lumora Diagnostics event details listing recent journal events with severity, outcome, target, duration, counts, and correlation ID" width="1100">
+</p>
+
 The bounded journal excludes prompts, terminal output, session content,
 credentials, environment values, and filesystem paths. Lumora never uploads a
 diagnostic report. Choosing **Export diagnostics** always lets the user select
