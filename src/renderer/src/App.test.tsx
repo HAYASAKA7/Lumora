@@ -3390,7 +3390,7 @@ describe('App', () => {
   });
 
   it('opens the existing terminal when the tray selects a running session', async () => {
-    let requestResume!: (sessionId: string) => void;
+    const trayListeners: ((sessionId: string) => void)[] = [];
     const runtime = {
       ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa2'),
       displayName: readyCatalog.sessions[0]!.title,
@@ -3407,7 +3407,7 @@ describe('App', () => {
         outputSequence: 0
       }),
       onTrayResumeSessionRequested: vi.fn((listener) => {
-        requestResume = listener;
+        trayListeners.push(listener);
         return () => undefined;
       })
     });
@@ -3416,7 +3416,9 @@ describe('App', () => {
       name: `Open running terminal ${readyCatalog.sessions[0]!.title}`
     });
 
-    act(() => requestResume(readyCatalog.sessions[0]!.id));
+    // The tray holds the listener it was given first, from before any runtime
+    // was known. It must still find the session that is running now.
+    act(() => trayListeners[0]!(readyCatalog.sessions[0]!.id));
 
     expect(screen.queryByRole('dialog', { name: 'Resume session' }))
       .not.toBeInTheDocument();

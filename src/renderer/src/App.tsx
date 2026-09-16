@@ -972,6 +972,21 @@ function AppContent(): ReactNode {
     )),
     [liveStructuredSnapshots]
   );
+  /**
+   * What is running right now, for the callers that arrive from outside React
+   * and may be holding a callback made before the runtimes were known: the
+   * tray, which offers a running session the moment the window opens.
+   */
+  const liveBySessionIdRef = useRef({
+    runtimes: liveRuntimeBySessionId,
+    structured: liveStructuredBySessionId
+  });
+  useEffect(() => {
+    liveBySessionIdRef.current = {
+      runtimes: liveRuntimeBySessionId,
+      structured: liveStructuredBySessionId
+    };
+  }, [liveRuntimeBySessionId, liveStructuredBySessionId]);
   const runningSessionIds = useMemo(
     () => new Set([
       ...liveRuntimeBySessionId.keys(),
@@ -986,26 +1001,22 @@ function AppContent(): ReactNode {
   ) => {
     setNewSessionIntent(null);
     setRecoveryRuntime(null);
-    const runningRuntime = liveRuntimeBySessionId.get(session.id);
+    const live = liveBySessionIdRef.current;
+    const runningRuntime = live.runtimes.get(session.id);
     if (runningRuntime !== undefined) {
       setResumeIntent(null);
       activateRuntime(runningRuntime.id);
       setTerminalFocusRequestKey((current) => current + 1);
       return;
     }
-    const structuredRuntime = liveStructuredBySessionId.get(session.id);
+    const structuredRuntime = live.structured.get(session.id);
     if (structuredRuntime !== undefined) {
       setResumeIntent(null);
       activateStructuredRuntime(structuredRuntime.runtime.connectionId);
       return;
     }
     setResumeIntent({ session, workspace });
-  }, [
-    activateRuntime,
-    activateStructuredRuntime,
-    liveRuntimeBySessionId,
-    liveStructuredBySessionId
-  ]);
+  }, [activateRuntime, activateStructuredRuntime]);
 
   const reorderRuntimeTab = useCallback(
     (runtimeId: string, destinationIndex: number) => {
@@ -1505,14 +1516,15 @@ function AppContent(): ReactNode {
     setNewSessionIntent(null);
     setRecoveryRuntime(null);
     setResumeIntent(null);
-    const runningRuntime = liveRuntimeBySessionId.get(session.id);
+    const live = liveBySessionIdRef.current;
+    const runningRuntime = live.runtimes.get(session.id);
     if (runningRuntime !== undefined) {
       directSessionLaunch.hide();
       activateRuntime(runningRuntime.id);
       setTerminalFocusRequestKey((current) => current + 1);
       return;
     }
-    const structuredRuntime = liveStructuredBySessionId.get(session.id);
+    const structuredRuntime = live.structured.get(session.id);
     if (structuredRuntime !== undefined) {
       directSessionLaunch.hide();
       activateStructuredRuntime(structuredRuntime.runtime.connectionId);
@@ -1523,9 +1535,7 @@ function AppContent(): ReactNode {
     activateRuntime,
     activateStructuredRuntime,
     directSessionLaunch.hide,
-    directSessionLaunch.open,
-    liveRuntimeBySessionId,
-    liveStructuredBySessionId
+    directSessionLaunch.open
   ]);
 
   const openCatalogSessionOptionsOnly = useCallback((

@@ -7,6 +7,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Open the session the tray asked for. Choosing a running session from the tray
+  soon after the window opened could start the launch flow for it instead of
+  showing the terminal it was already running in, because the tray was holding
+  a callback made before Lumora knew what was running. It now reads what is
+  running when the tray asks.
+
 ## [0.6.1] - 2026-09-16
 
 ### Added
