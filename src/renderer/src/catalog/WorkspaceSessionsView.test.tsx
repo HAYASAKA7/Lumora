@@ -557,6 +557,32 @@ describe('WorkspaceSessionsView', () => {
       expect(section).not.toHaveClass('changes-maximized');
     });
 
+    it('waits for the page before opening a request and then sizes the panel', async () => {
+      const api = changesApi();
+      const onChangesRequestHandled = vi.fn();
+      const { container, rerender } = render(view({
+        changesApi: api,
+        changesRequest: historyRequest,
+        onChangesRequestHandled,
+        status: { state: 'loading' }
+      }));
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+      expect(onChangesRequestHandled).not.toHaveBeenCalled();
+      expect(api.getChangesHistory).not.toHaveBeenCalled();
+
+      rerender(view({
+        changesApi: api,
+        changesRequest: historyRequest,
+        onChangesRequestHandled
+      }));
+
+      expect(screen.getByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
+      expect(onChangesRequestHandled).toHaveBeenCalledExactlyOnceWith(historyRequest.key);
+      expect(await screen.findByRole('button', { name: /^1 file reviewed · / })).toHaveFocus();
+      const section = container.querySelector<HTMLElement>('.workspace-detail')!;
+      expect(section.style.getPropertyValue('--changes-panel-visible-height')).toMatch(/^[0-9]+px$/);
+    });
+
     it('ignores a request for another workspace', async () => {
       const api = changesApi();
       render(view({

@@ -43,6 +43,7 @@ export function useDockedPanelViewport(hostRef: RefObject<HTMLElement | null>, a
     const view = host.ownerDocument.defaultView;
     const container = scrollContainer(host);
     let frame: number | null = null;
+    let written: string | null = null;
 
     const measure = () => {
       frame = null;
@@ -52,10 +53,16 @@ export function useDockedPanelViewport(hostRef: RefObject<HTMLElement | null>, a
       const panelTop = stacked || panel === null ? viewport.top : panel.getBoundingClientRect().top;
       const top = Math.max(viewport.top + VIEWPORT_GAP, panelTop);
       const available = viewport.bottom - viewport.top;
-      const height = Math.max(viewport.bottom - VIEWPORT_GAP - top, available / 2);
-      host.style.setProperty(HEIGHT_PROPERTY, `${Math.round(height)}px`);
-      if (stacked) host.dataset.changesLayout = 'stacked';
-      else delete host.dataset.changesLayout;
+      const height = `${Math.round(Math.max(viewport.bottom - VIEWPORT_GAP - top, available / 2))}px`;
+      // Writing the same height again would resize nothing and only feed the observer its own work.
+      if (height !== written) {
+        written = height;
+        host.style.setProperty(HEIGHT_PROPERTY, height);
+      }
+      const layout = stacked ? 'stacked' : undefined;
+      if (host.dataset.changesLayout === layout) return;
+      if (layout === undefined) delete host.dataset.changesLayout;
+      else host.dataset.changesLayout = layout;
     };
 
     const schedule = () => {

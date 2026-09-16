@@ -55,7 +55,7 @@ export function ChangesPanelContent({
     ? source.workspaceId
     : source.kind === 'session' ? sessionWorkspaceId : null;
   const showHistory = source.kind !== 'review' && mode === 'history' && historyWorkspaceId !== null;
-  const history = useChangesHistory(api, historyWorkspaceId ?? '', active && showHistory);
+  const history = useChangesHistory(api, historyWorkspaceId, active && showHistory);
 
   const latest = useRef({ source, onSourceChange });
   useLayoutEffect(() => {

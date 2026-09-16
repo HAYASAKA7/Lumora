@@ -31,6 +31,15 @@ describe('useChangesHistory', () => {
     expect(api.getChangesHistory).toHaveBeenCalledWith('ws-1');
   });
 
+  it('loads nothing without a workspace', async () => {
+    const { api } = fakeChangesApi();
+    const { result } = renderHook(() => useChangesHistory(api, null, true));
+    await act(async () => undefined);
+    expect(api.getChangesHistory).not.toHaveBeenCalled();
+    expect(result.current.history).toEqual({ state: 'loading' });
+    expect(result.current.refreshing).toBe(false);
+  });
+
   it('reports a failed load', async () => {
     const { api } = fakeChangesApi();
     api.getChangesHistory.mockRejectedValue(new Error('broken'));

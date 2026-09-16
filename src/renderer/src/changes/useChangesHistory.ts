@@ -11,7 +11,7 @@ export interface ChangesHistoryLoad {
 }
 
 interface Loaded {
-  workspaceId: string;
+  workspaceId: string | null;
   load: Load<ChangesHistory>;
   /** The reload request this response answered. */
   request: number;
@@ -19,8 +19,15 @@ interface Loaded {
 
 const LOADING: Load<never> = { state: 'loading' };
 
-/** Loads a workspace's review history while active; responses for an older workspace or request are dropped. */
-export function useChangesHistory(api: ChangesApi, workspaceId: string, active: boolean): ChangesHistoryLoad {
+/**
+ * Loads a workspace's review history while active; responses for an older
+ * workspace or request are dropped. A null workspace loads nothing.
+ */
+export function useChangesHistory(
+  api: ChangesApi,
+  workspaceId: string | null,
+  active: boolean
+): ChangesHistoryLoad {
   const apiRef = useRef(api);
   useEffect(() => {
     apiRef.current = api;
@@ -29,7 +36,7 @@ export function useChangesHistory(api: ChangesApi, workspaceId: string, active: 
   const [loaded, setLoaded] = useState<Loaded>({ workspaceId, load: LOADING, request: -1 });
 
   useEffect(() => {
-    if (!active) return undefined;
+    if (!active || workspaceId === null) return undefined;
     let current = true;
     apiRef.current.getChangesHistory(workspaceId).then(
       (value) => {

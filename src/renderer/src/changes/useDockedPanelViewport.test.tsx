@@ -71,6 +71,24 @@ describe('useDockedPanelViewport', () => {
     expect(height(getByTestId('host'))).toBe('776px');
   });
 
+  it('writes nothing again while the measurements stay put', () => {
+    stubLayout({ containerTop: 60, containerHeight: 800, panelTop: 200 });
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const { getByTestId } = render(<Harness />);
+    const setProperty = vi.spyOn(getByTestId('host').style, 'setProperty');
+
+    act(() => {
+      getByTestId('scroller').dispatchEvent(new Event('scroll'));
+      for (const frame of frames.splice(0)) frame(0);
+    });
+    expect(setProperty).not.toHaveBeenCalled();
+    expect(height(getByTestId('host'))).toBe('648px');
+  });
+
   it('stacks the panel under the sessions on a narrow page and measures the whole container', () => {
     stubLayout({ containerTop: 0, containerHeight: 600, panelTop: 900 });
     const { getByTestId } = render(<Harness hostWidth={600} />);

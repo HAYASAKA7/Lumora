@@ -190,7 +190,11 @@ export function WorkspaceSessionsView({
 }: WorkspaceSessionsViewProps): ReactNode {
   const { t } = useLocalization();
   const sectionRef = useRef<HTMLElement | null>(null);
-  const changesShown = changesApi !== undefined;
+  const workspace = status.state === 'ready'
+    ? status.snapshot.workspaces.find((candidate) => candidate.id === workspaceId)
+    : undefined;
+  // The panel and its section only exist on the page below, so a request waits for them.
+  const changesShown = changesApi !== undefined && workspace !== undefined;
   const changes = useWorkspaceChangesPanel({
     enabled: changesShown,
     onRequestHandled: onChangesRequestHandled,
@@ -244,9 +248,6 @@ export function WorkspaceSessionsView({
     );
   }
 
-  const workspace = status.snapshot.workspaces.find(
-    (candidate) => candidate.id === workspaceId
-  );
   if (workspace === undefined) {
     return (
       <section className="catalog-panel workspace-detail">
