@@ -209,11 +209,14 @@ too large to render, are reported rather than shown.
 
 ### What you can do with a file
 
-Every row has a **File actions** menu with **Open**, **Show in folder**, and
-**Copy path**. Lumora never runs what it opens: a program, a script, an
-installer, or a shortcut is shown in its folder instead of being opened. A path
-that leads outside the workspace is refused, including a link inside the
-workspace that points out of it, and the panel reports that it did not work.
+Every row has a **File actions** menu. In **This session** it opens with **Mark
+reviewed**, then **Open**, **Show in folder**, and **Copy path**; a file in the
+**Committed** group has the same menu without **Mark reviewed**. Lumora never
+runs what it opens: a program, a script, an installer, or a shortcut is shown in
+its folder instead of being opened, whether it is the name in the list or the
+file a link really leads to. A path that leads outside the workspace is refused,
+including a link inside the workspace that points out of it, and the panel
+reports that it did not work.
 
 ### Mark reviewed
 
@@ -222,6 +225,9 @@ list, moves the session's starting point forward. Those files leave the list,
 the count in the header drops, and the batch is filed under **History** so you
 can open it again later. Nothing on disk changes: Lumora does not commit,
 stage, or edit anything, and the workspace is left as the agent left it.
+
+Marking looks at the workspace again first, so an edit made between reading a
+diff and marking that file is part of the same batch.
 
 A file that goes back to its original content leaves the list too, whether the
 agent undid its own edit or you did. When the agent commits during the session,
@@ -232,8 +238,8 @@ closed until you open it.
 
 **History** in the panel lists this workspace's sessions, newest first, with
 when each one started and the batches reviewed in it. Select a batch to see
-exactly the files it covered, then use **Back to history** or `Escape` to return.
-**Show earlier sessions** loads more. The same history is one button away on the
+exactly the files it covered, then use **Back to history** or `Escape` to go
+back. **Show earlier sessions** loads more. The same history is one button away on the
 workspace page, and **View changes** in a session's right-click menu opens it
 with that session in view.
 
@@ -257,10 +263,19 @@ with that session in view.
 ### Where the snapshots live
 
 Lumora takes every snapshot into its own application-data folder, beside its
-database. The workspace is only read: nothing is written into it, its `.git`
-folder is never touched, and no commit, branch, or stash of yours is changed. A
-workspace's snapshots are removed 14 days after its last session ended, together
-with that session's review history.
+database. The workspace is only read: nothing is written to your files or to
+your repository's contents, and no commit, branch, or stash of yours changes. In
+a repository that uses a split index, reading it can refresh a timestamp inside
+`.git`, and that is the only mark Lumora leaves. A workspace's snapshots are
+removed 14 days after its last session ended, together with that session's
+review history.
+
+That store grows as you work, because each snapshot keeps the content it found.
+It lives in the `workspace-changes` folder inside Lumora's application-data
+folder, and you can delete it, or one workspace's folder inside it, while Lumora
+is closed if you need the space sooner. Your projects are untouched. Lumora
+takes a new starting point the next time a session runs in that workspace, and
+batches already in **History** can no longer be opened.
 
 ### Limits
 

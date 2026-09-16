@@ -537,7 +537,8 @@ are marked honestly as lost and can be resumed or restarted.
 
 A local session records what changed in its workspace while it ran. The
 snapshot engine in `src/main/changes/` takes that record with git, without
-writing to the workspace. Every workspace has a private store under `userData`
+writing to the workspace; reading a copied split index can refresh the timestamp
+of the repository's shared index file, and that is the only mark it leaves. Every workspace has a private store under `userData`
 in `workspace-changes/<workspace id>`. `GIT_OBJECT_DIRECTORY` points at that
 store's object directory and the repository's own objects are added through
 `GIT_ALTERNATE_OBJECT_DIRECTORIES`, so new blobs and trees are written beside
@@ -585,8 +586,9 @@ Six invoke channels carry the feature, `lumora:changes:` with `summary:get`,
 plus the `lumora:changes:count:event` push. All of them use the local-only
 authorizer: a sender must be a trusted renderer frame with a registered window
 context in local mode on the local execution target, so a remote target window
-is refused before any handler runs. Every failure crosses the boundary as one
-generic error. The renderer does not offer the feature there at all: a remote
+is refused before any handler runs. A sender that fails the authorizer is
+rejected before the handler body; every other failure crosses the boundary as
+one generic error. The renderer does not offer the feature there at all: a remote
 window renders the session and workspace views without the changes API, so no
 button appears.
 
@@ -596,8 +598,9 @@ refused, including a link inside the workspace that points out of it. Anything
 that could run is revealed in its folder instead of opened: known executable,
 script, installer, shortcut, and loadable extensions, every `PATHEXT` entry on
 Windows, and any file carrying an execute bit elsewhere. A failed stat reveals
-as well, and the decision is taken on the real path rather than the name that
-led to it.
+as well. The name is judged twice, on the path the renderer asked for and on the
+path it really leads to, and either one is enough; only the execute bit is read
+from the real file.
 
 Snapshots live only as long as the history that refers to them. Startup runs
 before any session launches: it ends segments the previous run left open, prunes

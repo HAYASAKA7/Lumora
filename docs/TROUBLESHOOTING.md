@@ -406,13 +406,30 @@ instead of opening it.
 
 **Likely cause:** Lumora never runs a file from the changes list. Programs,
 scripts, installers, shortcuts, and, on macOS and Linux, anything carrying an
-execute bit are shown in their folder instead. The decision is taken on the file
-the path really leads to, not on the name in the list.
+execute bit are shown in their folder instead. The name is judged twice, on the
+path in the list and on the file a link really leads to, and either one is
+enough. Only the execute bit is read from the real file.
 
 **Resolution:** Expected behaviour; open such a file yourself in an editor if
 you want to read it. A path that leads outside the workspace is refused
 altogether and reports **That didn't work. Try again.**, which is also what a
 file deleted since the list was taken reports.
+
+### Changes is using a lot of disk space
+
+**Symptom:** The `workspace-changes` folder inside Lumora's application-data
+folder keeps growing.
+
+**Likely cause:** Every snapshot keeps the content it found, stored as git
+objects in Lumora's own folder, so a workspace with many sessions or large files
+builds up data. A workspace's store is removed only 14 days after its last
+session ended.
+
+**Resolution:** Close Lumora, then delete that folder, or one workspace's folder
+inside it, if you need the space sooner. Nothing in your projects or their
+repositories is affected. Lumora takes a new starting point the next time a
+session runs in that workspace, and the batches already listed in **History**
+can no longer be opened.
 
 ## Remote computers
 
