@@ -203,7 +203,7 @@ or by pressing `Escape`.
 Maximized, the file list sits beside the diff instead of above it.
 
 <p align="center">
-  <img src="screenshots/0.6/changes/changes_workspace_maximized.png" alt="The Changes panel maximized over a session, with the changed-file list on the left and the selected file's diff on the right" width="1100">
+  <img src="screenshots/0.6/changes/changes_maximized_session.png" alt="The Changes panel maximized over a session, with the changed-file list on the left and the selected file's diff on the right" width="1100">
 </p>
 
 ### This session and All uncommitted
@@ -262,12 +262,22 @@ closed until you open it.
 **History** in the panel lists this workspace's sessions, newest first, with
 when each one started and the batches reviewed in it. Select a batch to see
 exactly the files it covered, then use **Back to history** or `Escape` to go
-back. **Show earlier sessions** loads more. The same history is one button away on the
-workspace page, and **View changes** in a session's right-click menu opens it
-with that session in view.
+back. **Show earlier sessions** loads more.
 
 <p align="center">
   <img src="screenshots/0.6/changes/changes_history.png" alt="The Changes panel in History, listing this workspace's sessions with when each one started and what was reviewed in it" width="1100">
+</p>
+
+### On the workspace page
+
+The **Changes** button on a workspace's page opens the same panel beside its
+session list. There is no **This session** there, because no session is in
+front: it opens on **All uncommitted**, with **History** beside it. **View
+changes** in a session's right-click menu opens that page with the session's
+history in view.
+
+<p align="center">
+  <img src="screenshots/0.6/changes/changes_workspace.png" alt="A workspace page with the Changes panel open beside its session list, offering All uncommitted and History" width="1100">
 </p>
 
 ### What the notices mean
