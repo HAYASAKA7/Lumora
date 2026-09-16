@@ -33,7 +33,8 @@ describe('runGit', () => {
       '-c', 'core.quotepath=false',
       '-c', 'core.safecrlf=false',
       '-c', 'core.fsmonitor=false',
-      '-c', 'gc.auto=0'
+      '-c', 'gc.auto=0',
+      '-c', 'maintenance.auto=false'
     ]);
   });
 

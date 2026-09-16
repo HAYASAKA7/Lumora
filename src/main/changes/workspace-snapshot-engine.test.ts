@@ -17,7 +17,7 @@ function isolatedEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const inherited = Object.entries(process.env).filter(([name]) => !name.toUpperCase().startsWith('GIT_'));
   return {
     ...Object.fromEntries(inherited),
-    GIT_CONFIG_GLOBAL: join(root, 'empty.gitconfig'),
+    GIT_CONFIG_GLOBAL: join(root, 'test.gitconfig'),
     GIT_CONFIG_NOSYSTEM: '1',
     ...extra
   };
@@ -42,7 +42,10 @@ const hasGitLfs = (() => {
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'lumora-snapshots-'));
-  writeFileSync(join(root, 'empty.gitconfig'), '');
+  // Without this, git's own post-command maintenance leaves objects/maintenance.lock
+  // behind for a moment and the ".git is untouched" assertions read it.
+  const gitConfig = '[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n';
+  writeFileSync(join(root, 'test.gitconfig'), gitConfig);
   engine = new WorkspaceSnapshotEngine({ gitPath: 'git', storeRoot: join(root, 'store'), runGit });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));

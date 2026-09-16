@@ -6,7 +6,8 @@ export const GIT_BASE_ARGS: readonly string[] = [
   '-c', 'core.quotepath=false',
   '-c', 'core.safecrlf=false',
   '-c', 'core.fsmonitor=false',
-  '-c', 'gc.auto=0'
+  '-c', 'gc.auto=0',
+  '-c', 'maintenance.auto=false'
 ];
 
 const DEFAULT_TIMEOUT_MS = 30_000;
