@@ -22,6 +22,15 @@ function rule(selector: string): string {
 }
 
 describe('changes panel style contract', () => {
+  it('keeps the mode switch above the list in both the changes and history views', () => {
+    // A toolbar placed by an area name the parent grid does not define lands in a
+    // row of its own after the list which put the switch at the bottom of the panel.
+    expect(rule('.changes-view > .changes-toolbar')).toContain('grid-area: toolbar');
+    expect(rule('.changes-history-view')).toContain("grid-template-areas: 'toolbar' 'history'");
+    expect(rule('.changes-history-view > .changes-toolbar')).toContain('grid-area: toolbar');
+    expect(rule('.changes-history-scroll')).toContain('grid-area: history');
+  });
+
   it('docks the panel in a second column sized by the width the panel writes', () => {
     expect(rule('.terminal-workspace.has-changes-panel')).toContain(
       'grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px)'

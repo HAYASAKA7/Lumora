@@ -8209,7 +8209,7 @@ button {
   grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr);
 }
 
-.changes-toolbar {
+.changes-view > .changes-toolbar {
   grid-area: toolbar;
 }
 
@@ -8418,13 +8418,20 @@ button {
 }
 
 /* The review history lists each session segment and its reviewed batches. */
+/* The toolbar keeps the top row here as it does in the changes view. */
 .changes-history-view {
   display: grid;
+  grid-template-areas: 'toolbar' 'history';
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
 
+.changes-history-view > .changes-toolbar {
+  grid-area: toolbar;
+}
+
 .changes-history-scroll {
+  grid-area: history;
   min-height: 0;
   overflow: auto;
 }
