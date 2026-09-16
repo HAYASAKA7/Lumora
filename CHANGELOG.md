@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-16
+
 ### Added
 
 - Review what an agent changed without leaving Lumora. **Changes** in a
@@ -16,8 +18,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   everything that differs from the last commit, and **Mark reviewed** clears
   the files you have read and files them under **History**, where past
   sessions and their reviewed batches stay. A file can be opened, shown in its
-  folder, or have its path copied; a program or script is shown in its folder
-  rather than run. Lumora reads the workspace with git and writes its
+  folder, or have either its workspace path or its full path copied; a program
+  is always shown in its folder rather than run, and a script asks first.
+  **Ctrl+Shift+G** shows or hides the panel and can be rebound in
+  **Settings > Keyboard**. Lumora reads the workspace with git and writes its
   snapshots to its own data folder, so nothing is committed, staged, or
   changed on disk, and a workspace's snapshots are removed 14 days after its
   last session ended. Sessions on this computer only, for now.
