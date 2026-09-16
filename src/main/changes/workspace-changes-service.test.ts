@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -470,6 +470,21 @@ describe('WorkspaceChangesService', () => {
 
       expect(openPath).not.toHaveBeenCalled();
       expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync(join(root, 'build.bat')));
+    });
+
+    it('reveals the file a directory link inside the workspace leads to', async () => {
+      mkdirSync(join(root, 'sub'));
+      writeFileSync(join(root, 'sub', 'build.bat'), '@echo off');
+      // A junction needs no privileges on Windows, so this link case runs everywhere.
+      symlinkSync(join(root, 'sub'), join(root, 'mirror'), 'junction');
+      const openPath = vi.fn(async () => '');
+      const showItemInFolder = vi.fn();
+      const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+
+      await scoped.open({ kind: 'workspace', workspaceId }, 'mirror/build.bat', 'open');
+
+      expect(openPath).not.toHaveBeenCalled();
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync(join(root, 'sub', 'build.bat')));
     });
 
     it('cannot open a deleted file but reveals the folder it was in', async () => {

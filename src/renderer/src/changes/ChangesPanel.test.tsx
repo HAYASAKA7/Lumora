@@ -93,6 +93,7 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('ChangesPanel', () => {
@@ -234,7 +235,7 @@ describe('ChangesPanel', () => {
   it('clamps the column to the parent width as the parent resizes without saving it', async () => {
     const resize = stubResizeObserver();
     let parentWidth = 1000;
-    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
       return this.querySelector(':scope > .changes-panel') === null ? 0 : parentWidth;
     });
     window.localStorage.setItem(CHANGES_PANEL_WIDTH_KEY, '640');
@@ -259,7 +260,6 @@ describe('ChangesPanel', () => {
 
     unmount();
     expect(parent.style.getPropertyValue('--changes-column-width')).toBe('');
-    clientWidth.mockRestore();
   });
 
   it('closes on Escape without letting it reach the parent unless a file menu is open', async () => {

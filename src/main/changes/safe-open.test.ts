@@ -127,6 +127,17 @@ describe('resolveOpenTarget', () => {
       .resolves.toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
   });
 
+  it('follows a directory link inside the workspace to the file it really holds', async () => {
+    writeFileSync(join(workspace, 'sub', 'build.bat'), '@echo off');
+    // A junction needs no privileges on Windows, so this link case runs everywhere.
+    symlinkSync(join(workspace, 'sub'), join(workspace, 'mirror'), 'junction');
+
+    const target = await resolveOpenTarget(workspace, 'mirror/build.bat');
+
+    expect(target).toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
+    await expect(shouldRevealInstead('mirror/build.bat', target.path)).resolves.toBe(true);
+  });
+
   it('refuses paths that leave the workspace by name or through a link', async () => {
     await expect(resolveOpenTarget(workspace, '../outside/secret.txt')).rejects.toThrow();
     await expect(resolveOpenTarget(workspace, 'linked/secret.txt')).rejects.toThrow();
