@@ -2692,7 +2692,7 @@ describe('App', () => {
     await screen.findByRole('group', { name: 'Session actions' });
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
-    expect(screen.queryByRole('button', { name: 'New session' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'New session' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { code: 'KeyN', key: 'N', ctrlKey: true, shiftKey: true });
 
@@ -3692,7 +3692,7 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows New session in the top command bar only on Home and Workspaces', async () => {
+  it('keeps New session in the top command bar on every page', async () => {
     renderWithLocalization(<App />);
 
     const sessionActions = screen.getByRole('group', { name: 'Session actions' });
@@ -3701,14 +3701,26 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(document.querySelector('.page-primary-action')).not.toBeInTheDocument();
 
-    for (const destination of ['All sessions', 'Terminal profiles', 'Settings']) {
+    for (const destination of ['All sessions', 'Terminal profiles', 'Settings', 'Workspaces']) {
       fireEvent.click(screen.getByRole('button', { name: destination }));
       expect(
-        within(sessionActions).queryByRole('button', { name: 'New session' })
-      ).not.toBeInTheDocument();
+        within(sessionActions).getByRole('button', { name: 'New session' })
+      ).toBeInTheDocument();
     }
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+  it('offers New session from inside a running terminal session', async () => {
+    const runtime = runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ae7');
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({ runtime, snapshot: '', outputSequence: 0 })
+    });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    await screen.findByRole('button', { name: 'Codex working session terminal input' });
+
+    const sessionActions = screen.getByRole('group', { name: 'Session actions' });
     expect(
       within(sessionActions).getByRole('button', { name: 'New session' })
     ).toBeInTheDocument();

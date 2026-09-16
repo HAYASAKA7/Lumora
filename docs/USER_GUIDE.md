@@ -125,6 +125,10 @@ export and import.
 Select **New session**, then choose a workspace, enabled provider, and terminal
 profile. An initial task is optional. A blank task sends nothing to the agent.
 
+The button sits in the top bar on every page, and while a session is in front,
+so a second session never means leaving the first. `Ctrl+Shift+N` opens the
+same dialog. On a workspace's page it starts with that workspace chosen.
+
 The launch preview shows the effective command, working directory, terminal,
 and the layer that supplied each value. Lumora resolves settings in this order:
 

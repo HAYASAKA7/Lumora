@@ -2344,9 +2344,8 @@ function AppContent(): ReactNode {
                 {t('shell.runtime.open-terminals')}
               </button>
             ) : null}
-            {activeRuntimeId === null &&
-            (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
-            canStartNewSession ? (
+            {/* Starting a session is offered wherever one can be started, including from inside another. */}
+            {canStartNewSession ? (
               <Tooltip
                 content={t('shell.topbar.new-session')}
                 shortcut={shortcutPlatform === null

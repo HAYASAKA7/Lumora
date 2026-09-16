@@ -39,6 +39,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Offer **New session** everywhere. The button appeared only on Home and
+  Workspaces, and a native terminal session hid it while a Unified UI session
+  did not, so where it could be found depended on the route a session had
+  taken. It now sits in the top bar on every page and alongside a running
+  session, as `Ctrl+Shift+N` already did.
 - Stop the changes panel from taking the keyboard. Opening it, closing it,
   coming back from a reviewed batch, and revealing more files each moved focus
   onto a button, so `Ctrl+Shift+G` left a focus ring on the panel's **Close**
