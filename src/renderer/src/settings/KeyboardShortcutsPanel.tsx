@@ -34,6 +34,12 @@ const SHORTCUT_ROWS = [
     descriptionKey: 'settings.shortcuts.open-terminals-description'
   },
   {
+    key: 'newSession',
+    labelKey: 'settings.shortcuts.new-session',
+    ariaActionKey: 'settings.shortcuts.new-session-action',
+    descriptionKey: 'settings.shortcuts.new-session-description'
+  },
+  {
     key: 'toggleSidebar',
     labelKey: 'settings.shortcuts.toggle-sidebar',
     ariaActionKey: 'settings.shortcuts.toggle-sidebar-action',
@@ -44,6 +50,24 @@ const SHORTCUT_ROWS = [
     labelKey: 'settings.shortcuts.toggle-changes',
     ariaActionKey: 'settings.shortcuts.toggle-changes-action',
     descriptionKey: 'settings.shortcuts.toggle-changes-description'
+  },
+  {
+    key: 'maximizeChanges',
+    labelKey: 'settings.shortcuts.maximize-changes',
+    ariaActionKey: 'settings.shortcuts.maximize-changes-action',
+    descriptionKey: 'settings.shortcuts.maximize-changes-description'
+  },
+  {
+    key: 'refresh',
+    labelKey: 'settings.shortcuts.refresh',
+    ariaActionKey: 'settings.shortcuts.refresh-action',
+    descriptionKey: 'settings.shortcuts.refresh-description'
+  },
+  {
+    key: 'focusSearch',
+    labelKey: 'settings.shortcuts.focus-search',
+    ariaActionKey: 'settings.shortcuts.focus-search-action',
+    descriptionKey: 'settings.shortcuts.focus-search-description'
   },
   {
     key: 'openHome',

@@ -1886,6 +1886,19 @@ const DEFAULT_TOGGLE_CHANGES = {
   ...controlShortcut('KeyG'),
   shift: true
 };
+const DEFAULT_MAXIMIZE_CHANGES = {
+  ...controlShortcut('KeyM'),
+  shift: true
+};
+const DEFAULT_NEW_SESSION = {
+  ...controlShortcut('KeyN'),
+  shift: true
+};
+const DEFAULT_REFRESH = {
+  ...controlShortcut('KeyR'),
+  shift: true
+};
+const DEFAULT_FOCUS_SEARCH = controlShortcut('KeyF');
 const DEFAULT_OPEN_HOME = controlShortcut('Digit1');
 const DEFAULT_OPEN_WORKSPACES = controlShortcut('Digit2');
 const DEFAULT_OPEN_SESSIONS = controlShortcut('Digit3');
@@ -1940,7 +1953,7 @@ const VersionThreeKeyboardSettingsSchema = z.strictObject({
   openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS)
 });
 
-export const KeyboardSettingsSchema = z.strictObject({
+const VersionFourKeyboardSettingsSchema = z.strictObject({
   version: z.literal(4),
   terminalSwitcher: KeyboardShortcutChordSchema,
   openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
@@ -1954,14 +1967,36 @@ export const KeyboardSettingsSchema = z.strictObject({
   openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS)
 });
 
+export const KeyboardSettingsSchema = z.strictObject({
+  version: z.literal(5),
+  terminalSwitcher: KeyboardShortcutChordSchema,
+  openTerminals: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_TERMINALS),
+  newSession: KeyboardShortcutChordSchema.default(DEFAULT_NEW_SESSION),
+  toggleSidebar: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_SIDEBAR),
+  toggleChanges: KeyboardShortcutChordSchema.default(DEFAULT_TOGGLE_CHANGES),
+  maximizeChanges: KeyboardShortcutChordSchema.default(DEFAULT_MAXIMIZE_CHANGES),
+  refresh: KeyboardShortcutChordSchema.default(DEFAULT_REFRESH),
+  focusSearch: KeyboardShortcutChordSchema.default(DEFAULT_FOCUS_SEARCH),
+  openHome: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_HOME),
+  openWorkspaces: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_WORKSPACES),
+  openSessions: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SESSIONS),
+  openProfiles: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_PROFILES),
+  openRemote: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_REMOTE),
+  openSettings: KeyboardShortcutChordSchema.default(DEFAULT_OPEN_SETTINGS)
+});
+
 export type KeyboardSettings = z.infer<typeof KeyboardSettingsSchema>;
 
 export const DEFAULT_KEYBOARD_SETTINGS = {
-  version: 4,
+  version: 5,
   terminalSwitcher: DEFAULT_TERMINAL_SWITCHER,
   openTerminals: DEFAULT_OPEN_TERMINALS,
+  newSession: DEFAULT_NEW_SESSION,
   toggleSidebar: DEFAULT_TOGGLE_SIDEBAR,
   toggleChanges: DEFAULT_TOGGLE_CHANGES,
+  maximizeChanges: DEFAULT_MAXIMIZE_CHANGES,
+  refresh: DEFAULT_REFRESH,
+  focusSearch: DEFAULT_FOCUS_SEARCH,
   openHome: DEFAULT_OPEN_HOME,
   openWorkspaces: DEFAULT_OPEN_WORKSPACES,
   openSessions: DEFAULT_OPEN_SESSIONS,
@@ -1981,16 +2016,31 @@ function shortcutChordEquals(
     left.meta === right.meta;
 }
 
+/** Every earlier version simply gains the shortcuts added since, at their defaults. */
+function keyboardSettingsFromVersionFour(
+  settings: Omit<z.infer<typeof VersionFourKeyboardSettingsSchema>, 'version'>
+): KeyboardSettings {
+  return KeyboardSettingsSchema.parse({
+    ...settings,
+    version: 5,
+    newSession: DEFAULT_NEW_SESSION,
+    maximizeChanges: DEFAULT_MAXIMIZE_CHANGES,
+    refresh: DEFAULT_REFRESH,
+    focusSearch: DEFAULT_FOCUS_SEARCH
+  });
+}
+
 export function parseKeyboardSettings(value: unknown): KeyboardSettings {
   const current = KeyboardSettingsSchema.safeParse(value);
   if (current.success) return current.data;
 
-  // Every earlier version simply gains the new shortcut at its default.
+  const versionFour = VersionFourKeyboardSettingsSchema.safeParse(value);
+  if (versionFour.success) return keyboardSettingsFromVersionFour(versionFour.data);
+
   const versionThree = VersionThreeKeyboardSettingsSchema.safeParse(value);
   if (versionThree.success) {
-    return KeyboardSettingsSchema.parse({
+    return keyboardSettingsFromVersionFour({
       ...versionThree.data,
-      version: 4,
       toggleChanges: DEFAULT_TOGGLE_CHANGES
     });
   }
@@ -2036,8 +2086,7 @@ function migrateLegacyKeyboardSettings(
     ? DEFAULT_OPEN_SETTINGS
     : candidate;
 
-  return KeyboardSettingsSchema.parse({
-    version: 4,
+  return keyboardSettingsFromVersionFour({
     terminalSwitcher: legacy.terminalSwitcher,
     openTerminals: overrides.openTerminals ?? legacy.openTerminals,
     toggleSidebar: legacy.toggleSidebar,

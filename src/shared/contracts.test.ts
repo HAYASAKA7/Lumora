@@ -1619,7 +1619,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned keyboard settings with a real modified key', () => {
     expect(KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS)).toEqual({
-      version: 4,
+      version: 5,
       terminalSwitcher: {
         code: 'Tab',
         control: true,
@@ -1642,6 +1642,26 @@ describe('managed terminal contracts', () => {
         control: true,
         shift: true
       }),
+      maximizeChanges: expect.objectContaining({
+        code: 'KeyM',
+        control: true,
+        shift: true
+      }),
+      newSession: expect.objectContaining({
+        code: 'KeyN',
+        control: true,
+        shift: true
+      }),
+      refresh: expect.objectContaining({
+        code: 'KeyR',
+        control: true,
+        shift: true
+      }),
+      focusSearch: expect.objectContaining({
+        code: 'KeyF',
+        control: true,
+        shift: false
+      }),
       openHome: expect.objectContaining({ code: 'Digit1', control: true }),
       openWorkspaces: expect.objectContaining({ code: 'Digit2', control: true }),
       openSessions: expect.objectContaining({ code: 'Digit3', control: true }),
@@ -1650,7 +1670,7 @@ describe('managed terminal contracts', () => {
       openSettings: expect.objectContaining({ code: 'Comma', control: true })
     });
     expect(KeyboardSettingsSchema.parse({
-      version: 4,
+      version: 5,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -1686,7 +1706,15 @@ describe('managed terminal contracts', () => {
   });
 
   it('migrates untouched version-two navigation shortcuts to Remote and Settings', () => {
-    const { openRemote: _openRemote, toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const {
+      openRemote: _openRemote,
+      toggleChanges: _toggleChanges,
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
 
     expect(parseKeyboardSettings({
       ...current,
@@ -1701,7 +1729,14 @@ describe('managed terminal contracts', () => {
   });
 
   it('gives version-three settings the new changes shortcut and keeps the rest', () => {
-    const { toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const {
+      toggleChanges: _toggleChanges,
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
     const custom = {
       code: 'KeyJ', control: true, alt: false, shift: true, meta: false
     };
@@ -1715,8 +1750,34 @@ describe('managed terminal contracts', () => {
     });
   });
 
+  it('gives version-four settings the shortcuts added since and keeps the rest', () => {
+    const {
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
+    const custom = {
+      code: 'KeyJ', control: true, alt: false, shift: true, meta: false
+    };
+
+    expect(parseKeyboardSettings({ ...current, version: 4, toggleChanges: custom })).toEqual({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      toggleChanges: custom
+    });
+  });
+
   it('preserves a customized version-two Settings shortcut', () => {
-    const { openRemote: _openRemote, toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const {
+      openRemote: _openRemote,
+      toggleChanges: _toggleChanges,
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
+      ...current
+    } = DEFAULT_KEYBOARD_SETTINGS;
     const custom = {
       code: 'KeyS', control: true, alt: true, shift: false, meta: false
     };
@@ -1739,6 +1800,10 @@ describe('managed terminal contracts', () => {
       openRemote: _openRemote,
       toggleChanges: _toggleChanges,
       openSettings: _openSettings,
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
       ...current
     } = DEFAULT_KEYBOARD_SETTINGS;
     expect(parseKeyboardSettings({
@@ -1774,6 +1839,10 @@ describe('managed terminal contracts', () => {
       openRemote: _openRemote,
       toggleChanges: _toggleChanges,
       openSettings: _openSettings,
+      maximizeChanges: _maximizeChanges,
+      newSession: _newSession,
+      refresh: _refresh,
+      focusSearch: _focusSearch,
       ...current
     } = DEFAULT_KEYBOARD_SETTINGS;
     const custom = {
