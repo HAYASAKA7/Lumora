@@ -18,10 +18,10 @@ import {
 } from '../../../shared/provider-definitions';
 import { Tooltip } from '../ui/Tooltip';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { BackIcon, ChangesIcon, RefreshIcon } from '../ui/icons';
 import { useRefreshRequest } from '../keyboard/page-requests';
+import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
-import { BackIcon, ChangesIcon } from '../ui/icons';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import { useDockedPanelViewport } from '../changes/useDockedPanelViewport';
@@ -196,6 +196,7 @@ export function WorkspaceSessionsView({
   const { t } = useLocalization();
   const sectionRef = useRef<HTMLElement | null>(null);
   useRefreshRequest(changesShortcutActive && !isRefreshing, onRefresh);
+  const changesShortcut = useShortcutLabel('toggleChanges');
   const workspace = status.state === 'ready'
     ? status.snapshot.workspaces.find((candidate) => candidate.id === workspaceId)
     : undefined;
@@ -226,10 +227,9 @@ export function WorkspaceSessionsView({
   if (status.state === 'loading') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <IconButton label={t('catalog.workspaces.back')} onClick={onBack} tabIndex={-1}>
           <BackIcon />
-          {t('catalog.workspaces.back')}
-        </button>
+        </IconButton>
         <div className="catalog-state" role="status">
           {t('catalog.workspaces.loading-sessions')}
         </div>
@@ -240,10 +240,9 @@ export function WorkspaceSessionsView({
   if (status.state === 'error') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <IconButton label={t('catalog.workspaces.back')} onClick={onBack} tabIndex={-1}>
           <BackIcon />
-          {t('catalog.workspaces.back')}
-        </button>
+        </IconButton>
         <div className="catalog-state catalog-error" role="alert">
           <div>
             <h2>{t('catalog.workspaces.history-unavailable-title')}</h2>
@@ -260,10 +259,9 @@ export function WorkspaceSessionsView({
   if (workspace === undefined) {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <IconButton label={t('catalog.workspaces.back')} onClick={onBack} tabIndex={-1}>
           <BackIcon />
-          {t('catalog.workspaces.back')}
-        </button>
+        </IconButton>
         <div className="catalog-empty" role="status">
           <h2>{t('catalog.workspaces.missing-title')}</h2>
           <p>{t('catalog.workspaces.missing-description')}</p>
@@ -280,19 +278,26 @@ export function WorkspaceSessionsView({
       ref={sectionRef}
     >
       <div className="workspace-detail-toolbar">
-        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <IconButton label={t('catalog.workspaces.back')} onClick={onBack} tabIndex={-1}>
           <BackIcon />
-          {t('catalog.workspaces.back')}
-        </button>
+        </IconButton>
         <div className="catalog-actions">
           <span className={`origin-badge origin-${workspace.origin}`}>
             {t(`catalog.workspaces.origin-${workspace.origin}`)}
           </span>
           {changesShown ? (
-            <button className="secondary-button button-with-icon" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
-              <ChangesIcon />
-              {t('catalog.workspaces.changes')}
-            </button>
+            <Tooltip content={t('catalog.workspaces.changes')} shortcut={changesShortcut}>
+              <button
+                aria-label={t('catalog.workspaces.changes')}
+                className="icon-button"
+                data-lumora-command
+                tabIndex={-1}
+                type="button"
+                {...changes.buttonProps}
+              >
+                <ChangesIcon />
+              </button>
+            </Tooltip>
           ) : null}
           <IconButton
             busy={isRefreshing}

@@ -15,7 +15,6 @@ import { Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useSessionExportSelection } from './useSessionExportSelection';
 import { useLocalization } from '../localization/useLocalization';
-import { BackIcon } from '../ui/icons';
 
 const SESSION_BATCH_SIZE = 40;
 
@@ -90,8 +89,7 @@ export function SessionTransferExportSelection({
           </p>
         </div>
         <div className="transfer-export-selection-actions">
-          <button className="secondary-button button-with-icon" onClick={back} type="button">
-            <BackIcon />
+          <button className="secondary-button" onClick={back} type="button">
             {t('common.actions.back')}
           </button>
           <button

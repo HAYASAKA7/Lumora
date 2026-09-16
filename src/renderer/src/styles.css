@@ -3037,23 +3037,6 @@ button {
   opacity: 0.58;
 }
 
-/*
- * A button that leads with its mark. The glyph is drawn a little smaller than
- * a bare icon button's so that it reads as part of the word rather than as a
- * second control beside it.
- */
-.button-with-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-}
-
-.button-with-icon .icon {
-  width: 16px;
-  height: 16px;
-}
-
 .catalog-empty {
   padding: 52px 24px;
   color: var(--text-muted);
@@ -8016,9 +7999,31 @@ button {
 }
 
 /* The session header button keeps its count on one line. */
+/*
+ * The changes button carries its count on the mark rather than beside it. The
+ * badge sits on the lower corner where an editor puts it and never grows the
+ * button: a number that changes with every save would otherwise shift the row
+ * it sits in.
+ */
 .changes-button {
-  white-space: nowrap;
+  position: relative;
+  overflow: visible;
+}
+
+.changes-button-count {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  min-width: 15px;
+  padding: 0 3px;
+  color: var(--on-accent);
+  background: var(--blue);
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 15px;
+  text-align: center;
 }
 
 /* A docked changes panel takes a second column sized by the width the panel writes on the section. */

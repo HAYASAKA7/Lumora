@@ -110,10 +110,9 @@ export function ChangesPanelContent({
         api={api}
         source={source}
         toolbarStart={returnTo === null ? <span /> : (
-          <button className="secondary-button button-with-icon" onClick={goBack} type="button">
+          <IconButton label={t('terminal.changes.history-back')} onClick={goBack}>
             <BackIcon />
-            {t('terminal.changes.history-back')}
-          </button>
+          </IconButton>
         )}
       />
     );

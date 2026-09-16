@@ -663,7 +663,9 @@ describe('TerminalWorkspace changes', () => {
 
     const button = screen.getByRole('button', { name: 'Changes 5' });
     expect(button).toHaveAttribute('aria-expanded', 'false');
-    expect(button).toHaveClass('secondary-button', 'changes-button');
+    expect(button).toHaveClass('icon-button', 'changes-button');
+    // The count rides on the mark rather than in a word beside it.
+    expect(button).toHaveTextContent('5');
     expect(screen.getByRole('tab', { name: /Release notes/ })).toHaveTextContent('2 changed');
     // The header button carries the active session's count.
     expect(screen.getByRole('tab', { name: /Repository cleanup/ })).not.toHaveTextContent('changed');

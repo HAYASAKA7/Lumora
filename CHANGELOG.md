@@ -28,8 +28,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the key.
 - Buttons that a shortcut works now say so in their tooltip, including
   **Changes**, **New session**, **Maximize changes** and the refresh buttons.
-- **Changes** carries the branch mark source control wears in an editor, and
-  every **Back** button now leads with an arrow.
+- **Changes** is now the branch mark source control wears in an editor, with
+  the number of changed files as a badge on its corner, and **Back to
+  workspaces** and **Back to history** are a left arrow. Each keeps its name in
+  its tooltip. A step back inside a dialog keeps its word, since it stands
+  among worded choices.
 - Stop ringing the whole page when a dialog closes. A dialog rendered inside
   the page hands focus back to it, and the page was drawn as though it were a
   control.
