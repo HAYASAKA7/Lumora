@@ -53,6 +53,7 @@ export function fakeChangesApi(summaries: (source: ChangesSource) => ChangesSumm
       truncated: false
     })),
     markChangesReviewed: vi.fn(async (_ownerId: string, _paths: readonly string[]) => summaryFor(sessionSource)),
+    getChangedFilePath: vi.fn(async (_source: ChangesSource, path: string) => `D:\\work\\${path}`),
     openChangedFile: vi.fn(async (
       _source: ChangesSource,
       _path: string,

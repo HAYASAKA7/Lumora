@@ -404,6 +404,32 @@ describe('WorkspaceChangesService', () => {
     });
     afterEach(() => rmSync(root, { recursive: true, force: true }));
 
+    it('tells the full path of a changed file without following links or needing it to exist', async () => {
+      const scoped = createService({ lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      await begin(scoped, 'r1');
+      const workspaceSource = { kind: 'workspace', workspaceId } as const;
+
+      await expect(scoped.filePath(sessionSource('r1'), 'notes.txt')).resolves.toBe(join(root, 'notes.txt'));
+      await expect(scoped.filePath(workspaceSource, 'sub/deep.txt')).resolves.toBe(join(root, 'sub', 'deep.txt'));
+      // A file the session deleted still has a path worth copying.
+      await expect(scoped.filePath(workspaceSource, 'gone.txt')).resolves.toBe(join(root, 'gone.txt'));
+
+      await expect(scoped.filePath(workspaceSource, '../escape.txt')).rejects.toThrow();
+      await expect(scoped.filePath(workspaceSource, 'C:/elsewhere/file.txt')).rejects.toThrow();
+    });
+
+    it('tells the full path of a file in a reviewed batch', async () => {
+      const scoped = createService({ lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      await begin(scoped, 'r1');
+      engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
+      engine.changedFiles.mockResolvedValue([file('notes.txt')]);
+      await scoped.markReviewed('r1', ['notes.txt']);
+      const reviewId = scoped.history(workspaceId).segments[0]?.reviews[0]?.reviewId ?? '';
+
+      await expect(scoped.filePath({ kind: 'review', reviewId }, 'notes.txt'))
+        .resolves.toBe(join(root, 'notes.txt'));
+    });
+
     it('opens only paths inside the workspace', async () => {
       const openPath = vi.fn(async () => '');
       const scoped = createService({ openPath, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });

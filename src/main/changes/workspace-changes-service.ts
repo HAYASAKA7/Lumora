@@ -16,7 +16,7 @@ import { ChangedFilesCache } from './changed-files-cache';
 import { unavailableReasonFor } from './changes-summary';
 import { openSafetyFor, resolveOpenTarget } from './safe-open';
 import { SnapshotCache } from './snapshot-cache';
-import type { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
+import { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
 export type SnapshotEngineLike = Pick<
   WorkspaceSnapshotEngine,
@@ -222,6 +222,23 @@ export class WorkspaceChangesService {
         }))
       }))
     };
+  }
+
+  /**
+   * Where a changed file sits on this computer, spelled as the workspace does:
+   * no link is followed, and a file that has been deleted still has a path.
+   */
+  async filePath(source: ChangesSource, path: string): Promise<string> {
+    const { context: { workspaceId } } = this.resolver.target(source);
+    const workspace = this.options.lookupWorkspace(workspaceId);
+    if (workspace === null) {
+      throw new Error('The workspace is not available.');
+    }
+    const resolved = WorkspaceSnapshotEngine.resolveInside(workspace.canonicalPath, path);
+    if (resolved === null) {
+      throw new Error('The path is outside the workspace.');
+    }
+    return resolved;
   }
 
   /**

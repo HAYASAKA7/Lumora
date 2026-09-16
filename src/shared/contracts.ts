@@ -2390,6 +2390,7 @@ export const IPC_CHANNELS = {
   changesFileDiffGet: 'lumora:changes:file-diff:get',
   changesReviewMark: 'lumora:changes:review:mark',
   changesHistoryGet: 'lumora:changes:history:get',
+  changesFilePathGet: 'lumora:changes:file-path:get',
   changesFileOpen: 'lumora:changes:file:open',
   changesCountsGet: 'lumora:changes:counts:get',
   changesCountEvent: 'lumora:changes:count:event',
@@ -2564,6 +2565,8 @@ export interface LumoraApi {
   getChangesFileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff>;
   markChangesReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary>;
   getChangesHistory(workspaceId: string): Promise<ChangesHistory>;
+  /** The changed file's path on this computer, whether or not it still exists. */
+  getChangedFilePath(source: ChangesSource, path: string): Promise<string>;
   openChangedFile(
     source: ChangesSource,
     path: string,

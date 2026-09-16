@@ -308,6 +308,12 @@ describe('createLumoraApi', () => {
     await expect(api.markChangesReviewed('runtime-1', [])).rejects.toBeDefined();
     expect(invoke).not.toHaveBeenCalled();
 
+    invoke.mockResolvedValueOnce({ path: 'D:\\work\\src\\a.ts' });
+    await expect(api.getChangedFilePath(source, 'src/a.ts')).resolves.toBe('D:\\work\\src\\a.ts');
+    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFilePathGet, { source, path: 'src/a.ts' });
+    invoke.mockResolvedValueOnce({ path: '' });
+    await expect(api.getChangedFilePath(source, 'src/a.ts')).rejects.toBeDefined();
+
     invoke.mockResolvedValueOnce({ outcome: 'revealed' });
     await expect(api.openChangedFile(source, 'src/a.ts', 'reveal')).resolves.toEqual({ outcome: 'revealed' });
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'reveal' });

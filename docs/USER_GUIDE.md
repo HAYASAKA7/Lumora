@@ -210,8 +210,11 @@ too large to render, are reported rather than shown.
 ### What you can do with a file
 
 Every row has a **File actions** menu. In **This session** it opens with **Mark
-reviewed**, then **Open**, **Show in folder**, and **Copy path**; a file in the
-**Committed** group has the same menu without **Mark reviewed**.
+reviewed**, then **Open**, **Show in folder**, **Copy path**, and **Copy full
+path**; a file in the **Committed** group has the same menu without **Mark
+reviewed**. **Copy path** copies the path as the list shows it, from the top of
+the workspace, and **Copy full path** copies where the file sits on this
+computer, which still works for a file the session deleted.
 
 **Open** treats a file in one of three ways. A document or source file, such as
 a `.ts` or a `.md`, opens straight away. A script people also read, such as a

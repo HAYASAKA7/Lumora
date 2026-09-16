@@ -4,6 +4,8 @@ import {
   ChangesFileDiffSchema,
   ChangesHistoryRequestSchema,
   ChangesHistorySchema,
+  ChangesFilePathRequestSchema,
+  ChangesFilePathSchema,
   ChangesOpenOutcomeSchema,
   ChangesOpenRequestSchema,
   ChangesReviewRequestSchema,
@@ -12,6 +14,7 @@ import {
   IPC_CHANNELS,
   type ChangesCount,
   type ChangesFileDiff,
+  type ChangesFilePath,
   type ChangesHistory,
   type ChangesOpenOutcome,
   type ChangesSummary
@@ -35,7 +38,7 @@ interface RegisterChangesIpcDependencies {
 
 type ChangesIpcService = Pick<
   WorkspaceChangesService,
-  'summary' | 'fileDiff' | 'markReviewed' | 'history' | 'open' | 'counts'
+  'summary' | 'fileDiff' | 'markReviewed' | 'history' | 'filePath' | 'open' | 'counts'
 >;
 
 class ChangesIpcError extends Error {
@@ -66,6 +69,7 @@ const NO_CHANGE_TRACKING: ChangesIpcService = {
   fileDiff: unavailable,
   markReviewed: unavailable,
   history: unavailable,
+  filePath: unavailable,
   open: unavailable,
   counts: () => []
 };
@@ -104,6 +108,14 @@ export function registerChangesIpc({
     return protectedOperation(() => {
       const request = ChangesHistoryRequestSchema.parse(value);
       return ChangesHistorySchema.parse(service.history(request.workspaceId));
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.changesFilePathGet, async (event, value): Promise<ChangesFilePath> => {
+    authorize(event);
+    return protectedOperation(async () => {
+      const request = ChangesFilePathRequestSchema.parse(value);
+      return ChangesFilePathSchema.parse({ path: await service.filePath(request.source, request.path) });
     });
   });
 

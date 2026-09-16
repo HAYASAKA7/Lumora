@@ -12,6 +12,7 @@ export type ChangesApi = Pick<
   | 'getChangesSummary'
   | 'getChangesFileDiff'
   | 'markChangesReviewed'
+  | 'getChangedFilePath'
   | 'openChangedFile'
   | 'onChangesCount'
   | 'writeClipboardText'

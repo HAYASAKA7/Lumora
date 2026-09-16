@@ -437,6 +437,7 @@
     "open-file": "Open",
     "reveal-file": "Show in folder",
     "copy-path": "Copy path",
+    "copy-full-path": "Copy full path",
     "open-confirm-title": "Open this file?",
     "open-confirm-body": "Opening {path} lets the program set up for that file type run it. Show it in its folder if you are not sure.",
     "open-confirm-action": "Open anyway",

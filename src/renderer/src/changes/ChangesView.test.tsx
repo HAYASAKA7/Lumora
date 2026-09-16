@@ -440,6 +440,31 @@ describe('ChangesView', () => {
     expect(dialog).not.toBeInTheDocument();
   });
 
+  it('copies both the workspace path and the full path of a file', async () => {
+    const { api } = fakeChangesApi();
+    renderView(api);
+    await findFileList();
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Copy path' }));
+    await waitFor(() => expect(api.writeClipboardText).toHaveBeenCalledWith('src/login.ts'));
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Copy full path' }));
+    await waitFor(() => expect(api.getChangedFilePath).toHaveBeenCalledWith(sessionSource, 'src/login.ts'));
+    await waitFor(() => expect(api.writeClipboardText).toHaveBeenLastCalledWith('D:\\work\\src/login.ts'));
+  });
+
+  it('reports a full path that cannot be worked out', async () => {
+    const { api } = fakeChangesApi();
+    api.getChangedFilePath.mockRejectedValue(new Error('outside'));
+    renderView(api);
+    await findFileList();
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Copy full path' }));
+
+    expect(await screen.findByText(ACTION_FAILED)).toBeInTheDocument();
+    expect(api.writeClipboardText).not.toHaveBeenCalled();
+  });
+
   it('renders no native tooltips or selects', async () => {
     const { api } = fakeChangesApi(() => sessionSummary);
     const { container } = renderView(api);

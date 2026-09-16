@@ -54,6 +54,7 @@ function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
     fileDiff: vi.fn().mockResolvedValue({ path: 'src/a.ts', patch: '+a', binary: false, truncated: false }),
     markReviewed: vi.fn().mockResolvedValue(summary),
     history: vi.fn().mockReturnValue({ segments: [] }),
+    filePath: vi.fn().mockResolvedValue('D:\\work\\src\\a.ts'),
     open: vi.fn().mockResolvedValue({ outcome: 'opened' }),
     counts: vi.fn().mockReturnValue([
       { ownerId: 'connection-1', workspaceId: 'workspace-1', state: 'ready', changedFileCount: 1 }
@@ -85,6 +86,7 @@ describe('registerChangesIpc', () => {
       IPC_CHANNELS.changesFileDiffGet,
       IPC_CHANNELS.changesReviewMark,
       IPC_CHANNELS.changesHistoryGet,
+      IPC_CHANNELS.changesFilePathGet,
       IPC_CHANNELS.changesFileOpen,
       IPC_CHANNELS.changesCountsGet
     ]);
@@ -99,6 +101,13 @@ describe('registerChangesIpc', () => {
     await expect(invoke(IPC_CHANNELS.changesHistoryGet, { workspaceId: 'workspace-1' }))
       .resolves.toEqual({ segments: [] });
     expect(service.history).toHaveBeenCalledWith('workspace-1');
+    await expect(invoke(IPC_CHANNELS.changesFilePathGet, { source, path: 'src/a.ts' }))
+      .resolves.toEqual({ path: 'D:\\work\\src\\a.ts' });
+    expect(service.filePath).toHaveBeenCalledWith(source, 'src/a.ts');
+    service.filePath.mockRejectedValueOnce(new Error('outside'));
+    await expect(invoke(IPC_CHANNELS.changesFilePathGet, { source, path: '../escape.ts' }))
+      .rejects.toMatchObject({ code: 'CHANGES_OPERATION_FAILED' });
+
     await expect(invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'open' }))
       .resolves.toEqual({ outcome: 'opened' });
     expect(service.open).toHaveBeenCalledWith(source, 'src/a.ts', 'open');
@@ -156,6 +165,9 @@ describe('registerChangesIpc', () => {
       code: 'CHANGES_OPERATION_FAILED'
     });
     await expect(invoke(IPC_CHANNELS.changesHistoryGet, { workspaceId: 'workspace-1' })).rejects.toMatchObject({
+      code: 'CHANGES_OPERATION_FAILED'
+    });
+    await expect(invoke(IPC_CHANNELS.changesFilePathGet, { source, path: 'src/a.ts' })).rejects.toMatchObject({
       code: 'CHANGES_OPERATION_FAILED'
     });
     await expect(invoke(IPC_CHANNELS.changesCountsGet)).resolves.toEqual([]);

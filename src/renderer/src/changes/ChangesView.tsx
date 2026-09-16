@@ -121,6 +121,10 @@ export function ChangesView({
       const current = latest.current;
       if (action === 'mark-reviewed') attempt(() => current.markReviewed([path]));
       else if (action === 'copy-path') attempt(() => current.api.writeClipboardText(path));
+      else if (action === 'copy-full-path') attempt(async () => {
+        const full = await current.api.getChangedFilePath(current.source, path);
+        await current.api.writeClipboardText(full);
+      });
       else if (action === 'reveal-file') attempt(async () => { await openFile(path, 'reveal'); });
       else attempt(async () => {
         const result = await openFile(path, 'open');
@@ -165,7 +169,8 @@ export function ChangesView({
     ...(reviewable ? [{ id: 'mark-reviewed' as const, label: t('terminal.changes.mark-reviewed') }] : []),
     { id: 'open-file', label: t('terminal.changes.open-file') },
     { id: 'reveal-file', label: t('terminal.changes.reveal-file') },
-    { id: 'copy-path', label: t('terminal.changes.copy-path') }
+    { id: 'copy-path', label: t('terminal.changes.copy-path') },
+    { id: 'copy-full-path', label: t('terminal.changes.copy-full-path') }
   ], [reviewable, t]);
   const committedMenu = useMemo(() => fileMenu.filter((item) => item.id !== 'mark-reviewed'), [fileMenu]);
 

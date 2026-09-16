@@ -114,6 +114,15 @@ export const ChangesHistoryRequestSchema = z.strictObject({
 export const ChangesOpenActionSchema = z.enum(['open', 'reveal', 'open-anyway']);
 export type ChangesOpenAction = z.infer<typeof ChangesOpenActionSchema>;
 
+export const ChangesFilePathRequestSchema = z.strictObject({
+  source: ChangesSourceSchema,
+  path: PathSchema
+});
+
+/** Where a changed file sits on this computer, as the workspace spells it. */
+export const ChangesFilePathSchema = z.strictObject({ path: PathSchema });
+export type ChangesFilePath = z.infer<typeof ChangesFilePathSchema>;
+
 export const ChangesOpenRequestSchema = z.strictObject({
   source: ChangesSourceSchema,
   path: PathSchema,

@@ -6,7 +6,12 @@ import { ActionMenu, type ActionMenuItem } from '../ui/ActionMenu';
 import { ChevronDownIcon } from '../ui/icons';
 import { OverflowTooltip } from '../ui/Tooltip';
 
-export type ChangesFileAction = 'mark-reviewed' | 'open-file' | 'reveal-file' | 'copy-path';
+export type ChangesFileAction =
+  | 'mark-reviewed'
+  | 'open-file'
+  | 'reveal-file'
+  | 'copy-path'
+  | 'copy-full-path';
 export type ChangesFileNavigation = 'ArrowUp' | 'ArrowDown' | 'Home' | 'End';
 
 const NAVIGATION_KEYS: ReadonlySet<string> = new Set<ChangesFileNavigation>(['ArrowUp', 'ArrowDown', 'Home', 'End']);
