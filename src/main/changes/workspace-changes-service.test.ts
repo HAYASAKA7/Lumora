@@ -399,7 +399,8 @@ describe('WorkspaceChangesService', () => {
 
     beforeEach(() => {
       // Opened paths are real paths, so compare against the real temporary folder.
-      root = realpathSync(mkdtempSync(join(tmpdir(), 'lumora-changes-open-')));
+      // The native resolver matches the code and spells out an 8.3 short name in TEMP.
+      root = realpathSync.native(mkdtempSync(join(tmpdir(), 'lumora-changes-open-')));
       writeFileSync(join(root, 'notes.txt'), 'hello');
     });
     afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -515,7 +516,7 @@ describe('WorkspaceChangesService', () => {
       await scoped.open({ kind: 'workspace', workspaceId }, 'readme.txt', 'open');
 
       expect(openPath).not.toHaveBeenCalled();
-      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync(join(root, 'build.bat')));
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync.native(join(root, 'build.bat')));
     });
 
     it('reveals the file a directory link inside the workspace leads to', async () => {
@@ -530,7 +531,7 @@ describe('WorkspaceChangesService', () => {
       await scoped.open({ kind: 'workspace', workspaceId }, 'mirror/build.bat', 'open');
 
       expect(openPath).not.toHaveBeenCalled();
-      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync(join(root, 'sub', 'build.bat')));
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync.native(join(root, 'sub', 'build.bat')));
     });
 
     it('cannot open a deleted file but reveals the folder it was in', async () => {

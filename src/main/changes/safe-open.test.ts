@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fileOpenSafety, openSafetyByName, openSafetyFor, resolveOpenTarget } from './safe-open';
 
+/** The code resolves with fs/promises realpath, the native resolver, which spells out an 8.3 short name. */
+const realPath = (...segments: string[]) => realpathSync.native(join(...segments));
 const windows = { platform: 'win32', pathExt: '.COM;.EXE;.BAT;.CMD' } as const;
 const linux = { platform: 'linux', pathExt: undefined } as const;
 
@@ -132,7 +134,7 @@ describe('resolveOpenTarget', () => {
 
   it('finds a file inside the workspace', async () => {
     await expect(resolveOpenTarget(workspace, 'sub/notes.txt'))
-      .resolves.toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'notes.txt')) });
+      .resolves.toEqual({ exists: true, path: realPath(workspace, 'sub', 'notes.txt') });
   });
 
   it('returns the real path a link inside the workspace leads to', async (context) => {
@@ -147,7 +149,7 @@ describe('resolveOpenTarget', () => {
     }
 
     await expect(resolveOpenTarget(workspace, 'notes.txt'))
-      .resolves.toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
+      .resolves.toEqual({ exists: true, path: realPath(workspace, 'sub', 'build.bat') });
   });
 
   it('follows a directory link inside the workspace to the file it really holds', async () => {
@@ -157,7 +159,7 @@ describe('resolveOpenTarget', () => {
 
     const target = await resolveOpenTarget(workspace, 'mirror/build.bat');
 
-    expect(target).toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
+    expect(target).toEqual({ exists: true, path: realPath(workspace, 'sub', 'build.bat') });
     await expect(openSafetyFor('mirror/build.bat', target.path)).resolves.toBe('reveal');
   });
 
@@ -169,8 +171,8 @@ describe('resolveOpenTarget', () => {
 
   it('points a missing file at its nearest folder inside the workspace', async () => {
     await expect(resolveOpenTarget(workspace, 'sub/deleted.txt'))
-      .resolves.toEqual({ exists: false, path: realpathSync(join(workspace, 'sub')) });
+      .resolves.toEqual({ exists: false, path: realPath(workspace, 'sub') });
     await expect(resolveOpenTarget(workspace, 'gone/deeper/deleted.txt'))
-      .resolves.toEqual({ exists: false, path: realpathSync(workspace) });
+      .resolves.toEqual({ exists: false, path: realPath(workspace) });
   });
 });
