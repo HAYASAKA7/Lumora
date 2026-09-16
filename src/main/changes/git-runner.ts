@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 /** Flags on every call: stable output, no CRLF warnings, no background work in the user's repository. */
 export const GIT_BASE_ARGS: readonly string[] = [
@@ -11,7 +12,12 @@ export const GIT_BASE_ARGS: readonly string[] = [
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
-export type GitFailureReason = 'failed' | 'timeout' | 'output-too-large' | 'unavailable';
+export type GitFailureReason =
+  | 'failed'
+  | 'timeout'
+  | 'output-too-large'
+  | 'unavailable'
+  | 'missing-workspace';
 
 /** A git failure that carries only its reason, never the command's output. */
 export class GitCommandError extends Error {
@@ -37,10 +43,18 @@ export interface GitRunResult {
 
 export type RunGit = (options: GitRunOptions) => Promise<GitRunResult>;
 
-type ExecError = Error & { code?: string | number | null; killed?: boolean };
+type ExecError = Error & {
+  code?: string | number | null;
+  killed?: boolean;
+  syscall?: string;
+  path?: string;
+};
 
-function failureReason(error: ExecError): GitFailureReason {
-  if (error.code === 'ENOENT') return 'unavailable';
+function failureReason(error: ExecError, cwd: string): GitFailureReason {
+  // A workspace that is gone fails the spawn exactly as a missing git does, so the directory decides.
+  if (error.code === 'ENOENT') {
+    return existsSync(cwd) ? 'unavailable' : 'missing-workspace';
+  }
   if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return 'output-too-large';
   if (error.killed === true) return 'timeout';
   return 'failed';
@@ -85,7 +99,7 @@ export const runGit: RunGit = ({
           resolve({ stdout });
           return;
         }
-        reject(new GitCommandError(failureReason(error as ExecError)));
+        reject(new GitCommandError(failureReason(error as ExecError, cwd)));
       }
     );
     // A process that exits early (or never starts) closes stdin; the callback reports the real failure.

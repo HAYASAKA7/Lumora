@@ -10,6 +10,7 @@ import type {
 } from '../../shared/changes';
 import { ChangeSourceResolver } from './change-source-resolver';
 import type { ChangeSegment, ChangesRepository } from './changes-repository';
+import { ChangedFilesCache } from './changed-files-cache';
 import { unavailableReasonFor } from './changes-summary';
 import { resolveOpenTarget, shouldRevealInstead } from './safe-open';
 import { SnapshotCache } from './snapshot-cache';
@@ -49,6 +50,8 @@ export interface BeginInput {
 }
 
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1_000;
+/** The cap the counts IPC schema sets. */
+const MAX_COUNTS = 256;
 const MAX_HISTORY_ENTRIES = 500;
 
 interface RefreshRun {
@@ -65,6 +68,7 @@ export class WorkspaceChangesService {
   private readonly launchWaitMs: number;
   private readonly terminalRefreshMs: number;
   private readonly snapshots: SnapshotCache;
+  private readonly changedFiles: ChangedFilesCache;
   private readonly resolver: ChangeSourceResolver;
   private readonly refreshes = new Map<string, RefreshRun>();
   private readonly reviewQueues = new Map<string, Promise<void>>();
@@ -82,10 +86,21 @@ export class WorkspaceChangesService {
     this.createId = options.createId ?? randomUUID;
     this.launchWaitMs = options.launchWaitMs ?? 3_000;
     this.terminalRefreshMs = options.terminalRefreshMs ?? 30_000;
-    this.snapshots = new SnapshotCache(this.engine, this.clock, options.snapshotCacheMs ?? 2_000);
+    const cacheMs = options.snapshotCacheMs ?? 2_000;
+    this.snapshots = new SnapshotCache(this.engine, this.clock, cacheMs);
+    this.changedFiles = new ChangedFilesCache(
+      (workspaceId, workspacePath, fromTree, toTree) =>
+        this.engine.changedFiles(workspaceId, workspacePath, fromTree, toTree),
+      this.clock,
+      cacheMs
+    );
     this.resolver = new ChangeSourceResolver({
       repository: this.repository,
-      engine: this.engine,
+      engine: {
+        changedFiles: (workspaceId, workspacePath, fromTree, toTree) =>
+          this.changedFiles.get(workspaceId, workspacePath, fromTree, toTree),
+        headTree: (workspaceId, workspacePath) => this.engine.headTree(workspaceId, workspacePath)
+      },
       snapshots: this.snapshots,
       lookupWorkspace: (workspaceId) => options.lookupWorkspace(workspaceId),
       isGitAvailable: () => this.isGitAvailable('summary'),
@@ -143,7 +158,8 @@ export class WorkspaceChangesService {
   }
 
   counts(): ChangesCount[] {
-    return this.repository.listOpenSegments().map((segment) => ({
+    // The list crosses IPC, which caps it; more open segments than that would fail the whole call.
+    return this.repository.listOpenSegments().slice(0, MAX_COUNTS).map((segment) => ({
       ownerId: segment.ownerId,
       workspaceId: segment.workspaceId,
       state: segment.state,
@@ -161,7 +177,7 @@ export class WorkspaceChangesService {
       throw new Error('Changes are not available for this source.');
     }
     const { context: { workspaceId }, workspacePath, from, to } = resolution;
-    const entries = await this.engine.changedFiles(workspaceId, workspacePath, from, to);
+    const entries = await this.changedFiles.get(workspaceId, workspacePath, from, to);
     const entry = entries.find((candidate) => candidate.path === path);
     if (entry?.binary === true) {
       return { path, patch: '', binary: true, truncated: false };
@@ -368,7 +384,7 @@ export class WorkspaceChangesService {
     } catch (error) {
       this.report('baseline', error);
       try {
-        this.repository.markUnavailable(segmentId, unavailableReasonFor(error));
+        this.repository.markUnavailable(segmentId, unavailableReasonFor(error, 'snapshot'));
       } catch (markError) {
         this.report('baseline', markError);
       }

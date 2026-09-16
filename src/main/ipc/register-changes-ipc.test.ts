@@ -30,6 +30,23 @@ const trustedEvent: InvokeEventStub = {
   senderFrame: { url: 'app://lumora/index.html' }
 };
 
+function createHandlers(
+  service: Parameters<typeof registerChangesIpc>[0]['service'],
+  authorize = vi.fn(() => ({ mode: 'local' }))
+) {
+  const handlers = new Map<string, InvokeHandler>();
+  registerChangesIpc({
+    ipc: {
+      handle(channel: string, handler: InvokeHandler) {
+        handlers.set(channel, handler);
+      }
+    },
+    authorize: authorize as never,
+    service
+  });
+  return handlers;
+}
+
 function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
   const handlers = new Map<string, InvokeHandler>();
   const service = {
@@ -117,6 +134,20 @@ describe('registerChangesIpc', () => {
     expect((failure as Error).message).not.toContain('private');
     await expect(invoke(IPC_CHANNELS.changesCountsGet))
       .rejects.toMatchObject({ code: 'CHANGES_OPERATION_FAILED' });
+  });
+
+  it('answers every call with the generic error when this computer has no tracking', async () => {
+    const handlers = createHandlers(null);
+    const invoke = (channel: string, ...args: readonly unknown[]) =>
+      Promise.resolve(handlers.get(channel)?.(trustedEvent, ...args));
+
+    await expect(invoke(IPC_CHANNELS.changesSummaryGet, source)).rejects.toMatchObject({
+      code: 'CHANGES_OPERATION_FAILED'
+    });
+    await expect(invoke(IPC_CHANNELS.changesHistoryGet, { workspaceId: 'workspace-1' })).rejects.toMatchObject({
+      code: 'CHANGES_OPERATION_FAILED'
+    });
+    await expect(invoke(IPC_CHANNELS.changesCountsGet)).resolves.toEqual([]);
   });
 
   it('rejects calls denied by the local-window authorizer', async () => {

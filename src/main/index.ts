@@ -86,7 +86,7 @@ import { registerChangesIpc } from './ipc/register-changes-ipc';
 import { registerDiagnosticIpc } from './ipc/register-diagnostic-ipc';
 import { createChangesErrorReporter } from './changes/changes-error-reporter';
 import {
-  createLocalWorkspaceChanges,
+  startLocalWorkspaceChanges,
   type LocalWorkspaceChanges
 } from './changes/local-workspace-changes';
 import { registerEnvironmentIpc } from './ipc/register-environment-ipc';
@@ -917,7 +917,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   const structuredSessionGuard = new StructuredSessionGuard();
   // Ends the segments the last run left open, so it runs before any session launches.
-  localWorkspaceChanges = await createLocalWorkspaceChanges({
+  localWorkspaceChanges = await startLocalWorkspaceChanges({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     storeRoot: join(app.getPath('userData'), 'workspace-changes'),
     locateGit: () => findExecutable('git', { platform, env: applicationEnvironment }),
@@ -933,8 +933,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       record: async (input) => diagnosticService?.record(input)
     })
   });
-  const workspaceChanges = localWorkspaceChanges.service;
-  const workspaceChangesHooks = {
+  // Null when this computer could not open the change store; sessions then run untracked.
+  const workspaceChanges = localWorkspaceChanges?.service ?? null;
+  const workspaceChangesHooks = workspaceChanges === null ? undefined : {
     begin: (input: Parameters<typeof workspaceChanges.begin>[0]) => workspaceChanges.begin(input),
     end: (ownerId: string) => workspaceChanges.end(ownerId)
   };
@@ -946,7 +947,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     env: applicationEnvironment,
     scanProviders: scanProvidersForLaunch,
     sessionGuard: structuredSessionGuard,
-    workspaceChanges: workspaceChangesHooks,
+    ...(workspaceChangesHooks === undefined ? {} : { workspaceChanges: workspaceChangesHooks }),
     sessionCatalogRegistry: catalogRuntime.registry,
     refreshCatalog: () => catalogRuntime!.service.refreshCatalog(),
     refreshProviderSessions: (provider) =>
@@ -1000,7 +1001,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     sessionGuard: structuredSessionGuard,
     clientVersion: app.getVersion(),
     images: structuredImageStore,
-    workspaceChanges: workspaceChangesHooks
+    ...(workspaceChangesHooks === undefined ? {} : { workspaceChanges: workspaceChangesHooks })
   });
   const agentLaunchRouter = new AgentLaunchRouter({
     consumePreparedLaunch: (token) => terminalRuntime!.consumePreparedLaunch(token),
@@ -1510,7 +1511,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         trayController?.refresh();
         if (event.runtime.sessionId !== null) {
           try {
-            workspaceChanges.linkCatalogSession(event.runtimeId, event.runtime.sessionId);
+            workspaceChanges?.linkCatalogSession(event.runtimeId, event.runtime.sessionId);
           } catch {
             // Linking a catalog session to its changes is best effort.
           }
@@ -1574,10 +1575,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         mainWindow.webContents.send(IPC_CHANNELS.structuredRuntimeEvent, event);
       }
       if (event.kind === 'turn.completed') {
-        void workspaceChanges.refresh(event.connectionId);
+        void workspaceChanges?.refresh(event.connectionId);
       } else if (event.kind === 'runtime.metadata') {
         try {
-          workspaceChanges.linkCatalogSession(event.connectionId, event.payload.catalogSessionId);
+          workspaceChanges?.linkCatalogSession(event.connectionId, event.payload.catalogSessionId);
         } catch {
           // Linking a catalog session to its changes is best effort.
         }

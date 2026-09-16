@@ -9,11 +9,19 @@ import type { UnavailableReason } from './changes-repository';
 
 export const MAX_SUMMARY_FILES = 5_000;
 
-/** Why a snapshot or diff failed, in the words a summary uses. */
-export function unavailableReasonFor(error: unknown): UnavailableReason {
+/**
+ * Why a snapshot or diff failed, in the words a summary uses. Only a snapshot
+ * that ran out of time says the workspace is too large; any other slow command
+ * is just a failure.
+ */
+export function unavailableReasonFor(
+  error: unknown,
+  operation: 'snapshot' | 'diff' = 'diff'
+): UnavailableReason {
   if (error instanceof GitCommandError) {
-    if (error.reason === 'timeout') return 'too-large';
+    if (error.reason === 'timeout') return operation === 'snapshot' ? 'too-large' : 'failed';
     if (error.reason === 'unavailable') return 'git-missing';
+    if (error.reason === 'missing-workspace') return 'workspace-unavailable';
   }
   return 'failed';
 }

@@ -22,6 +22,7 @@ describe('createChangesErrorReporter', () => {
     ['timeout', 'GIT_TIMEOUT'],
     ['unavailable', 'GIT_UNAVAILABLE'],
     ['output-too-large', 'GIT_OUTPUT_TOO_LARGE'],
+    ['missing-workspace', 'GIT_MISSING_WORKSPACE'],
     ['failed', 'GIT_FAILED']
   ] as const)('records a git %s failure as %s without its message', (reason, code) => {
     const { record, report } = harness();

@@ -8,7 +8,11 @@ import { CatalogRepository } from '../storage/catalog-repository';
 import { migrateCatalogDatabase } from '../storage/migrations';
 import { ChangesRepository } from './changes-repository';
 import { GitCommandError, type GitRunOptions } from './git-runner';
-import { createLocalWorkspaceChanges, type LocalWorkspaceChanges } from './local-workspace-changes';
+import {
+  createLocalWorkspaceChanges,
+  startLocalWorkspaceChanges,
+  type LocalWorkspaceChanges
+} from './local-workspace-changes';
 
 const workspaceId = 'a'.repeat(64);
 
@@ -131,6 +135,38 @@ describe('createLocalWorkspaceChanges', () => {
     expect(summary).toMatchObject({ state: 'unavailable', unavailableReason: 'git-missing' });
     expect(runGit).not.toHaveBeenCalled();
     expect(reportError).toHaveBeenCalledWith('summary', expect.objectContaining({ reason: 'unavailable' }));
+  });
+
+  it('starts the application without change tracking when the store cannot be opened', async () => {
+    const reportError = vi.fn();
+    const changes = await startLocalWorkspaceChanges({
+      databasePath: join(root, 'work'),
+      storeRoot: join(root, 'store'),
+      locateGit: async () => null,
+      platform: 'linux',
+      onCount: vi.fn(),
+      openPath: async () => '',
+      showItemInFolder: vi.fn(),
+      reportError
+    });
+
+    expect(changes).toBeNull();
+    expect(reportError).toHaveBeenCalledWith('startup', expect.anything());
+  });
+
+  it('returns the running tracking when the store opens', async () => {
+    const changes = await startLocalWorkspaceChanges({
+      databasePath,
+      storeRoot: join(root, 'store'),
+      locateGit: async () => null,
+      platform: 'linux',
+      onCount: vi.fn(),
+      openPath: async () => '',
+      showItemInFolder: vi.fn()
+    });
+
+    expect(changes).not.toBeNull();
+    if (changes !== null) opened.push(changes);
   });
 
   it('closes once', async () => {

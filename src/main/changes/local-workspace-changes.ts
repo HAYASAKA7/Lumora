@@ -53,6 +53,22 @@ export interface LocalWorkspaceChanges {
 }
 
 /**
+ * Change tracking for sessions on this computer, or null when this computer
+ * cannot run it. A store that will not open leaves the application running
+ * with the feature unavailable rather than failing to start.
+ */
+export async function startLocalWorkspaceChanges(
+  options: LocalWorkspaceChangesOptions
+): Promise<LocalWorkspaceChanges | null> {
+  try {
+    return await createLocalWorkspaceChanges(options);
+  } catch (error) {
+    options.reportError?.('startup', error);
+    return null;
+  }
+}
+
+/**
  * Change tracking for sessions on this computer. Ends the segments the last
  * run left open, so it must be created before any local session launches.
  */

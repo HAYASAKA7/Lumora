@@ -80,8 +80,9 @@ export class WorkspaceSnapshotEngine {
   changedFiles(workspaceId: string, workspacePath: string, fromTree: string, toTree: string): Promise<ChangedFile[]> {
     return this.enqueue(workspaceId, async () => {
       const target = await this.target(workspaceId, workspacePath);
-      const names = await this.diffTree(target, { format: ['--name-status'], fromTree, toTree, paths: [] });
-      const counts = await this.diffTree(target, { format: ['--numstat'], fromTree, toTree, paths: [] });
+      const listing = ['--no-ext-diff', '--no-textconv'];
+      const names = await this.diffTree(target, { format: [...listing, '--name-status'], fromTree, toTree, paths: [] });
+      const counts = await this.diffTree(target, { format: [...listing, '--numstat'], fromTree, toTree, paths: [] });
       return mergeChangedFiles(parseNameStatus(names), parseNumstat(counts));
     });
   }

@@ -219,8 +219,10 @@ export class ChangesRepository {
    * starting tree, so a stale review cannot overwrite a newer one.
    */
   recordReview(review: ChangeReview): void {
-    this.database.exec('BEGIN IMMEDIATE');
+    let transactionStarted = false;
     try {
+      this.database.exec('BEGIN IMMEDIATE');
+      transactionStarted = true;
       this.prepare(
         `INSERT INTO workspace_change_review (
           id, segment_id, from_tree, to_tree, file_count, reviewed_at
@@ -241,8 +243,10 @@ export class ChangesRepository {
         throw new Error('The change segment no longer starts from the reviewed tree.');
       }
       this.database.exec('COMMIT');
+      transactionStarted = false;
     } catch (error) {
-      this.database.exec('ROLLBACK');
+      // A failed BEGIN leaves no transaction, and rolling one back would throw over the real failure.
+      if (transactionStarted) this.database.exec('ROLLBACK');
       throw error;
     }
   }

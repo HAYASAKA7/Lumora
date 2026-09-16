@@ -169,6 +169,11 @@ describe('WorkspaceChangesService', () => {
     await begin(service, 'r2');
     expect((await service.summary(sessionSource('r2'))).unavailableReason).toBe('too-large');
 
+    // A slow diff says nothing about the workspace's size, unlike a slow snapshot.
+    await begin(service, 'r4');
+    engine.changedFiles.mockRejectedValueOnce(new GitCommandError('timeout'));
+    expect((await service.summary(sessionSource('r4'))).unavailableReason).toBe('failed');
+
     const missing = createService({ lookupWorkspace: () => null });
     await begin(missing, 'r3');
     expect(await missing.summary(sessionSource('r3')))
@@ -362,6 +367,25 @@ describe('WorkspaceChangesService', () => {
     await service.fileDiff(source, 'new.txt');
     expect(engine.fileDiff).toHaveBeenCalledWith(workspaceId, '/work', 't-base', 't-now', 'new.txt', 'old.txt');
     expect(await service.fileDiff(source, 'b.bin')).toEqual({ path: 'b.bin', patch: '', binary: true, truncated: false });
+  });
+
+  it('lists the changed files once for a summary and the diffs opened right after it', async () => {
+    const cached = createService({ snapshotCacheMs: 5_000 });
+    await begin(cached, 'r1');
+    engine.changedFiles.mockResolvedValue([file('a.txt'), file('b.txt')]);
+    const source = sessionSource('r1');
+
+    expect((await cached.summary(source)).files).toHaveLength(2);
+    const listings = engine.changedFiles.mock.calls.length;
+    await cached.fileDiff(source, 'a.txt');
+    await cached.fileDiff(source, 'b.txt');
+
+    expect(engine.changedFiles).toHaveBeenCalledTimes(listings);
+    expect(engine.fileDiff).toHaveBeenCalledTimes(2);
+
+    now = new Date(now.getTime() + 6_000);
+    await cached.fileDiff(source, 'a.txt');
+    expect(engine.changedFiles.mock.calls.length).toBeGreaterThan(listings);
   });
 
   it('refuses a diff while the baseline is still missing', async () => {

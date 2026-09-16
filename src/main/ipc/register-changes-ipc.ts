@@ -27,11 +27,14 @@ interface IpcRegistrar {
 interface RegisterChangesIpcDependencies {
   ipc: IpcRegistrar;
   authorize: IpcAuthorizer;
-  service: Pick<
-    WorkspaceChangesService,
-    'summary' | 'fileDiff' | 'markReviewed' | 'history' | 'open' | 'counts'
-  >;
+  /** Null where this computer has no change tracking; every request then fails alike. */
+  service: ChangesIpcService | null;
 }
+
+type ChangesIpcService = Pick<
+  WorkspaceChangesService,
+  'summary' | 'fileDiff' | 'markReviewed' | 'history' | 'open' | 'counts'
+>;
 
 class ChangesIpcError extends Error {
   readonly code = 'CHANGES_OPERATION_FAILED';
@@ -51,7 +54,26 @@ async function protectedOperation<T>(operation: () => Promise<T> | T): Promise<T
   }
 }
 
-export function registerChangesIpc({ ipc, authorize, service }: RegisterChangesIpcDependencies): void {
+function unavailable(): never {
+  throw new ChangesIpcError();
+}
+
+/** Answers as a broken workspace would, so the renderer needs no second failure path. */
+const NO_CHANGE_TRACKING: ChangesIpcService = {
+  summary: unavailable,
+  fileDiff: unavailable,
+  markReviewed: unavailable,
+  history: unavailable,
+  open: unavailable,
+  counts: () => []
+};
+
+export function registerChangesIpc({
+  ipc,
+  authorize,
+  service: tracking
+}: RegisterChangesIpcDependencies): void {
+  const service = tracking ?? NO_CHANGE_TRACKING;
   ipc.handle(IPC_CHANNELS.changesSummaryGet, async (event, value): Promise<ChangesSummary> => {
     authorize(event);
     return protectedOperation(async () =>

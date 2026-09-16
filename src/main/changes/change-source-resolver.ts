@@ -85,8 +85,11 @@ export class ChangeSourceResolver {
   /** Never throws: a failure becomes an unavailable summary. */
   async summarize(target: ChangeTarget, fresh: boolean): Promise<ChangesSummary> {
     const { engine, now } = this.options;
+    // Only the snapshot the resolution takes can say the workspace is too large.
+    let operation: 'snapshot' | 'diff' = 'snapshot';
     try {
       const resolution = await this.resolve(target, fresh);
+      operation = 'diff';
       if (!resolution.ready) {
         return pendingSummary(resolution.context, resolution.state, resolution.reason);
       }
@@ -103,7 +106,7 @@ export class ChangeSourceResolver {
       return readySummary(context, split.files, split.committed, now());
     } catch (error) {
       this.options.reportError(error);
-      return pendingSummary(target.context, 'unavailable', unavailableReasonFor(error));
+      return pendingSummary(target.context, 'unavailable', unavailableReasonFor(error, operation));
     }
   }
 

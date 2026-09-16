@@ -7,6 +7,7 @@ const REPORT_INTERVAL_MS = 10 * 60 * 1_000;
 const GIT_FAILURE_CODES: Readonly<Record<GitFailureReason, string>> = {
   timeout: 'GIT_TIMEOUT',
   unavailable: 'GIT_UNAVAILABLE',
+  'missing-workspace': 'GIT_MISSING_WORKSPACE',
   'output-too-large': 'GIT_OUTPUT_TOO_LARGE',
   failed: 'GIT_FAILED'
 };
