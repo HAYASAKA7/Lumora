@@ -18,6 +18,7 @@ export type SessionChangesButtonProps = ChangesButtonProps;
 export interface SessionChangesPanelProps {
   id: string;
   source: ChangesSource;
+  maximized: boolean;
   onClose(): void;
   onMaximizedChange(maximized: boolean): void;
 }
@@ -65,6 +66,7 @@ export function useSessionChangesPanel({ enabled, ownerId }: SessionChangesPanel
   const panelProps: SessionChangesPanelProps | null = !isOpen || ownerId === undefined ? null : {
     id: controls.panelId,
     source: { kind: 'session', ownerId, view: 'session' },
+    maximized: controls.maximized,
     onClose: () => {
       controls.focusButton();
       controls.setMaximized(false);

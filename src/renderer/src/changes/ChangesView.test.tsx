@@ -364,7 +364,8 @@ describe('ChangesView', () => {
     expect(await screen.findByText('No uncommitted changes.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'This session' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark all reviewed' })).not.toBeInTheDocument();
-    expect(api.onChangesCount).not.toHaveBeenCalled();
+    // The workspace view follows every session working in that workspace.
+    expect(api.onChangesCount).toHaveBeenCalled();
   });
 
   it('describes an empty review and an empty session', async () => {
@@ -377,6 +378,26 @@ describe('ChangesView', () => {
     renderView(api);
     expect(await screen.findByText('No changes since this session started.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mark all reviewed' })).toBeDisabled();
+  });
+
+  it('opens a file row menu from the keyboard', async () => {
+    const { api } = fakeChangesApi();
+    renderView(api);
+    await findFileList();
+    const other = selectButton('src/new.ts');
+    other.focus();
+    fireEvent.keyDown(other, { key: 'ArrowRight' });
+    expect(screen.getByRole('menu', { name: 'File actions' })).toBeInTheDocument();
+    expect(within(rowFor('src/new.ts')).getByRole('button', { name: 'File actions' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    const row = selectButton('src/login.ts');
+    row.focus();
+    fireEvent.keyDown(row, { key: 'ContextMenu' });
+
+    expect(screen.getByRole('menu', { name: 'File actions' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mark reviewed' }));
+    await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', ['src/login.ts']));
   });
 
   it('renders no native tooltips or selects', async () => {

@@ -365,6 +365,7 @@ export function WorkspaceSessionsView({
           id={changes.panelProps.id}
           initialMode={changes.panelProps.initialMode}
           key={changes.panelProps.panelKey}
+          maximized={changes.panelProps.maximized}
           onClose={changes.panelProps.onClose}
           onMaximizedChange={changes.panelProps.onMaximizedChange}
           source={changes.panelProps.source}

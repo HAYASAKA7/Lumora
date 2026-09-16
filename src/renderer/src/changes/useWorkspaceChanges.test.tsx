@@ -60,8 +60,8 @@ function fakeApi(initial: ChangesSummary = summary(['a.txt', 'b.txt'])) {
   return { api: api as unknown as ChangesApi & typeof api, emit, listeners, unsubscribe };
 }
 
-function count(ownerId: string): ChangesCount {
-  return { ownerId, workspaceId: 'ws-1', state: 'ready', changedFileCount: 1 };
+function count(ownerId: string, workspaceId = 'ws-1'): ChangesCount {
+  return { ownerId, workspaceId, state: 'ready', changedFileCount: 1 };
 }
 
 describe('useWorkspaceChanges', () => {
@@ -122,8 +122,22 @@ describe('useWorkspaceChanges', () => {
     expect(listeners.size).toBe(0);
   });
 
-  it('does not subscribe to count events for workspace sources', async () => {
+  it('reloads a workspace source when a session in that workspace changes', async () => {
     const source: ChangesSource = { kind: 'workspace', workspaceId: 'ws-1' };
+    const { api, emit } = fakeApi(summary(['a.txt'], source));
+    const { result } = renderHook(() => useWorkspaceChanges(api, source, true));
+    await waitFor(() => expect(result.current.summary.state).toBe('ready'));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(1);
+
+    act(() => emit(count('owner-1', 'ws-other')));
+    expect(api.getChangesSummary).toHaveBeenCalledTimes(1);
+
+    act(() => emit(count('owner-1')));
+    await waitFor(() => expect(api.getChangesSummary).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not subscribe to count events for a review, which never changes', async () => {
+    const source: ChangesSource = { kind: 'review', reviewId: 'review-1' };
     const { api } = fakeApi(summary(['a.txt'], source));
     const { result } = renderHook(() => useWorkspaceChanges(api, source, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));

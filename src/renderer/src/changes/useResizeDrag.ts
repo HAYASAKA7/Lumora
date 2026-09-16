@@ -70,7 +70,10 @@ export function useResizeDrag({ availableWidth, commitWidth, shownWidth }: Resiz
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || drag.current !== null) return;
+    // preventDefault keeps the drag from selecting text, so focus is moved here instead
+    // of by the browser; without it the separator's arrow keys would be out of reach after a click.
     event.preventDefault();
+    event.currentTarget.focus();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const cancelOnEscape = (keyEvent: globalThis.KeyboardEvent) => {
       if (keyEvent.key !== 'Escape') return;

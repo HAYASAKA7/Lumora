@@ -29,6 +29,8 @@ interface ChangesPanelProps {
   active?: boolean;
   onClose(): void;
   onSourceChange?(source: ChangesSource): void;
+  /** Whether the panel fills its host; left out only where nothing tracks it. */
+  maximized?: boolean;
   onMaximizedChange?(maximized: boolean): void;
   /** Opens a source straight into its workspace's review history. */
   initialMode?: ChangesPanelMode;
@@ -48,6 +50,7 @@ export function ChangesPanel({
   highlightSessionId = null,
   id,
   initialMode = 'changes',
+  maximized: hostMaximized,
   onClose,
   onMaximizedChange,
   onSourceChange,
@@ -61,7 +64,9 @@ export function ChangesPanel({
   const [currentSource, setCurrentSource] = useState(source);
   const [width, setWidth] = useState(() => readPanelWidth(window));
   const [availableWidth, setAvailableWidth] = useState(() => window.innerWidth);
-  const [maximized, setMaximized] = useState(false);
+  // The host keeps this state, so a panel it restores for another session opens restored.
+  const [ownMaximized, setOwnMaximized] = useState(false);
+  const maximized = hostMaximized ?? ownMaximized;
 
   if (trackedKey !== sourceKey) {
     setTrackedKey(sourceKey);
@@ -113,7 +118,7 @@ export function ChangesPanel({
   const toggleMaximized = () => {
     const next = !maximized;
     cancelDrag();
-    setMaximized(next);
+    if (hostMaximized === undefined) setOwnMaximized(next);
     onMaximizedChange?.(next);
   };
 

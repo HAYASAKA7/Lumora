@@ -10,6 +10,8 @@ export type ChangesFileAction = 'mark-reviewed' | 'open-file' | 'reveal-file' | 
 export type ChangesFileNavigation = 'ArrowUp' | 'ArrowDown' | 'Home' | 'End';
 
 const NAVIGATION_KEYS: ReadonlySet<string> = new Set<ChangesFileNavigation>(['ArrowUp', 'ArrowDown', 'Home', 'End']);
+/** Keys that open the row's actions, which are otherwise only a pointer away. */
+const MENU_KEYS: ReadonlySet<string> = new Set(['ContextMenu', 'ArrowRight']);
 
 const STATUS_LETTER: Record<ChangedFile['status'], string> = {
   added: 'A',
@@ -46,6 +48,14 @@ function ChangesFileRowView({ file, handlers, menuItems, selected, tabStop }: Ch
   const choose = useCallback((action: ChangesFileAction) => handlers.onAction(path, action), [handlers, path]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (MENU_KEYS.has(event.key) || (event.shiftKey && event.key === 'F10')) {
+      const trigger = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>('button.changes-file-menu');
+      if (trigger === null || trigger === undefined) return;
+      event.preventDefault();
+      trigger.focus();
+      trigger.click();
+      return;
+    }
     if (!NAVIGATION_KEYS.has(event.key)) return;
     event.preventDefault();
     handlers.onNavigate(path, event.key as ChangesFileNavigation);

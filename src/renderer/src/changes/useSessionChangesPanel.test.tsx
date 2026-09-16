@@ -112,6 +112,21 @@ describe('useSessionChangesPanel', () => {
     await act(async () => undefined);
   });
 
+  it('lets the session own whether its panel is maximized', async () => {
+    const { api } = fakeChangesApi();
+    const view = renderWithLocalization(<Harness api={api} ownerId="r1" />);
+    fireEvent.click(changesButton());
+    await act(async () => undefined);
+    fireEvent.click(screen.getByRole('button', { name: 'Maximize changes' }));
+    expect(panel()).toHaveAttribute('data-maximized', 'true');
+
+    view.rerender(<Harness api={api} ownerId="r2" />);
+    view.rerender(<Harness api={api} ownerId="r1" />);
+    expect(panel()).toHaveAttribute('data-maximized', 'false');
+    expect(screen.getByTestId('workspace')).not.toHaveClass('changes-maximized');
+    await act(async () => undefined);
+  });
+
   it('clears the maximized state when the panel restores or closes', async () => {
     const { api } = fakeChangesApi();
     renderWithLocalization(<Harness api={api} ownerId="r1" />);

@@ -37,6 +37,7 @@ export interface WorkspaceChangesPanelProps {
   panelKey: string;
   source: ChangesSource;
   initialMode: ChangesPanelMode;
+  maximized: boolean;
   highlightSessionId: string | null;
   onClose(): void;
   onMaximizedChange(maximized: boolean): void;
@@ -114,6 +115,7 @@ export function useWorkspaceChangesPanel({
       panelKey: `${shown.workspaceId}:${shown.panelKey}`,
       source: { kind: 'workspace', workspaceId: shown.workspaceId },
       initialMode: shown.mode,
+      maximized: controls.maximized,
       highlightSessionId: shown.highlightSessionId,
       onClose: () => {
         controls.focusButton();

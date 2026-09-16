@@ -154,10 +154,14 @@ export function useWorkspaceChanges(
   }, [active, reload]);
 
   useEffect(() => {
-    if (!active || stableSource.kind !== 'session') return undefined;
-    const ownerId = stableSource.ownerId;
+    // A review is a finished batch; a session follows its own owner and a workspace every session in it.
+    if (!active || stableSource.kind === 'review') return undefined;
+    const source = stableSource;
     return apiRef.current.onChangesCount((count) => {
-      if (count.ownerId === ownerId) void reload();
+      const mine = source.kind === 'session'
+        ? count.ownerId === source.ownerId
+        : count.workspaceId === source.workspaceId;
+      if (mine) void reload();
     });
   }, [active, stableSource, reload]);
 
