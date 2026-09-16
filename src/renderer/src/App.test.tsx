@@ -2632,6 +2632,61 @@ describe('App', () => {
     }
   });
 
+  it('shows and hides the changes panel of the session in front with Ctrl+Shift+G', async () => {
+    const runtime = runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789ae1');
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([runtime]),
+      attachRuntime: vi.fn().mockResolvedValue({ runtime, snapshot: '', outputSequence: 0 })
+    });
+    renderWithLocalization(<App />);
+
+    await screen.findByRole('button', { name: 'Open terminals' });
+    fireEvent.keyDown(window, { code: 'KeyT', key: 'T', ctrlKey: true, shiftKey: true });
+    const terminalInput = await screen.findByRole('button', {
+      name: 'Codex working session terminal input'
+    });
+
+    // The shortcut is caught on window during capture, so xterm's own key handling never sees it.
+    fireEvent.keyDown(terminalInput, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+    expect(await screen.findByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
+
+    fireEvent.keyDown(terminalInput, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+  });
+
+  it('shows and hides the workspace page changes panel with the shortcut, rebound', async () => {
+    const getKeyboardSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      toggleChanges: { code: 'KeyD', control: true, alt: false, shift: true, meta: false }
+    });
+    setSystemInfoResult(undefined, undefined, { getKeyboardSettings });
+    renderWithLocalization(<App />);
+    await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+    }));
+    await screen.findByRole('heading', { name: 'Lumora sessions' });
+
+    // The default chord no longer applies once the shortcut has been rebound.
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'D', ctrlKey: true, shiftKey: true });
+    expect(await screen.findByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'D', ctrlKey: true, shiftKey: true });
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+  });
+
+  it('does nothing on the changes shortcut with no session or workspace page in front', () => {
+    renderWithLocalization(<App />);
+
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+  });
+
   it('toggles the sidebar with Ctrl+Shift+L outside a terminal', () => {
     renderWithLocalization(<App />);
 

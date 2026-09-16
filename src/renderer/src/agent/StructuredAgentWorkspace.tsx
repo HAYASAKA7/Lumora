@@ -194,6 +194,7 @@ export function StructuredAgentWorkspace({
   ) ?? snapshots[0];
   const changes = useSessionChangesPanel({
     enabled: changesEnabled,
+    inFront: visible,
     ownerId: snapshot?.runtime.connectionId
   });
   const changeCount = (connectionId: string) => (changesEnabled ? changeCounts?.get(connectionId) ?? 0 : 0);

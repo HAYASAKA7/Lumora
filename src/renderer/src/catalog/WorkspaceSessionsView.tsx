@@ -53,6 +53,8 @@ interface WorkspaceSessionsViewProps {
   changesRequest?: WorkspaceChangesRequest | null | undefined;
   /** Told which request opened the panel, so the caller can drop it. */
   onChangesRequestHandled?: ((key: number) => void) | undefined;
+  /** False while a terminal covers this page, so the shortcut goes to the session instead. */
+  changesShortcutActive?: boolean | undefined;
   sessionTitle?: ((catalogSessionId: string) => string | null) | undefined;
 }
 
@@ -185,6 +187,7 @@ export function WorkspaceSessionsView({
   operationError,
   changesApi,
   changesRequest = null,
+  changesShortcutActive = true,
   onChangesRequestHandled,
   sessionTitle
 }: WorkspaceSessionsViewProps): ReactNode {
@@ -197,6 +200,7 @@ export function WorkspaceSessionsView({
   const changesShown = changesApi !== undefined && workspace !== undefined;
   const changes = useWorkspaceChangesPanel({
     enabled: changesShown,
+    inFront: changesShortcutActive,
     onRequestHandled: onChangesRequestHandled,
     request: changesRequest,
     workspaceId

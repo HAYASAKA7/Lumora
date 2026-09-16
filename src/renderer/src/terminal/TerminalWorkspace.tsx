@@ -129,7 +129,11 @@ export function TerminalWorkspace({
   }, [runtimes]);
 
   const runtime = runtimes.find((item) => item.id === activeRuntimeId) ?? runtimes[0];
-  const changes = useSessionChangesPanel({ enabled: changesEnabled, ownerId: runtime?.id });
+  const changes = useSessionChangesPanel({
+    enabled: changesEnabled,
+    inFront: visible,
+    ownerId: runtime?.id
+  });
   if (runtime === undefined) return null;
   const changeCount = (runtimeId: string) => (changesEnabled ? changeCounts?.get(runtimeId) ?? 0 : 0);
   const activeChangeCount = changeCount(runtime.id);

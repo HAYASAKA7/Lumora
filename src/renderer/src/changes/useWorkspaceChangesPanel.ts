@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
 import { PRESSED_MODE_SELECTOR, type ChangesPanelMode } from './ChangesPanelContent';
+import { useToggleChangesRequest } from './changes-shortcut';
 import {
   useChangesPanelControls,
   type ChangesButtonProps,
@@ -18,6 +19,8 @@ export interface WorkspaceChangesRequest {
 
 interface WorkspaceChangesPanelOptions {
   enabled: boolean;
+  /** True while this page is the one in front, so it answers the shortcut. */
+  inFront?: boolean;
   workspaceId: string;
   request: WorkspaceChangesRequest | null;
   /** Told which request opened the panel, so the caller can drop it. */
@@ -61,6 +64,7 @@ const HISTORY_FOCUS: PanelFocusPlan = {
 /** Keeps whether a workspace page shows its changes panel and in which mode it opened. */
 export function useWorkspaceChangesPanel({
   enabled,
+  inFront = false,
   onRequestHandled,
   request,
   workspaceId
@@ -106,6 +110,8 @@ export function useWorkspaceChangesPanel({
     setOpened({ workspaceId, mode: 'changes', highlightSessionId: null, panelKey: `open-${count}` });
     controls.focusPanel();
   };
+
+  useToggleChangesRequest(inFront && enabled, toggle);
 
   return {
     className: controls.className,

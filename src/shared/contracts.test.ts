@@ -1619,7 +1619,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned keyboard settings with a real modified key', () => {
     expect(KeyboardSettingsSchema.parse(DEFAULT_KEYBOARD_SETTINGS)).toEqual({
-      version: 3,
+      version: 4,
       terminalSwitcher: {
         code: 'Tab',
         control: true,
@@ -1637,6 +1637,11 @@ describe('managed terminal contracts', () => {
         control: true,
         shift: true
       }),
+      toggleChanges: expect.objectContaining({
+        code: 'KeyG',
+        control: true,
+        shift: true
+      }),
       openHome: expect.objectContaining({ code: 'Digit1', control: true }),
       openWorkspaces: expect.objectContaining({ code: 'Digit2', control: true }),
       openSessions: expect.objectContaining({ code: 'Digit3', control: true }),
@@ -1645,7 +1650,7 @@ describe('managed terminal contracts', () => {
       openSettings: expect.objectContaining({ code: 'Comma', control: true })
     });
     expect(KeyboardSettingsSchema.parse({
-      version: 3,
+      version: 4,
       terminalSwitcher: {
         code: 'KeyK',
         control: true,
@@ -1681,7 +1686,7 @@ describe('managed terminal contracts', () => {
   });
 
   it('migrates untouched version-two navigation shortcuts to Remote and Settings', () => {
-    const { openRemote: _openRemote, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const { openRemote: _openRemote, toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
 
     expect(parseKeyboardSettings({
       ...current,
@@ -1695,8 +1700,23 @@ describe('managed terminal contracts', () => {
     })).toEqual(DEFAULT_KEYBOARD_SETTINGS);
   });
 
+  it('gives version-three settings the new changes shortcut and keeps the rest', () => {
+    const { toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const custom = {
+      code: 'KeyJ', control: true, alt: false, shift: true, meta: false
+    };
+
+    expect(parseKeyboardSettings({ ...current, version: 3, toggleSidebar: custom })).toEqual({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      toggleSidebar: custom
+    });
+    expect(parseKeyboardSettings({ ...current, version: 3 }).toggleChanges).toEqual({
+      code: 'KeyG', control: true, alt: false, shift: true, meta: false
+    });
+  });
+
   it('preserves a customized version-two Settings shortcut', () => {
-    const { openRemote: _openRemote, ...current } = DEFAULT_KEYBOARD_SETTINGS;
+    const { openRemote: _openRemote, toggleChanges: _toggleChanges, ...current } = DEFAULT_KEYBOARD_SETTINGS;
     const custom = {
       code: 'KeyS', control: true, alt: true, shift: false, meta: false
     };
@@ -1717,6 +1737,7 @@ describe('managed terminal contracts', () => {
   it('migrates the former open-terminal default to Ctrl+Shift+T', () => {
     const {
       openRemote: _openRemote,
+      toggleChanges: _toggleChanges,
       openSettings: _openSettings,
       ...current
     } = DEFAULT_KEYBOARD_SETTINGS;
@@ -1751,6 +1772,7 @@ describe('managed terminal contracts', () => {
   it('preserves a customized version-one open-terminal shortcut', () => {
     const {
       openRemote: _openRemote,
+      toggleChanges: _toggleChanges,
       openSettings: _openSettings,
       ...current
     } = DEFAULT_KEYBOARD_SETTINGS;

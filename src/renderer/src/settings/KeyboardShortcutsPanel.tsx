@@ -40,6 +40,12 @@ const SHORTCUT_ROWS = [
     descriptionKey: 'settings.shortcuts.toggle-sidebar-description'
   },
   {
+    key: 'toggleChanges',
+    labelKey: 'settings.shortcuts.toggle-changes',
+    ariaActionKey: 'settings.shortcuts.toggle-changes-action',
+    descriptionKey: 'settings.shortcuts.toggle-changes-description'
+  },
+  {
     key: 'openHome',
     labelKey: 'settings.shortcuts.open-home',
     ariaActionKey: 'settings.shortcuts.open-home-action',

@@ -44,6 +44,7 @@ import {
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import { StructuredAgentWorkspace } from './agent/StructuredAgentWorkspace';
+import { requestToggleChanges } from './changes/changes-shortcut';
 import { useChangeCounts } from './changes/useChangeCounts';
 import { useWorkspaceChangesNavigation } from './changes/useWorkspaceChangesNavigation';
 import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
@@ -1874,6 +1875,14 @@ function AppContent(): ReactNode {
         return;
       }
 
+      if (keyboardEventMatchesChord(event, keyboardSettings.toggleChanges)) {
+        // The session or workspace page in front answers; nothing happens when neither is.
+        event.preventDefault();
+        event.stopPropagation();
+        requestToggleChanges();
+        return;
+      }
+
       if (
         keyboardEventMatchesChord(event, keyboardSettings.openTerminals) &&
         (directSessionLaunch.hasLaunch ||
@@ -2383,6 +2392,7 @@ function AppContent(): ReactNode {
                 <WorkspaceSessionsView
                   changesApi={window.lumora}
                   changesRequest={workspaceChanges.request}
+                  changesShortcutActive={!terminalActive}
                   isRefreshing={isWorkspaceDetailRefreshing}
                   onBack={closeWorkspaceDetail}
                   onRefresh={refreshWorkspaceDetail}

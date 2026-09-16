@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 
+import { useToggleChangesRequest } from './changes-shortcut';
+
 import type { ChangesSource } from '../../../shared/contracts';
 import {
   useChangesPanelControls,
@@ -11,6 +13,8 @@ interface SessionChangesPanelOptions {
   enabled: boolean;
   /** The active session's owner id; undefined while no session is shown. */
   ownerId: string | undefined;
+  /** True while this session is the one in front, so it answers the shortcut. */
+  inFront?: boolean;
 }
 
 export type SessionChangesButtonProps = ChangesButtonProps;
@@ -41,7 +45,11 @@ export interface SessionChangesPanel {
  * shows its own panel state. Opening moves focus into the panel and closing
  * from the panel's own controls returns it to the Changes button.
  */
-export function useSessionChangesPanel({ enabled, ownerId }: SessionChangesPanelOptions): SessionChangesPanel {
+export function useSessionChangesPanel({
+  enabled,
+  inFront = false,
+  ownerId
+}: SessionChangesPanelOptions): SessionChangesPanel {
   const [openOwners, setOpenOwners] = useState<ReadonlySet<string>>(() => new Set());
   const isOpen = enabled && ownerId !== undefined && openOwners.has(ownerId);
   const controls = useChangesPanelControls({ isOpen, ownerKey: ownerId });
@@ -62,6 +70,8 @@ export function useSessionChangesPanel({ enabled, ownerId }: SessionChangesPanel
     controls.setMaximized(false);
     setOwnerOpen(ownerId, !isOpen);
   };
+
+  useToggleChangesRequest(inFront && enabled && ownerId !== undefined, toggle);
 
   const panelProps: SessionChangesPanelProps | null = !isOpen || ownerId === undefined ? null : {
     id: controls.panelId,

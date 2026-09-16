@@ -72,6 +72,11 @@ describe('KeyboardShortcutsPanel', () => {
     expect(screen.getByText('Expand or collapse the sidebar.'))
       .toBeInTheDocument();
     expect(screen.getByRole('button', {
+      name: 'Record show or hide changes shortcut'
+    })).toHaveTextContent('Ctrl + Shift + G');
+    expect(screen.getByText('Show or hide the changes panel for the session or workspace in front.'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', {
       name: 'Record go to Home shortcut'
     })).toHaveTextContent('Ctrl + 1');
     expect(screen.getByRole('button', {
@@ -83,6 +88,34 @@ describe('KeyboardShortcutsPanel', () => {
     expect(screen.queryByRole('button', {
       name: 'Record go to Settings alternate shortcut'
     })).not.toBeInTheDocument();
+  });
+
+  it('rebinds the changes shortcut and refuses a chord another action holds', async () => {
+    const onChange = vi.fn();
+    render(<KeyboardShortcutsPanel onChange={onChange} platform="win32" />);
+    const recorder = await screen.findByRole('button', {
+      name: 'Record show or hide changes shortcut'
+    });
+
+    fireEvent.click(recorder);
+    fireEvent.keyDown(recorder, { code: 'KeyL', key: 'L', ctrlKey: true, shiftKey: true });
+    expect(screen.getByRole('alert')).toHaveTextContent(/already used by Toggle sidebar/i);
+
+    fireEvent.click(recorder);
+    fireEvent.keyDown(recorder, { code: 'KeyD', key: 'D', ctrlKey: true, shiftKey: true });
+    expect(recorder).toHaveTextContent('Ctrl + Shift + D');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save shortcut' }));
+    await waitFor(() => {
+      expect(window.lumora.saveKeyboardSettings).toHaveBeenCalledWith({
+        ...DEFAULT_KEYBOARD_SETTINGS,
+        toggleChanges: { code: 'KeyD', control: true, alt: false, shift: true, meta: false }
+      });
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      toggleChanges: expect.objectContaining({ code: 'KeyD' })
+    });
   });
 
   it('rejects a shortcut already assigned to another action', async () => {

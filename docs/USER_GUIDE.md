@@ -189,10 +189,12 @@ means twelve files. Every session counts its own, and a session tab that is not
 in front adds the same total to its line as **· 12 changed**. The workspace
 page has a **Changes** button of its own in its toolbar.
 
-The button opens a panel beside the session. Drag the panel's left edge to make
-it wider or narrower, use **Maximize changes** to give it the whole view and
-**Restore changes size** to put it back, and close it with **Close changes** or
-by pressing `Escape`.
+The button opens a panel beside the session. `Ctrl+Shift+G` does the same for
+whatever is in front, the session or the workspace page, and closes the panel
+again; change it under **Settings > Keyboard**. Drag the panel's left edge to
+make it wider or narrower, use **Maximize changes** to give it the whole view
+and **Restore changes size** to put it back, and close it with **Close changes**
+or by pressing `Escape`.
 
 <!-- screenshot: changes panel -->
 
@@ -314,6 +316,7 @@ Lumora intentionally does not use browser-style `Tab` or `Shift+Tab` navigation.
 | `Alt+Shift+Left` / `Alt+Shift+Right` | Move the focused terminal tab |
 | `Ctrl+Shift+T` | Return to running terminals and focus terminal input |
 | `Ctrl+Shift+L` | Collapse or expand the sidebar |
+| `Ctrl+Shift+G` | Show or hide changes for the session or workspace page in front |
 | `Ctrl+1` | Open Home |
 | `Ctrl+2` | Open Workspaces |
 | `Ctrl+3` | Open All Sessions |
