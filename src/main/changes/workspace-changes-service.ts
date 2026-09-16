@@ -5,6 +5,8 @@ import type {
   ChangesCount,
   ChangesFileDiff,
   ChangesHistory,
+  ChangesOpenAction,
+  ChangesOpenOutcome,
   ChangesSource,
   ChangesSummary
 } from '../../shared/changes';
@@ -12,7 +14,7 @@ import { ChangeSourceResolver } from './change-source-resolver';
 import type { ChangeSegment, ChangesRepository } from './changes-repository';
 import { ChangedFilesCache } from './changed-files-cache';
 import { unavailableReasonFor } from './changes-summary';
-import { resolveOpenTarget, shouldRevealInstead } from './safe-open';
+import { openSafetyFor, resolveOpenTarget } from './safe-open';
 import { SnapshotCache } from './snapshot-cache';
 import type { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
@@ -222,25 +224,34 @@ export class WorkspaceChangesService {
     };
   }
 
-  async open(source: ChangesSource, path: string, action: 'open' | 'reveal'): Promise<void> {
+  /**
+   * Opens a changed file, shows it in its folder, or asks first. A script that
+   * people also read opens only when the caller asks again with open-anyway; a
+   * file the system would run or install is never opened.
+   */
+  async open(source: ChangesSource, path: string, action: ChangesOpenAction): Promise<ChangesOpenOutcome> {
     const { context: { workspaceId } } = this.resolver.target(source);
     const workspace = this.options.lookupWorkspace(workspaceId);
     if (workspace === null || !workspace.available) {
       throw new Error('The workspace is not available.');
     }
     const target = await resolveOpenTarget(workspace.canonicalPath, path);
-    if (!target.exists && action === 'open') {
+    if (!target.exists && action !== 'reveal') {
       throw new Error('The file no longer exists.');
     }
-    // A file that would run is shown in its folder rather than started.
-    if (action === 'reveal' || !target.exists || await shouldRevealInstead(path, target.path)) {
+    const reveal = (): ChangesOpenOutcome => {
       this.options.showItemInFolder(target.path);
-      return;
-    }
+      return { outcome: 'revealed' };
+    };
+    if (action === 'reveal' || !target.exists) return reveal();
+    const safety = await openSafetyFor(path, target.path);
+    if (safety === 'reveal') return reveal();
+    if (safety === 'confirm' && action !== 'open-anyway') return { outcome: 'confirm-required' };
     const failure = await this.options.openPath(target.path);
     if (failure !== '') {
       throw new Error('The file could not be opened.');
     }
+    return { outcome: 'opened' };
   }
 
   startTerminalTimer(): void {

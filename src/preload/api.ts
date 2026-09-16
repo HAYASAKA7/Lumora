@@ -13,6 +13,7 @@ import {
   ChangesFileDiffSchema,
   ChangesHistoryRequestSchema,
   ChangesHistorySchema,
+  ChangesOpenOutcomeSchema,
   ChangesOpenRequestSchema,
   ChangesReviewRequestSchema,
   ChangesSourceSchema,
@@ -400,7 +401,8 @@ export function createLumoraApi(
       return ChangesHistorySchema.parse(await invoke(IPC_CHANNELS.changesHistoryGet, request));
     },
     async openChangedFile(source, path, action) {
-      await invoke(IPC_CHANNELS.changesFileOpen, ChangesOpenRequestSchema.parse({ source, path, action }));
+      const request = ChangesOpenRequestSchema.parse({ source, path, action });
+      return ChangesOpenOutcomeSchema.parse(await invoke(IPC_CHANNELS.changesFileOpen, request));
     },
     async getChangesCounts() {
       return ChangesCountListSchema.parse(await invoke(IPC_CHANNELS.changesCountsGet));

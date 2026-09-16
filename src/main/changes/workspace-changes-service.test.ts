@@ -433,7 +433,7 @@ describe('WorkspaceChangesService', () => {
       }
     });
 
-    it('reveals files that would run instead of opening them', async () => {
+    it('reveals files that would run and asks about scripts people also read', async () => {
       writeFileSync(join(root, 'build.bat'), '@echo off');
       writeFileSync(join(root, 'Tool.lnk'), 'shortcut');
       writeFileSync(join(root, 'index.ts'), 'export {};');
@@ -443,13 +443,33 @@ describe('WorkspaceChangesService', () => {
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
       const source = { kind: 'workspace', workspaceId } as const;
 
-      await scoped.open(source, 'build.bat', 'open');
-      await scoped.open(source, 'Tool.lnk', 'open');
-      await scoped.open(source, 'tool.py', 'open');
-      await scoped.open(source, 'index.ts', 'open');
+      expect(await scoped.open(source, 'build.bat', 'open')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, 'Tool.lnk', 'open')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, 'tool.py', 'open')).toEqual({ outcome: 'confirm-required' });
+      expect(await scoped.open(source, 'index.ts', 'open')).toEqual({ outcome: 'opened' });
 
-      expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')], [join(root, 'tool.py')]]);
+      expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')]]);
       expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'index.ts'));
+    });
+
+    it('opens a script only when asked again, and never a file that would run', async () => {
+      writeFileSync(join(root, 'tool.py'), 'print(1)');
+      writeFileSync(join(root, 'build.bat'), '@echo off');
+      const openPath = vi.fn(async () => '');
+      const showItemInFolder = vi.fn();
+      const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
+      const source = { kind: 'workspace', workspaceId } as const;
+
+      expect(await scoped.open(source, 'tool.py', 'open-anyway')).toEqual({ outcome: 'opened' });
+      expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'tool.py'));
+
+      expect(await scoped.open(source, 'build.bat', 'open-anyway')).toEqual({ outcome: 'revealed' });
+      expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(join(root, 'build.bat'));
+      expect(openPath).toHaveBeenCalledTimes(1);
+
+      expect(await scoped.open(source, 'tool.py', 'reveal')).toEqual({ outcome: 'revealed' });
+      expect(openPath).toHaveBeenCalledTimes(1);
+      await expect(scoped.open(source, 'gone.py', 'open-anyway')).rejects.toThrow();
     });
 
     it('reveals a harmless-looking link to a file that would run', async (context) => {

@@ -14,6 +14,8 @@ interface ConfirmDialogProps {
   description: ReactNode;
   heading: string;
   onCancel(): void;
+  /** Escape when the cancel button does more than close, such as revealing a file. */
+  onEscape?(): void;
   onConfirm(): void;
   suppression?: {
     checked: boolean;
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   heading,
   onCancel,
   onConfirm,
+  onEscape,
   suppression
 }: ConfirmDialogProps): ReactNode {
   const { t } = useLocalization();
@@ -44,11 +47,12 @@ export function ConfirmDialog({
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      onCancel();
+      // Escape only closes when the cancel button acts; otherwise the two are the same.
+      (onEscape ?? onCancel)();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
+  }, [onCancel, onEscape]);
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">

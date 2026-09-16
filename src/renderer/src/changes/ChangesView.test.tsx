@@ -400,6 +400,46 @@ describe('ChangesView', () => {
     await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', ['src/login.ts']));
   });
 
+  it('asks before opening a script and opens it anyway on request', async () => {
+    const { api } = fakeChangesApi();
+    api.openChangedFile.mockResolvedValue({ outcome: 'confirm-required' });
+    renderView(api);
+    await findFileList();
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Open' }));
+    await waitFor(() => expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'src/login.ts', 'open'));
+    const dialog = await screen.findByRole('dialog', { name: 'Open this file?' });
+    expect(within(dialog).getByText(/src\/login\.ts/)).toBeInTheDocument();
+
+    api.openChangedFile.mockResolvedValue({ outcome: 'opened' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open anyway' }));
+    await waitFor(() =>
+      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, 'src/login.ts', 'open-anyway'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows a script in its folder from the dialog and closes on Escape without acting', async () => {
+    const { api } = fakeChangesApi();
+    api.openChangedFile.mockResolvedValue({ outcome: 'confirm-required' });
+    renderView(api);
+    await findFileList();
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Open' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Open this file?' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.openChangedFile).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Open' }));
+    const again = await screen.findByRole('dialog', { name: 'Open this file?' });
+    expect(again).toBeInTheDocument();
+    fireEvent.click(within(again).getByRole('button', { name: 'Show in folder' }));
+    await waitFor(() =>
+      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, 'src/login.ts', 'reveal'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(dialog).not.toBeInTheDocument();
+  });
+
   it('renders no native tooltips or selects', async () => {
     const { api } = fakeChangesApi(() => sessionSummary);
     const { container } = renderView(api);

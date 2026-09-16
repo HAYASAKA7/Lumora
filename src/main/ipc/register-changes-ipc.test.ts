@@ -54,7 +54,7 @@ function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
     fileDiff: vi.fn().mockResolvedValue({ path: 'src/a.ts', patch: '+a', binary: false, truncated: false }),
     markReviewed: vi.fn().mockResolvedValue(summary),
     history: vi.fn().mockReturnValue({ segments: [] }),
-    open: vi.fn().mockResolvedValue(undefined),
+    open: vi.fn().mockResolvedValue({ outcome: 'opened' }),
     counts: vi.fn().mockReturnValue([
       { ownerId: 'connection-1', workspaceId: 'workspace-1', state: 'ready', changedFileCount: 1 }
     ])
@@ -100,8 +100,15 @@ describe('registerChangesIpc', () => {
       .resolves.toEqual({ segments: [] });
     expect(service.history).toHaveBeenCalledWith('workspace-1');
     await expect(invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'open' }))
-      .resolves.toBeNull();
+      .resolves.toEqual({ outcome: 'opened' });
     expect(service.open).toHaveBeenCalledWith(source, 'src/a.ts', 'open');
+    service.open.mockResolvedValueOnce({ outcome: 'confirm-required' });
+    await expect(invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'tool.py', action: 'open' }))
+      .resolves.toEqual({ outcome: 'confirm-required' });
+    service.open.mockResolvedValueOnce({ outcome: 'opened' });
+    await expect(invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'tool.py', action: 'open-anyway' }))
+      .resolves.toEqual({ outcome: 'opened' });
+    expect(service.open).toHaveBeenLastCalledWith(source, 'tool.py', 'open-anyway');
     await expect(invoke(IPC_CHANNELS.changesCountsGet)).resolves.toHaveLength(1);
   });
 
@@ -111,6 +118,10 @@ describe('registerChangesIpc', () => {
     await expect(invoke(IPC_CHANNELS.changesSummaryGet, { kind: 'session', ownerId: '../x', view: 'session' }))
       .rejects.toMatchObject({ code: 'CHANGES_OPERATION_FAILED' });
     await expect(invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'a.ts', action: 'delete' }))
+      .rejects.toMatchObject({ code: 'CHANGES_OPERATION_FAILED' });
+    const harness = createHarness();
+    harness.service.open.mockResolvedValue({ outcome: 'run' });
+    await expect(harness.invoke(IPC_CHANNELS.changesFileOpen, { source, path: 'a.ts', action: 'open' }))
       .rejects.toMatchObject({ code: 'CHANGES_OPERATION_FAILED' });
     expect(service.summary).not.toHaveBeenCalled();
     expect(service.open).not.toHaveBeenCalled();

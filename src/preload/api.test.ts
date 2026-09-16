@@ -288,7 +288,7 @@ describe('createLumoraApi', () => {
       truncated: false,
       checkedAt: '2026-09-15T01:00:00.000Z'
     } as const;
-    const invoke = vi.fn(async (channel: string) => {
+    const invoke = vi.fn(async (channel: string): Promise<unknown> => {
       if (channel === IPC_CHANNELS.changesSummaryGet) return summary;
       return null;
     });
@@ -308,8 +308,19 @@ describe('createLumoraApi', () => {
     await expect(api.markChangesReviewed('runtime-1', [])).rejects.toBeDefined();
     expect(invoke).not.toHaveBeenCalled();
 
-    await expect(api.openChangedFile(source, 'src/a.ts', 'reveal')).resolves.toBeUndefined();
+    invoke.mockResolvedValueOnce({ outcome: 'revealed' });
+    await expect(api.openChangedFile(source, 'src/a.ts', 'reveal')).resolves.toEqual({ outcome: 'revealed' });
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'reveal' });
+
+    invoke.mockResolvedValueOnce({ outcome: 'confirm-required' });
+    await expect(api.openChangedFile(source, 'tool.py', 'open')).resolves.toEqual({ outcome: 'confirm-required' });
+    invoke.mockResolvedValueOnce({ outcome: 'opened' });
+    await expect(api.openChangedFile(source, 'tool.py', 'open-anyway')).resolves.toEqual({ outcome: 'opened' });
+    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'tool.py', action: 'open-anyway' });
+
+    invoke.mockResolvedValueOnce({ outcome: 'started' });
+    await expect(api.openChangedFile(source, 'src/a.ts', 'open')).rejects.toBeDefined();
+    await expect(api.openChangedFile(source, 'src/a.ts', 'delete' as 'open')).rejects.toBeDefined();
 
     const listener = vi.fn();
     api.onChangesCount(listener);

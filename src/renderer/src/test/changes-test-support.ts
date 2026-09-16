@@ -6,6 +6,8 @@ import type {
   ChangesCount,
   ChangesFileDiff,
   ChangesHistory,
+  ChangesOpenAction,
+  ChangesOpenOutcome,
   ChangesSource,
   ChangesSummary
 } from '../../../shared/contracts';
@@ -51,7 +53,11 @@ export function fakeChangesApi(summaries: (source: ChangesSource) => ChangesSumm
       truncated: false
     })),
     markChangesReviewed: vi.fn(async (_ownerId: string, _paths: readonly string[]) => summaryFor(sessionSource)),
-    openChangedFile: vi.fn(async (_source: ChangesSource, _path: string, _action: 'open' | 'reveal') => undefined),
+    openChangedFile: vi.fn(async (
+      _source: ChangesSource,
+      _path: string,
+      _action: ChangesOpenAction
+    ): Promise<ChangesOpenOutcome> => ({ outcome: 'opened' })),
     writeClipboardText: vi.fn(async (_text: string) => undefined),
     getChangesHistory: vi.fn(async (_workspaceId: string): Promise<ChangesHistory> => ({ segments: [] })),
     onChangesCount: vi.fn((listener: (count: ChangesCount) => void) => {

@@ -6,6 +6,7 @@ import type { ActionMenuItem } from '../ui/ActionMenu';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
+import { ChangesOpenConfirm } from './ChangesOpenConfirm';
 import type { ChangesFileAction, ChangesFileNavigation, ChangesFileRowHandlers } from './ChangesFileRow';
 import { ChangesModeSwitch } from './ChangesModeSwitch';
 import { ChangesDiff, ChangesNotices } from './ChangesStatus';
@@ -75,6 +76,8 @@ export function ChangesView({
   const sourceKey = JSON.stringify(source);
 
   const [actionFailed, setActionFailed] = useState(false);
+  /** The file whose open is waiting for an answer, since opening it may run it. */
+  const [confirmPath, setConfirmPath] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const [pages, setPages] = useState(FIRST_PAGE);
   const [committedOpen, setCommittedOpen] = useState(false);
@@ -118,13 +121,31 @@ export function ChangesView({
       const current = latest.current;
       if (action === 'mark-reviewed') attempt(() => current.markReviewed([path]));
       else if (action === 'copy-path') attempt(() => current.api.writeClipboardText(path));
-      else attempt(() => current.api.openChangedFile(current.source, path, action === 'open-file' ? 'open' : 'reveal'));
+      else if (action === 'reveal-file') attempt(async () => { await openFile(path, 'reveal'); });
+      else attempt(async () => {
+        const result = await openFile(path, 'open');
+        if (result.outcome === 'confirm-required') setConfirmPath(path);
+      });
     },
     registerButton: (path, node) => {
       if (node === null) buttons.current.delete(path);
       else buttons.current.set(path, node);
     }
   }), [attempt, setSelectedPath]);
+
+  const openFile = useCallback((path: string, action: 'open' | 'reveal' | 'open-anyway') => {
+    const current = latest.current;
+    return current.api.openChangedFile(current.source, path, action);
+  }, []);
+
+  const answerConfirm = (action: 'reveal' | 'open-anyway' | null) => {
+    const path = confirmPath;
+    setConfirmPath(null);
+    if (path === null || action === null) return;
+    attempt(async () => {
+      await openFile(path, action);
+    });
+  };
 
   const markAll = () => {
     const current = latest.current;
@@ -234,6 +255,14 @@ export function ChangesView({
       <div className="changes-diff">
         {listed ? <ChangesDiff diff={diff} oldPath={selectedFile?.oldPath ?? null} /> : null}
       </div>
+      {confirmPath === null ? null : (
+        <ChangesOpenConfirm
+          onClose={() => answerConfirm(null)}
+          onOpenAnyway={() => answerConfirm('open-anyway')}
+          onReveal={() => answerConfirm('reveal')}
+          path={confirmPath}
+        />
+      )}
     </div>
   );
 }

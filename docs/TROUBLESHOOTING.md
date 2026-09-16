@@ -399,21 +399,26 @@ dependency and build directories, such as `node_modules` and `dist`. Prefer a
 local drive over a network share. A session that failed this way keeps **This
 session** unavailable, so start a new session once the workspace is smaller.
 
-### A file opens in its folder instead of opening
+### A file opens in its folder, or asks before opening
 
 **Symptom:** **Open** on a changed file shows it in the system file manager
-instead of opening it.
+instead of opening it, or asks **Open this file?** first.
 
-**Likely cause:** Lumora never runs a file from the changes list. Programs,
-scripts, installers, shortcuts, and, on macOS and Linux, anything carrying an
-execute bit are shown in their folder instead. The name is judged twice, on the
-path in the list and on the file a link really leads to, and either one is
-enough. Only the execute bit is read from the real file.
+**Likely cause:** Lumora sorts what **Open** may do into three. Documents and
+source files open directly. Scripts people also read, such as `.py`, `.sh`,
+`.ps1`, `.rb`, `.js`, and `.vbs`, ask first, because opening one hands it to
+whatever the system set up for that type, which may run it. Programs,
+installers, shortcuts, loadable extensions, and, on macOS and Linux, anything
+carrying an execute bit are always shown in their folder. The name is judged
+twice, on the path in the list and on the file a link really leads to, and the
+stricter answer wins. Only the execute bit is read from the real file.
 
-**Resolution:** Expected behaviour; open such a file yourself in an editor if
-you want to read it. A path that leads outside the workspace is refused
-altogether and reports **That didn't work. Try again.**, which is also what a
-file deleted since the list was taken reports.
+**Resolution:** For the question, choose **Open anyway** to go ahead or **Show
+in folder** to look first; Escape closes it without doing either. For a file
+that is always shown in its folder, open it yourself in an editor if you want to
+read it. A path that leads outside the workspace is refused altogether and
+reports **That didn't work. Try again.**, which is also what a file deleted
+since the list was taken reports.
 
 ### Changes is using a lot of disk space
 

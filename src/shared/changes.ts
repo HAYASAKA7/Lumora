@@ -110,10 +110,19 @@ export const ChangesHistoryRequestSchema = z.strictObject({
   workspaceId: WorkspaceIdSchema
 });
 
+/** Open asks first for a file that might run; open-anyway answers that question. */
+export const ChangesOpenActionSchema = z.enum(['open', 'reveal', 'open-anyway']);
+export type ChangesOpenAction = z.infer<typeof ChangesOpenActionSchema>;
+
 export const ChangesOpenRequestSchema = z.strictObject({
   source: ChangesSourceSchema,
   path: PathSchema,
-  action: z.enum(['open', 'reveal'])
+  action: ChangesOpenActionSchema
 });
+
+export const ChangesOpenOutcomeSchema = z.strictObject({
+  outcome: z.enum(['opened', 'revealed', 'confirm-required'])
+});
+export type ChangesOpenOutcome = z.infer<typeof ChangesOpenOutcomeSchema>;
 
 export const ChangesCountListSchema = z.array(ChangesCountSchema).max(256);

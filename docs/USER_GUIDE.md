@@ -211,12 +211,18 @@ too large to render, are reported rather than shown.
 
 Every row has a **File actions** menu. In **This session** it opens with **Mark
 reviewed**, then **Open**, **Show in folder**, and **Copy path**; a file in the
-**Committed** group has the same menu without **Mark reviewed**. Lumora never
-runs what it opens: a program, a script, an installer, or a shortcut is shown in
-its folder instead of being opened, whether it is the name in the list or the
-file a link really leads to. A path that leads outside the workspace is refused,
-including a link inside the workspace that points out of it, and the panel
-reports that it did not work.
+**Committed** group has the same menu without **Mark reviewed**.
+
+**Open** treats a file in one of three ways. A document or source file, such as
+a `.ts` or a `.md`, opens straight away. A script people also read, such as a
+`.py`, a `.sh`, or a `.ps1`, asks first, since opening it hands it to whatever
+the system set up for that type: **Open anyway** goes ahead and **Show in
+folder** is the safe answer. A program, an installer, a shortcut, or anything
+else the system would run or load is always shown in its folder instead, and so
+is any file carrying an execute bit on macOS and Linux. The judgement covers
+both the name in the list and the file a link really leads to. A path that leads
+outside the workspace is refused, including a link inside the workspace that
+points out of it, and the panel reports that it did not work.
 
 ### Mark reviewed
 

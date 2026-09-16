@@ -594,13 +594,16 @@ button appears.
 
 Opening a changed file is deliberately narrow. The path is resolved inside the
 workspace both lexically and through `realpath`, and anything that leaves it is
-refused, including a link inside the workspace that points out of it. Anything
-that could run is revealed in its folder instead of opened: known executable,
-script, installer, shortcut, and loadable extensions, every `PATHEXT` entry on
-Windows, and any file carrying an execute bit elsewhere. A failed stat reveals
-as well. The name is judged twice, on the path the renderer asked for and on the
-path it really leads to, and either one is enough; only the execute bit is read
-from the real file.
+refused, including a link inside the workspace that points out of it. What opening may
+do is then sorted into three. Executables, installers, shortcuts, loadable
+extensions, and every other `PATHEXT` entry on Windows are only ever revealed in
+their folder, as is any file carrying an execute bit on macOS and Linux, and so
+is a file whose mode cannot be read. Scripts people also read, such as `.py`,
+`.sh`, `.ps1`, and `.vbs`, answer `confirm-required`, and the renderer asks
+before calling again with `open-anyway`; that answer is honoured for this class
+alone. Everything else opens. The name is judged twice, on the path the renderer
+asked for and on the path it really leads to, and the stricter answer wins; only
+the execute bit is read from the real file.
 
 Snapshots live only as long as the history that refers to them. Startup runs
 before any session launches: it ends segments the previous run left open, prunes

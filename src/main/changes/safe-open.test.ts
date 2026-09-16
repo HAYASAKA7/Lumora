@@ -3,74 +3,97 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isLaunchableFile, opensAsLaunchable, resolveOpenTarget, shouldRevealInstead } from './safe-open';
+import { fileOpenSafety, openSafetyByName, openSafetyFor, resolveOpenTarget } from './safe-open';
 
 const windows = { platform: 'win32', pathExt: '.COM;.EXE;.BAT;.CMD' } as const;
 const linux = { platform: 'linux', pathExt: undefined } as const;
 
-describe('isLaunchableFile', () => {
+describe('fileOpenSafety', () => {
   it.each([
-    'setup.exe', 'run.BAT', 'tools/script.cmd', 'deploy.ps1', 'Shortcut.lnk', 'site.url', 'app.appref-ms',
-    'build.sh', 'start.command', 'Tool.app', 'installer.MSI', 'macro.vbs', 'index.js', 'settings.reg',
-    'tool.py', 'gui.PYW', 'task.rb', 'report.pl', 'help.chm', 'addin.xll', 'launch.jnlp', 'setup.zsh',
-    'config.fish', 'types.ps1xml', 'plugin.dll', 'driver.sys', 'folder.library-ms', 'console.msc',
-    'Shell.terminal', 'Link.webloc', 'Build.workflow', 'Installer.pkg', 'Disk.DMG', 'script.scpt', 'app.desktop',
-    'Doc.fileloc', 'Site.inetloc', 'Step.action', 'Bundle.mpkg', 'tool.deb', 'tool.rpm', 'Tool.AppImage',
-    'installer.run', 'app.flatpakref', 'repo.flatpakrepo', 'tool.snap'
-  ])('treats %s as something that runs', (path) => {
-    expect(isLaunchableFile(path, windows)).toBe(true);
-    expect(isLaunchableFile(path, linux)).toBe(true);
+    'setup.exe', 'run.BAT', 'tools/script.cmd', 'Shortcut.lnk', 'site.url', 'app.appref-ms',
+    'start.command', 'Tool.app', 'installer.MSI', 'settings.reg', 'cache.pyc',
+    'help.chm', 'addin.xll', 'launch.jnlp', 'plugin.dll', 'driver.sys', 'folder.library-ms',
+    'console.msc', 'Shell.terminal', 'Link.webloc', 'Build.workflow', 'Installer.pkg', 'Disk.DMG',
+    'Doc.fileloc', 'Site.inetloc', 'Step.action', 'Bundle.mpkg', 'tool.deb', 'tool.rpm',
+    'Tool.AppImage', 'installer.run', 'app.flatpakref', 'repo.flatpakrepo', 'tool.snap'
+  ])('never opens %s', (path) => {
+    expect(fileOpenSafety(path, windows)).toBe('reveal');
+    expect(fileOpenSafety(path, linux)).toBe('reveal');
   });
 
-  it.each(['src/index.ts', 'README.md', 'image.png', 'Makefile', 'notes.txt', 'data.json'])(
-    'treats %s as a document',
+  it.each([
+    'tool.py', 'gui.PYW', 'bundle.pyz', 'task.rb', 'report.pl', 'deploy.ps1', 'module.psm1',
+    'types.ps1xml', 'console.psc1', 'build.sh', 'setup.zsh', 'run.bash', 'config.fish', 'old.csh',
+    'old.ksh', 'macro.vbs', 'macro.vbe', 'form.vb', 'index.js', 'macro.jse', 'task.wsf', 'task.wsh',
+    'task.ws', 'types.mof', 'script.scpt', 'app.desktop'
+  ])('asks before opening %s', (path) => {
+    expect(fileOpenSafety(path, windows)).toBe('confirm');
+    expect(fileOpenSafety(path, linux)).toBe('confirm');
+  });
+
+  it.each(['src/index.ts', 'README.md', 'image.png', 'Makefile', 'notes.txt', 'data.json', 'style.css'])(
+    'opens %s',
     (path) => {
-      expect(isLaunchableFile(path, windows)).toBe(false);
-      expect(isLaunchableFile(path, linux)).toBe(false);
+      expect(fileOpenSafety(path, windows)).toBe('open');
+      expect(fileOpenSafety(path, linux)).toBe('open');
     }
   );
 
-  it('treats every PATHEXT extension as something that runs on Windows only', () => {
-    expect(isLaunchableFile('tool.foo', { platform: 'win32', pathExt: '.COM;.EXE;.FOO' })).toBe(true);
-    expect(isLaunchableFile('TOOL.Foo', { platform: 'win32', pathExt: ' .com ; .Foo ;' })).toBe(true);
-    expect(isLaunchableFile('tool.foo', { platform: 'win32', pathExt: undefined })).toBe(false);
-    expect(isLaunchableFile('tool.foo', { platform: 'linux', pathExt: '.COM;.EXE;.FOO' })).toBe(false);
+  it('never opens a PATHEXT extension, and only on Windows', () => {
+    expect(fileOpenSafety('tool.foo', { platform: 'win32', pathExt: '.COM;.EXE;.FOO' })).toBe('reveal');
+    expect(fileOpenSafety('TOOL.Foo', { platform: 'win32', pathExt: ' .com ; .Foo ;' })).toBe('reveal');
+    expect(fileOpenSafety('tool.foo', { platform: 'win32', pathExt: undefined })).toBe('open');
+    expect(fileOpenSafety('tool.foo', { platform: 'linux', pathExt: '.COM;.EXE;.FOO' })).toBe('open');
+  });
+
+  it('still asks about a script that PATHEXT lists, as Python installs do', () => {
+    expect(fileOpenSafety('tool.py', { platform: 'win32', pathExt: '.COM;.EXE;.PY;.PYW' })).toBe('confirm');
+    expect(fileOpenSafety('gui.pyw', { platform: 'win32', pathExt: '.COM;.EXE;.PY;.PYW' })).toBe('confirm');
+    expect(fileOpenSafety('cache.pyc', { platform: 'win32', pathExt: '.COM;.EXE;.PY' })).toBe('reveal');
   });
 });
 
-describe('opensAsLaunchable', () => {
-  it('judges a file by both the name asked for and the file it really is', () => {
-    expect(opensAsLaunchable('notes.txt', 'C:/work/tool.exe', windows)).toBe(true);
-    expect(opensAsLaunchable('run.bat', '/work/run.txt', linux)).toBe(true);
-    expect(opensAsLaunchable('notes.txt', '/work/notes.txt', linux)).toBe(false);
+describe('openSafetyByName', () => {
+  it('judges a file by both the name asked for and the file it really is, strictest first', () => {
+    expect(openSafetyByName('notes.txt', 'C:/work/tool.exe', windows)).toBe('reveal');
+    expect(openSafetyByName('run.bat', '/work/run.txt', linux)).toBe('reveal');
+    expect(openSafetyByName('notes.txt', '/work/tool.py', linux)).toBe('confirm');
+    expect(openSafetyByName('tool.py', '/work/tool.exe', linux)).toBe('reveal');
+    expect(openSafetyByName('notes.txt', '/work/notes.txt', linux)).toBe('open');
   });
 });
 
-describe('shouldRevealInstead', () => {
+describe('openSafetyFor', () => {
   const statWith = (mode: number, isFile = true) => vi.fn(async () => ({ mode, isFile: () => isFile }));
 
   it('reveals a regular file with any execute bit on macOS and Linux', async () => {
-    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { ...linux, stat: statWith(0o100744) }))
-      .resolves.toBe(true);
-    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { platform: 'darwin', pathExt: undefined, stat: statWith(0o100601) }))
-      .resolves.toBe(true);
-    await expect(shouldRevealInstead('src/index.ts', '/work/src/index.ts', { ...linux, stat: statWith(0o100644) }))
-      .resolves.toBe(false);
-    await expect(shouldRevealInstead('src', '/work/src', { ...linux, stat: statWith(0o40755, false) }))
-      .resolves.toBe(false);
+    await expect(openSafetyFor('bin/tool', '/work/bin/tool', { ...linux, stat: statWith(0o100744) }))
+      .resolves.toBe('reveal');
+    await expect(openSafetyFor('bin/tool', '/work/bin/tool', { platform: 'darwin', pathExt: undefined, stat: statWith(0o100601) }))
+      .resolves.toBe('reveal');
+    // An executable script is shown rather than asked about, since the bit says it is meant to run.
+    await expect(openSafetyFor('run.py', '/work/run.py', { ...linux, stat: statWith(0o100755) }))
+      .resolves.toBe('reveal');
+    await expect(openSafetyFor('run.py', '/work/run.py', { ...linux, stat: statWith(0o100644) }))
+      .resolves.toBe('confirm');
+    await expect(openSafetyFor('src/index.ts', '/work/src/index.ts', { ...linux, stat: statWith(0o100644) }))
+      .resolves.toBe('open');
+    await expect(openSafetyFor('src', '/work/src', { ...linux, stat: statWith(0o40755, false) }))
+      .resolves.toBe('open');
   });
 
   it('reveals a file whose mode cannot be read', async () => {
     const stat = vi.fn(async () => {
       throw new Error('EACCES');
     });
-    await expect(shouldRevealInstead('bin/tool', '/work/bin/tool', { ...linux, stat })).resolves.toBe(true);
+    await expect(openSafetyFor('bin/tool', '/work/bin/tool', { ...linux, stat })).resolves.toBe('reveal');
   });
 
   it('ignores execute bits on Windows but still judges by name', async () => {
     const stat = statWith(0o100777);
-    await expect(shouldRevealInstead('notes.txt', 'C:/work/notes.txt', { ...windows, stat })).resolves.toBe(false);
-    await expect(shouldRevealInstead('tool.py', 'C:/work/tool.py', { ...windows, stat })).resolves.toBe(true);
+    await expect(openSafetyFor('notes.txt', 'C:/work/notes.txt', { ...windows, stat })).resolves.toBe('open');
+    await expect(openSafetyFor('tool.py', 'C:/work/tool.py', { ...windows, stat })).resolves.toBe('confirm');
+    await expect(openSafetyFor('tool.exe', 'C:/work/tool.exe', { ...windows, stat })).resolves.toBe('reveal');
     expect(stat).not.toHaveBeenCalled();
   });
 
@@ -82,8 +105,8 @@ describe('shouldRevealInstead', () => {
       writeFileSync(join(folder, 'notes'), 'hello');
       chmodSync(join(folder, 'notes'), 0o644);
 
-      await expect(shouldRevealInstead('tool', join(folder, 'tool'))).resolves.toBe(true);
-      await expect(shouldRevealInstead('notes', join(folder, 'notes'))).resolves.toBe(false);
+      await expect(openSafetyFor('tool', join(folder, 'tool'))).resolves.toBe('reveal');
+      await expect(openSafetyFor('notes', join(folder, 'notes'))).resolves.toBe('open');
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }
@@ -135,7 +158,7 @@ describe('resolveOpenTarget', () => {
     const target = await resolveOpenTarget(workspace, 'mirror/build.bat');
 
     expect(target).toEqual({ exists: true, path: realpathSync(join(workspace, 'sub', 'build.bat')) });
-    await expect(shouldRevealInstead('mirror/build.bat', target.path)).resolves.toBe(true);
+    await expect(openSafetyFor('mirror/build.bat', target.path)).resolves.toBe('reveal');
   });
 
   it('refuses paths that leave the workspace by name or through a link', async () => {

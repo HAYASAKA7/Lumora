@@ -4,6 +4,7 @@ import {
   ChangesFileDiffSchema,
   ChangesHistoryRequestSchema,
   ChangesHistorySchema,
+  ChangesOpenOutcomeSchema,
   ChangesOpenRequestSchema,
   ChangesReviewRequestSchema,
   ChangesSourceSchema,
@@ -12,6 +13,7 @@ import {
   type ChangesCount,
   type ChangesFileDiff,
   type ChangesHistory,
+  type ChangesOpenOutcome,
   type ChangesSummary
 } from '../../shared/contracts';
 import type { WorkspaceChangesService } from '../changes/workspace-changes-service';
@@ -105,12 +107,11 @@ export function registerChangesIpc({
     });
   });
 
-  ipc.handle(IPC_CHANNELS.changesFileOpen, async (event, value): Promise<null> => {
+  ipc.handle(IPC_CHANNELS.changesFileOpen, async (event, value): Promise<ChangesOpenOutcome> => {
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesOpenRequestSchema.parse(value);
-      await service.open(request.source, request.path, request.action);
-      return null;
+      return ChangesOpenOutcomeSchema.parse(await service.open(request.source, request.path, request.action));
     });
   });
 

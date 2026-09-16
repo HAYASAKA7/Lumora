@@ -26,6 +26,8 @@ import type {
   ChangesCount,
   ChangesFileDiff,
   ChangesHistory,
+  ChangesOpenAction,
+  ChangesOpenOutcome,
   ChangesSource,
   ChangesSummary
 } from './changes';
@@ -2562,7 +2564,11 @@ export interface LumoraApi {
   getChangesFileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff>;
   markChangesReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary>;
   getChangesHistory(workspaceId: string): Promise<ChangesHistory>;
-  openChangedFile(source: ChangesSource, path: string, action: 'open' | 'reveal'): Promise<void>;
+  openChangedFile(
+    source: ChangesSource,
+    path: string,
+    action: ChangesOpenAction
+  ): Promise<ChangesOpenOutcome>;
   getChangesCounts(): Promise<ChangesCount[]>;
   onChangesCount(listener: (count: ChangesCount) => void): () => void;
   getSystemInfo(): Promise<SystemInfo>;
