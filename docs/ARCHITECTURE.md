@@ -533,6 +533,78 @@ completed or failed exit. Lumora records managed runtime history, but generic
 PTYs cannot be reattached after the application process exits; those runtimes
 are marked honestly as lost and can be resumed or restarted.
 
+## Workspace changes
+
+A local session records what changed in its workspace while it ran. The
+snapshot engine in `src/main/changes/` takes that record with git, without
+writing to the workspace. Every workspace has a private store under `userData`
+in `workspace-changes/<workspace id>`. `GIT_OBJECT_DIRECTORY` points at that
+store's object directory and the repository's own objects are added through
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`, so new blobs and trees are written beside
+Lumora's database and never into the project. `GIT_INDEX_FILE` points at a copy
+of the repository index inside the store, which keeps git's stat cache and with
+it the speed of a snapshot. A split index is disabled so git cannot leave shared
+index files in the repository, and Git LFS storage is redirected into the store
+so a clean filter writes its objects there while the tree still carries the
+pointers a commit would. A workspace that is not a repository is snapshotted
+against a bare shadow repository in the same store, using a default exclude list
+for dependency and build directories. Git is run only from an absolute resolved
+path and never from the name `git`, which a working directory could otherwise
+supply on Windows; each run also drops inherited `GIT_*` variables, disables
+optional locks and background maintenance, and is bounded by a timeout and an
+output limit.
+
+Migration 22 adds `workspace_change_segment` and `workspace_change_review`. A
+segment belongs to one execution target, workspace, and session owner, and holds
+the baseline tree and head, whether that baseline arrived late, and the state:
+`capturing`, `ready`, or `unavailable` with a reason of `git-missing`,
+`workspace-unavailable`, `too-large`, or `failed`. A review records the two
+trees a reviewed batch moved between and how many files it covered. Marking
+files reviewed composes a new tree from the baseline plus the reviewed paths and
+moves the segment's baseline onto it in the same transaction that inserts the
+review, guarded by the tree it started from, so a stale review cannot overwrite
+a newer one. None of this reaches the workspace or its repository.
+
+A session's baseline races a bounded launch wait of three seconds. The session
+is released as soon as the snapshot is recorded or the wait expires, whichever
+comes first, and looking for git counts toward that wait. A snapshot that lands
+after the wait marks the segment late, and the panel says that tracking started
+after the agent began. Change tracking never keeps a session from starting: a
+failure becomes an unavailable reason and a throttled diagnostic event carrying
+a reason code, never a path or git output.
+
+A count is recomputed when a Unified UI turn ends, when a session ends however
+it ended, and on a 30-second timer for open native-terminal sessions, which
+leaves out Unified UI sessions because their turns already report. The panel's
+own refresh re-reads the summary instead. Recomputation is coalesced per
+session, one snapshot is shared between views for two seconds, and each result
+is pushed to the main window as one count event.
+
+Six invoke channels carry the feature, `lumora:changes:` with `summary:get`,
+`file-diff:get`, `review:mark`, `history:get`, `file:open`, and `counts:get`,
+plus the `lumora:changes:count:event` push. All of them use the local-only
+authorizer: a sender must be a trusted renderer frame with a registered window
+context in local mode on the local execution target, so a remote target window
+is refused before any handler runs. Every failure crosses the boundary as one
+generic error. The renderer does not offer the feature there at all: a remote
+window renders the session and workspace views without the changes API, so no
+button appears.
+
+Opening a changed file is deliberately narrow. The path is resolved inside the
+workspace both lexically and through `realpath`, and anything that leaves it is
+refused, including a link inside the workspace that points out of it. Anything
+that could run is revealed in its folder instead of opened: known executable,
+script, installer, shortcut, and loadable extensions, every `PATHEXT` entry on
+Windows, and any file carrying an execute bit elsewhere. A failed stat reveals
+as well, and the decision is taken on the real path rather than the name that
+led to it.
+
+Snapshots live only as long as the history that refers to them. Startup runs
+before any session launches: it ends segments the previous run left open, prunes
+segments that ended more than 14 days ago together with their reviews, and
+removes the store of a workspace that has no segments left. Remote targets are
+outside this feature; they keep the PTY view without change tracking.
+
 ## Local storage
 
 Lumora uses one migrated SQLite database under Electron's `userData` directory.
@@ -826,11 +898,13 @@ must not prevent an otherwise valid session from being resumed.
 | `src/main/providers/` | Provider discovery and session-source adapters |
 | `src/main/handoff/` | Temporary cross-agent context lifecycle and cleanup |
 | `src/main/terminal/` | Launch resolution, PTY runtime, recovery, reconciliation |
+| `src/main/changes/` | Workspace snapshots, change segments, and reviews |
 | `src/main/remote/` | SSH targets, platform probing, helper install and protocol lifecycle |
 | `src/main/storage/` | SQLite migrations and repositories |
 | `src/main/ipc/` | Validated privileged IPC handlers |
 | `src/preload/` | Typed renderer bridge |
 | `src/renderer/src/catalog/` | Home, workspace, and session views |
 | `src/renderer/src/terminal/` | Terminal workspace and xterm integration |
+| `src/renderer/src/changes/` | Docked changes panel, diffs, and review history |
 | `src/renderer/src/settings/` | Categorized application settings |
 | `src/shared/` | Contracts and provider definitions shared across processes |

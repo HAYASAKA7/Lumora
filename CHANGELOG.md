@@ -7,6 +7,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Review what an agent changed without leaving Lumora. **Changes** in a
+  session header counts the files changed in that workspace since the session
+  started and opens a panel beside the session with the list and each file's
+  diff. **This session** shows the work of that session, **All uncommitted**
+  everything that differs from the last commit, and **Mark reviewed** clears
+  the files you have read and files them under **History**, where past
+  sessions and their reviewed batches stay. A file can be opened, shown in its
+  folder, or have its path copied; a program or script is shown in its folder
+  rather than run. Lumora reads the workspace with git and writes its
+  snapshots to its own data folder, so nothing is committed, staged, or
+  changed on disk, and a workspace's snapshots are removed 14 days after its
+  last session ended. Sessions on this computer only, for now.
+
 ## [0.5.14] - 2026-09-15
 
 ### Changed

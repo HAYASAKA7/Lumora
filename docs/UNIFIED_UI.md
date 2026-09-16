@@ -205,6 +205,11 @@ changes and diffs without reading arbitrary workspace files from the renderer.
 Approval requests stay associated with the provider turn and must be answered
 before the provider continues.
 
+The session header also carries a **Changes** button. It does not belong to one
+turn: it opens Lumora's own list of every file that changed in the workspace
+since the session started, however it was changed, with the diff beside it.
+See [Review changes](USER_GUIDE.md#review-changes).
+
 ### Questions from the agent
 
 An agent sometimes needs something from you before it can go on: Codex asking

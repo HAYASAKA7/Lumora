@@ -349,6 +349,71 @@ bracketed-paste compatibility sequence does not resolve every case.
 multiline text in an editor and paste it into Codex. Do not assume the
 `Shift+Enter` compatibility path is working merely because the key is accepted.
 
+## Reviewing changes
+
+### Changes says to install git
+
+**Symptom:** The **Changes** panel reports **Install git to see what changed in
+this workspace** and lists nothing.
+
+**Likely cause:** Lumora takes its snapshots with git and could not find it. It
+accepts only an absolute path to a real git program, so a shell alias, a
+function, or a `git` found beside the workspace is not used.
+
+**Resolution:** Install git and confirm that its directory is on the `PATH` of
+the account Lumora runs under. Lumora looks again a minute after a failed
+lookup, so a new session picks it up without restarting Lumora. A session that
+started while git was missing keeps **This session** unavailable, because its
+starting point was never recorded; **All uncommitted** works as soon as git is
+found, since it compares against the last commit.
+
+### Changes says tracking started after the agent began
+
+**Symptom:** The panel shows **Tracking started after the agent began, so its
+first edits may be missing.**
+
+**Likely cause:** Lumora gives the first snapshot up to three seconds and starts
+the agent whether or not it has finished. Reading a large workspace for the
+first time, in particular a folder that is not a git repository, can take longer
+than that, so the starting point was taken after the agent had begun.
+
+**Resolution:** Nothing needs fixing, and later sessions in the same workspace
+are quick: Lumora keeps its own index of that workspace, so a second snapshot
+only has to look at what changed. If the first edits matter, use **All
+uncommitted** in a git repository, which compares against the last commit rather
+than against the session's starting point.
+
+### Changes says this workspace is too large
+
+**Symptom:** The panel reports **This workspace is too large to track changes
+in.**
+
+**Likely cause:** A git command ran past its time limit, two minutes for a
+snapshot and 30 seconds for everything else. That normally means a very large
+working tree, a workspace full of generated files, or a folder on a slow or
+network drive.
+
+**Resolution:** Keep generated directories out of the count. In a git repository
+add them to `.gitignore`; in a plain folder Lumora already skips the usual
+dependency and build directories, such as `node_modules` and `dist`. Prefer a
+local drive over a network share. A session that failed this way keeps **This
+session** unavailable, so start a new session once the workspace is smaller.
+
+### A file opens in its folder instead of opening
+
+**Symptom:** **Open** on a changed file shows it in the system file manager
+instead of opening it.
+
+**Likely cause:** Lumora never runs a file from the changes list. Programs,
+scripts, installers, shortcuts, and, on macOS and Linux, anything carrying an
+execute bit are shown in their folder instead. The decision is taken on the file
+the path really leads to, not on the name in the list.
+
+**Resolution:** Expected behaviour; open such a file yourself in an editor if
+you want to read it. A path that leads outside the workspace is refused
+altogether and reports **That didn't work. Try again.**, which is also what a
+file deleted since the list was taken reports.
+
 ## Remote computers
 
 ### Lumora asks to verify the remote identity

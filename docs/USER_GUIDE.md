@@ -181,6 +181,95 @@ Provider-native shortcuts are forwarded except for configured Lumora
 shortcuts. Codex `Shift+Enter` multiline input remains a known embedded-terminal
 limitation; see [Troubleshooting](TROUBLESHOOTING.md#codex-shiftenter-does-not-create-a-new-line).
 
+## Review changes
+
+Each local session header carries a **Changes** button that counts the files
+changed in that session's workspace since the session started, so **Changes 12**
+means twelve files. Every session counts its own, and a session tab that is not
+in front adds the same total to its line as **· 12 changed**. The workspace
+page has a **Changes** button of its own in its toolbar.
+
+The button opens a panel beside the session. Drag the panel's left edge to make
+it wider or narrower, use **Maximize changes** to give it the whole view and
+**Restore changes size** to put it back, and close it with **Close changes** or
+by pressing `Escape`.
+
+<!-- screenshot: changes panel -->
+
+### This session and All uncommitted
+
+**This session** lists what changed since the session started. Edits you made
+before that are not listed, because the session's starting point is the
+workspace as Lumora found it when the agent began. **All uncommitted** ignores
+the session and lists everything that differs from the last commit. It needs a
+git repository; in a plain folder it says so instead.
+
+Select a file to read its changes beside the list. A binary file, and a change
+too large to render, are reported rather than shown.
+
+### What you can do with a file
+
+Every row has a **File actions** menu with **Open**, **Show in folder**, and
+**Copy path**. Lumora never runs what it opens: a program, a script, an
+installer, or a shortcut is shown in its folder instead of being opened. A path
+that leads outside the workspace is refused, including a link inside the
+workspace that points out of it, and the panel reports that it did not work.
+
+### Mark reviewed
+
+**Mark reviewed** on one file, or **Mark all reviewed** for every file in the
+list, moves the session's starting point forward. Those files leave the list,
+the count in the header drops, and the batch is filed under **History** so you
+can open it again later. Nothing on disk changes: Lumora does not commit,
+stage, or edit anything, and the workspace is left as the agent left it.
+
+A file that goes back to its original content leaves the list too, whether the
+agent undid its own edit or you did. When the agent commits during the session,
+its files move to the **Committed** group at the end of the list, which stays
+closed until you open it.
+
+### History
+
+**History** in the panel lists this workspace's sessions, newest first, with
+when each one started and the batches reviewed in it. Select a batch to see
+exactly the files it covered, then use **Back to history** or `Escape` to return.
+**Show earlier sessions** loads more. The same history is one button away on the
+workspace page, and **View changes** in a session's right-click menu opens it
+with that session in view.
+
+### What the notices mean
+
+- **Tracking started after the agent began, so its first edits may be missing.**
+  Lumora gives the first snapshot up to three seconds and starts the agent
+  anyway. Reading a large folder for the first time can take longer than that;
+  later sessions in the same workspace are quick.
+- **Another session is working in this workspace; its changes appear here too.**
+  Lumora lists what changed in the folder, not who changed it.
+- **Only the first 5,000 files are listed.** The list stops there.
+- **Install git to see what changed in this workspace.** Lumora uses git to take
+  its snapshots. Install it and Lumora picks it up within a minute, without a
+  restart.
+- **This workspace folder is not available.** The folder has been moved or
+  renamed, or its drive is not connected.
+- **This workspace is too large to track changes in.** A snapshot took longer
+  than Lumora allows.
+
+### Where the snapshots live
+
+Lumora takes every snapshot into its own application-data folder, beside its
+database. The workspace is only read: nothing is written into it, its `.git`
+folder is never touched, and no commit, branch, or stash of yours is changed. A
+workspace's snapshots are removed 14 days after its last session ended, together
+with that session's review history.
+
+### Limits
+
+Changes are offered for sessions on this computer only; a remote computer's
+sessions have no **Changes** button yet. Git must be installed, and a workspace
+that is not a git repository has **This session** but not **All uncommitted**.
+Lumora does not record who made each change, so a file that you and the agent
+both edited is listed simply as changed.
+
 ## Terminal profiles
 
 Terminal profiles describe the shell Lumora uses to resolve provider commands,
