@@ -421,6 +421,18 @@ describe('popup layout styles', () => {
     ).toBe('none');
   });
 
+  it('leaves no ring on the page a closing dialog hands focus back to', () => {
+    /*
+     * A dialog rendered inside the page takes its focused control with it when
+     * it closes, and Chromium moves focus to the nearest focusable ancestor:
+     * the page itself, which it then treats as keyboard focus. The page is a
+     * scroll container, not a control, so the ring only reads as a glitch.
+     */
+    expect(
+      effectiveDeclarations(rule('.main-content:focus-visible')).get('outline')
+    ).toBe('none');
+  });
+
   it('caps standard dialogs to the available height on narrow windows', () => {
     const expectedRule =
       '.new-session-dialog {\n' +

@@ -821,6 +821,17 @@ button {
   outline: none;
 }
 
+/*
+ * The page is a scroll container and a skip-link target rather than a control.
+ * Chromium hands it focus when a dialog rendered inside it closes because it
+ * is the nearest focusable ancestor of the control that went away. It then
+ * treats that as keyboard focus and rings the whole page. The global focus
+ * rule is written later so it would otherwise win.
+ */
+.main-content:focus-visible {
+  outline: none;
+}
+
 .terminal-main-content {
   display: grid;
   min-height: 0;

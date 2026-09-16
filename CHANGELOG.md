@@ -28,6 +28,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the key.
 - Buttons that a shortcut works now say so in their tooltip, including
   **Changes**, **New session**, **Maximize changes** and the refresh buttons.
+- Stop ringing the whole page when a dialog closes. A dialog rendered inside
+  the page hands focus back to it, and the page was drawn as though it were a
+  control.
 
 ### Fixed
 
