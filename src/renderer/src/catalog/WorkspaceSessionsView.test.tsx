@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,7 @@ import type {
   ProviderScanResult,
   TerminalProfile
 } from '../../../shared/contracts';
+import { requestRefresh } from '../keyboard/page-requests';
 import { WorkspaceSessionsView } from './WorkspaceSessionsView';
 import { fakeChangesApi, summaryFor } from '../test/changes-test-support';
 import { renderWithLocalization } from '../test/render-with-localization';
@@ -539,6 +540,24 @@ describe('WorkspaceSessionsView', () => {
       fireEvent.keyDown(batch, { key: 'Escape' });
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Changes' })).not.toHaveFocus();
+    });
+
+    it('refreshes the open panel rather than the session list under it', async () => {
+      const api = changesApi();
+      const onRefresh = vi.fn();
+      render(view({ changesApi: api, onRefresh }));
+
+      act(() => { requestRefresh(); });
+      expect(onRefresh).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Changes' }));
+      await screen.findByText('src/app.ts');
+      api.getChangesSummary.mockClear();
+
+      act(() => { requestRefresh(); });
+
+      await waitFor(() => expect(api.getChangesSummary).toHaveBeenCalled());
+      expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 
     it('keeps the page toolbar reachable while the panel is maximized', async () => {
