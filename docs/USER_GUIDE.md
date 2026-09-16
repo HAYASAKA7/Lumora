@@ -187,11 +187,12 @@ limitation; see [Troubleshooting](TROUBLESHOOTING.md#codex-shiftenter-does-not-c
 
 ## Review changes
 
-Each local session header carries a **Changes** button that counts the files
-changed in that session's workspace since the session started, so **Changes 12**
-means twelve files. Every session counts its own, and a session tab that is not
-in front adds the same total to its line as **· 12 changed**. The workspace
-page has a **Changes** button of its own in its toolbar.
+Each local session header carries a **Changes** button, the branch mark an
+editor uses for source control, with the number of files changed in that
+session's workspace since the session started on its corner. Every session
+counts its own, and a session tab that is not in front adds the same total to
+its line as **· 12 changed**. The workspace page has a **Changes** button of
+its own in its toolbar.
 
 The button opens a panel beside the session. `Ctrl+Shift+G` does the same for
 whatever is in front, the session or the workspace page, and closes the panel

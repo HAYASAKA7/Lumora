@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-16
+
 ### Added
 
 - Four shortcuts for buttons that had none. `Ctrl+Shift+N` opens the new
