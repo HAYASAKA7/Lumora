@@ -27,7 +27,7 @@
 </p>
 
 > [!WARNING]
-> Lumora 0.5 is an unsigned preview release. Review the
+> Lumora 0.6 is an unsigned preview release. Review the
 > [unsigned build notices](#unsigned-build-notices) before installing it.
 
 <p align="center">
@@ -153,6 +153,27 @@ transcript into memory.
 See [Using Lumora](docs/USER_GUIDE.md#saved-sessions) and
 [Provider support and verification](docs/PROVIDER_SUPPORT.md).
 
+## Review changes
+
+Every local session header carries a **Changes** button that counts the files
+changed in that session's workspace since the session started. It opens a panel
+beside the session, as does `Ctrl+Shift+G`, and the workspace page has a button
+of its own.
+
+<p align="center">
+  <img src="docs/screenshots/0.6/changes/changes_panel.png" alt="A Unified UI session with the Changes panel docked beside it, listing the changed files above the selected file's diff" width="1100">
+</p>
+
+**This session** lists what changed since the session started, **All
+uncommitted** everything that differs from the last commit, and **History** the
+batches already marked reviewed. Snapshots are taken with git into a
+Lumora-owned object store: nothing is written to the workspace or its `.git`,
+nothing is committed or staged, and no changed file is ever run. A folder that
+is not a git repository is tracked through a shadow repository in application
+data. Remote sessions are not covered yet.
+
+See [Review changes](docs/USER_GUIDE.md#review-changes).
+
 ## Remote computers and transfer
 
 Experimental Remote Lumora opens an isolated window for a trusted SSH target,
@@ -227,7 +248,7 @@ according to the provider's configuration and terms.
 
 - Current releases are unsigned and do not update themselves automatically.
 - Generic PTY processes cannot be reattached after a full Lumora restart.
-- Remote Lumora is experimental and remains PTY-based in 0.5.
+- Remote Lumora is experimental and remains PTY-based in 0.6.
 - Cross-device transfer routes remain Experimental until each exact packaged
   provider/version/OS combination is manually verified.
 - Custom provider definitions, Lumora cloud sync, transcript full-text search,

@@ -196,7 +196,15 @@ make it wider or narrower, use **Maximize changes** to give it the whole view
 and **Restore changes size** to put it back, and close it with **Close changes**
 or by pressing `Escape`.
 
-<!-- screenshot: changes panel -->
+<p align="center">
+  <img src="screenshots/0.6/changes/changes_panel.png" alt="A Unified UI session with the Changes panel docked beside it, listing the changed files above the selected file's diff" width="1100">
+</p>
+
+Maximized, the file list sits beside the diff instead of above it.
+
+<p align="center">
+  <img src="screenshots/0.6/changes/changes_workspace_maximized.png" alt="The Changes panel maximized over a session, with the changed-file list on the left and the selected file's diff on the right" width="1100">
+</p>
 
 ### This session and All uncommitted
 
@@ -217,6 +225,10 @@ path**; a file in the **Committed** group has the same menu without **Mark
 reviewed**. **Copy path** copies the path as the list shows it, from the top of
 the workspace, and **Copy full path** copies where the file sits on this
 computer, which still works for a file the session deleted.
+
+<p align="center">
+  <img src="screenshots/0.6/changes/changes_file_menu.png" alt="The file actions menu open on a changed file, offering Open, Show in folder, Copy path, and Copy full path" width="760">
+</p>
 
 **Open** treats a file in one of three ways. A document or source file, such as
 a `.ts` or a `.md`, opens straight away. A script people also read, such as a
@@ -253,6 +265,10 @@ exactly the files it covered, then use **Back to history** or `Escape` to go
 back. **Show earlier sessions** loads more. The same history is one button away on the
 workspace page, and **View changes** in a session's right-click menu opens it
 with that session in view.
+
+<p align="center">
+  <img src="screenshots/0.6/changes/changes_history.png" alt="The Changes panel in History, listing this workspace's sessions with when each one started and what was reviewed in it" width="1100">
+</p>
 
 ### What the notices mean
 
