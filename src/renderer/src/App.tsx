@@ -45,7 +45,7 @@ import {
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import { StructuredAgentWorkspace } from './agent/StructuredAgentWorkspace';
 import { useChangeCounts } from './changes/useChangeCounts';
-import type { WorkspaceChangesRequest } from './changes/useWorkspaceChangesPanel';
+import { useWorkspaceChangesNavigation } from './changes/useWorkspaceChangesNavigation';
 import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
 import { HideWorkspaceDialog } from './catalog/HideWorkspaceDialog';
 import { projectCatalogVisibility } from './catalog/catalog-visibility';
@@ -367,8 +367,6 @@ function AppContent(): ReactNode {
   );
   const [workspaceDetailStatus, setWorkspaceDetailStatus] =
     useState<CatalogViewStatus>({ state: 'loading' });
-  const [workspaceChangesRequest, setWorkspaceChangesRequest] =
-    useState<WorkspaceChangesRequest | null>(null);
   const [isWorkspaceDetailRefreshing, setIsWorkspaceDetailRefreshing] =
     useState(false);
   const [workspaceDetailOperationError, setWorkspaceDetailOperationError] =
@@ -1313,21 +1311,7 @@ function AppContent(): ReactNode {
     setIsWorkspaceDetailRefreshing(false);
     setWorkspaceDetailOperationError(null);
     setSelectedWorkspaceId(null);
-    setWorkspaceChangesRequest(null);
   }, []);
-
-  const workspaceSessionTitles = useMemo(
-    () => new Map(
-      workspaceDetailStatus.state === 'ready'
-        ? workspaceDetailStatus.snapshot.sessions.map((session) => [session.id, session.title])
-        : []
-    ),
-    [workspaceDetailStatus]
-  );
-  const workspaceSessionTitle = useCallback(
-    (sessionId: string) => workspaceSessionTitles.get(sessionId) ?? null,
-    [workspaceSessionTitles]
-  );
 
   const refreshWorkspaceDetail = useCallback(() => {
     if (selectedWorkspaceId === null) {
@@ -1785,16 +1769,20 @@ function AppContent(): ReactNode {
     },
     [closeWorkspaceDetail, directSessionLaunch.hide, generalSettings]
   );
-  const viewSessionChanges = useCallback((session: SessionSummary) => {
+  const openWorkspaceChanges = useCallback((workspaceId: string) => {
     navigateToRoute('workspaces');
-    openWorkspaceDetail(session.workspaceId);
-    setWorkspaceChangesRequest({
-      workspaceId: session.workspaceId,
-      mode: 'history',
-      highlightSessionId: session.id,
-      key: Date.now()
-    });
+    openWorkspaceDetail(workspaceId);
   }, [navigateToRoute, openWorkspaceDetail]);
+  const workspaceChanges = useWorkspaceChangesNavigation({
+    openWorkspace: openWorkspaceChanges,
+    shownWorkspaceId: activeRoute.id === 'workspaces' &&
+      selectedWorkspaceId !== null &&
+      !terminalActive &&
+      workspaceDetailStatus.state === 'ready'
+      ? selectedWorkspaceId
+      : null,
+    snapshot: workspaceDetailStatus.state === 'ready' ? workspaceDetailStatus.snapshot : null
+  });
 
   useEffect(() => {
     setRuntimeMru((current) =>
@@ -2269,7 +2257,7 @@ function AppContent(): ReactNode {
             onActivateStructuredRuntime={activateStructuredRuntime}
             onResumeSession={resumeCatalogSession}
             onResumeSessionOptions={resumeCatalogSessionOptions}
-            onViewSessionChanges={viewSessionChanges}
+            onViewSessionChanges={workspaceChanges.viewSessionChanges}
             preferenceScope="local"
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
@@ -2356,7 +2344,7 @@ function AppContent(): ReactNode {
                 }}
                 onResume={resumeCatalogSession}
                 onResumeOptions={resumeCatalogSessionOptions}
-                onViewChanges={viewSessionChanges}
+                onViewChanges={workspaceChanges.viewSessionChanges}
                 profiles={terminalProfiles}
                 providerScan={
                   providerStatus.state === 'ready' ? providerStatus.scan : null
@@ -2391,13 +2379,13 @@ function AppContent(): ReactNode {
               ) : (
                 <WorkspaceSessionsView
                   changesApi={window.lumora}
-                  changesRequest={workspaceChangesRequest}
+                  changesRequest={workspaceChanges.request}
                   isRefreshing={isWorkspaceDetailRefreshing}
                   onBack={closeWorkspaceDetail}
                   onRefresh={refreshWorkspaceDetail}
                   onResume={resumeWorkspaceSession}
                   onResumeOptions={resumeWorkspaceSessionOptions}
-                  onViewChanges={viewSessionChanges}
+                  onViewChanges={workspaceChanges.viewSessionChanges}
 
                   onRetry={() => openWorkspaceDetail(selectedWorkspaceId)}
                   operationError={workspaceDetailOperationError}
@@ -2406,7 +2394,8 @@ function AppContent(): ReactNode {
                     providerStatus.state === 'ready' ? providerStatus.scan : null
                   }
                   runningSessionIds={runningSessionIds}
-                  sessionTitle={workspaceSessionTitle}
+                  onChangesRequestHandled={workspaceChanges.onRequestHandled}
+                  sessionTitle={workspaceChanges.sessionTitle}
                   status={visibleWorkspaceDetailStatus}
                   workspaceId={selectedWorkspaceId}
                 />
@@ -2420,7 +2409,7 @@ function AppContent(): ReactNode {
                 onRefresh={refreshCatalog}
                 onResume={resumeCatalogSession}
                 onResumeOptions={resumeCatalogSessionOptions}
-                onViewChanges={viewSessionChanges}
+                onViewChanges={workspaceChanges.viewSessionChanges}
 
                 onSearchChange={setSessionSearch}
                 provider={sessionProvider}

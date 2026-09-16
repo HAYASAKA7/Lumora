@@ -4246,7 +4246,8 @@ describe('App', () => {
         reviews: []
       }]
     });
-    setSystemInfoResult(undefined, undefined, { getChangesHistory });
+    const getCatalog = vi.fn().mockResolvedValue(readyCatalog);
+    setSystemInfoResult(undefined, undefined, { getCatalog, getChangesHistory });
     renderWithLocalization(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
@@ -4262,6 +4263,17 @@ describe('App', () => {
     expect(within(segment).getByRole('heading', { name: 'Catalog implementation' })).toBeInTheDocument();
     expect(getChangesHistory).toHaveBeenCalledWith(session.workspaceId);
     expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
+    expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+    const reads = getCatalog.mock.calls.length;
+
+    // That page is already open, so asking again only reopens the panel.
+    const card = within(screen.getByRole('main')).getByText('Catalog implementation').closest('article');
+    fireEvent.contextMenu(card!, { clientX: 120, clientY: 120 });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View changes' }));
+    expect(await screen.findByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
+    expect(getCatalog).toHaveBeenCalledTimes(reads);
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to workspaces' }));
     fireEvent.click(await screen.findByRole('button', {
