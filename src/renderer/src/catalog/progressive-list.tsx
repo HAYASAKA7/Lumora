@@ -77,11 +77,14 @@ export function useProgressiveList({
 export function ProgressiveListControl({
   hasMore,
   label,
-  onLoadMore
+  onLoadMore,
+  scrollRootSelector = '.main-content'
 }: {
   hasMore: boolean;
   label: string;
   onLoadMore(): void;
+  /** The scrolling ancestor to watch; a list inside a panel scrolls in its own box. */
+  scrollRootSelector?: string;
 }): ReactNode {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -95,7 +98,7 @@ export function ProgressiveListControl({
       return undefined;
     }
 
-    const scrollRoot = target.closest<HTMLElement>('.main-content');
+    const scrollRoot = target.closest<HTMLElement>(scrollRootSelector);
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -106,7 +109,7 @@ export function ProgressiveListControl({
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, onLoadMore]);
+  }, [hasMore, onLoadMore, scrollRootSelector]);
 
   if (!hasMore) {
     return null;

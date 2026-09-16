@@ -398,9 +398,23 @@ describe('WorkspaceSessionsView', () => {
 
   describe('changes', () => {
     const sessionId = snapshot.sessions[0]!.id;
+    const changedFile = {
+      path: 'src/app.ts',
+      oldPath: null,
+      status: 'modified' as const,
+      additions: 1,
+      deletions: 0,
+      binary: false
+    };
+    const historyRequest = {
+      workspaceId,
+      mode: 'history' as const,
+      highlightSessionId: sessionId,
+      key: 1
+    };
 
     function changesApi() {
-      const fake = fakeChangesApi((source) => summaryFor(source));
+      const fake = fakeChangesApi((source) => summaryFor(source, { files: [changedFile] }));
       fake.api.getChangesHistory.mockResolvedValue({
         segments: [{
           ownerId: 'owner-1',
@@ -408,7 +422,7 @@ describe('WorkspaceSessionsView', () => {
           catalogSessionId: sessionId,
           createdAt: '2026-07-15T01:00:00.000Z',
           endedAt: null,
-          reviews: []
+          reviews: [{ reviewId: 'review-1', fileCount: 1, reviewedAt: '2026-07-15T02:00:00.000Z' }]
         }]
       });
       return fake.api;
@@ -434,7 +448,7 @@ describe('WorkspaceSessionsView', () => {
 
     it('toggles a changes panel for the workspace from the toolbar', async () => {
       const api = changesApi();
-      const { container } = render(view({ changesApi: api, changesEnabled: true }));
+      const { container } = render(view({ changesApi: api }));
 
       const button = screen.getByRole('button', { name: 'Changes' });
       expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -444,7 +458,7 @@ describe('WorkspaceSessionsView', () => {
       expect(button).toHaveAttribute('aria-expanded', 'true');
       expect(button).toHaveAttribute('aria-controls', panel.id);
       expect(panel.parentElement).toHaveClass('workspace-detail', 'has-changes-panel');
-      expect(await screen.findByText('No uncommitted changes.')).toBeInTheDocument();
+      expect(await screen.findByText('src/app.ts')).toBeInTheDocument();
       expect(api.getChangesSummary).toHaveBeenCalledWith({ kind: 'workspace', workspaceId });
       expect(screen.getByRole('button', { name: 'All uncommitted' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -455,13 +469,15 @@ describe('WorkspaceSessionsView', () => {
 
     it('opens the history highlighting the requested session', async () => {
       const api = changesApi();
-      const request = { workspaceId, mode: 'history' as const, highlightSessionId: sessionId, key: 1 };
+      const request = historyRequest;
+      const onChangesRequestHandled = vi.fn();
       const { rerender } = render(view({
         changesApi: api,
-        changesEnabled: true,
         changesRequest: request,
+        onChangesRequestHandled,
         sessionTitle: (id) => (id === sessionId ? 'Workspace drill-down' : null)
       }));
+      expect(onChangesRequestHandled).toHaveBeenCalledWith(1);
 
       const list = await screen.findByRole('list', { name: 'Change history' });
       const segment = within(list).getByRole('listitem');
@@ -471,18 +487,80 @@ describe('WorkspaceSessionsView', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
-      rerender(view({ changesApi: api, changesEnabled: true, changesRequest: request }));
+      rerender(view({ changesApi: api, changesRequest: request }));
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
 
-      rerender(view({ changesApi: api, changesEnabled: true, changesRequest: { ...request, key: 2 } }));
+      rerender(view({ changesApi: api, changesRequest: { ...request, key: 2 } }));
       expect(await screen.findByRole('list', { name: 'Change history' })).toBeInTheDocument();
+    });
+
+    it('does not reopen a handled request after a remount', async () => {
+      const api = changesApi();
+      let request: typeof historyRequest | null = historyRequest;
+      const { rerender, unmount } = render(view({
+        changesApi: api,
+        changesRequest: request,
+        onChangesRequestHandled: () => { request = null; }
+      }));
+      await screen.findByRole('list', { name: 'Change history' });
+      expect(request).toBeNull();
+
+      rerender(view({ changesApi: api, changesRequest: request }));
+      unmount();
+      render(view({ changesApi: api, changesRequest: request }));
+      await act(async () => undefined);
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+    });
+
+    it('moves focus into the panel and back to the button around a toolbar open', async () => {
+      const api = changesApi();
+      render(view({ changesApi: api }));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Changes' }));
+      expect(screen.getByRole('button', { name: 'Close changes' })).toHaveFocus();
+      await screen.findByText('src/app.ts');
+      expect(screen.getByRole('button', { name: /^Modified/ })).toHaveFocus();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Changes' })).toHaveFocus();
+    });
+
+    it('opens a requested history on the highlighted batch and closes on Escape', async () => {
+      const api = changesApi();
+      render(view({ changesApi: api, changesRequest: historyRequest }));
+
+      expect(screen.getByRole('button', { name: 'History' })).toHaveFocus();
+      const batch = await screen.findByRole('button', { name: /^1 file reviewed · / });
+      expect(batch).toHaveFocus();
+
+      fireEvent.keyDown(batch, { key: 'Escape' });
+      expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Changes' })).toHaveFocus();
+    });
+
+    it('keeps the page toolbar reachable while the panel is maximized', async () => {
+      const api = changesApi();
+      const { container } = render(view({ changesApi: api }));
+      fireEvent.click(screen.getByRole('button', { name: 'Changes' }));
+      await screen.findByText('src/app.ts');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Maximize changes' }));
+      const section = container.querySelector('.workspace-detail')!;
+      expect(section).toHaveClass('changes-maximized');
+      expect(section.querySelector(':scope > .workspace-detail-toolbar')).not.toBeNull();
+      expect(screen.getByRole('button', { name: 'Back to workspaces' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Changes' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Refresh sessions' })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Restore changes size' }));
+      expect(section).not.toHaveClass('changes-maximized');
     });
 
     it('ignores a request for another workspace', async () => {
       const api = changesApi();
       render(view({
         changesApi: api,
-        changesEnabled: true,
         changesRequest: { workspaceId: otherWorkspaceId, mode: 'history', highlightSessionId: null, key: 1 }
       }));
       await act(async () => undefined);
@@ -490,7 +568,7 @@ describe('WorkspaceSessionsView', () => {
     });
 
     it('offers no changes where they are not enabled', () => {
-      render(view({ changesApi: changesApi() }));
+      render(view());
       expect(screen.queryByRole('button', { name: 'Changes' })).not.toBeInTheDocument();
     });
 

@@ -40,15 +40,38 @@ describe('changes panel style contract', () => {
     }
   });
 
-  it('docks the panel beside the workspace page content', () => {
+  it('docks the panel beside the workspace page content under a full width toolbar', () => {
     expect(rule('.workspace-detail.has-changes-panel')).toContain(
       'grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px)'
     );
-    expect(rule('.workspace-detail.has-changes-panel > .workspace-detail-main')).toContain('grid-column: 1');
+    expect(rule('.workspace-detail.has-changes-panel > .workspace-detail-toolbar')).toContain('grid-column: 1 / -1');
+    const main = rule('.workspace-detail.has-changes-panel > .workspace-detail-main');
+    expect(main).toContain('grid-column: 1');
+    expect(main).toContain('grid-row: 2');
     const panel = rule('.workspace-detail.has-changes-panel > .changes-panel');
     expect(panel).toContain('grid-column: 2');
     expect(panel).toContain('width: auto');
     expect(rule('.workspace-detail.changes-maximized > .changes-panel')).toContain('grid-column: 1 / -1');
+    // A maximized panel hides the sessions but leaves the toolbar in the first row.
+    expect(rule('.workspace-detail.changes-maximized > .workspace-detail-main')).toContain('display: none');
+  });
+
+  it('takes the docked panel height from the measured viewport rather than a fixed size', () => {
+    const panel = rule('.workspace-detail.has-changes-panel > .changes-panel');
+    expect(panel).toContain('position: sticky');
+    expect(panel).toContain('height: var(--changes-panel-visible-height, auto)');
+    expect(panel).toContain('max-height: var(--changes-panel-visible-height, none)');
+    expect(panel).not.toContain('100vh');
+    expect(panel).not.toContain('min-height');
+  });
+
+  it('stacks the panel under the sessions on a narrow workspace page', () => {
+    const narrow = ".workspace-detail.has-changes-panel[data-changes-layout='stacked']";
+    expect(rule(narrow)).toContain('grid-template-columns: minmax(0, 1fr)');
+    const stacked = rule(`${narrow} > .changes-panel`);
+    expect(stacked).toContain('position: static');
+    expect(stacked).toContain('grid-column: 1');
+    expect(rule(".workspace-detail[data-changes-layout='stacked'] .changes-panel-resize")).toContain('display: none');
   });
 
   it('clamps the panel width in script rather than with a percentage', () => {

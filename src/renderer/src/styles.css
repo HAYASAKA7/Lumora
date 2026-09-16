@@ -8026,26 +8026,33 @@ button {
   grid-column: 1 / -1;
 }
 
-/* A workspace page docks the panel beside its sessions and keeps it in view while the page scrolls. */
+/* A workspace page docks the panel beside its sessions with the toolbar above both columns.
+   The page measures how much of its scrolling container is visible and writes that height here
+   so the panel never needs a fixed size. */
 .workspace-detail.has-changes-panel {
   grid-template-columns: minmax(0, 1fr) var(--changes-column-width, 480px);
   align-items: start;
 }
 
+.workspace-detail.has-changes-panel > .workspace-detail-toolbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
 .workspace-detail.has-changes-panel > .workspace-detail-main {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .workspace-detail.has-changes-panel > .changes-panel {
   position: sticky;
-  top: 0;
+  top: 12px;
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   width: auto;
   min-width: 0;
-  height: calc(100vh - 220px);
-  min-height: 420px;
+  height: var(--changes-panel-visible-height, auto);
+  max-height: var(--changes-panel-visible-height, none);
   border: 1px solid var(--line);
   border-radius: 10px;
 }
@@ -8055,6 +8062,21 @@ button {
 }
 
 .workspace-detail.changes-maximized > .workspace-detail-main {
+  display: none;
+}
+
+/* A page too narrow for a readable second column puts the panel under the sessions at full width. */
+.workspace-detail.has-changes-panel[data-changes-layout='stacked'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace-detail.has-changes-panel[data-changes-layout='stacked'] > .changes-panel {
+  position: static;
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.workspace-detail[data-changes-layout='stacked'] .changes-panel-resize {
   display: none;
 }
 

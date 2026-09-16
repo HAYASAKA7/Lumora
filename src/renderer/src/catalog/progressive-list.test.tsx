@@ -105,4 +105,32 @@ describe('ProgressiveListControl', () => {
     unmount();
     expect(disconnect).toHaveBeenCalledOnce();
   });
+
+  it('watches the scrolling box a caller names instead of the page', () => {
+    let observerOptions: IntersectionObserverInit | undefined;
+    class Observer {
+      constructor(_callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        observerOptions = options;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+    }
+
+    vi.stubGlobal('IntersectionObserver', Observer);
+    render(
+      <main className="main-content">
+        <div className="changes-history-scroll" data-testid="panel-scroll">
+          <ProgressiveListControl
+            hasMore
+            label="Show earlier sessions"
+            onLoadMore={vi.fn()}
+            scrollRootSelector=".changes-history-scroll"
+          />
+        </div>
+      </main>
+    );
+
+    expect(observerOptions?.root).toBe(screen.getByTestId('panel-scroll'));
+  });
 });

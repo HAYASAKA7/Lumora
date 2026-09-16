@@ -131,6 +131,7 @@ export const ChangesHistory = memo(function ChangesHistory({
         hasMore={progress.hasMore}
         label={t('terminal.changes.history-show-more')}
         onLoadMore={progress.showMore}
+        scrollRootSelector=".changes-history-scroll"
       />
     </>
   );

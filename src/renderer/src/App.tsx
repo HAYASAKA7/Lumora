@@ -2391,7 +2391,6 @@ function AppContent(): ReactNode {
               ) : (
                 <WorkspaceSessionsView
                   changesApi={window.lumora}
-                  changesEnabled
                   changesRequest={workspaceChangesRequest}
                   isRefreshing={isWorkspaceDetailRefreshing}
                   onBack={closeWorkspaceDetail}

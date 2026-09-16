@@ -1,7 +1,12 @@
-import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
-import type { ChangesPanelMode } from './ChangesPanelContent';
+import { PRESSED_MODE_SELECTOR, type ChangesPanelMode } from './ChangesPanelContent';
+import {
+  useChangesPanelControls,
+  type ChangesButtonProps,
+  type PanelFocusPlan
+} from './useChangesPanelControls';
 
 /** Asks a workspace page to open its changes panel; a new key opens it again. */
 export interface WorkspaceChangesRequest {
@@ -15,6 +20,8 @@ interface WorkspaceChangesPanelOptions {
   enabled: boolean;
   workspaceId: string;
   request: WorkspaceChangesRequest | null;
+  /** Told which request opened the panel, so the caller can drop it. */
+  onRequestHandled?: ((key: number) => void) | undefined;
 }
 
 interface Opened {
@@ -22,7 +29,7 @@ interface Opened {
   mode: ChangesPanelMode;
   highlightSessionId: string | null;
   /** Remounts the panel each time it opens so it starts in the asked mode. */
-  generation: number;
+  panelKey: string;
 }
 
 export interface WorkspaceChangesPanelProps {
@@ -38,77 +45,81 @@ export interface WorkspaceChangesPanelProps {
 export interface WorkspaceChangesPanel {
   /** Classes for the workspace section, each with a leading space. */
   className: string;
-  buttonProps: {
-    ref: RefObject<HTMLButtonElement | null>;
-    'aria-controls': string;
-    'aria-expanded': boolean;
-    onClick(): void;
-  };
+  buttonProps: ChangesButtonProps;
   /** Null while the panel is closed. */
   panelProps: WorkspaceChangesPanelProps | null;
 }
 
+/** A requested history opens on the asked session's first batch, else on the History choice. */
+const HISTORY_FOCUS: PanelFocusPlan = {
+  target: '.changes-history-segment[data-highlighted="true"] .changes-history-batch',
+  fallback: PRESSED_MODE_SELECTOR,
+  settled: '.changes-history, .changes-empty, .changes-notice-error'
+};
+
 /** Keeps whether a workspace page shows its changes panel and in which mode it opened. */
-export function useWorkspaceChangesPanel({ enabled, request, workspaceId }: WorkspaceChangesPanelOptions): WorkspaceChangesPanel {
-  const panelId = useId();
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+export function useWorkspaceChangesPanel({
+  enabled,
+  onRequestHandled,
+  request,
+  workspaceId
+}: WorkspaceChangesPanelOptions): WorkspaceChangesPanel {
   const [opened, setOpened] = useState<Opened | null>(null);
-  const [maximized, setMaximized] = useState(false);
   const [handledKey, setHandledKey] = useState<number | null>(null);
-  const [focusButton, setFocusButton] = useState(false);
-  const generation = useRef(0);
+  const [openCount, setOpenCount] = useState(0);
+  const shown = enabled && opened !== null && opened.workspaceId === workspaceId ? opened : null;
+  const controls = useChangesPanelControls({ isOpen: shown !== null, ownerKey: workspaceId });
 
   if (enabled && request !== null && request.workspaceId === workspaceId && request.key !== handledKey) {
     setHandledKey(request.key);
-    generation.current += 1;
-    setMaximized(false);
     setOpened({
       workspaceId,
       mode: request.mode,
       highlightSessionId: request.highlightSessionId,
-      generation: generation.current
+      panelKey: `request-${request.key}`
     });
+    controls.setMaximized(false);
+    controls.focusPanel(HISTORY_FOCUS);
   }
 
+  const handled = useRef(onRequestHandled);
   useEffect(() => {
-    if (!focusButton) return;
-    setFocusButton(false);
-    buttonRef.current?.focus();
-  }, [focusButton]);
+    handled.current = onRequestHandled;
+  }, [onRequestHandled]);
+  useEffect(() => {
+    if (handledKey !== null) handled.current?.(handledKey);
+  }, [handledKey]);
 
-  const shown = enabled && opened !== null && opened.workspaceId === workspaceId ? opened : null;
-
-  const close = (returnFocus: boolean) => {
+  const close = () => {
     setOpened(null);
-    setMaximized(false);
-    if (returnFocus) setFocusButton(true);
+    controls.setMaximized(false);
   };
 
   const toggle = () => {
     if (shown !== null) {
-      close(false);
+      close();
       return;
     }
-    generation.current += 1;
-    setOpened({ workspaceId, mode: 'changes', highlightSessionId: null, generation: generation.current });
+    const count = openCount + 1;
+    setOpenCount(count);
+    setOpened({ workspaceId, mode: 'changes', highlightSessionId: null, panelKey: `open-${count}` });
+    controls.focusPanel();
   };
 
   return {
-    className: `${shown === null ? '' : ' has-changes-panel'}${shown !== null && maximized ? ' changes-maximized' : ''}`,
-    buttonProps: {
-      ref: buttonRef,
-      'aria-controls': panelId,
-      'aria-expanded': shown !== null,
-      onClick: toggle
-    },
+    className: controls.className,
+    buttonProps: controls.buttonProps(toggle),
     panelProps: shown === null ? null : {
-      id: panelId,
-      panelKey: `${shown.workspaceId}:${shown.generation}`,
+      id: controls.panelId,
+      panelKey: `${shown.workspaceId}:${shown.panelKey}`,
       source: { kind: 'workspace', workspaceId: shown.workspaceId },
       initialMode: shown.mode,
       highlightSessionId: shown.highlightSessionId,
-      onClose: () => close(true),
-      onMaximizedChange: setMaximized
+      onClose: () => {
+        controls.focusButton();
+        close();
+      },
+      onMaximizedChange: controls.setMaximized
     }
   };
 }

@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useRef, type ReactNode } from 'react';
 
 import type {
   ProviderScanResult,
@@ -22,6 +22,7 @@ import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 import { ChangesPanel } from '../changes/ChangesPanel';
+import { useDockedPanelViewport } from '../changes/useDockedPanelViewport';
 import type { ChangesApi } from '../changes/useWorkspaceChanges';
 import {
   useWorkspaceChangesPanel,
@@ -46,11 +47,12 @@ interface WorkspaceSessionsViewProps {
   /** Shows View changes in each session's menu when given. */
   onViewChanges?: ((session: SessionSummary) => void) | undefined;
   operationError: string | null;
-  /** Offers the workspace's changes panel; left off for remote catalogs. */
-  changesEnabled?: boolean | undefined;
+  /** Offers the workspace's changes panel; left out for remote catalogs. */
   changesApi?: ChangesApi | undefined;
   /** Opens the changes panel in a mode when it names this workspace. */
   changesRequest?: WorkspaceChangesRequest | null | undefined;
+  /** Told which request opened the panel, so the caller can drop it. */
+  onChangesRequestHandled?: ((key: number) => void) | undefined;
   sessionTitle?: ((catalogSessionId: string) => string | null) | undefined;
 }
 
@@ -181,14 +183,21 @@ export function WorkspaceSessionsView({
   onResumeOptions,
   onViewChanges,
   operationError,
-  changesEnabled = false,
   changesApi,
   changesRequest = null,
+  onChangesRequestHandled,
   sessionTitle
 }: WorkspaceSessionsViewProps): ReactNode {
   const { t } = useLocalization();
-  const changesShown = changesEnabled && changesApi !== undefined;
-  const changes = useWorkspaceChangesPanel({ enabled: changesShown, request: changesRequest, workspaceId });
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const changesShown = changesApi !== undefined;
+  const changes = useWorkspaceChangesPanel({
+    enabled: changesShown,
+    onRequestHandled: onChangesRequestHandled,
+    request: changesRequest,
+    workspaceId
+  });
+  useDockedPanelViewport(sectionRef, changes.panelProps !== null);
   const sessions =
     status.state === 'ready'
       ? status.snapshot.sessions.filter(
@@ -257,34 +266,35 @@ export function WorkspaceSessionsView({
     <section
       aria-labelledby="workspace-session-title"
       className={`catalog-panel workspace-detail${changes.className}`}
+      ref={sectionRef}
     >
-      <div className="workspace-detail-main">
-        <div className="workspace-detail-toolbar">
-          <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
-            {t('catalog.workspaces.back')}
-          </button>
-          <div className="catalog-actions">
-            <span className={`origin-badge origin-${workspace.origin}`}>
-              {t(`catalog.workspaces.origin-${workspace.origin}`)}
-            </span>
-            {changesShown ? (
-              <button className="secondary-button" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
-                {t('catalog.workspaces.changes')}
-              </button>
-            ) : null}
-            <IconButton
-              busy={isRefreshing}
-              busyLabel={t('catalog.workspaces.loading-sessions')}
-              disabled={isRefreshing}
-              label={t('catalog.workspaces.refresh-sessions')}
-              onClick={onRefresh}
-              tabIndex={-1}
-            >
-              <RefreshIcon />
-            </IconButton>
+      <div className="workspace-detail-toolbar">
+        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+          {t('catalog.workspaces.back')}
+        </button>
+        <div className="catalog-actions">
+          <span className={`origin-badge origin-${workspace.origin}`}>
+            {t(`catalog.workspaces.origin-${workspace.origin}`)}
+          </span>
+          {changesShown ? (
+            <button className="secondary-button" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
+              {t('catalog.workspaces.changes')}
+            </button>
+          ) : null}
+          <IconButton
+            busy={isRefreshing}
+            busyLabel={t('catalog.workspaces.loading-sessions')}
+            disabled={isRefreshing}
+            label={t('catalog.workspaces.refresh-sessions')}
+            onClick={onRefresh}
+            tabIndex={-1}
+          >
+            <RefreshIcon />
+          </IconButton>
 
-          </div>
         </div>
+      </div>
+      <div className="workspace-detail-main">
 
         {operationError === null ? null : (
           <div className="catalog-operation-error" role="alert">
