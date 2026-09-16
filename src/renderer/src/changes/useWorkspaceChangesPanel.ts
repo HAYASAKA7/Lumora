@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
-import { PRESSED_MODE_SELECTOR, type ChangesPanelMode } from './ChangesPanelContent';
+import { type ChangesPanelMode } from './ChangesPanelContent';
 import { useToggleChangesRequest } from './changes-shortcut';
 import {
   useChangesPanelControls,
-  type ChangesButtonProps,
-  type PanelFocusPlan
+  type ChangesButtonProps
 } from './useChangesPanelControls';
 
 /** Asks a workspace page to open its changes panel; a new key opens it again. */
@@ -54,13 +53,6 @@ export interface WorkspaceChangesPanel {
   panelProps: WorkspaceChangesPanelProps | null;
 }
 
-/** A requested history opens on the asked session's first batch, else on the History choice. */
-const HISTORY_FOCUS: PanelFocusPlan = {
-  target: '.changes-history-segment[data-highlighted="true"] .changes-history-batch',
-  fallback: PRESSED_MODE_SELECTOR,
-  settled: '.changes-history, .changes-empty, .changes-notice-error'
-};
-
 /** Keeps whether a workspace page shows its changes panel and in which mode it opened. */
 export function useWorkspaceChangesPanel({
   enabled,
@@ -84,7 +76,6 @@ export function useWorkspaceChangesPanel({
       panelKey: `request-${request.key}`
     });
     controls.setMaximized(false);
-    controls.focusPanel(HISTORY_FOCUS);
   }
 
   const handled = useRef(onRequestHandled);
@@ -108,7 +99,6 @@ export function useWorkspaceChangesPanel({
     const count = openCount + 1;
     setOpenCount(count);
     setOpened({ workspaceId, mode: 'changes', highlightSessionId: null, panelKey: `open-${count}` });
-    controls.focusPanel();
   };
 
   useToggleChangesRequest(inFront && enabled, toggle);
@@ -123,10 +113,7 @@ export function useWorkspaceChangesPanel({
       initialMode: shown.mode,
       maximized: controls.maximized,
       highlightSessionId: shown.highlightSessionId,
-      onClose: () => {
-        controls.focusButton();
-        close();
-      },
+      onClose: close,
       onMaximizedChange: controls.setMaximized
     }
   };

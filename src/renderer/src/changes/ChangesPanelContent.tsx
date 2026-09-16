@@ -15,7 +15,6 @@ export type ChangesPanelMode = 'changes' | 'history';
 type Choice = 'session' | 'uncommitted' | 'history';
 
 /** The pressed choice in the mode switch. */
-export const PRESSED_MODE_SELECTOR = '.changes-view-switch-button[aria-pressed="true"]';
 const OPEN_MENU_SELECTOR = '[aria-haspopup="menu"][aria-expanded="true"]';
 
 interface ChangesPanelContentProps {
@@ -49,7 +48,6 @@ export function ChangesPanelContent({
   /** The source a review opened from the history returns to. */
   const [returnTo, setReturnTo] = useState<ChangesSource | null>(null);
   const [sessionWorkspaceId, setSessionWorkspaceId] = useState<string | null>(null);
-  const [focusRequest, setFocusRequest] = useState(0);
 
   const historyWorkspaceId = source.kind === 'workspace'
     ? source.workspaceId
@@ -62,10 +60,6 @@ export function ChangesPanelContent({
     latest.current = { source, onSourceChange };
   });
 
-  useEffect(() => {
-    if (focusRequest > 0) rootRef.current?.querySelector<HTMLElement>(PRESSED_MODE_SELECTOR)?.focus();
-  }, [focusRequest]);
-
   const openReview = useCallback((reviewId: string) => {
     setReturnTo(latest.current.source);
     latest.current.onSourceChange({ kind: 'review', reviewId });
@@ -76,7 +70,6 @@ export function ChangesPanelContent({
     setReturnTo(null);
     setMode('history');
     onSourceChange(returnTo);
-    setFocusRequest((value) => value + 1);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

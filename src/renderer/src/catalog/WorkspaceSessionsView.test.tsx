@@ -512,31 +512,33 @@ describe('WorkspaceSessionsView', () => {
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
     });
 
-    it('moves focus into the panel and back to the button around a toolbar open', async () => {
+    it('opens and closes the panel from the toolbar without moving focus', async () => {
       const api = changesApi();
-      render(view({ changesApi: api }));
+      const { container } = render(view({ changesApi: api }));
+      const typing = document.createElement('textarea');
+      container.append(typing);
+      typing.focus();
 
       fireEvent.click(screen.getByRole('button', { name: 'Changes' }));
-      expect(screen.getByRole('button', { name: 'Close changes' })).toHaveFocus();
+      expect(typing).toHaveFocus();
       await screen.findByText('src/app.ts');
-      expect(screen.getByRole('button', { name: /^Modified/ })).toHaveFocus();
+      expect(typing).toHaveFocus();
 
       fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Changes' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Changes' })).not.toHaveFocus();
     });
 
     it('opens a requested history on the highlighted batch and closes on Escape', async () => {
       const api = changesApi();
       render(view({ changesApi: api, changesRequest: historyRequest }));
 
-      expect(screen.getByRole('button', { name: 'History' })).toHaveFocus();
       const batch = await screen.findByRole('button', { name: /^1 file reviewed · / });
-      expect(batch).toHaveFocus();
+      expect(batch).not.toHaveFocus();
 
       fireEvent.keyDown(batch, { key: 'Escape' });
       expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Changes' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Changes' })).not.toHaveFocus();
     });
 
     it('keeps the page toolbar reachable while the panel is maximized', async () => {
@@ -578,7 +580,7 @@ describe('WorkspaceSessionsView', () => {
 
       expect(screen.getByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
       expect(onChangesRequestHandled).toHaveBeenCalledExactlyOnceWith(historyRequest.key);
-      expect(await screen.findByRole('button', { name: /^1 file reviewed · / })).toHaveFocus();
+      expect(await screen.findByRole('button', { name: /^1 file reviewed · / })).toBeInTheDocument();
       const section = container.querySelector<HTMLElement>('.workspace-detail')!;
       expect(section.style.getPropertyValue('--changes-panel-visible-height')).toMatch(/^[0-9]+px$/);
     });

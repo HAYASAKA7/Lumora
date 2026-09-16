@@ -678,7 +678,8 @@ describe('TerminalWorkspace changes', () => {
     expect(panel).not.toBeNull();
     expect(panel?.parentElement).toBe(section());
     expect(section()).toHaveClass('has-changes-panel');
-    expect(panel?.contains(document.activeElement)).toBe(true);
+    // Opening takes no focus: the terminal keeps the keyboard.
+    expect(panel?.contains(document.activeElement)).toBe(false);
     expect(screen.getByRole('button', { name: 'Changes 5' })).toHaveAttribute('aria-expanded', 'true');
     await waitFor(() => expect(api.getChangesSummary).toHaveBeenCalledWith({
       kind: 'session', ownerId: runtime.id, view: 'session'

@@ -1709,6 +1709,8 @@ describe('StructuredAgentWorkspace changes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Changes 5' }));
     await act(async () => undefined);
     const panel = changesPanel() as HTMLElement;
+    // Only a reader who moved into the panel themselves holds focus there.
+    panel.querySelector<HTMLElement>('button.changes-file-select')?.focus();
     expect(panel.contains(document.activeElement)).toBe(true);
 
     const withState = (state: 'ready' | 'reconnecting') => [
@@ -1754,7 +1756,8 @@ describe('StructuredAgentWorkspace changes', () => {
     const panel = changesPanel();
     expect(panel?.parentElement).toBe(section());
     expect(section()).toHaveClass('has-changes-panel');
-    expect(panel?.contains(document.activeElement)).toBe(true);
+    // Opening takes no focus: the composer keeps the keyboard.
+    expect(panel?.contains(document.activeElement)).toBe(false);
     await waitFor(() => expect(changesApi.getChangesSummary).toHaveBeenCalledWith({
       kind: 'session', ownerId: 'connection-1', view: 'session'
     }));
@@ -1765,7 +1768,7 @@ describe('StructuredAgentWorkspace changes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
     expect(changesPanel()).toBeNull();
     expect(section()).not.toHaveClass('changes-maximized');
-    expect(screen.getByRole('button', { name: 'Changes 5' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Changes 5' })).not.toHaveFocus();
   });
 
   it('keeps each tab its own changes panel state', async () => {

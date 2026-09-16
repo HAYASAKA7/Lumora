@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop the changes panel from taking the keyboard. Opening it, closing it,
+  coming back from a reviewed batch, and revealing more files each moved focus
+  onto a button, so `Ctrl+Shift+G` left a focus ring on the panel's **Close**
+  button and `Escape` left one on **Changes**. The panel now leaves focus where
+  it was, and the terminal or the composer keeps it. Arrow keys still move
+  between files once you select one.
+
 ## [0.6.0] - 2026-09-16
 
 ### Added

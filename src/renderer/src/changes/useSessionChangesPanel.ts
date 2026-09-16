@@ -42,8 +42,8 @@ export interface SessionChangesPanel {
 
 /**
  * Keeps which sessions have their changes panel open, so each session tab
- * shows its own panel state. Opening moves focus into the panel and closing
- * from the panel's own controls returns it to the Changes button.
+ * shows its own panel state. Opening and closing move no focus, so the
+ * terminal or the composer keeps the keyboard.
  */
 export function useSessionChangesPanel({
   enabled,
@@ -66,7 +66,6 @@ export function useSessionChangesPanel({
 
   const toggle = () => {
     if (!enabled || ownerId === undefined) return;
-    if (!isOpen) controls.focusPanel();
     controls.setMaximized(false);
     setOwnerOpen(ownerId, !isOpen);
   };
@@ -78,7 +77,6 @@ export function useSessionChangesPanel({
     source: { kind: 'session', ownerId, view: 'session' },
     maximized: controls.maximized,
     onClose: () => {
-      controls.focusButton();
       controls.setMaximized(false);
       setOwnerOpen(ownerId, false);
     },

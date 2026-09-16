@@ -245,7 +245,7 @@ describe('ChangesView', () => {
     expect(screen.getByText('Show more (4,400 files not shown)')).toBeInTheDocument();
   });
 
-  it('moves focus to the first newly shown row when the last page appears', async () => {
+  it('shows the last page without chasing the new rows with focus', async () => {
     const { api } = fakeChangesApi(() => manyFiles(301));
     renderView(api);
     const list = await findFileList();
@@ -254,7 +254,7 @@ describe('ChangesView', () => {
 
     expect(list.querySelectorAll(':scope > li')).toHaveLength(301);
     expect(screen.queryByText(/^Show more/)).not.toBeInTheDocument();
-    expect(selectButton('src/file-300.ts')).toHaveFocus();
+    expect(selectButton('src/file-300.ts')).not.toHaveFocus();
   });
 
   it('renders committed rows only while the committed group is open', async () => {

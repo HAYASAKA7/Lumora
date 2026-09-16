@@ -28,7 +28,7 @@ function panel(): HTMLElement | null {
 }
 
 describe('useSessionChangesPanel', () => {
-  it('opens the panel for the session, moves focus into it and closes it again', async () => {
+  it('opens the panel for the session and closes it again', async () => {
     const { api } = fakeChangesApi();
     renderWithLocalization(<Harness api={api} ownerId="r1" />);
 
@@ -40,7 +40,6 @@ describe('useSessionChangesPanel', () => {
     expect(changesButton()).toHaveAttribute('aria-expanded', 'true');
     expect(changesButton()).toHaveAttribute('aria-controls', aside?.id);
     expect(screen.getByTestId('workspace')).toHaveClass('has-changes-panel');
-    expect(aside?.contains(document.activeElement)).toBe(true);
     await waitFor(() => expect(api.getChangesSummary).toHaveBeenCalledWith({ kind: 'session', ownerId: 'r1', view: 'session' }));
 
     fireEvent.click(changesButton());
@@ -48,48 +47,41 @@ describe('useSessionChangesPanel', () => {
     expect(screen.getByTestId('workspace')).not.toHaveClass('has-changes-panel');
   });
 
-  it('moves focus from the close button to the file list once it first loads', async () => {
+  it('moves no focus while the file list loads or once it arrives', async () => {
     const { api } = fakeChangesApi();
     let finish!: (summary: ChangesSummary) => void;
     api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    renderWithLocalization(<Harness api={api} ownerId="r1" />);
+    const { container } = renderWithLocalization(<Harness api={api} ownerId="r1" />);
+    const typing = document.createElement('textarea');
+    container.append(typing);
+    typing.focus();
 
     fireEvent.click(changesButton());
-    expect(screen.getByRole('button', { name: 'Close changes' })).toHaveFocus();
+    expect(typing).toHaveFocus();
 
     await act(async () => finish(sessionSummary));
-    expect(selectButton('src/login.ts')).toHaveFocus();
+    expect(selectButton('src/login.ts')).not.toHaveFocus();
+    expect(typing).toHaveFocus();
   });
 
-  it('leaves focus where the user moved it before the file list loads', async () => {
+  it('leaves focus alone when the panel closes itself', async () => {
     const { api } = fakeChangesApi();
-    let finish!: (summary: ChangesSummary) => void;
-    api.getChangesSummary.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    renderWithLocalization(<Harness api={api} ownerId="r1" />);
-
-    fireEvent.click(changesButton());
-    const maximize = screen.getByRole('button', { name: 'Maximize changes' });
-    maximize.focus();
-
-    await act(async () => finish(sessionSummary));
-    expect(maximize).toHaveFocus();
-  });
-
-  it('returns focus to the button when the panel closes itself', async () => {
-    const { api } = fakeChangesApi();
-    renderWithLocalization(<Harness api={api} ownerId="r1" />);
+    const { container } = renderWithLocalization(<Harness api={api} ownerId="r1" />);
+    const typing = document.createElement('textarea');
+    container.append(typing);
+    typing.focus();
     fireEvent.click(changesButton());
     await act(async () => undefined);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close changes' }));
     expect(panel()).toBeNull();
-    expect(changesButton()).toHaveFocus();
+    expect(changesButton()).not.toHaveFocus();
 
     fireEvent.click(changesButton());
     await act(async () => undefined);
     fireEvent.keyDown(panel() as HTMLElement, { key: 'Escape' });
     expect(panel()).toBeNull();
-    expect(changesButton()).toHaveFocus();
+    expect(changesButton()).not.toHaveFocus();
   });
 
   it('keeps each session its own open state and starts a switched panel restored', async () => {

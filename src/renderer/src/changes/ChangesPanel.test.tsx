@@ -385,7 +385,6 @@ describe('ChangesPanel', () => {
       fireEvent.keyDown(screen.getByRole('button', { name: 'Back to history' }), { key: 'Escape' });
       expect(onClose).not.toHaveBeenCalled();
       await screen.findByRole('list', { name: 'Change history' });
-      expect(screen.getByRole('button', { name: 'History' })).toHaveFocus();
 
       fireEvent.keyDown(screen.getByRole('button', { name: 'History' }), { key: 'Escape' });
       expect(onClose).toHaveBeenCalledTimes(1);
