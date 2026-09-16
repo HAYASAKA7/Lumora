@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useMemo, useState } from 'react';
+import { memo, type ReactNode, useMemo, useRef, useState } from 'react';
 
 import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import type {
@@ -26,6 +26,8 @@ import {
 import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 import { SelectMenu } from '../ui/SelectMenu';
 import { ActionMenu } from '../ui/ActionMenu';
+import { useFocusSearchRequest, useRefreshRequest } from '../keyboard/page-requests';
+import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 
@@ -43,6 +45,8 @@ interface WorkspacesViewProps {
   status: CatalogViewStatus;
   isRefreshing: boolean;
   onRefresh(): void;
+  /** False while a session is in front, so the page leaves the keys alone. */
+  shortcutsActive?: boolean | undefined;
   onAddWorkspace?: (() => void) | undefined;
   hiddenWorkspaceCount?: number | undefined;
   onHideWorkspace?: ((workspace: WorkspaceSummary) => void) | undefined;
@@ -127,6 +131,7 @@ const WorkspaceCard = memo(function WorkspaceCard({
 export function WorkspacesView({
   status,
   isRefreshing,
+  shortcutsActive = true,
   onRefresh,
   onAddWorkspace,
   hiddenWorkspaceCount = 0,
@@ -137,6 +142,16 @@ export function WorkspacesView({
 }: WorkspacesViewProps): ReactNode {
   const { t } = useLocalization();
   const [queryText, setQueryText] = useState('');
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const refreshShortcut = useShortcutLabel('refresh');
+  useRefreshRequest(shortcutsActive && !isRefreshing, onRefresh);
+  useFocusSearchRequest(shortcutsActive, () => {
+    const field = searchRef.current;
+    if (field === null) return;
+    // Selecting what is there lets the next keystroke start a new search.
+    field.focus();
+    field.select();
+  });
   const workspaces =
     status.state === 'ready' ? status.snapshot.workspaces : [];
   const normalizedQuery = queryText.trim().toLowerCase();
@@ -190,6 +205,7 @@ export function WorkspacesView({
           <input
             onChange={(event) => setQueryText(event.currentTarget.value)}
             placeholder={t('catalog.workspaces.search-placeholder')}
+            ref={searchRef}
             type="search"
             value={queryText}
           />
@@ -223,6 +239,7 @@ export function WorkspacesView({
             disabled={isRefreshing}
             label={t('catalog.workspaces.refresh')}
             onClick={onRefresh}
+            shortcut={refreshShortcut}
             tabIndex={-1}
           >
             <RefreshIcon />
@@ -288,6 +305,8 @@ interface SessionsViewProps {
   workspaceById?: ReadonlyMap<string, WorkspaceSummary> | undefined;
   showInformationalNotices: boolean;
   runningSessionIds?: ReadonlySet<string> | undefined;
+  /** False while a session is in front, so the page leaves the keys alone. */
+  shortcutsActive?: boolean | undefined;
   onSearchChange(value: string): void;
   onProviderChange(value: ProviderId | null): void;
   onDismissDiagnostic(identity: string): void;
@@ -426,6 +445,7 @@ const SessionRow = memo(function SessionRow({
 export function SessionsView({
   status,
   isRefreshing,
+  shortcutsActive = true,
   dismissedDiagnosticIds,
   queryText,
   provider,
@@ -443,6 +463,16 @@ export function SessionsView({
   onViewChanges
 }: SessionsViewProps): ReactNode {
   const { t } = useLocalization();
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const refreshShortcut = useShortcutLabel('refresh');
+  useRefreshRequest(shortcutsActive && !isRefreshing, onRefresh);
+  useFocusSearchRequest(shortcutsActive, () => {
+    const field = searchRef.current;
+    if (field === null) return;
+    // Selecting what is there lets the next keystroke start a new search.
+    field.focus();
+    field.select();
+  });
   const sessionCount =
     status.state === 'ready' ? status.snapshot.sessions.length : 0;
   const progress = useProgressiveList({
@@ -494,6 +524,7 @@ export function SessionsView({
           <input
             onChange={(event) => onSearchChange(event.currentTarget.value)}
             placeholder={t('catalog.sessions.search-placeholder')}
+            ref={searchRef}
             type="search"
             value={queryText}
           />
@@ -521,6 +552,7 @@ export function SessionsView({
           disabled={isRefreshing}
           label={t('catalog.workspaces.refresh')}
           onClick={onRefresh}
+          shortcut={refreshShortcut}
           tabIndex={-1}
         >
           <RefreshIcon />

@@ -19,6 +19,7 @@ import {
 import { Tooltip } from '../ui/Tooltip';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
+import { useRefreshRequest } from '../keyboard/page-requests';
 import { useLocalization } from '../localization/useLocalization';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 import { ChangesPanel } from '../changes/ChangesPanel';
@@ -193,6 +194,7 @@ export function WorkspaceSessionsView({
 }: WorkspaceSessionsViewProps): ReactNode {
   const { t } = useLocalization();
   const sectionRef = useRef<HTMLElement | null>(null);
+  useRefreshRequest(changesShortcutActive && !isRefreshing, onRefresh);
   const workspace = status.state === 'ready'
     ? status.snapshot.workspaces.find((candidate) => candidate.id === workspaceId)
     : undefined;

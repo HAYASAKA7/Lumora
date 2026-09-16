@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
+import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
 import { CloseButton } from '../ui/CloseButton';
 import { IconButton } from '../ui/IconButton';
@@ -58,6 +59,7 @@ export function ChangesPanel({
   source
 }: ChangesPanelProps): ReactNode {
   const { t } = useLocalization();
+  const maximizeShortcut = useShortcutLabel('maximizeChanges');
   const panelRef = useRef<HTMLElement | null>(null);
   const sourceKey = JSON.stringify(source);
   const [trackedKey, setTrackedKey] = useState(sourceKey);
@@ -172,6 +174,7 @@ export function ChangesPanel({
         <div className="changes-panel-actions">
           <IconButton
             label={t(maximized ? 'terminal.changes.restore' : 'terminal.changes.maximize')}
+            shortcut={maximizeShortcut}
             onClick={toggleMaximized}
           >
             {maximized ? <RestoreIcon /> : <MaximizeIcon />}

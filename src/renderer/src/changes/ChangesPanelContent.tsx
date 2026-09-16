@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
+import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
+import { useRefreshRequest } from '../keyboard/page-requests';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { ChangesHistory } from './ChangesHistory';
@@ -43,6 +45,7 @@ export function ChangesPanelContent({
   source
 }: ChangesPanelContentProps): ReactNode {
   const { t } = useLocalization();
+  const refreshShortcut = useShortcutLabel('refresh');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<ChangesPanelMode>(initialMode);
   /** The source a review opened from the history returns to. */
@@ -54,6 +57,7 @@ export function ChangesPanelContent({
     : source.kind === 'session' ? sessionWorkspaceId : null;
   const showHistory = source.kind !== 'review' && mode === 'history' && historyWorkspaceId !== null;
   const history = useChangesHistory(api, historyWorkspaceId, active && showHistory);
+  useRefreshRequest(active && showHistory && !history.refreshing, history.reload);
 
   const latest = useRef({ source, onSourceChange });
   useLayoutEffect(() => {
@@ -123,6 +127,7 @@ export function ChangesPanelContent({
               busyLabel={t('terminal.changes.refreshing')}
               label={t('terminal.changes.refresh')}
               onClick={history.reload}
+              shortcut={refreshShortcut}
             >
               <RefreshIcon />
             </IconButton>

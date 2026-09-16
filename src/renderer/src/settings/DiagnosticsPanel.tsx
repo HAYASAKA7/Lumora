@@ -5,6 +5,7 @@ import type {
   DiagnosticSummary,
   LumoraApi
 } from '../../../shared/contracts';
+import { useRefreshRequest } from '../keyboard/page-requests';
 import { useLocalization } from '../localization/useLocalization';
 import { IconButton } from '../ui/IconButton';
 import { InfoIcon, RefreshIcon } from '../ui/icons';
@@ -58,6 +59,7 @@ export function DiagnosticsPanel({
 
   const resourceStatus = useDiagnosticResources(api, active);
 
+
   const refresh = useCallback(async () => {
     const generation = ++refreshGeneration.current;
     setStatus({ state: 'loading' });
@@ -95,6 +97,8 @@ export function DiagnosticsPanel({
       refreshGeneration.current += 1;
     };
   }, [active, api, refresh]);
+
+  useRefreshRequest(active && status.state !== 'loading', () => void refresh());
 
   const updateStorage = async (
     operation: () => Promise<DiagnosticStorageSettings>

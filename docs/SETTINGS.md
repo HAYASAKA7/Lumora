@@ -162,7 +162,9 @@ isolated from local ones.
 
 Application shortcuts can be recorded and changed. Lumora does not use
 browser-style Tab navigation; editable controls keep focus and managed
-terminals receive native Tab input.
+terminals receive native Tab input. A shortcut that no page or panel can answer
+is passed on rather than swallowed, so rebinding one to a key an agent uses
+costs you that key only where Lumora acts on it.
 
 <p align="center">
   <img src="screenshots/0.5/settings/settings_keyboard.png" alt="Lumora Keyboard settings with customizable application shortcuts" width="1100">

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { useToggleChangesRequest } from './changes-shortcut';
+import { useMaximizeChangesRequest, useToggleChangesRequest } from './changes-shortcut';
 
 import type { ChangesSource } from '../../../shared/contracts';
 import {
@@ -71,6 +71,7 @@ export function useSessionChangesPanel({
   };
 
   useToggleChangesRequest(inFront && enabled && ownerId !== undefined, toggle);
+  useMaximizeChangesRequest(inFront && isOpen, () => controls.setMaximized(!controls.maximized));
 
   const panelProps: SessionChangesPanelProps | null = !isOpen || ownerId === undefined ? null : {
     id: controls.panelId,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ChangesSource } from '../../../shared/contracts';
 import { type ChangesPanelMode } from './ChangesPanelContent';
-import { useToggleChangesRequest } from './changes-shortcut';
+import { useMaximizeChangesRequest, useToggleChangesRequest } from './changes-shortcut';
 import {
   useChangesPanelControls,
   type ChangesButtonProps
@@ -102,6 +102,7 @@ export function useWorkspaceChangesPanel({
   };
 
   useToggleChangesRequest(inFront && enabled, toggle);
+  useMaximizeChangesRequest(inFront && shown !== null, () => controls.setMaximized(!controls.maximized));
 
   return {
     className: controls.className,

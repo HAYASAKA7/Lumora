@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import type { ChangedFile, ChangesSource, ChangesSummary } from '../../../shared/contracts';
+import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
 import type { ActionMenuItem } from '../ui/ActionMenu';
+import { useRefreshRequest } from '../keyboard/page-requests';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
@@ -68,8 +70,10 @@ export function ChangesView({
   toolbarStart
 }: ChangesViewProps): ReactNode {
   const { t } = useLocalization();
+  const refreshShortcut = useShortcutLabel('refresh');
   const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } =
     useWorkspaceChanges(api, source, active);
+  useRefreshRequest(active && !refreshing, () => void reload());
   const rootRef = useRef<HTMLDivElement | null>(null);
   const wide = useIsWide(rootRef);
   const reviewable = source.kind === 'session' && source.view === 'session';
@@ -209,6 +213,7 @@ export function ChangesView({
             busyLabel={t('terminal.changes.refreshing')}
             label={t('terminal.changes.refresh')}
             onClick={() => void reload()}
+            shortcut={refreshShortcut}
           >
             <RefreshIcon />
           </IconButton>

@@ -7,6 +7,28 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Four shortcuts for buttons that had none. `Ctrl+Shift+N` opens the new
+  session dialog, from any page and while a session is in front.
+  `Ctrl+Shift+M` maximizes or restores the changes panel. `Ctrl+Shift+R`
+  refreshes what is in front: the changes panel when one is open, otherwise
+  Workspaces, All Sessions, a workspace's session list, or Diagnostics.
+  `Ctrl+F` puts the cursor in the search field on Workspaces and All Sessions.
+  All four can be changed under **Settings > Keyboard**, and a shortcut nothing
+  can answer is passed on to the agent rather than swallowed.
+
+### Changed
+
+- Close any dialog with `Escape`. Eleven dialogs, among them **New session**,
+  the session details, the transfer dialogs and the remote profile and
+  installation dialogs, could only be closed with their close button. Escape
+  now answers the layer in front, so a menu opened inside a dialog closes on
+  its own first, and a dialog busy with work it cannot abandon still ignores
+  the key.
+- Buttons that a shortcut works now say so in their tooltip, including
+  **Changes**, **New session**, **Maximize changes** and the refresh buttons.
+
 ### Fixed
 
 - Stop the changes panel from taking the keyboard. Opening it, closing it,

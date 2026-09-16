@@ -2687,6 +2687,77 @@ describe('App', () => {
     expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
   });
 
+  it('opens the new session dialog with Ctrl+Shift+N, wherever it is pressed', async () => {
+    renderWithLocalization(<App />);
+    await screen.findByRole('group', { name: 'Session actions' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'All sessions' }));
+    expect(screen.queryByRole('button', { name: 'New session' })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { code: 'KeyN', key: 'N', ctrlKey: true, shiftKey: true });
+
+    expect(await screen.findByRole('dialog', { name: 'New session' })).toBeInTheDocument();
+  });
+
+  it('maximizes and restores the changes panel in front with Ctrl+Shift+M', async () => {
+    renderWithLocalization(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
+    }));
+    await screen.findByRole('heading', { name: 'Lumora sessions' });
+
+    // Nothing is open yet, so the key does nothing.
+    fireEvent.keyDown(window, { code: 'KeyM', key: 'M', ctrlKey: true, shiftKey: true });
+    expect(document.querySelector('.changes-maximized')).toBeNull();
+
+    fireEvent.keyDown(window, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+    await screen.findByRole('complementary', { name: 'Changes' });
+
+    fireEvent.keyDown(window, { code: 'KeyM', key: 'M', ctrlKey: true, shiftKey: true });
+    expect(document.querySelector('.changes-maximized')).not.toBeNull();
+
+    fireEvent.keyDown(window, { code: 'KeyM', key: 'M', ctrlKey: true, shiftKey: true });
+    expect(document.querySelector('.changes-maximized')).toBeNull();
+  });
+
+  it('refreshes the catalog page in front with Ctrl+Shift+R', async () => {
+    const refreshCatalog = vi.fn().mockResolvedValue(readyCatalog);
+    setSystemInfoResult(undefined, undefined, { refreshCatalog });
+    renderWithLocalization(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    await screen.findByRole('heading', { name: 'Workspaces' });
+    await waitFor(() => expect(
+      screen.getAllByRole('button', { name: 'Refresh catalog' })[0]
+    ).toBeEnabled());
+    refreshCatalog.mockClear();
+
+    fireEvent.keyDown(window, { code: 'KeyR', key: 'R', ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => expect(refreshCatalog).toHaveBeenCalledTimes(1));
+  });
+
+  it('puts the cursor in the search field with Ctrl+F, and only where one is', async () => {
+    renderWithLocalization(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
+    const search = await screen.findByRole('searchbox', { name: 'Search workspaces' });
+    expect(search).not.toHaveFocus();
+
+    fireEvent.keyDown(window, { code: 'KeyF', key: 'f', ctrlKey: true });
+    expect(search).toHaveFocus();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal profiles' }));
+    const unanswered = new KeyboardEvent('keydown', {
+      code: 'KeyF', key: 'f', ctrlKey: true, cancelable: true, bubbles: true
+    });
+    window.dispatchEvent(unanswered);
+    // Nothing answered, so the key is left for the agent.
+    expect(unanswered.defaultPrevented).toBe(false);
+  });
+
   it('toggles the sidebar with Ctrl+Shift+L outside a terminal', () => {
     renderWithLocalization(<App />);
 

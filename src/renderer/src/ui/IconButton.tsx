@@ -19,6 +19,7 @@ export function IconButton({
   disabled = false,
   label,
   onClick,
+  shortcut,
   tabIndex,
   tone = 'normal'
 }: {
@@ -41,6 +42,8 @@ export function IconButton({
   /** What the button does, for the tooltip and assistive technology. */
   label: string;
   onClick(): void;
+  /** The written shortcut that does the same thing, shown under the name. */
+  shortcut?: string | undefined;
   tabIndex?: number | undefined;
   tone?: 'normal' | 'danger' | 'primary';
 }): ReactNode {
@@ -53,7 +56,7 @@ export function IconButton({
   ].filter((entry) => entry !== '').join(' ');
 
   return (
-    <Tooltip content={busy && busyLabel !== undefined ? busyLabel : label}>
+    <Tooltip content={busy && busyLabel !== undefined ? busyLabel : label} shortcut={shortcut}>
       <button
         aria-busy={busy}
         aria-label={label}

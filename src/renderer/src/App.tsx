@@ -44,7 +44,9 @@ import {
 } from './catalog/CatalogViews';
 import { WorkspaceSessionsView } from './catalog/WorkspaceSessionsView';
 import { StructuredAgentWorkspace } from './agent/StructuredAgentWorkspace';
-import { requestToggleChanges } from './changes/changes-shortcut';
+import { requestMaximizeChanges, requestToggleChanges } from './changes/changes-shortcut';
+import { requestFocusSearch, requestRefresh } from './keyboard/page-requests';
+import { ShortcutLabelsProvider } from './keyboard/ShortcutLabels';
 import { useChangeCounts } from './changes/useChangeCounts';
 import { useWorkspaceChangesNavigation } from './changes/useWorkspaceChangesNavigation';
 import { HiddenWorkspacesDialog } from './catalog/HiddenWorkspacesDialog';
@@ -104,7 +106,7 @@ import { DirectSessionLaunchWorkspace } from './terminal/DirectSessionLaunchWork
 import { useDirectSessionLaunch } from './terminal/useDirectSessionLaunch';
 import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
-import { TooltipProvider } from './ui/Tooltip';
+import { Tooltip, TooltipProvider } from './ui/Tooltip';
 import { useLocalization, type TranslationValues } from './localization/useLocalization';
 
 type RouteId =
@@ -464,6 +466,8 @@ function AppContent(): ReactNode {
   const workspaceDetailRequestId = useRef(0);
   const mainContentRef = useRef<HTMLElement | null>(null);
   const selectedWorkspaceIdRef = useRef<string | null>(selectedWorkspaceId);
+  /** Whether a new session can start at all; the shortcut works where the button is hidden. */
+  const newSessionAvailableRef = useRef(false);
   const lastActiveRuntimeIdRef = useRef<string | null>(null);
   const lastActiveStructuredConnectionIdRef = useRef<string | null>(null);
 
@@ -1875,11 +1879,51 @@ function AppContent(): ReactNode {
         return;
       }
 
+      // A request nobody answers leaves the key alone, so the agent still receives it.
       if (keyboardEventMatchesChord(event, keyboardSettings.toggleChanges)) {
-        // The session or workspace page in front answers; nothing happens when neither is.
+        if (requestToggleChanges()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
+      if (keyboardEventMatchesChord(event, keyboardSettings.maximizeChanges)) {
+        if (requestMaximizeChanges()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
+      if (keyboardEventMatchesChord(event, keyboardSettings.refresh)) {
+        if (requestRefresh()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
+      if (keyboardEventMatchesChord(event, keyboardSettings.focusSearch)) {
+        if (requestFocusSearch()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
+
+      if (keyboardEventMatchesChord(event, keyboardSettings.newSession)) {
+        if (!newSessionAvailableRef.current) return;
         event.preventDefault();
         event.stopPropagation();
-        requestToggleChanges();
+        setResumeIntent(null);
+        setRecoveryRuntime(null);
+        // An open dialog keeps what has been chosen in it.
+        setNewSessionIntent((current) => current ?? {
+          initialWorkspaceId: activeRoute.id === 'workspaces'
+            ? selectedWorkspaceIdRef.current
+            : null
+        });
         return;
       }
 
@@ -1945,6 +1989,7 @@ function AppContent(): ReactNode {
       window.removeEventListener('blur', blur);
     };
   }, [
+    activeRoute.id,
     activeTerminalRuntimeId,
     activateTerminalRuntime,
     allOpenRuntimeIds,
@@ -2156,6 +2201,11 @@ function AppContent(): ReactNode {
   const visibleCatalogStatus: CatalogViewStatus = catalogPresentation === null
     ? visibilityCatalogStatus
     : { state: 'ready', snapshot: catalogPresentation.snapshot };
+  const canStartNewSession = visibleCatalogStatus.state === 'ready' &&
+    visibleCatalogStatus.snapshot.workspaces.some((workspace) => workspace.available);
+  useEffect(() => {
+    newSessionAvailableRef.current = canStartNewSession;
+  }, [canStartNewSession]);
   useEffect(() => {
     if (
       catalogPresentation !== null &&
@@ -2201,7 +2251,7 @@ function AppContent(): ReactNode {
   const appearanceBackgroundStyle = appearancePresentation.backgroundStyle;
 
   return (
-    <>
+    <ShortcutLabelsProvider keyboardSettings={keyboardSettings} platform={shortcutPlatform}>
       <LumoraShell
         activeRouteId={activeRouteId}
         appearance={{
@@ -2296,26 +2346,32 @@ function AppContent(): ReactNode {
             ) : null}
             {activeRuntimeId === null &&
             (activeRoute.id === 'home' || activeRoute.id === 'workspaces') &&
-            visibleCatalogStatus.state === 'ready' &&
-            visibleCatalogStatus.snapshot.workspaces.some((workspace) => workspace.available) ? (
-              <button
-                className="refresh-button"
-                data-lumora-command
-                onClick={() => {
-                  setResumeIntent(null);
-                  setRecoveryRuntime(null);
-                  setNewSessionIntent({
-                    initialWorkspaceId:
-                      activeRoute.id === 'workspaces'
-                        ? selectedWorkspaceId
-                        : null
-                  });
-                }}
-                tabIndex={-1}
-                type="button"
+            canStartNewSession ? (
+              <Tooltip
+                content={t('shell.topbar.new-session')}
+                shortcut={shortcutPlatform === null
+                  ? undefined
+                  : formatShortcutChord(keyboardSettings.newSession, shortcutPlatform)}
               >
-                {t('shell.topbar.new-session')}
-              </button>
+                <button
+                  className="refresh-button"
+                  data-lumora-command
+                  onClick={() => {
+                    setResumeIntent(null);
+                    setRecoveryRuntime(null);
+                    setNewSessionIntent({
+                      initialWorkspaceId:
+                        activeRoute.id === 'workspaces'
+                          ? selectedWorkspaceId
+                          : null
+                    });
+                  }}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  {t('shell.topbar.new-session')}
+                </button>
+              </Tooltip>
             ) : null}
             </>
           )
@@ -2375,6 +2431,7 @@ function AppContent(): ReactNode {
                 <WorkspacesView
                   hiddenWorkspaceCount={catalogPresentation?.hiddenWorkspaces.length ?? 0}
                   isRefreshing={isCatalogRefreshing}
+                  shortcutsActive={!terminalActive}
                   onAddWorkspace={addWorkspace}
                   onHideWorkspace={(workspace) => {
                     setWorkspaceVisibilityError(null);
@@ -2417,6 +2474,7 @@ function AppContent(): ReactNode {
               <SessionsView
                 dismissedDiagnosticIds={dismissedSessionDiagnostics}
                 isRefreshing={isCatalogRefreshing}
+                shortcutsActive={!terminalActive}
                 onDismissDiagnostic={dismissSessionDiagnostic}
                 onProviderChange={setSessionProvider}
                 onRefresh={refreshCatalog}
@@ -2712,7 +2770,7 @@ function AppContent(): ReactNode {
         shouldPlay={startupDismissed ? false : startupShouldPlay}
         videoSrc={startupVideoUrl}
       />
-    </>
+    </ShortcutLabelsProvider>
   );
 }
 export default function App(): ReactNode {

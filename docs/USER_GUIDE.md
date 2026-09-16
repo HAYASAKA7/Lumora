@@ -193,8 +193,10 @@ The button opens a panel beside the session. `Ctrl+Shift+G` does the same for
 whatever is in front, the session or the workspace page, and closes the panel
 again; change it under **Settings > Keyboard**. Drag the panel's left edge to
 make it wider or narrower, use **Maximize changes** to give it the whole view
-and **Restore changes size** to put it back, and close it with **Close changes**
-or by pressing `Escape`.
+and **Restore changes size** to put it back, or press `Ctrl+Shift+M` for either.
+`Ctrl+Shift+R` reads the workspace again, and **Close changes** or `Escape`
+closes the panel. Opening the panel moves no focus: whatever you were typing in
+keeps the keyboard.
 
 <p align="center">
   <img src="screenshots/0.6/changes/changes_panel.png" alt="A Unified UI session with the Changes panel docked beside it, listing the changed files above the selected file's diff" width="1100">
@@ -341,14 +343,24 @@ Lumora intentionally does not use browser-style `Tab` or `Shift+Tab` navigation.
 | Up / Down | Change the highlighted session while the terminal switcher is open |
 | `Alt+Shift+Left` / `Alt+Shift+Right` | Move the focused terminal tab |
 | `Ctrl+Shift+T` | Return to running terminals and focus terminal input |
+| `Ctrl+Shift+N` | Open the new session dialog |
 | `Ctrl+Shift+L` | Collapse or expand the sidebar |
 | `Ctrl+Shift+G` | Show or hide changes for the session or workspace page in front |
+| `Ctrl+Shift+M` | Maximize or restore the changes panel in front |
+| `Ctrl+Shift+R` | Refresh the page or panel in front |
+| `Ctrl+F` | Put the cursor in the search field on Workspaces and All Sessions |
+| `Escape` | Close the dialog, menu, or panel in front |
 | `Ctrl+1` | Open Home |
 | `Ctrl+2` | Open Workspaces |
 | `Ctrl+3` | Open All Sessions |
 | `Ctrl+4` | Open Terminal Profiles |
 | `Ctrl+5` | Open Remote Computers |
 | `Ctrl+,` | Open Settings |
+
+A shortcut nobody can answer does nothing and is passed on: `Ctrl+F` reaches
+the agent in a session, because only Workspaces and All Sessions search, and
+`Ctrl+Shift+M` does nothing with no changes panel open. `Escape` always answers
+the layer in front, so a menu opened inside a dialog closes on its own first.
 
 Hold the switcher shortcut's modifier to keep the switcher open and release it
 to move to the highlighted session. The list scrolls when more terminals are
