@@ -4,6 +4,8 @@ import type { CatalogSnapshot, SessionSummary } from '../../../shared/contracts'
 import type { WorkspaceChangesRequest } from './useWorkspaceChangesPanel';
 
 interface WorkspaceChangesNavigationOptions {
+  /** The workspace page the user is on, whether or not it has loaded, else null. */
+  selectedWorkspaceId: string | null;
   /** The workspace page on screen with its sessions loaded, else null. */
   shownWorkspaceId: string | null;
   /** The sessions behind that page; titles come from here. */
@@ -20,23 +22,40 @@ export interface WorkspaceChangesNavigation {
   viewSessionChanges(session: SessionSummary): void;
 }
 
+interface TrackedPage {
+  selected: string | null;
+  shown: string | null;
+}
+
 /**
  * Takes a session to its workspace's changes. The page keeps the request only
  * until it opens the panel, and a request for a workspace the user has left is
- * dropped rather than opening the panel when that page comes back.
+ * dropped rather than opening the panel when that page comes back. Leaving
+ * counts while the page is still loading, so a request survives a page that is
+ * merely reloading but not a page the user closed before its sessions arrived.
  */
 export function useWorkspaceChangesNavigation({
   openWorkspace,
+  selectedWorkspaceId,
   shownWorkspaceId,
   snapshot
 }: WorkspaceChangesNavigationOptions): WorkspaceChangesNavigation {
   const [request, setRequest] = useState<WorkspaceChangesRequest | null>(null);
-  const [trackedWorkspaceId, setTrackedWorkspaceId] = useState(shownWorkspaceId);
+  const [trackedPage, setTrackedPage] = useState<TrackedPage>({
+    selected: selectedWorkspaceId,
+    shown: shownWorkspaceId
+  });
   const lastKey = useRef(0);
 
-  if (trackedWorkspaceId !== shownWorkspaceId) {
-    setTrackedWorkspaceId(shownWorkspaceId);
-    if (request !== null && request.workspaceId !== shownWorkspaceId) setRequest(null);
+  if (trackedPage.selected !== selectedWorkspaceId || trackedPage.shown !== shownWorkspaceId) {
+    setTrackedPage({ selected: selectedWorkspaceId, shown: shownWorkspaceId });
+    if (
+      request !== null &&
+      request.workspaceId !== selectedWorkspaceId &&
+      request.workspaceId !== shownWorkspaceId
+    ) {
+      setRequest(null);
+    }
   }
 
   const titles = useMemo(

@@ -21,6 +21,8 @@ const snapshot = {
 
 interface Props {
   shownWorkspaceId: string | null;
+  /** Defaults to the shown page, which is what a loaded workspace looks like. */
+  selectedWorkspaceId?: string | null;
   snapshot?: CatalogSnapshot | null;
 }
 
@@ -29,6 +31,9 @@ function setup(initial: Props = { shownWorkspaceId: null }) {
   const view = renderHook(
     (props: Props) => useWorkspaceChangesNavigation({
       openWorkspace,
+      selectedWorkspaceId: props.selectedWorkspaceId === undefined
+        ? props.shownWorkspaceId
+        : props.selectedWorkspaceId,
       shownWorkspaceId: props.shownWorkspaceId,
       snapshot: props.snapshot === undefined ? snapshot : props.snapshot
     }),
@@ -85,6 +90,31 @@ describe('useWorkspaceChangesNavigation', () => {
 
     rerender({ shownWorkspaceId: null });
     expect(result.current.request).toBeNull();
+  });
+
+  it('drops a request when its workspace page is left before it is ready', () => {
+    const { rerender, result } = setup({ shownWorkspaceId: null });
+    act(() => result.current.viewSessionChanges(session));
+
+    rerender({ shownWorkspaceId: null, selectedWorkspaceId: 'ws-1' });
+    expect(result.current.request).not.toBeNull();
+
+    rerender({ shownWorkspaceId: null, selectedWorkspaceId: null });
+    expect(result.current.request).toBeNull();
+
+    rerender({ shownWorkspaceId: 'ws-1', selectedWorkspaceId: 'ws-1' });
+    expect(result.current.request).toBeNull();
+  });
+
+  it('keeps a request while its workspace page reloads', () => {
+    const { rerender, result } = setup({ shownWorkspaceId: 'ws-1' });
+    act(() => result.current.viewSessionChanges(session));
+
+    rerender({ shownWorkspaceId: null, selectedWorkspaceId: 'ws-1' });
+    expect(result.current.request).not.toBeNull();
+
+    rerender({ shownWorkspaceId: 'ws-1', selectedWorkspaceId: 'ws-1' });
+    expect(result.current.request).not.toBeNull();
   });
 
   it('reads titles from the shown catalog and keeps the lookup stable', () => {

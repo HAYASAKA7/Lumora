@@ -1775,6 +1775,9 @@ function AppContent(): ReactNode {
   }, [navigateToRoute, openWorkspaceDetail]);
   const workspaceChanges = useWorkspaceChangesNavigation({
     openWorkspace: openWorkspaceChanges,
+    selectedWorkspaceId: activeRoute.id === 'workspaces' && !terminalActive
+      ? selectedWorkspaceId
+      : null,
     shownWorkspaceId: activeRoute.id === 'workspaces' &&
       selectedWorkspaceId !== null &&
       !terminalActive &&
