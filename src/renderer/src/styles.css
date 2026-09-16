@@ -3037,6 +3037,23 @@ button {
   opacity: 0.58;
 }
 
+/*
+ * A button that leads with its mark. The glyph is drawn a little smaller than
+ * a bare icon button's so that it reads as part of the word rather than as a
+ * second control beside it.
+ */
+.button-with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.button-with-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .catalog-empty {
   padding: 52px 24px;
   color: var(--text-muted);

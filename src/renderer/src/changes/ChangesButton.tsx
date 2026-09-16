@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
+import { ChangesIcon } from '../ui/icons';
 import { Tooltip } from '../ui/Tooltip';
 import type { SessionChangesButtonProps } from './useSessionChangesPanel';
 
@@ -28,12 +29,13 @@ export function ChangesButton({ command = false, control, count }: ChangesButton
       <button
         aria-controls={control['aria-controls']}
         aria-expanded={control['aria-expanded']}
-        className="secondary-button changes-button"
+        className="secondary-button button-with-icon changes-button"
         data-lumora-command={command ? true : undefined}
         onClick={control.onClick}
         ref={control.ref}
         type="button"
       >
+        <ChangesIcon />
         {t('terminal.changes.button', { count })}
       </button>
     </Tooltip>

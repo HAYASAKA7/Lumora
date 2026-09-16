@@ -88,6 +88,27 @@ export function RestoreIcon(): ReactNode {
   return <Glyph path="M8 4v4H4M16 8h-4V4M12 16v-4h4M4 12h4v4" />;
 }
 
+/**
+ * What changed in a workspace: the branch mark source control carries in every
+ * editor, so the button reads the same way it does next door.
+ */
+export function ChangesIcon(): ReactNode {
+  return (
+    <Glyph path={
+      'M4.7 5.1a1.85 1.85 0 1 0 3.7 0 1.85 1.85 0 1 0-3.7 0' +
+      'M4.7 14.9a1.85 1.85 0 1 0 3.7 0 1.85 1.85 0 1 0-3.7 0' +
+      'M11.6 7.3a1.85 1.85 0 1 0 3.7 0 1.85 1.85 0 1 0-3.7 0' +
+      'M6.55 6.95v6.1' +
+      'M13.45 9.15v.75a2.4 2.4 0 0 1-2.4 2.4H6.55'
+    } />
+  );
+}
+
+/** Returns to the page or step before this one. */
+export function BackIcon(): ReactNode {
+  return <Glyph path="M15 10H5m0 0 4-4m-4 4 4 4" />;
+}
+
 /** Dismisses a dialog, or a warning. */
 export function CrossIcon(): ReactNode {
   return <Glyph path="M6 6l8 8M14 6l-8 8" />;

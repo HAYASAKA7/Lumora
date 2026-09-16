@@ -21,6 +21,7 @@ import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { useRefreshRequest } from '../keyboard/page-requests';
 import { useLocalization } from '../localization/useLocalization';
+import { BackIcon, ChangesIcon } from '../ui/icons';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import { useDockedPanelViewport } from '../changes/useDockedPanelViewport';
@@ -225,7 +226,8 @@ export function WorkspaceSessionsView({
   if (status.state === 'loading') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+          <BackIcon />
           {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-state" role="status">
@@ -238,7 +240,8 @@ export function WorkspaceSessionsView({
   if (status.state === 'error') {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+          <BackIcon />
           {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-state catalog-error" role="alert">
@@ -257,7 +260,8 @@ export function WorkspaceSessionsView({
   if (workspace === undefined) {
     return (
       <section className="catalog-panel workspace-detail">
-        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+          <BackIcon />
           {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-empty" role="status">
@@ -276,7 +280,8 @@ export function WorkspaceSessionsView({
       ref={sectionRef}
     >
       <div className="workspace-detail-toolbar">
-        <button className="secondary-button" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+        <button className="secondary-button button-with-icon" data-lumora-command onClick={onBack} tabIndex={-1} type="button">
+          <BackIcon />
           {t('catalog.workspaces.back')}
         </button>
         <div className="catalog-actions">
@@ -284,7 +289,8 @@ export function WorkspaceSessionsView({
             {t(`catalog.workspaces.origin-${workspace.origin}`)}
           </span>
           {changesShown ? (
-            <button className="secondary-button" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
+            <button className="secondary-button button-with-icon" data-lumora-command tabIndex={-1} type="button" {...changes.buttonProps}>
+              <ChangesIcon />
               {t('catalog.workspaces.changes')}
             </button>
           ) : null}

@@ -5,7 +5,7 @@ import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
 import { useRefreshRequest } from '../keyboard/page-requests';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { BackIcon, RefreshIcon } from '../ui/icons';
 import { ChangesHistory } from './ChangesHistory';
 import { ChangesModeSwitch, type ChangesModeOption } from './ChangesModeSwitch';
 import { ChangesView } from './ChangesView';
@@ -110,7 +110,8 @@ export function ChangesPanelContent({
         api={api}
         source={source}
         toolbarStart={returnTo === null ? <span /> : (
-          <button className="secondary-button" onClick={goBack} type="button">
+          <button className="secondary-button button-with-icon" onClick={goBack} type="button">
+            <BackIcon />
             {t('terminal.changes.history-back')}
           </button>
         )}
