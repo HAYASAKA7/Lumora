@@ -24,6 +24,7 @@ import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 interface ResumeSessionDialogProps {
@@ -55,6 +56,7 @@ export function ResumeSessionDialog({
   onAgentStarted
 }: ResumeSessionDialogProps): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
   const availableProfiles = useMemo(
     () => profiles.filter((profile) => profile.available),
     [profiles]

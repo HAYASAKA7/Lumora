@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useEscapeLayer } from '../ui/escape-layers';
+
 import { useLocalization } from '../localization/useLocalization';
 import { CloseButton } from '../ui/CloseButton';
 
@@ -19,14 +21,8 @@ export function DiagnosticsDialog({ children, heading, onClose }: {
 
   useEffect(() => {
     dialogRef.current?.focus();
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, []);
+  useEscapeLayer(onClose);
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">

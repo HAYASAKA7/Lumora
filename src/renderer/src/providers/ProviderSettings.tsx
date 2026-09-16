@@ -30,6 +30,7 @@ import { CloseButton } from '../ui/CloseButton';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
+import { useEscapeLayer } from '../ui/escape-layers';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -209,16 +210,7 @@ export function ProviderSettings({
     window.requestAnimationFrame(() => structuredDetailsButtonRef.current?.focus());
   };
 
-  useEffect(() => {
-    if (!structuredDialogOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      closeStructuredDialog();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [structuredDialogOpen]);
+  useEscapeLayer(structuredDialogOpen ? closeStructuredDialog : undefined);
 
   const saveStructuredPreference = (
     preference: StructuredProviderPreference,

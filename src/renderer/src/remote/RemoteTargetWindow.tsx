@@ -45,6 +45,7 @@ import {
   type CatalogViewStatus
 } from '../catalog/CatalogViews';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { WorkspaceSessionsView } from '../catalog/WorkspaceSessionsView';
@@ -280,6 +281,9 @@ export function RemoteTargetWindow({
   const [autoConnectOnOpen, setAutoConnectOnOpen] = useState<boolean | null>(null);
   const [credentialPreferenceBusy, setCredentialPreferenceBusy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const helperInstallShown = showHelperInstall && helperInstall !== null;
+  // Escape closes the installation dialog exactly when its own close button would.
+  useEscapeLayer(helperInstallShown ? (busy ? null : () => setShowHelperInstall(false)) : undefined);
   const [automaticConnectionPending, setAutomaticConnectionPending] = useState(false);
   const [savingProviders, setSavingProviders] = useState(false);
   const [providerSaveError, setProviderSaveError] = useState<string | null>(null);

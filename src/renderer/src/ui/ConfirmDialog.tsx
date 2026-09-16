@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+
+import { useEscapeLayer } from './escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 interface ConfirmDialogProps {
@@ -44,15 +46,9 @@ export function ConfirmDialog({
 
   useEffect(() => {
     cancelRef.current?.focus();
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      // Escape only closes when the cancel button acts; otherwise the two are the same.
-      (onEscape ?? onCancel)();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel, onEscape]);
+  }, []);
+  // Escape only closes when the cancel button acts; otherwise the two are the same.
+  useEscapeLayer(onEscape ?? onCancel);
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">

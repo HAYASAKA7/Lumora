@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useEscapeLayer } from '../ui/escape-layers';
+
 import type { HiddenWorkspaceEntry } from './catalog-visibility';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { CloseButton } from '../ui/CloseButton';
@@ -50,14 +52,8 @@ export function HiddenWorkspacesDialog({
 
   useEffect(() => {
     closeRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || busy) return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [busy, onClose]);
+  }, []);
+  useEscapeLayer(busy ? null : onClose);
 
   const toggle = (workspaceId: string, checked: boolean) => {
     setSelected((current) => {

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { StructuredAgentRuntimeSummary } from '../../../shared/contracts';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 import type { StructuredAgentViewState } from './structured-agent-state';
 
@@ -29,6 +30,7 @@ export function StructuredSessionDetailsDialog({
   onClose
 }: StructuredSessionDetailsDialogProps): ReactNode {
   const { t, formatDate, formatNumber, formatTime } = useLocalization();
+  useEscapeLayer(onClose);
   const dateTime = (value: string): string => {
     const timestamp = new Date(value).getTime();
     return `${formatDate(timestamp)} · ${formatTime(timestamp)}`;

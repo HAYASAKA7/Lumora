@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
@@ -40,6 +41,7 @@ export function ProviderDetailsDialog({
   saving: boolean;
 }): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
   const definition = providerDefinition(installation.provider);
   const label = { provider: installation.displayName };
 

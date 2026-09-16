@@ -9,6 +9,7 @@ import type {
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { resolveRuntimeRecovery } from '../terminal/runtime-recovery';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 /**
@@ -30,6 +31,7 @@ export function AttentionDialog({
   sessions: readonly SessionSummary[];
 }): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">

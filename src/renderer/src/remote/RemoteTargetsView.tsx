@@ -9,6 +9,7 @@ import type {
   RemoteTargetSummary
 } from '../../../shared/contracts';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
 import { IconButton } from '../ui/IconButton';
@@ -119,6 +120,10 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [observation, setObservation] = useState<RemoteHostKeyObservation | null>(null);
   const [busyId, setBusyId] = useState<RemoteExecutionTargetId | 'form' | null>(null);
+  // Escape closes each dialog exactly when its own close button would.
+  useEscapeLayer(form === null ? undefined : () => setForm(null));
+  const closeDelete = busyId === deleting?.target.id ? null : () => setDeleting(null);
+  useEscapeLayer(deleting === null ? undefined : closeDelete);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useEscapeLayer } from '../ui/escape-layers';
+
 import type {
   WorkspaceSummary,
   WorkspaceVisibilityMode
@@ -32,14 +34,8 @@ export function HideWorkspaceDialog({
 
   useEffect(() => {
     cancelRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || busy) return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [busy, onClose]);
+  }, []);
+  useEscapeLayer(busy ? null : onClose);
 
   return createPortal(
     <div className="dialog-backdrop" role="presentation">

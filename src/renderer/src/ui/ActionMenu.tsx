@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useEscapeLayer } from './escape-layers';
+
 import { placeMenu } from './menu-placement';
 
 export interface ActionMenuItem<Id extends string> {
@@ -65,19 +67,14 @@ export function ActionMenu<Id extends string>({
         setOpen(false);
       }
     };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
     document.addEventListener('pointerdown', closeOutside);
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOutside);
-      window.removeEventListener('keydown', closeOnEscape);
-    };
+    return () => document.removeEventListener('pointerdown', closeOutside);
   }, [open]);
+
+  useEscapeLayer(open ? () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  } : undefined);
 
   useLayoutEffect(() => {
     if (!open || triggerRef.current === null) return;

@@ -18,6 +18,7 @@ import { SelectMenu } from '../ui/SelectMenu';
 import { LaunchReadiness } from './LaunchReadiness';
 import { useLaunchPreflight } from './useLaunchPreflight';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 interface NewSessionDialogProps {
@@ -47,6 +48,7 @@ export function NewSessionDialog({
   onAgentStarted
 }: NewSessionDialogProps): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
   const availableWorkspaces = useMemo(
     () => workspaces.filter((workspace) => workspace.available),
     [workspaces]

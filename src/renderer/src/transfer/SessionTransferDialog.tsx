@@ -21,6 +21,7 @@ import {
 } from './session-transfer-state';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { SelectMenu } from '../ui/SelectMenu';
 import { useLocalization, type TranslationValues } from '../localization/useLocalization';
 
@@ -219,6 +220,7 @@ export function SessionTransferDialog({
   };
 
   const canClose = flow.step !== 'progress';
+  useEscapeLayer(canClose ? onClose : null);
   const title =
     flow.step === 'unlock'
       ? t('transfer.import.open-title')

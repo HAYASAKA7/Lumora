@@ -7,6 +7,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useEscapeLayer } from './escape-layers';
+
 export interface ContextMenuItem {
   id: string;
   label: string;
@@ -58,21 +60,15 @@ export function ContextMenu({
       ) return;
       onClose();
     };
-    const dismissFromKeyboard = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    };
     window.addEventListener('pointerdown', dismissFromPointer, true);
-    window.addEventListener('keydown', dismissFromKeyboard, true);
     window.addEventListener('blur', onClose);
     return () => {
       window.removeEventListener('pointerdown', dismissFromPointer, true);
-      window.removeEventListener('keydown', dismissFromKeyboard, true);
       window.removeEventListener('blur', onClose);
     };
   }, [onClose]);
+
+  useEscapeLayer(onClose);
 
   return createPortal(
     <div

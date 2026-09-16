@@ -114,6 +114,39 @@ function deferred<T>() {
 }
 
 describe('NewSessionDialog', () => {
+  it('closes on Escape, and lets an open menu answer it first', () => {
+    const onClose = vi.fn();
+    Object.defineProperty(window, 'lumora', {
+      configurable: true,
+      value: {
+        prepareLaunch: vi.fn(() => new Promise<LaunchPreview>(() => undefined)),
+        trustWorkspaceForLaunch: vi.fn(),
+        startRuntime: vi.fn()
+      }
+    });
+    render(
+      <NewSessionDialog
+        initialWorkspaceId={workspace.id}
+        onClose={onClose}
+        onStarted={vi.fn()}
+        profiles={[profile]}
+        providerScan={scan}
+        workspaces={[workspace, otherWorkspace]}
+      />
+    );
+
+    const workspaceMenu = screen.getByRole('button', { name: 'Workspace' });
+    fireEvent.click(workspaceMenu);
+    expect(workspaceMenu).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(workspaceMenu).toHaveAttribute('aria-expanded', 'false');
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the automatic agent route when the local app requests it', async () => {
     const result = {
       mode: 'structured' as const,

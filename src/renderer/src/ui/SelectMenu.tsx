@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocalization } from '../localization/useLocalization';
+import { useEscapeLayer } from './escape-layers';
 import { ChevronDownIcon } from './icons';
 import { placeMenu } from './menu-placement';
 
@@ -55,6 +56,7 @@ export function SelectMenu<Value extends string>({
     options.findIndex((option) => option.value === value)
   );
   const [open, setOpen] = useState(false);
+  useEscapeLayer(open ? () => setOpen(false) : undefined);
   const [activeIndex, setActiveIndex] = useState(selectedIndex);
   const selected = options[selectedIndex];
 
@@ -128,11 +130,6 @@ export function SelectMenu<Value extends string>({
       event.preventDefault();
       setOpen(true);
       setActiveIndex(event.key === 'Home' ? 0 : options.length - 1);
-      return;
-    }
-    if (event.key === 'Escape' && open) {
-      event.preventDefault();
-      setOpen(false);
       return;
     }
     if ((event.key === 'Enter' || event.key === ' ') && open) {

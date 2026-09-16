@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/contracts';
 import { LaunchConfiguration } from './LaunchConfiguration';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 const IDENTITY_MATCH_KEYS: Record<
@@ -40,6 +41,7 @@ export function TerminalDetailsDialog({
   onClose
 }: TerminalDetailsDialogProps): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
   return (
     <div className="dialog-backdrop" role="presentation">
       <section

@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 
 interface SessionExportDialogProps {
@@ -39,6 +40,7 @@ export function SessionExportDialog({
   const [cancelled, setCancelled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscapeLayer(step === 'progress' ? null : onClose);
 
   useEffect(() => {
     let current = true;

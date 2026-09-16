@@ -14,6 +14,7 @@ import { LaunchReadiness } from './LaunchReadiness';
 import { resolveRuntimeRecovery } from './runtime-recovery';
 import { useLaunchPreflight } from './useLaunchPreflight';
 import { CloseButton } from '../ui/CloseButton';
+import { useEscapeLayer } from '../ui/escape-layers';
 import { useLocalization } from '../localization/useLocalization';
 import { providerDefinition } from '../../../shared/provider-definitions';
 
@@ -37,6 +38,7 @@ export function RuntimeRecoveryDialog({
   onStarted
 }: RuntimeRecoveryDialogProps): ReactNode {
   const { t } = useLocalization();
+  useEscapeLayer(onClose);
   const plan = useMemo(
     () => resolveRuntimeRecovery(runtime, sessions),
     [runtime, sessions]
