@@ -46,6 +46,26 @@ function session(index: number): SessionSummary {
 }
 
 describe('projectSidebarSessions', () => {
+  it('leaves a session out of recent while it runs in the Unified UI', () => {
+    const unified = session(3);
+    const projection = projectSidebarSessions({
+      runtimes: [],
+      structuredRuntimes: [{
+        connectionId: 'connection-1',
+        providerId: 'codex',
+        nativeSessionId: 'native-3',
+        catalogSessionId: unified.id,
+        workspaceId: 'a'.repeat(64),
+        title: 'Session 3',
+        state: 'ready'
+      } as never],
+      sessions: [session(1), unified]
+    });
+
+    expect(projection.recent.map(({ id }) => id)).toEqual([session(1).id]);
+    expect(projection.running).toEqual([]);
+  });
+
   it('keeps live runtime order and excludes completed runtimes', () => {
     const linkedSessionId = session(1).id;
     const values = [

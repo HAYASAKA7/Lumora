@@ -9,6 +9,9 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- List a Unified UI session once. A session opened in the Unified UI appeared
+  under both **Running sessions** and **Recent sessions** in the sidebar,
+  because only native terminal runtimes were taken out of the recent list.
 - Keep the conversation in place while reading earlier messages in the Unified
   UI. The view showed a window of the newest turns, so every answer the agent
   gave while you were reading history pushed an older turn off the top: the
