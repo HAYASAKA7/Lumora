@@ -508,7 +508,10 @@ describe('ChangesView', () => {
     renderView(api);
     await screen.findByRole('list', { name: 'Changed files' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Watched places' }));
+    const places = screen.getByRole('button', { name: 'Watched places' });
+    // The toolbar's controls are icon buttons, hover name and all.
+    expect(places).toHaveClass('icon-button');
+    fireEvent.click(places);
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Add a place to watch' }));
 
     await waitFor(() => expect(api.addChangesPlace).toHaveBeenCalledWith('ws-1'));

@@ -292,10 +292,11 @@ export function ChangesView({
           ) : null}
           {knownWorkspaceId === null ? null : (
             <ActionMenu
-              className="changes-places-menu"
+              className="icon-button"
               items={placeMenuItems}
               label={t('terminal.changes.places')}
               onSelect={choosePlaceAction}
+              tooltip={t('terminal.changes.places')}
             >
               <FolderIcon />
             </ActionMenu>
