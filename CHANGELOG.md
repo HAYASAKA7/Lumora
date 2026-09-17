@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-17
+
 ### Fixed
 
 - List a Unified UI session once. A session opened in the Unified UI appeared

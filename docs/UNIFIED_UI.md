@@ -116,7 +116,10 @@ Lumora follows new output while the user remains at the latest content. If the
 user scrolls upward, automatic following pauses so earlier content stays in
 place. Long sessions initially load a small, content-bounded recent window;
 scrolling upward progressively requests earlier turns instead of rendering the
-entire transcript at once.
+entire transcript at once. The window holds the turn scrolled back to, so an
+answer that arrives while earlier messages are being read adds to the end
+rather than pushing the top away; returning to the latest message releases the
+extra history again.
 
 ### Images
 
