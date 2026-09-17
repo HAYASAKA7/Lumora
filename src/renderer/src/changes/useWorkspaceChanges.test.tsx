@@ -13,7 +13,7 @@ import { useWorkspaceChanges, type ChangesApi } from './useWorkspaceChanges';
 const sessionSource: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'session' };
 
 function file(path: string): ChangedFile {
-  return { path, oldPath: null, status: 'modified', additions: 1, deletions: 0, binary: false };
+  return { placeId: null, path, oldPath: null, status: 'modified', additions: 1, deletions: 0, binary: false };
 }
 
 function summary(paths: readonly string[], source: ChangesSource = sessionSource): ChangesSummary {
@@ -22,6 +22,7 @@ function summary(paths: readonly string[], source: ChangesSource = sessionSource
     workspaceId: 'ws-1',
     state: 'ready',
     unavailableReason: null,
+    places: [{ id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null }],
     baselineLate: false,
     sharedWorkspace: false,
     files: paths.map(file),
@@ -36,7 +37,11 @@ function fakeApi(initial: ChangesSummary = summary(['a.txt', 'b.txt'])) {
   const unsubscribe = vi.fn();
   const api = {
     getChangesSummary: vi.fn(async (_source: ChangesSource) => initial),
-    getChangesFileDiff: vi.fn(async (_source: ChangesSource, path: string): Promise<ChangesFileDiff> => ({
+    getChangesFileDiff: vi.fn(async (
+      _source: ChangesSource,
+      _placeId: string | null,
+      path: string
+    ): Promise<ChangesFileDiff> => ({
       path,
       patch: `+${path}`,
       binary: false,
@@ -149,10 +154,10 @@ describe('useWorkspaceChanges', () => {
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
 
-    act(() => result.current.setSelectedPath('a.txt'));
-    expect(result.current.selectedPath).toBe('a.txt');
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
+    expect(result.current.selected?.path).toBe('a.txt');
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
-    expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'a.txt');
+    expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, null, 'a.txt');
     expect(result.current.diff).toEqual({
       state: 'ready',
       value: { path: 'a.txt', patch: '+a.txt', binary: false, truncated: false }
@@ -166,12 +171,12 @@ describe('useWorkspaceChanges', () => {
 
     vi.useFakeTimers();
     try {
-      act(() => result.current.setSelectedPath('a.txt'));
+      act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
       act(() => vi.advanceTimersByTime(60));
-      act(() => result.current.setSelectedPath('b.txt'));
+      act(() => result.current.setSelected({ placeId: null, path: 'b.txt' }));
       act(() => vi.advanceTimersByTime(60));
-      act(() => result.current.setSelectedPath('c.txt'));
-      expect(result.current.selectedPath).toBe('c.txt');
+      act(() => result.current.setSelected({ placeId: null, path: 'c.txt' }));
+      expect(result.current.selected?.path).toBe('c.txt');
       expect(result.current.diff).toEqual({ state: 'loading' });
       act(() => vi.advanceTimersByTime(149));
       expect(api.getChangesFileDiff).not.toHaveBeenCalled();
@@ -179,7 +184,7 @@ describe('useWorkspaceChanges', () => {
         vi.advanceTimersByTime(1);
       });
       expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1);
-      expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'c.txt');
+      expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, null, 'c.txt');
     } finally {
       vi.useRealTimers();
     }
@@ -189,7 +194,7 @@ describe('useWorkspaceChanges', () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
 
     vi.useFakeTimers();
@@ -211,7 +216,7 @@ describe('useWorkspaceChanges', () => {
     api.getChangesFileDiff.mockRejectedValueOnce(new Error('nope'));
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(result.current.diff).toEqual({ state: 'error' }));
   });
 
@@ -219,15 +224,15 @@ describe('useWorkspaceChanges', () => {
     const { api } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
 
     await act(async () => {
-      await result.current.markReviewed(['a.txt']);
+      await result.current.markReviewed([{ placeId: null, path: 'a.txt' }]);
     });
 
-    expect(api.markChangesReviewed).toHaveBeenCalledWith('owner-1', ['a.txt']);
+    expect(api.markChangesReviewed).toHaveBeenCalledWith('owner-1', [{ placeId: null, path: 'a.txt' }]);
     expect(result.current.summary).toEqual({ state: 'ready', value: summary(['b.txt']) });
-    expect(result.current.selectedPath).toBeNull();
+    expect(result.current.selected).toBeNull();
     expect(result.current.diff).toBeNull();
   });
 
@@ -237,7 +242,7 @@ describe('useWorkspaceChanges', () => {
     const { result } = renderHook(() => useWorkspaceChanges(api, source, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
     await act(async () => {
-      await result.current.markReviewed(['a.txt']);
+      await result.current.markReviewed([{ placeId: null, path: 'a.txt' }]);
     });
     expect(api.markChangesReviewed).not.toHaveBeenCalled();
   });
@@ -248,7 +253,7 @@ describe('useWorkspaceChanges', () => {
     const { result } = renderHook(() => useWorkspaceChanges(api, source, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
     await act(async () => {
-      await result.current.markReviewed(['a.txt']);
+      await result.current.markReviewed([{ placeId: null, path: 'a.txt' }]);
     });
     expect(api.markChangesReviewed).not.toHaveBeenCalled();
   });
@@ -264,18 +269,18 @@ describe('useWorkspaceChanges', () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
 
     api.getChangesSummary.mockResolvedValueOnce(summary(['b.txt']));
     act(() => emit(count('owner-1')));
-    await waitFor(() => expect(result.current.selectedPath).toBeNull());
+    await waitFor(() => expect(result.current.selected).toBeNull());
   });
 
   it('fetches the open diff again when the summary reloads without flashing loading', async () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
     expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1);
 
@@ -299,14 +304,14 @@ describe('useWorkspaceChanges', () => {
     const { api } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('b.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'b.txt' }));
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
 
     await act(async () => {
       await result.current.reload();
     });
     await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(2));
-    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(sessionSource, 'b.txt');
+    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(sessionSource, null, 'b.txt');
     expect(result.current.diff?.state).toBe('ready');
   });
 
@@ -354,7 +359,7 @@ describe('useWorkspaceChanges', () => {
     const { api, emit } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
     const first = result.current.diff;
 
@@ -375,14 +380,14 @@ describe('useWorkspaceChanges', () => {
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
     let resolveOld!: (value: ChangesFileDiff) => void;
     api.getChangesFileDiff.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledTimes(1));
 
     const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
     api.getChangesSummary.mockResolvedValue(summary(['a.txt'], uncommitted));
     rerender({ source: uncommitted });
     await waitFor(() => expect(result.current.summary).toEqual({ state: 'ready', value: summary(['a.txt'], uncommitted) }));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     await waitFor(() => expect(result.current.diff?.state).toBe('ready'));
 
     await act(async () => {
@@ -392,7 +397,7 @@ describe('useWorkspaceChanges', () => {
       state: 'ready',
       value: { path: 'a.txt', patch: '+a.txt', binary: false, truncated: false }
     });
-    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(uncommitted, 'a.txt');
+    expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(uncommitted, null, 'a.txt');
   });
 
   it('drops a review result that lands after the source changed', async () => {
@@ -406,7 +411,7 @@ describe('useWorkspaceChanges', () => {
     api.markChangesReviewed.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
     let pending!: Promise<void>;
     act(() => {
-      pending = result.current.markReviewed(['a.txt']);
+      pending = result.current.markReviewed([{ placeId: null, path: 'a.txt' }]);
     });
 
     const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
@@ -429,7 +434,7 @@ describe('useWorkspaceChanges', () => {
     api.markChangesReviewed.mockImplementationOnce(() => new Promise((resolve) => { resolveReview = resolve; }));
     let pending!: Promise<void>;
     act(() => {
-      pending = result.current.markReviewed(['a.txt']);
+      pending = result.current.markReviewed([{ placeId: null, path: 'a.txt' }]);
     });
 
     api.getChangesSummary.mockResolvedValueOnce(summary(['c.txt'])).mockResolvedValueOnce(summary(['d.txt']));
@@ -448,19 +453,19 @@ describe('useWorkspaceChanges', () => {
     const { api } = fakeApi();
     const { result } = renderHook(() => useWorkspaceChanges(api, sessionSource, true));
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
     const before = result.current.summary;
     api.markChangesReviewed.mockRejectedValueOnce(new Error('denied'));
 
     let failure: unknown = null;
     await act(async () => {
-      await result.current.markReviewed(['a.txt']).catch((error: unknown) => {
+      await result.current.markReviewed([{ placeId: null, path: 'a.txt' }]).catch((error: unknown) => {
         failure = error;
       });
     });
     expect(failure).toBeInstanceOf(Error);
     expect(result.current.summary).toBe(before);
-    expect(result.current.selectedPath).toBe('a.txt');
+    expect(result.current.selected?.path).toBe('a.txt');
   });
 
   it('resets the selection and reloads when the source changes', async () => {
@@ -470,15 +475,15 @@ describe('useWorkspaceChanges', () => {
       { initialProps: { source: sessionSource } }
     );
     await waitFor(() => expect(result.current.summary.state).toBe('ready'));
-    act(() => result.current.setSelectedPath('a.txt'));
+    act(() => result.current.setSelected({ placeId: null, path: 'a.txt' }));
 
     rerender({ source: { kind: 'session', ownerId: 'owner-1', view: 'session' } });
-    expect(result.current.selectedPath).toBe('a.txt');
+    expect(result.current.selected?.path).toBe('a.txt');
     expect(api.getChangesSummary).toHaveBeenCalledTimes(1);
 
     const uncommitted: ChangesSource = { kind: 'session', ownerId: 'owner-1', view: 'uncommitted' };
     rerender({ source: uncommitted });
-    expect(result.current.selectedPath).toBeNull();
+    expect(result.current.selected).toBeNull();
     await waitFor(() => expect(api.getChangesSummary).toHaveBeenLastCalledWith(uncommitted));
   });
 });

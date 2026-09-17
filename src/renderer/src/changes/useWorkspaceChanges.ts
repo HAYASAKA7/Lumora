@@ -6,6 +6,7 @@ import type {
   ChangesSummary,
   LumoraApi
 } from '../../../shared/contracts';
+import { isSameFile, type ChangesFileKey } from './ChangesFileRow';
 
 export type ChangesApi = Pick<
   LumoraApi,
@@ -25,18 +26,20 @@ export interface WorkspaceChanges {
   summary: Load<ChangesSummary>;
   /** True while a reload runs over a summary that is already shown. */
   refreshing: boolean;
-  selectedPath: string | null;
-  setSelectedPath(path: string | null): void;
+  /** The file whose diff is shown, within the place it was listed under. */
+  selected: ChangesFileKey | null;
+  setSelected(file: ChangesFileKey | null): void;
   /** Null when nothing is selected. */
   diff: Load<ChangesFileDiff> | null;
   /** Reloads the summary; calls made while one is in flight share one follow-up load. */
   reload(): Promise<void>;
   /**
-   * Marks paths reviewed for a session source in its session view and stores
-   * the returned summary; a no-op for other sources and views. Rejects when the API call fails, leaving the
-   * state unchanged.
+   * Marks files reviewed for a session source in its session view and stores
+   * the returned summary; a no-op for other sources and views. Each file is
+   * marked in the place it was listed under. Rejects when the API call fails,
+   * leaving the state unchanged.
    */
-  markReviewed(paths: readonly string[]): Promise<void>;
+  markReviewed(files: readonly ChangesFileKey[]): Promise<void>;
 }
 
 const LOADING: Load<never> = { state: 'loading' };
@@ -56,9 +59,9 @@ interface InFlightReload {
   again: boolean;
 }
 
-function listsPath(summary: ChangesSummary, path: string): boolean {
-  return summary.files.some((file) => file.path === path) ||
-    summary.committed.some((file) => file.path === path);
+function listsFile(summary: ChangesSummary, file: ChangesFileKey): boolean {
+  return summary.files.some((entry) => isSameFile(entry, file)) ||
+    summary.committed.some((entry) => isSameFile(entry, file));
 }
 
 function sameDiff(load: Load<ChangesFileDiff>, value: ChangesFileDiff): boolean {
@@ -83,7 +86,7 @@ export function useWorkspaceChanges(
   const [trackedKey, setTrackedKey] = useState(sourceKey);
   const [summary, setSummary] = useState<Load<ChangesSummary>>(LOADING);
   const [reloading, setReloading] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ChangesFileKey | null>(null);
   const [diffEntry, setDiffEntry] = useState<DiffEntry | null>(null);
   /** Bumped whenever a summary lands, so the open diff is fetched again. */
   const [summaryRevision, setSummaryRevision] = useState(0);
@@ -100,17 +103,22 @@ export function useWorkspaceChanges(
     setTrackedKey(sourceKey);
     setSummary(LOADING);
     setReloading(false);
-    setSelectedPath(null);
+    setSelected(null);
     setDiffEntry(null);
   }
 
-  const storeSummary = useCallback((value: ChangesSummary, reviewed: readonly string[] = []) => {
+  const storeSummary = useCallback((
+    value: ChangesSummary,
+    reviewed: readonly ChangesFileKey[] = []
+  ) => {
     storedSummaries.current += 1;
     setSummary({ state: 'ready', value });
     setSummaryRevision((revision) => revision + 1);
-    setSelectedPath((current) =>
-      current !== null && (reviewed.includes(current) || !listsPath(value, current)) ? null : current
-    );
+    setSelected((current) => {
+      if (current === null) return null;
+      const gone = reviewed.some((file) => isSameFile(file, current)) || !listsFile(value, current);
+      return gone ? null : current;
+    });
   }, []);
 
   const reload = useCallback((): Promise<void> => {
@@ -167,9 +175,10 @@ export function useWorkspaceChanges(
   }, [active, stableSource, reload]);
 
   useEffect(() => {
-    if (!active || selectedPath === null) return undefined;
+    if (!active || selected === null) return undefined;
     let cancelled = false;
-    const path = selectedPath;
+    const file = selected;
+    const path = file.path;
     const store = (load: Load<ChangesFileDiff>, value?: ChangesFileDiff) => {
       if (cancelled) return;
       setDiffEntry((current) =>
@@ -181,7 +190,7 @@ export function useWorkspaceChanges(
     };
     const fetchDiff = () => {
       lastDiffRequest.current = { source: stableSource, path };
-      apiRef.current.getChangesFileDiff(stableSource, path).then(
+      apiRef.current.getChangesFileDiff(stableSource, file.placeId, path).then(
         (value) => store({ state: 'ready', value }, value),
         () => store({ state: 'error' })
       );
@@ -195,25 +204,28 @@ export function useWorkspaceChanges(
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
     };
-  }, [active, selectedPath, stableSource, summaryRevision]);
+  }, [active, selected, stableSource, summaryRevision]);
 
-  const markReviewed = useCallback(async (paths: readonly string[]): Promise<void> => {
-    if (stableSource.kind !== 'session' || stableSource.view !== 'session' || paths.length === 0) return;
+  const markReviewed = useCallback(async (files: readonly ChangesFileKey[]): Promise<void> => {
+    if (stableSource.kind !== 'session' || stableSource.view !== 'session' || files.length === 0) return;
     const epochBefore = epoch.current;
     const storedBefore = storedSummaries.current;
-    const value = await apiRef.current.markChangesReviewed(stableSource.ownerId, paths);
+    const value = await apiRef.current.markChangesReviewed(
+      stableSource.ownerId,
+      files.map(({ placeId, path }) => ({ placeId, path }))
+    );
     if (epochBefore !== epoch.current) return;
     if (storedBefore !== storedSummaries.current) {
       // A summary landed meanwhile; fetch again rather than guess which is newer.
       void reload();
       return;
     }
-    storeSummary(value, paths);
+    storeSummary(value, files);
   }, [reload, stableSource, storeSummary]);
 
   let diff: Load<ChangesFileDiff> | null = null;
-  if (selectedPath !== null) {
-    diff = diffEntry !== null && diffEntry.source === stableSource && diffEntry.path === selectedPath
+  if (selected !== null) {
+    diff = diffEntry !== null && diffEntry.source === stableSource && diffEntry.path === selected.path
       ? diffEntry.load
       : LOADING;
   }
@@ -221,8 +233,8 @@ export function useWorkspaceChanges(
   return {
     summary,
     refreshing: reloading && summary.state === 'ready',
-    selectedPath,
-    setSelectedPath,
+    selected,
+    setSelected,
     diff,
     reload,
     markReviewed

@@ -1,4 +1,4 @@
-import { memo, useCallback, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { ChangedFile } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
@@ -26,12 +26,27 @@ const STATUS_LETTER: Record<ChangedFile['status'], string> = {
   'type-changed': 'T'
 };
 
+/** A file within the place it was listed under; two places can hold the same path. */
+export interface ChangesFileKey {
+  placeId: string | null;
+  path: string;
+}
+
+export function fileKeyOf(file: ChangesFileKey): string {
+  return JSON.stringify([file.placeId, file.path]);
+}
+
+export function isSameFile(left: ChangesFileKey | null, right: ChangesFileKey | null): boolean {
+  return left !== null && right !== null
+    && left.placeId === right.placeId && left.path === right.path;
+}
+
 export interface ChangesFileRowHandlers {
-  onSelect(path: string): void;
+  onSelect(file: ChangesFileKey): void;
   /** Moves the selection within the row's list. */
-  onNavigate(path: string, key: ChangesFileNavigation): void;
-  onAction(path: string, action: ChangesFileAction): void;
-  registerButton(path: string, node: HTMLButtonElement | null): void;
+  onNavigate(file: ChangesFileKey, key: ChangesFileNavigation): void;
+  onAction(file: ChangesFileKey, action: ChangesFileAction): void;
+  registerButton(file: ChangesFileKey, node: HTMLButtonElement | null): void;
 }
 
 interface ChangesFileRowProps {
@@ -46,11 +61,12 @@ interface ChangesFileRowProps {
 function ChangesFileRowView({ file, handlers, menuItems, selected, tabStop }: ChangesFileRowProps): ReactNode {
   const { t } = useLocalization();
   const { path } = file;
+  const key = useMemo<ChangesFileKey>(() => ({ placeId: file.placeId, path }), [file.placeId, path]);
   const setButton = useCallback(
-    (node: HTMLButtonElement | null) => handlers.registerButton(path, node),
-    [handlers, path]
+    (node: HTMLButtonElement | null) => handlers.registerButton(key, node),
+    [handlers, key]
   );
-  const choose = useCallback((action: ChangesFileAction) => handlers.onAction(path, action), [handlers, path]);
+  const choose = useCallback((action: ChangesFileAction) => handlers.onAction(key, action), [handlers, key]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (MENU_KEYS.has(event.key) || (event.shiftKey && event.key === 'F10')) {
@@ -63,7 +79,7 @@ function ChangesFileRowView({ file, handlers, menuItems, selected, tabStop }: Ch
     }
     if (!NAVIGATION_KEYS.has(event.key)) return;
     event.preventDefault();
-    handlers.onNavigate(path, event.key as ChangesFileNavigation);
+    handlers.onNavigate(key, event.key as ChangesFileNavigation);
   };
 
   return (
@@ -71,7 +87,7 @@ function ChangesFileRowView({ file, handlers, menuItems, selected, tabStop }: Ch
       <button
         aria-current={selected ? 'true' : undefined}
         className="changes-file-select"
-        onClick={() => handlers.onSelect(path)}
+        onClick={() => handlers.onSelect(key)}
         onKeyDown={handleKeyDown}
         ref={setButton}
         tabIndex={tabStop ? 0 : -1}

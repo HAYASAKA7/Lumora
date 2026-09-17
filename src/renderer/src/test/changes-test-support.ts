@@ -17,7 +17,7 @@ export const sessionSource: ChangesSource = { kind: 'session', ownerId: 'r1', vi
 export const uncommittedSource: ChangesSource = { kind: 'session', ownerId: 'r1', view: 'uncommitted' };
 
 export function changed(path: string, overrides: Partial<ChangedFile> = {}): ChangedFile {
-  return { path, oldPath: null, status: 'modified', additions: 3, deletions: 1, binary: false, ...overrides };
+  return { placeId: null, path, oldPath: null, status: 'modified', additions: 3, deletions: 1, binary: false, ...overrides };
 }
 
 export function summaryFor(source: ChangesSource, overrides: Partial<ChangesSummary> = {}): ChangesSummary {
@@ -28,6 +28,7 @@ export function summaryFor(source: ChangesSource, overrides: Partial<ChangesSumm
     unavailableReason: null,
     baselineLate: false,
     sharedWorkspace: false,
+    places: [{ id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null }],
     files: [],
     committed: [],
     truncated: false,
@@ -46,16 +47,28 @@ export function fakeChangesApi(summaries: (source: ChangesSource) => ChangesSumm
   const listeners = new Set<(count: ChangesCount) => void>();
   const api = {
     getChangesSummary: vi.fn(async (source: ChangesSource) => summaries(source)),
-    getChangesFileDiff: vi.fn(async (_source: ChangesSource, path: string): Promise<ChangesFileDiff> => ({
+    getChangesFileDiff: vi.fn(async (
+      _source: ChangesSource,
+      _placeId: string | null,
+      path: string
+    ): Promise<ChangesFileDiff> => ({
       path,
       patch: '@@ -1 +1 @@\n-old\n+new',
       binary: false,
       truncated: false
     })),
-    markChangesReviewed: vi.fn(async (_ownerId: string, _paths: readonly string[]) => summaryFor(sessionSource)),
-    getChangedFilePath: vi.fn(async (_source: ChangesSource, path: string) => `D:\\work\\${path}`),
+    markChangesReviewed: vi.fn(async (
+      _ownerId: string,
+      _files: readonly { placeId: string | null; path: string }[]
+    ) => summaryFor(sessionSource)),
+    getChangedFilePath: vi.fn(async (
+      _source: ChangesSource,
+      _placeId: string | null,
+      path: string
+    ) => `D:\\work\\${path}`),
     openChangedFile: vi.fn(async (
       _source: ChangesSource,
+      _placeId: string | null,
       _path: string,
       _action: ChangesOpenAction
     ): Promise<ChangesOpenOutcome> => ({ outcome: 'opened' })),

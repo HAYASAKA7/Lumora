@@ -304,7 +304,7 @@ describe('ChangesPanel', () => {
     }
 
     function summaryFile(path: string) {
-      return { path, oldPath: null, status: 'modified' as const, additions: 1, deletions: 0, binary: false };
+      return { placeId: null, path, oldPath: null, status: 'modified' as const, additions: 1, deletions: 0, binary: false };
     }
 
     it('switches a workspace source to history, opens a batch and goes back', async () => {

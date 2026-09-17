@@ -9,7 +9,14 @@ import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
 import { ChangesOpenConfirm } from './ChangesOpenConfirm';
-import type { ChangesFileAction, ChangesFileNavigation, ChangesFileRowHandlers } from './ChangesFileRow';
+import {
+  fileKeyOf,
+  isSameFile,
+  type ChangesFileAction,
+  type ChangesFileKey,
+  type ChangesFileNavigation,
+  type ChangesFileRowHandlers
+} from './ChangesFileRow';
 import { ChangesModeSwitch } from './ChangesModeSwitch';
 import { ChangesDiff, ChangesNotices } from './ChangesStatus';
 import { useWorkspaceChanges, type ChangesApi, type Load } from './useWorkspaceChanges';
@@ -51,8 +58,12 @@ function emptyKey(source: ChangesSource): string {
   return 'terminal.changes.empty-uncommitted';
 }
 
-function navigationTarget(files: readonly ChangedFile[], path: string, key: ChangesFileNavigation): ChangedFile | undefined {
-  const index = files.findIndex((file) => file.path === path);
+function navigationTarget(
+  files: readonly ChangedFile[],
+  from: ChangesFileKey,
+  key: ChangesFileNavigation
+): ChangedFile | undefined {
+  const index = files.findIndex((file) => isSameFile(file, from));
   if (index < 0) return undefined;
   if (key === 'Home') return files[0];
   if (key === 'End') return files[files.length - 1];
@@ -71,7 +82,7 @@ export function ChangesView({
 }: ChangesViewProps): ReactNode {
   const { t } = useLocalization();
   const refreshShortcut = useShortcutLabel('refresh');
-  const { diff, markReviewed, refreshing, reload, selectedPath, setSelectedPath, summary } =
+  const { diff, markReviewed, refreshing, reload, selected, setSelected, summary } =
     useWorkspaceChanges(api, source, active);
   useRefreshRequest(active && !refreshing, () => void reload());
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -81,7 +92,7 @@ export function ChangesView({
 
   const [actionFailed, setActionFailed] = useState(false);
   /** The file whose open is waiting for an answer, since opening it may run it. */
-  const [confirmPath, setConfirmPath] = useState<string | null>(null);
+  const [confirmFile, setConfirmFile] = useState<ChangesFileKey | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const [pages, setPages] = useState(FIRST_PAGE);
   const [committedOpen, setCommittedOpen] = useState(false);
@@ -109,49 +120,49 @@ export function ChangesView({
   }, []);
 
   const handlers = useMemo<ChangesFileRowHandlers>(() => ({
-    onSelect: (path) => setSelectedPath(path),
-    onNavigate: (path, key) => {
+    onSelect: (file) => setSelected(file),
+    onNavigate: (file, key) => {
       const current = latest.current;
       if (current.value === null) return;
-      const inFiles = current.value.files.some((file) => file.path === path);
+      const inFiles = current.value.files.some((entry) => isSameFile(entry, file));
       const group = inFiles ? current.value.files : current.value.committed;
       const visible = group.slice(0, inFiles ? current.pages.files : current.pages.committed);
-      const target = navigationTarget(visible, path, key);
+      const target = navigationTarget(visible, file, key);
       if (target === undefined) return;
-      setSelectedPath(target.path);
-      buttons.current.get(target.path)?.focus();
+      setSelected(target);
+      buttons.current.get(fileKeyOf(target))?.focus();
     },
-    onAction: (path, action) => {
+    onAction: (file, action) => {
       const current = latest.current;
-      if (action === 'mark-reviewed') attempt(() => current.markReviewed([path]));
-      else if (action === 'copy-path') attempt(() => current.api.writeClipboardText(path));
+      if (action === 'mark-reviewed') attempt(() => current.markReviewed([file]));
+      else if (action === 'copy-path') attempt(() => current.api.writeClipboardText(file.path));
       else if (action === 'copy-full-path') attempt(async () => {
-        const full = await current.api.getChangedFilePath(current.source, path);
+        const full = await current.api.getChangedFilePath(current.source, file.placeId, file.path);
         await current.api.writeClipboardText(full);
       });
-      else if (action === 'reveal-file') attempt(async () => { await openFile(path, 'reveal'); });
+      else if (action === 'reveal-file') attempt(async () => { await openFile(file, 'reveal'); });
       else attempt(async () => {
-        const result = await openFile(path, 'open');
-        if (result.outcome === 'confirm-required') setConfirmPath(path);
+        const result = await openFile(file, 'open');
+        if (result.outcome === 'confirm-required') setConfirmFile(file);
       });
     },
-    registerButton: (path, node) => {
-      if (node === null) buttons.current.delete(path);
-      else buttons.current.set(path, node);
+    registerButton: (file, node) => {
+      if (node === null) buttons.current.delete(fileKeyOf(file));
+      else buttons.current.set(fileKeyOf(file), node);
     }
-  }), [attempt, setSelectedPath]);
+  }), [attempt, setSelected]);
 
-  const openFile = useCallback((path: string, action: 'open' | 'reveal' | 'open-anyway') => {
+  const openFile = useCallback((file: ChangesFileKey, action: 'open' | 'reveal' | 'open-anyway') => {
     const current = latest.current;
-    return current.api.openChangedFile(current.source, path, action);
+    return current.api.openChangedFile(current.source, file.placeId, file.path, action);
   }, []);
 
   const answerConfirm = (action: 'reveal' | 'open-anyway' | null) => {
-    const path = confirmPath;
-    setConfirmPath(null);
-    if (path === null || action === null) return;
+    const file = confirmFile;
+    setConfirmFile(null);
+    if (file === null || action === null) return;
     attempt(async () => {
-      await openFile(path, action);
+      await openFile(file, action);
     });
   };
 
@@ -161,7 +172,7 @@ export function ChangesView({
     markingAllRef.current = true;
     setMarkingAll(true);
     setActionFailed(false);
-    current.markReviewed(current.value.files.map((file) => file.path))
+    current.markReviewed(current.value.files)
       .catch(() => setActionFailed(true))
       .finally(() => {
         markingAllRef.current = false;
@@ -179,10 +190,10 @@ export function ChangesView({
   const committedMenu = useMemo(() => fileMenu.filter((item) => item.id !== 'mark-reviewed'), [fileMenu]);
 
   const listed = value !== null && value.state !== 'unavailable';
-  const selectedFile = !listed || selectedPath === null
+  const selectedFile = !listed || selected === null
     ? null
-    : value.files.find((file) => file.path === selectedPath) ??
-      value.committed.find((file) => file.path === selectedPath) ?? null;
+    : value.files.find((file) => isSameFile(file, selected)) ??
+      value.committed.find((file) => isSameFile(file, selected)) ?? null;
 
   return (
     <div className={`changes-view${wide ? ' is-wide' : ''}`} ref={rootRef}>
@@ -233,7 +244,7 @@ export function ChangesView({
                 label={t('terminal.changes.file-list')}
                 menuItems={fileMenu}
                 onShowMore={() => setPages((current) => ({ ...current, files: current.files + CHANGES_PAGE_SIZE }))}
-                selectedPath={selectedPath}
+                selected={selected}
                 visibleCount={pages.files}
               />
             ) : null}
@@ -253,7 +264,7 @@ export function ChangesView({
                     onShowMore={() =>
                       setPages((current) => ({ ...current, committed: current.committed + CHANGES_PAGE_SIZE }))
                     }
-                    selectedPath={selectedPath}
+                    selected={selected}
                     visibleCount={pages.committed}
                   />
                 ) : null}
@@ -265,12 +276,12 @@ export function ChangesView({
       <div className="changes-diff">
         {listed ? <ChangesDiff diff={diff} oldPath={selectedFile?.oldPath ?? null} /> : null}
       </div>
-      {confirmPath === null ? null : (
+      {confirmFile === null ? null : (
         <ChangesOpenConfirm
           onClose={() => answerConfirm(null)}
           onOpenAnyway={() => answerConfirm('open-anyway')}
           onReveal={() => answerConfirm('reveal')}
-          path={confirmPath}
+          path={confirmFile.path}
         />
       )}
     </div>
