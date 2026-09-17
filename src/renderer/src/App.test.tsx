@@ -486,6 +486,19 @@ function createLocalStorage(): Storage {
   };
 }
 
+/**
+ * Waits for the effects of the last render.
+ *
+ * A page answers a keyboard shortcut from an effect, and the query that finds
+ * that page on screen does not wait for it: the markup is there one step
+ * earlier. A chord pressed in between reaches an App with nobody listening for
+ * it, which is a race only a test can lose, since a person presses keys long
+ * after the page has settled.
+ */
+async function pagesAreListening(): Promise<void> {
+  await act(async () => undefined);
+}
+
 describe('App', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'localStorage', {
@@ -2645,6 +2658,7 @@ describe('App', () => {
     const terminalInput = await screen.findByRole('button', {
       name: 'Codex working session terminal input'
     });
+    await pagesAreListening();
 
     // The shortcut is caught on window during capture, so xterm's own key handling never sees it.
     fireEvent.keyDown(terminalInput, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
@@ -2661,21 +2675,32 @@ describe('App', () => {
     });
     setSystemInfoResult(undefined, undefined, { getKeyboardSettings });
     renderWithLocalization(<App />);
+    // Being asked for the settings is not the same as having taken them in,
+    // and only the settings the App holds decide which chord toggles.
     await waitFor(() => expect(getKeyboardSettings).toHaveBeenCalled());
+    await act(async () => {
+      await getKeyboardSettings.mock.results[0]?.value;
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     fireEvent.click(await screen.findByRole('button', {
       name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
     }));
-    await screen.findByRole('heading', { name: 'Lumora sessions' });
+    // The page answers the shortcut from the moment it shows its own button,
+    // which also says whether a shortcut reached the page at all.
+    const changesButton = await screen.findByRole('button', { name: 'Changes' });
+    await pagesAreListening();
 
     // The default chord no longer applies once the shortcut has been rebound.
     fireEvent.keyDown(window, { code: 'KeyG', key: 'G', ctrlKey: true, shiftKey: true });
+    expect(changesButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
 
     fireEvent.keyDown(window, { code: 'KeyD', key: 'D', ctrlKey: true, shiftKey: true });
+    expect(changesButton).toHaveAttribute('aria-expanded', 'true');
     expect(await screen.findByRole('complementary', { name: 'Changes' })).toBeInTheDocument();
     fireEvent.keyDown(window, { code: 'KeyD', key: 'D', ctrlKey: true, shiftKey: true });
+    expect(changesButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('complementary', { name: 'Changes' })).not.toBeInTheDocument();
   });
 
@@ -2707,6 +2732,7 @@ describe('App', () => {
       name: 'Open sessions for Lumora at D:\\Projects\\AI\\Lumora'
     }));
     await screen.findByRole('heading', { name: 'Lumora sessions' });
+    await pagesAreListening();
 
     // Nothing is open yet, so the key does nothing.
     fireEvent.keyDown(window, { code: 'KeyM', key: 'M', ctrlKey: true, shiftKey: true });
@@ -2733,6 +2759,7 @@ describe('App', () => {
       screen.getAllByRole('button', { name: 'Refresh catalog' })[0]
     ).toBeEnabled());
     refreshCatalog.mockClear();
+    await pagesAreListening();
 
     fireEvent.keyDown(window, { code: 'KeyR', key: 'R', ctrlKey: true, shiftKey: true });
 
@@ -2745,6 +2772,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Workspaces' }));
     const search = await screen.findByRole('searchbox', { name: 'Search workspaces' });
     expect(search).not.toHaveFocus();
+    await pagesAreListening();
 
     fireEvent.keyDown(window, { code: 'KeyF', key: 'f', ctrlKey: true });
     expect(search).toHaveFocus();
