@@ -982,9 +982,10 @@ describe('Codex structured adapter', () => {
         payload: expect.objectContaining({ detail: expect.stringContaining(expected) })
       }));
     }
+    // The skill before it left a turn running, so what follows joins that turn.
     expect(current.events).toContainEqual(expect.objectContaining({
       kind: 'user.message',
-      payload: { text: '/status' }
+      payload: { text: '/status', followUp: true }
     }));
     expect(current.events).toContainEqual(expect.objectContaining({
       kind: 'command.updated',
@@ -1672,6 +1673,41 @@ describe('Codex structured adapter', () => {
           payload: { text: 'Skip the flaky one', followUp: true }
         })
       ]);
+    });
+
+    it('changes the model inside the turn under way rather than after it', async () => {
+      const { adapter, current, transport } = await openRunning();
+      await adapter.open();
+      await adapter.activate?.();
+      await vi.waitFor(() => expect(
+        current.commandLists.at(-1)?.some(({ id }) => id === 'model')
+      ).toBe(true));
+      transport.emit('turn/started', { threadId, turn: { id: 'turn-live', status: 'inProgress' } });
+      const before = current.events.length;
+
+      await adapter.dispatch({
+        kind: 'command.execute',
+        connectionId: 'connection-1',
+        commandId: 'model',
+        argument: 'gpt-5.6-sol'
+      });
+
+      expect(transport.request).toHaveBeenCalledWith('thread/settings/update', {
+        threadId,
+        model: 'gpt-5.6-sol'
+      });
+      const recorded = current.events.slice(before) as Array<{ kind: string; turnId: string }>;
+      // No turn of its own: one would land after the running turn and read as its end.
+      expect(recorded.map(({ kind }) => kind)).toEqual([
+        'user.message',
+        'command.started',
+        'command.updated'
+      ]);
+      expect(recorded.every(({ turnId }) => turnId === 'turn-live')).toBe(true);
+      expect(userMessages(current.events).at(-1)).toMatchObject({
+        turnId: 'turn-live',
+        payload: { text: '/model gpt-5.6-sol', followUp: true }
+      });
     });
   });
 

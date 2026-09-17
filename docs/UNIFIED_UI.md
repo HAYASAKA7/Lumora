@@ -177,8 +177,17 @@ the message box, beside the attach button:
 - **ACP agents** show the modes they advertise, such as Gemini CLI's.
 
 When the agent changes mode itself — Claude leaving plan mode once you approve
-its plan, for example — the picker follows. The mode can be changed between
-turns, the same as the model.
+its plan, for example — the picker follows.
+
+Both pickers stay usable while the agent works, the same as they are in a
+terminal: you can put Claude into plan mode or move Codex onto another model
+without waiting for the turn to end, and the change is recorded inside the turn
+under way rather than after it. What a change reaches depends on the agent. A
+mode applies to what the agent does next, so a permission it is about to ask
+for is asked under the new mode. A model applies to the responses after it,
+never to the answer already being written: an agent halfway through a reply
+finishes it on the model it started with. An agent that refuses the change
+while it is working says so, and the picker stays where it was.
 
 <p align="center">
   <img src="screenshots/0.5/unified-ui/unified_ui_model_selector.png" alt="Lumora Unified UI model selector inside the message composer" width="1100">

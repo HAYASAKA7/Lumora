@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Change the mode and the model while the agent works. Both pickers were held
+  until the turn ended, so a session could not be put into plan mode or moved
+  onto another model without waiting or stopping the agent, which a terminal
+  never asked for. Both are settings the agent reads for what it does next, and
+  each provider takes them beside the conversation rather than in it, so they
+  are sent straight away and recorded inside the turn under way.
+
 ## [0.6.2] - 2026-09-17
 
 ### Fixed

@@ -287,6 +287,14 @@ republishes the command when the agent reports a mode change of its own —
 Codex's settings update, Claude's status message, or ACP's `current_mode_update`
 — so the picker never shows a mode the session has left.
 
+Mode and model are settings rather than work asked of the agent, so both are
+sent while a turn runs; every other command still waits for the turn to end.
+Each provider takes them on a channel that is not the prompt: Codex's
+`thread/settings/update`, Claude's control requests, ACP's session methods. An
+adapter that records the command in the conversation adds it to the turn under
+way instead of opening one of its own, since a turn arriving after the running
+one would read to the renderer as the agent falling idle.
+
 Agent errors travel as `runtime.error` events that say what went wrong in
 shared terms. Each adapter maps its provider's own names — Codex's
 `codexErrorInfo`, Claude's API error names, or an HTTP status when that is all

@@ -698,31 +698,45 @@ export function createCodexStructuredAdapter(
     }
   };
 
+  /**
+   * Records a command the user ran.
+   *
+   * A command run while a turn is under way joins that turn, the way a steered
+   * message does. A turn of its own would arrive after the running one, and
+   * everything that reads the latest turn, the stop button among it, would take
+   * the agent for idle while it is still working.
+   */
   const emitCommandResponse = (
     commandId: string,
     commandText: string,
     detail: string | null,
     result: 'completed' | 'failed' = 'completed'
   ): void => {
-    const turnId = `codex-command-${++commandSequence}-${commandId}`;
-    emit({
-      turnId,
-      parentEventId: null,
-      kind: 'turn.started',
-      payload: { state: 'running', message: null }
-    });
+    const activityId = `codex-command-${++commandSequence}-${commandId}`;
+    const runningTurnId = currentTurnId;
+    const turnId = runningTurnId ?? activityId;
+    if (runningTurnId === null) {
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'turn.started',
+        payload: { state: 'running', message: null }
+      });
+    }
     emit({
       turnId,
       parentEventId: null,
       kind: 'user.message',
-      payload: { text: bounded(commandText, 65_536) }
+      payload: runningTurnId === null
+        ? { text: bounded(commandText, 65_536) }
+        : { text: bounded(commandText, 65_536), followUp: true }
     });
     emit({
       turnId,
       parentEventId: null,
       kind: 'command.started',
       payload: {
-        activityId: turnId,
+        activityId,
         title: bounded(commandText, 512),
         detail: null
       }
@@ -732,7 +746,7 @@ export function createCodexStructuredAdapter(
       parentEventId: null,
       kind: 'command.updated',
       payload: {
-        activityId: turnId,
+        activityId,
         title: bounded(commandText, 512),
         status: result,
         detail: detail === null
@@ -740,12 +754,14 @@ export function createCodexStructuredAdapter(
           : bounded(detail)
       }
     });
-    emit({
-      turnId,
-      parentEventId: null,
-      kind: 'turn.completed',
-      payload: { state: result, message: null }
-    });
+    if (runningTurnId === null) {
+      emit({
+        turnId,
+        parentEventId: null,
+        kind: 'turn.completed',
+        payload: { state: result, message: null }
+      });
+    }
   };
 
   const currentCommands = () => buildCodexCommands(commandDiscovery, selectedModel, {

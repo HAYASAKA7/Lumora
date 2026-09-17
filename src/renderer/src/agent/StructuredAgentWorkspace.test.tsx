@@ -1191,6 +1191,75 @@ describe('StructuredAgentWorkspace', () => {
     expect(screen.getByRole('option', { name: 'GPT-5.6 Sol' })).toBeInTheDocument();
   });
 
+  it('changes the mode and the model while the agent is working', async () => {
+    const workingWithPickers: StructuredAgentRuntimeSnapshot = {
+      ...workingSnapshot(true),
+      commands: [
+        {
+          id: 'mode',
+          name: '/mode',
+          description: 'Choose how Codex works.',
+          inputHint: null,
+          choices: [
+            { value: 'default', label: 'Default', description: null },
+            { value: 'plan', label: 'Plan', description: null }
+          ],
+          selectedValue: 'default',
+          selectionBehavior: 'execute'
+        },
+        {
+          id: 'model',
+          name: '/model',
+          description: 'Choose the model for future turns.',
+          inputHint: '<model>',
+          choices: [
+            { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', description: null },
+            { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', description: null }
+          ],
+          selectedValue: 'gpt-5.6-sol',
+          selectionBehavior: 'execute'
+        }
+      ]
+    };
+    const dispatchStructuredAgentAction = vi.fn(async () => undefined);
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[workingWithPickers]}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Cancel turn' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+    fireEvent.click(screen.getByRole('option', { name: 'GPT-5.6 Terra' }));
+    await vi.waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'command.execute',
+      connectionId: 'connection-1',
+      commandId: 'model',
+      argument: 'gpt-5.6-terra'
+    }));
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Mode' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Mode' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Plan' }));
+    await vi.waitFor(() => expect(dispatchStructuredAgentAction).toHaveBeenCalledWith({
+      kind: 'command.execute',
+      connectionId: 'connection-1',
+      commandId: 'mode',
+      argument: 'plan'
+    }));
+
+    // Changing a setting is not sending a message: the turn is still the one running.
+    expect(screen.getByRole('button', { name: 'Cancel turn' })).toBeInTheDocument();
+    expect(dispatchStructuredAgentAction).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'prompt.submit' })
+    );
+  });
+
   it('offers images only to a session that accepts them', () => {
     renderWorkspace();
 

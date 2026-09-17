@@ -551,8 +551,10 @@ export function StructuredAgentWorkspace({
     }
   };
   const executeCommand = (commandId: string, argument: string) => {
-    // A command waits for the turn to end, however it was chosen.
-    if (runningTurn) return;
+    // A command waits for the turn to end, however it was chosen. Mode and
+    // model only change a setting the agent reads for what it does next, so
+    // they are taken while it works, the same as their pickers are.
+    if (runningTurn && commandId !== 'mode' && commandId !== 'model') return;
     restoreComposerFocus.current = true;
     setSending(true);
     if (commandId === 'copy') {
@@ -597,7 +599,7 @@ export function StructuredAgentWorkspace({
   const selectMode = (value: string) => {
     if (
       modeCommand === undefined || value === selectedMode || sending ||
-      runningTurn || runtime.state !== 'ready'
+      runtime.state !== 'ready'
     ) return;
     restoreComposerFocus.current = true;
     setSending(true);
@@ -620,7 +622,7 @@ export function StructuredAgentWorkspace({
   const selectModel = (value: string) => {
     if (
       modelCommand === undefined || value === selectedModel || sending ||
-      runningTurn || runtime.state !== 'ready'
+      runtime.state !== 'ready'
     ) return;
     restoreComposerFocus.current = true;
     setSending(true);
@@ -1251,7 +1253,7 @@ export function StructuredAgentWorkspace({
             {modeCommand === undefined || selectedMode === undefined ? null : (
               <SelectMenu
                 className="structured-mode-select"
-                disabled={sending || runningTurn || runtime.state !== 'ready'}
+                disabled={sending || runtime.state !== 'ready'}
                 label={t('terminal.unified.mode-selector-label')}
                 onChange={selectMode}
                 options={modeCommand.choices!.map((choice) => ({
@@ -1281,7 +1283,7 @@ export function StructuredAgentWorkspace({
               <SelectMenu
                 align="end"
                 className="structured-model-select"
-                disabled={sending || runningTurn || runtime.state !== 'ready'}
+                disabled={sending || runtime.state !== 'ready'}
                 label={t('terminal.unified.model-selector-label')}
                 onChange={selectModel}
                 options={modelCommand.choices!.map((choice) => ({
