@@ -420,6 +420,21 @@ read it. A path that leads outside the workspace is refused altogether and
 reports **That didn't work. Try again.**, which is also what a file deleted
 since the list was taken reports.
 
+### Changes does not list a file the agent edited
+
+**Symptom:** The agent reports editing a file, and the **Changes** panel does
+not list it.
+
+**Cause:** Lumora watches the session's workspace folder and the places that
+workspace watches. A file outside all of them is not tracked, which is common
+when the workspace is a subfolder of a repository or when the agent edits a
+configuration file in your home directory.
+
+**Fix:** Open **Watched places** in the panel toolbar. Take **Watch the whole
+repository** when it is offered, or **Add a place to watch** and choose the
+folder. Lumora starts from the moment you add it and marks the place **watched
+from here**, so earlier edits there stay invisible.
+
 ### Changes is using a lot of disk space
 
 **Symptom:** The `workspace-changes` folder inside Lumora's application-data

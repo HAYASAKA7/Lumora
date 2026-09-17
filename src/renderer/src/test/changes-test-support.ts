@@ -81,7 +81,9 @@ export function fakeChangesApi(summaries: (source: ChangesSource) => ChangesSumm
     getChangesPlaces: vi.fn(async (_workspaceId: string) => workspacePlaces),
     addChangesPlace: vi.fn(async (_workspaceId: string, _path?: string | null) => workspacePlaces),
     removeChangesPlace: vi.fn(async (_workspaceId: string, _placeId: string) => workspacePlaces),
-    suggestChangesPlace: vi.fn(async (_workspaceId: string) => null),
+    suggestChangesPlace: vi.fn(
+      async (_workspaceId: string): Promise<{ path: string; name: string } | null> => null
+    ),
     getChangesHistory: vi.fn(async (_workspaceId: string): Promise<ChangesHistory> => ({ segments: [] })),
     onChangesCount: vi.fn((listener: (count: ChangesCount) => void) => {
       listeners.add(listener);

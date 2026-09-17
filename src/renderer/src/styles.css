@@ -8291,6 +8291,38 @@ button {
   list-style: none;
 }
 
+/*
+ * The folder a run of files came from. It appears only once a workspace
+ * watches more than itself: with one place the heading would name what the
+ * panel already is.
+ */
+.changes-place-heading {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 10px 0 0;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.changes-place-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* What the place says about itself - watched from here - in the quieter voice. */
+.changes-place-note {
+  flex: 0 0 auto;
+  opacity: 0.8;
+  font-weight: 600;
+  text-transform: none;
+}
+
 .changes-file-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

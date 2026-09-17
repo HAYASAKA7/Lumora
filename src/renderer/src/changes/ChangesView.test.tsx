@@ -444,6 +444,76 @@ describe('ChangesView', () => {
     expect(dialog).not.toBeInTheDocument();
   });
 
+  it('groups the list by place once a workspace watches more than itself', async () => {
+    const places = [
+      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
+      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: true, unavailableReason: null }
+    ];
+    const { api } = fakeChangesApi((source) => summaryFor(source, {
+      places,
+      files: [changed('src/login.ts'), changed('index.ts', { placeId: 'p1' })]
+    }));
+    renderView(api);
+
+    expect(await screen.findByRole('list', { name: 'work' })).toBeInTheDocument();
+    const lib = screen.getByRole('list', { name: 'lib' });
+    expect(within(lib).getAllByRole('listitem')).toHaveLength(1);
+    // A place that joined mid-session says so rather than pretending to older history.
+    expect(screen.getByText('watched from here')).toBeInTheDocument();
+  });
+
+  it('asks the file for its place when it opens a diff', async () => {
+    const places = [
+      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
+      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: false, unavailableReason: null }
+    ];
+    const { api } = fakeChangesApi((source) => summaryFor(source, {
+      places,
+      files: [changed('index.ts', { placeId: 'p1' })]
+    }));
+    renderView(api);
+    await screen.findByRole('list', { name: 'lib' });
+
+    fireEvent.click(selectButton('index.ts'));
+
+    await waitFor(() =>
+      expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'p1', 'index.ts'));
+  });
+
+  it('watches the repository it is offered, and stops watching a place', async () => {
+    const places = [
+      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
+      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: false, unavailableReason: null }
+    ];
+    const { api } = fakeChangesApi((source) => summaryFor(source, {
+      places,
+      files: [changed('src/login.ts')]
+    }));
+    api.suggestChangesPlace.mockResolvedValue({ path: 'D:\repo', name: 'repo' });
+    renderView(api);
+    await findFileList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Watched places' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Watch the whole repository (repo)' }));
+    await waitFor(() =>
+      expect(api.addChangesPlace).toHaveBeenCalledWith('ws-1', 'D:\repo'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Watched places' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop watching lib' }));
+    await waitFor(() => expect(api.removeChangesPlace).toHaveBeenCalledWith('ws-1', 'p1'));
+  });
+
+  it('asks which folder to watch when none is offered', async () => {
+    const { api } = fakeChangesApi();
+    renderView(api);
+    await screen.findByRole('list', { name: 'Changed files' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Watched places' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Add a place to watch' }));
+
+    await waitFor(() => expect(api.addChangesPlace).toHaveBeenCalledWith('ws-1'));
+  });
+
   it('copies both the workspace path and the full path of a file', async () => {
     const { api } = fakeChangesApi();
     renderView(api);

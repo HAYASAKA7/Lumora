@@ -557,6 +557,76 @@ describe('WorkspaceChangesService', () => {
     });
   });
 
+  describe('watched places', () => {
+    it('lists a place beside the workspace and gives it its own baseline', async () => {
+      engine.snapshot.mockImplementation(async (_id: string, path: string) => ({
+        kind: 'folder' as const, tree: path === '/lib' ? 'lib-base' : 't-base', head: null
+      }));
+      await service.addPlace(workspaceId, '/lib');
+      await begin(service, 'r1');
+      engine.snapshot.mockImplementation(async (_id: string, path: string) => ({
+        kind: 'folder' as const, tree: path === '/lib' ? 'lib-now' : 't-now', head: null
+      }));
+      engine.changedFiles.mockImplementation(async (_id: string, path: string) =>
+        [file(path === '/lib' ? 'index.ts' : 'app.ts')]);
+
+      const summary = await service.summary(sessionSource('r1'));
+
+      expect(summary.places.map(({ id, name }) => [id, name]))
+        .toEqual([[null, 'work'], [summary.places[1]!.id, 'lib']]);
+      expect(summary.files.map(({ placeId, path }) => [placeId === null, path]))
+        .toEqual([[true, 'app.ts'], [false, 'index.ts']]);
+    });
+
+    it('leaves the other places listed when one cannot be read', async () => {
+      await service.addPlace(workspaceId, '/lib');
+      await begin(service, 'r1');
+      engine.changedFiles.mockImplementation(async (_id: string, path: string) => {
+        if (path === '/lib') throw new Error('unreadable');
+        return [file('app.ts')];
+      });
+
+      const summary = await service.summary(sessionSource('r1'));
+
+      expect(summary.files.map(({ path }) => path)).toEqual(['app.ts']);
+      expect(summary.places[1]?.unavailableReason).toBe('failed');
+    });
+
+    it('marks a place watched from here when it joins a running session', async () => {
+      await begin(service, 'r1');
+
+      const places = await service.addPlace(workspaceId, '/lib');
+
+      expect(places.map(({ name }) => name)).toEqual(['work', 'lib']);
+      const summary = await service.summary(sessionSource('r1'));
+      expect(summary.places[1]?.baselineLate).toBe(true);
+    });
+
+    it('refuses more places than it can snapshot in one pass', async () => {
+      for (const path of ['/a', '/b', '/c', '/d']) await service.addPlace(workspaceId, path);
+
+      expect(service.places(workspaceId).map(({ name }) => name)).toEqual(['work', 'a', 'b', 'c']);
+    });
+
+    it('stops watching a place and forgets what it listed', async () => {
+      const places = await service.addPlace(workspaceId, '/lib');
+      const placeId = places[1]!.id!;
+
+      expect(service.removePlace(workspaceId, placeId).map(({ name }) => name)).toEqual(['work']);
+    });
+
+    it('offers the repository a workspace sits in, and nothing when it is the repository', async () => {
+      engine.repositoryRoot.mockResolvedValue('/repo');
+      await expect(service.suggestPlace(workspaceId)).resolves.toEqual({ path: '/repo', name: 'repo' });
+
+      engine.repositoryRoot.mockResolvedValue('/work');
+      await expect(service.suggestPlace(workspaceId)).resolves.toBeNull();
+
+      engine.repositoryRoot.mockResolvedValue(null);
+      await expect(service.suggestPlace(workspaceId)).resolves.toBeNull();
+    });
+  });
+
   it('refreshes only live terminal sessions on the timer', async () => {
     vi.useFakeTimers();
     await begin(service, 'r1');
