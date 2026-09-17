@@ -389,6 +389,96 @@ describe('StructuredAgentWorkspace', () => {
     expect(body.scrollTop).toBe(300);
   });
 
+  it('keeps revealed history while the agent goes on answering', () => {
+    const turnEvents = (count: number): StructuredAgentRuntimeSnapshot['events'] => {
+      const events: StructuredAgentRuntimeSnapshot['events'] = [];
+      for (let index = 1; index <= count; index += 1) {
+        events.push({
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: `turn-${index}`, eventId: `user-${index}`, parentEventId: null,
+          sequence: index * 2, generation: 1,
+          timestamp: `2026-08-27T00:${String(index).padStart(2, '0')}:00.000Z`,
+          kind: 'user.message', payload: { text: `Turn ${index} request` }
+        });
+        events.push({
+          connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+          turnId: `turn-${index}`, eventId: `assistant-${index}`, parentEventId: null,
+          sequence: index * 2 + 1, generation: 1,
+          timestamp: `2026-08-27T00:${String(index).padStart(2, '0')}:01.000Z`,
+          kind: 'assistant.message', payload: { text: `Turn ${index} reply` }
+        });
+      }
+      return events;
+    };
+    const workspace = (events: StructuredAgentRuntimeSnapshot['events']) => (
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[{ ...snapshot, boundary: null, events }]}
+      />
+    );
+    const view = renderWithLocalization(workspace(turnEvents(30)));
+
+    const body = document.querySelector('.structured-agent-body') as HTMLDivElement;
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 300 });
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 900 });
+    body.scrollTop = 0;
+    fireEvent.scroll(body);
+    expect(screen.getByText('Turn 21 reply')).toBeInTheDocument();
+
+    // The agent answers again while the earlier turns are being read.
+    view.rerender(workspace(turnEvents(31)));
+
+    expect(screen.getByText('Turn 31 reply')).toBeInTheDocument();
+    expect(screen.getByText('Turn 21 reply')).toBeInTheDocument();
+  });
+
+  it('lets revealed history go once the reader is back at the latest message', () => {
+    const events: StructuredAgentRuntimeSnapshot['events'] = [];
+    for (let index = 1; index <= 30; index += 1) {
+      events.push({
+        connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+        turnId: `turn-${index}`, eventId: `user-${index}`, parentEventId: null,
+        sequence: index * 2, generation: 1,
+        timestamp: `2026-08-27T00:${String(index).padStart(2, '0')}:00.000Z`,
+        kind: 'user.message', payload: { text: `Turn ${index} request` }
+      });
+      events.push({
+        connectionId: 'connection-1', providerId: 'codex', nativeSessionId: 'native-1',
+        turnId: `turn-${index}`, eventId: `assistant-${index}`, parentEventId: null,
+        sequence: index * 2 + 1, generation: 1,
+        timestamp: `2026-08-27T00:${String(index).padStart(2, '0')}:01.000Z`,
+        kind: 'assistant.message', payload: { text: `Turn ${index} reply` }
+      });
+    }
+    renderWithLocalization(
+      <StructuredAgentWorkspace
+        activeConnectionId="connection-1"
+        api={{ dispatchStructuredAgentAction: vi.fn(async () => undefined) } as unknown as LumoraApi}
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onReconnect={vi.fn()}
+        snapshots={[{ ...snapshot, boundary: null, events }]}
+      />
+    );
+
+    const body = document.querySelector('.structured-agent-body') as HTMLDivElement;
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 300 });
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 900 });
+    body.scrollTop = 0;
+    fireEvent.scroll(body);
+    expect(screen.getByText('Turn 21 reply')).toBeInTheDocument();
+
+    body.scrollTop = 600;
+    fireEvent.scroll(body);
+
+    expect(screen.queryByText('Turn 21 reply')).not.toBeInTheDocument();
+    expect(screen.getByText('Turn 30 reply')).toBeInTheDocument();
+  });
+
   it('loads fewer than five recent turns when rich content reaches the render budget', () => {
     const events: StructuredAgentRuntimeSnapshot['events'] = [];
     for (let index = 1; index <= 5; index += 1) {

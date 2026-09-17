@@ -18,6 +18,18 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every watched place rather than the workspace folder alone, and a folder
   Lumora cannot read says so without taking the rest of the list down.
 
+### Fixed
+
+- List a Unified UI session once. A session opened in the Unified UI appeared
+  under both **Running sessions** and **Recent sessions** in the sidebar,
+  because only native terminal runtimes were taken out of the recent list.
+- Keep the conversation in place while reading earlier messages in the Unified
+  UI. The view showed a window of the newest turns, so every answer the agent
+  gave while you were reading history pushed an older turn off the top: the
+  messages you had scrolled up for disappeared and the view lost its place. The
+  window now holds the turn you scrolled back to, and lets the extra history go
+  once you return to the latest message.
+
 ## [0.6.1] - 2026-09-16
 
 ### Added

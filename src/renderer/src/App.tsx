@@ -2201,8 +2201,9 @@ function AppContent(): ReactNode {
   ]);
   const sidebarSessions = useMemo(() => projectSidebarSessions({
     runtimes: liveRuntimes,
+    structuredRuntimes: liveStructuredSnapshots.map(({ runtime }) => runtime),
     sessions: sidebarCatalogPresentation?.snapshot.sessions ?? []
-  }), [liveRuntimes, sidebarCatalogPresentation]);
+  }), [liveRuntimes, liveStructuredSnapshots, sidebarCatalogPresentation]);
   const visibilityCatalogStatus: CatalogViewStatus =
     startupCatalogStatus.state === 'ready' &&
     workspaceVisibilityPolicies === undefined
