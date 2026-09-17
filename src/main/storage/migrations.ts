@@ -649,6 +649,28 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
     version: 23,
     isSchemaPresent: (database) => !hasTable(database, 'workspace_change_place'),
     statements: [
+      /*
+       * A review taken in a watched place points at the table below, so the
+       * column goes before the tables do: a foreign key left pointing at a
+       * table that is gone fails every later write to a review.
+       */
+      `CREATE TABLE workspace_change_review_next (
+        id TEXT PRIMARY KEY,
+        segment_id TEXT NOT NULL REFERENCES workspace_change_segment(id) ON DELETE CASCADE,
+        from_tree TEXT NOT NULL,
+        to_tree TEXT NOT NULL,
+        file_count INTEGER NOT NULL CHECK (file_count >= 0),
+        reviewed_at TEXT NOT NULL
+      ) STRICT`,
+      `INSERT INTO workspace_change_review_next (
+        id, segment_id, from_tree, to_tree, file_count, reviewed_at
+      )
+      SELECT id, segment_id, from_tree, to_tree, file_count, reviewed_at
+      FROM workspace_change_review`,
+      'DROP TABLE workspace_change_review',
+      'ALTER TABLE workspace_change_review_next RENAME TO workspace_change_review',
+      `CREATE INDEX workspace_change_review_segment_idx
+       ON workspace_change_review (segment_id, reviewed_at DESC)`,
       'DROP TABLE IF EXISTS workspace_change_segment_root',
       'DROP TABLE IF EXISTS workspace_change_place'
     ]
