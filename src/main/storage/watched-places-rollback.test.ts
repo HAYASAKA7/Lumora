@@ -109,6 +109,26 @@ describe('rolling back watched places', () => {
     expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
   });
 
+  it('repairs a database whose tables went but whose column stayed', () => {
+    const opened = databaseWithPlaces();
+    insertSegment(opened);
+    // The state a half-finished rollback leaves: no tables, column still there.
+    opened.exec('DROP TABLE workspace_change_segment_root');
+    opened.exec('DROP TABLE workspace_change_place');
+
+    runMigrations(opened, CATALOG_MIGRATIONS);
+
+    expect(
+      opened.prepare('PRAGMA table_info(workspace_change_review)')
+        .all().map((row) => String((row as { name: unknown }).name))
+    ).not.toContain('place_id');
+    // Pruning a segment cascades into reviews, which is what startup does first.
+    expect(() => opened.prepare(
+      `DELETE FROM workspace_change_segment
+       WHERE execution_target_id = 'local' AND ended_at IS NULL RETURNING id`
+    ).all()).not.toThrow();
+  });
+
   it('records a review again once the places are gone', () => {
     const opened = databaseWithPlaces();
     runMigrations(opened, CATALOG_MIGRATIONS);

@@ -14,6 +14,13 @@ function hasTable(database: DatabaseSync, table: string): boolean {
   ).get(table) !== undefined;
 }
 
+function hasColumn(database: DatabaseSync, table: string, column: string): boolean {
+  if (!hasTable(database, table)) return false;
+  return database.prepare(`PRAGMA table_info(${table})`)
+    .all()
+    .some((row) => String((row as { name: unknown }).name) === column);
+}
+
 export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
   {
     version: 1,
@@ -647,7 +654,15 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
      * the drop runs there to clear them away.
      */
     version: 23,
-    isSchemaPresent: (database) => !hasTable(database, 'workspace_change_place'),
+    /*
+     * The column is what has to go: a database can have lost the tables and
+     * kept it, and then every delete that reaches a review fails on a foreign
+     * key whose table is gone - which stops change tracking from starting at
+     * all.
+     */
+    isSchemaPresent: (database) =>
+      !hasColumn(database, 'workspace_change_review', 'place_id') &&
+      !hasTable(database, 'workspace_change_place'),
     statements: [
       /*
        * A review taken in a watched place points at the table below, so the
