@@ -149,7 +149,12 @@ export function StructuredAgentWorkspace({
 }: StructuredAgentWorkspaceProps): ReactNode {
   const { t } = useLocalization();
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-  const [visibleTurnCounts, setVisibleTurnCounts] = useState<Readonly<Record<string, number>>>({});
+  /**
+   * The earliest turn each conversation shows, by turn id. Counting back from
+   * the newest turn instead would slide the window every time the agent answers
+   * again, taking the history being read off the top of the list.
+   */
+  const [historyAnchors, setHistoryAnchors] = useState<Readonly<Record<string, string>>>({});
   const [sending, setSending] = useState(false);
   const [modelSelections, setModelSelections] = useState<Readonly<Record<string, string>>>({});
   const [modeSelections, setModeSelections] = useState<Readonly<Record<string, string>>>({});
@@ -222,10 +227,13 @@ export function StructuredAgentWorkspace({
     return next;
   }, [snapshot]);
   const runtime = snapshot?.runtime;
-  const visibleTurnCount = runtime === undefined
-    ? 0
-    : visibleTurnCounts[runtime.connectionId] ??
-      nextStructuredHistoryVisibleCount(state.turns, 0);
+  const anchoredIndex = runtime === undefined
+    ? -1
+    : state.turns.findIndex((turn) => turn.id === historyAnchors[runtime.connectionId]);
+  /** Where the shown conversation starts; a turn the anchor no longer names reopens at the end. */
+  const firstVisibleTurnIndex = anchoredIndex >= 0
+    ? anchoredIndex
+    : Math.max(0, state.turns.length - nextStructuredHistoryVisibleCount(state.turns, 0));
   useEffect(() => {
     const activeConnectionIds = new Set(
       snapshots.map((candidate) => candidate.runtime.connectionId)
@@ -235,7 +243,7 @@ export function StructuredAgentWorkspace({
         viewStateCache.current.delete(connectionId);
       }
     }
-    setVisibleTurnCounts((current) => {
+    setHistoryAnchors((current) => {
       const staleConnectionIds = Object.keys(current).filter(
         (connectionId) => !activeConnectionIds.has(connectionId)
       );
@@ -301,7 +309,7 @@ export function StructuredAgentWorkspace({
       0,
       scroller.scrollHeight - restore.scrollHeight
     );
-  }, [runtime?.connectionId, visibleTurnCounts]);
+  }, [runtime?.connectionId, historyAnchors]);
   useEffect(() => {
     if (runtime === undefined || runtime.state !== 'ready' || sending) return;
     const connectionId = runtime.connectionId;
@@ -500,11 +508,19 @@ export function StructuredAgentWorkspace({
   const runningTurn = state.turns.at(-1)?.status === 'running';
   // A message goes into the running turn only if the agent and the turn both take it.
   const steerNow = runningTurn && canSteer && state.turns.at(-1)?.steerable !== false;
-  const hiddenTurnCount = Math.max(0, state.turns.length - visibleTurnCount);
+  const hiddenTurnCount = firstVisibleTurnIndex;
   const visibleTurns = hiddenTurnCount === 0
     ? state.turns
-    : state.turns.slice(-visibleTurnCount);
+    : state.turns.slice(firstVisibleTurnIndex);
   const latestTurnId = state.turns.at(-1)?.id;
+  const releaseRevealedHistory = () => {
+    if (runtime === undefined || historyAnchors[runtime.connectionId] === undefined) return;
+    setHistoryAnchors((current) => {
+      const { [runtime.connectionId]: released, ...rest } = current;
+      return released === undefined ? current : rest;
+    });
+  };
+
   const revealEarlierTurns = (scroller: HTMLDivElement) => {
     if (
       hiddenTurnCount === 0 ||
@@ -516,13 +532,14 @@ export function StructuredAgentWorkspace({
       scrollHeight: scroller.scrollHeight,
       scrollTop: scroller.scrollTop
     };
-    setVisibleTurnCounts((current) => ({
-      ...current,
-      [runtime.connectionId]: nextStructuredHistoryVisibleCount(
-        state.turns,
-        visibleTurnCount
-      )
-    }));
+    const revealed = nextStructuredHistoryVisibleCount(
+      state.turns,
+      state.turns.length - firstVisibleTurnIndex
+    );
+    const nextIndex = Math.max(0, state.turns.length - revealed);
+    const anchor = state.turns[nextIndex];
+    if (anchor === undefined) return;
+    setHistoryAnchors((current) => ({ ...current, [runtime.connectionId]: anchor.id }));
   };
   const dispatch = async (action: Parameters<LumoraApi['dispatchStructuredAgentAction']>[0]) => {
     setActionError(false);
@@ -842,6 +859,9 @@ export function StructuredAgentWorkspace({
           const scroller = event.currentTarget;
           const distanceFromBottom = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
           followLatest.current = distanceFromBottom <= 32;
+          // Back at the latest message, the revealed history can go again: it is
+          // held open for reading, not for the whole session.
+          if (followLatest.current) releaseRevealedHistory();
           revealEarlierTurns(scroller);
         }}
         ref={conversationScroller}
