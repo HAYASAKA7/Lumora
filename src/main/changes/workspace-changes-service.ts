@@ -465,6 +465,7 @@ export class WorkspaceChangesService {
     this.repository.recordReview({
       id: this.createId(),
       segmentId: segment.id,
+      placeId: null,
       fromTree: baselineTree,
       toTree: reviewed.tree,
       fileCount: reviewed.fileCount,

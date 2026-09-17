@@ -638,6 +638,42 @@ export const CATALOG_MIGRATIONS: readonly CatalogMigration[] = [
       `CREATE INDEX workspace_change_review_segment_idx
        ON workspace_change_review (segment_id, reviewed_at DESC)`
     ]
+  },
+  {
+    version: 23,
+    isSchemaPresent: (database) => hasTable(database, 'workspace_change_place'),
+    statements: [
+      `CREATE TABLE workspace_change_place (
+        id TEXT PRIMARY KEY,
+        execution_target_id TEXT NOT NULL
+          REFERENCES execution_target(id) ON DELETE CASCADE,
+        workspace_id TEXT NOT NULL,
+        path TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (execution_target_id, workspace_id)
+          REFERENCES workspace(execution_target_id, id) ON DELETE CASCADE,
+        UNIQUE (execution_target_id, workspace_id, path)
+      ) STRICT`,
+      `CREATE INDEX workspace_change_place_workspace_idx
+       ON workspace_change_place (execution_target_id, workspace_id, created_at)`,
+      `CREATE TABLE workspace_change_segment_root (
+        segment_id TEXT NOT NULL
+          REFERENCES workspace_change_segment(id) ON DELETE CASCADE,
+        place_id TEXT NOT NULL
+          REFERENCES workspace_change_place(id) ON DELETE CASCADE,
+        snapshot_kind TEXT CHECK (snapshot_kind IS NULL OR snapshot_kind IN ('repository', 'folder')),
+        baseline_tree TEXT,
+        baseline_head TEXT,
+        baseline_late INTEGER NOT NULL DEFAULT 0 CHECK (baseline_late IN (0, 1)),
+        state TEXT NOT NULL CHECK (state IN ('capturing', 'ready', 'unavailable')),
+        unavailable_reason TEXT CHECK (unavailable_reason IS NULL OR unavailable_reason IN (
+          'git-missing', 'workspace-unavailable', 'too-large', 'failed'
+        )),
+        PRIMARY KEY (segment_id, place_id)
+      ) STRICT`,
+      `ALTER TABLE workspace_change_review ADD COLUMN place_id TEXT
+        REFERENCES workspace_change_place(id) ON DELETE CASCADE`
+    ]
   }
 ];
 

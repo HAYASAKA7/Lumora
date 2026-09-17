@@ -49,7 +49,7 @@ describe('workspace change migration', () => {
 
     runMigrations(opened, CATALOG_MIGRATIONS);
 
-    expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
+    expect(tables(opened)).toEqual(['workspace_change_place', 'workspace_change_review', 'workspace_change_segment', 'workspace_change_segment_root']);
     expect(
       opened.prepare('SELECT id FROM workspace').all()
     ).toEqual([{ id: WORKSPACE_ID }]);
@@ -80,13 +80,15 @@ describe('workspace change migration', () => {
 
     expect(opened.prepare('SELECT id FROM workspace_change_segment').all()).toEqual([{ id: 'segment-1' }]);
 
+    opened.exec('DROP TABLE workspace_change_segment_root');
+    opened.exec('DROP TABLE workspace_change_place');
     opened.exec('DROP TABLE workspace_change_review');
     opened.exec('DROP TABLE workspace_change_segment');
     expect(tables(opened)).toEqual([]);
 
     runMigrations(opened, CATALOG_MIGRATIONS);
 
-    expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
+    expect(tables(opened)).toEqual(['workspace_change_place', 'workspace_change_review', 'workspace_change_segment', 'workspace_change_segment_root']);
     expect(() => insertSegment(opened, 'segment-2', WORKSPACE_ID)).not.toThrow();
   });
 });
