@@ -25,9 +25,12 @@ import type {
 import type {
   ChangesCount,
   ChangesFileDiff,
+  ChangesFileRef,
   ChangesHistory,
   ChangesOpenAction,
   ChangesOpenOutcome,
+  ChangesPlace,
+  ChangesPlaceSuggestion,
   ChangesSource,
   ChangesSummary
 } from './changes';
@@ -2471,6 +2474,10 @@ export const IPC_CHANNELS = {
   changesHistoryGet: 'lumora:changes:history:get',
   changesFilePathGet: 'lumora:changes:file-path:get',
   changesFileOpen: 'lumora:changes:file:open',
+  changesPlacesGet: 'lumora:changes:places:get',
+  changesPlaceAdd: 'lumora:changes:places:add',
+  changesPlaceRemove: 'lumora:changes:places:remove',
+  changesPlaceSuggest: 'lumora:changes:places:suggest',
   changesCountsGet: 'lumora:changes:counts:get',
   changesCountEvent: 'lumora:changes:count:event',
   environmentScan: 'lumora:environment:scan',
@@ -2641,16 +2648,31 @@ export interface LumoraApi {
   chooseDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   resetDiagnosticExportDirectory(): Promise<DiagnosticStorageSettings>;
   getChangesSummary(source: ChangesSource): Promise<ChangesSummary>;
-  getChangesFileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff>;
-  markChangesReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary>;
+  getChangesFileDiff(
+    source: ChangesSource,
+    /** The watched place the file was listed under; null for the workspace itself. */
+    placeId: string | null,
+    path: string
+  ): Promise<ChangesFileDiff>;
+  markChangesReviewed(
+    ownerId: string,
+    files: readonly ChangesFileRef[]
+  ): Promise<ChangesSummary>;
   getChangesHistory(workspaceId: string): Promise<ChangesHistory>;
   /** The changed file's path on this computer, whether or not it still exists. */
-  getChangedFilePath(source: ChangesSource, path: string): Promise<string>;
+  getChangedFilePath(source: ChangesSource, placeId: string | null, path: string): Promise<string>;
   openChangedFile(
     source: ChangesSource,
+    placeId: string | null,
     path: string,
     action: ChangesOpenAction
   ): Promise<ChangesOpenOutcome>;
+  /** The folders this workspace's sessions watch, the workspace itself first. */
+  getChangesPlaces(workspaceId: string): Promise<ChangesPlace[]>;
+  addChangesPlace(workspaceId: string, path: string): Promise<ChangesPlace[]>;
+  removeChangesPlace(workspaceId: string, placeId: string): Promise<ChangesPlace[]>;
+  /** The repository this workspace sits in, when watching it would add anything. */
+  suggestChangesPlace(workspaceId: string): Promise<ChangesPlaceSuggestion>;
   getChangesCounts(): Promise<ChangesCount[]>;
   onChangesCount(listener: (count: ChangesCount) => void): () => void;
   getSystemInfo(): Promise<SystemInfo>;

@@ -17,7 +17,7 @@ import {
 
 const workspaceId = 'a'.repeat(64);
 const file = (path: string, extra: Partial<ChangedFile> = {}): ChangedFile =>
-  ({ path, oldPath: null, status: 'modified', additions: 1, deletions: 0, binary: false, ...extra });
+  ({ placeId: null, path, oldPath: null, status: 'modified', additions: 1, deletions: 0, binary: false, ...extra });
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -74,6 +74,7 @@ beforeEach(() => {
     changedFiles: vi.fn(async () => []),
     fileDiff: vi.fn(async () => ({ patch: '@@\n+x', truncated: false })),
     headTree: vi.fn(async () => 't-head'),
+    repositoryRoot: vi.fn(async () => null),
     composeReviewed: vi.fn(async () => 't-reviewed'),
     removeWorkspace: vi.fn(async () => undefined)
   };
@@ -304,7 +305,7 @@ describe('WorkspaceChangesService', () => {
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
     engine.composeReviewed.mockResolvedValue('t-now');
-    await service.markReviewed('r1', ['a.txt']);
+    await service.markReviewed('r1', [{ placeId: null, path: 'a.txt' }]);
     const reviewId = service.history(workspaceId).segments[0]!.reviews[0]!.reviewId;
     engine.snapshot.mockClear();
     engine.changedFiles.mockClear();
@@ -319,9 +320,9 @@ describe('WorkspaceChangesService', () => {
     await begin(service, 'r1');
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('a.txt'), file('new.txt', { status: 'renamed', oldPath: 'old.txt' })]);
-    await service.markReviewed('r1', ['new.txt']);
+    await service.markReviewed('r1', [{ placeId: null, path: 'new.txt' }]);
     expect(engine.composeReviewed).toHaveBeenCalledWith(workspaceId, '/work', 't-base', 't-now', ['new.txt', 'old.txt']);
-    await service.markReviewed('r1', ['a.txt', 'new.txt']);
+    await service.markReviewed('r1', [{ placeId: null, path: 'a.txt' }, { placeId: null, path: 'new.txt' }]);
     expect(engine.composeReviewed).toHaveBeenLastCalledWith(workspaceId, '/work', 't-reviewed', 't-now', ['a.txt', 'new.txt', 'old.txt']);
     const history = service.history(workspaceId);
     expect(history.segments[0]!.reviews.map(({ fileCount }) => fileCount)).toEqual([2, 1]);
@@ -334,8 +335,8 @@ describe('WorkspaceChangesService', () => {
     engine.changedFiles.mockResolvedValue([file('a.txt'), file('b.txt')]);
     const composed = deferred<string>();
     engine.composeReviewed.mockReturnValueOnce(composed.promise).mockResolvedValueOnce('t-r2');
-    const firstReview = service.markReviewed('r1', ['a.txt']);
-    const secondReview = service.markReviewed('r1', ['b.txt']);
+    const firstReview = service.markReviewed('r1', [{ placeId: null, path: 'a.txt' }]);
+    const secondReview = service.markReviewed('r1', [{ placeId: null, path: 'b.txt' }]);
     await vi.waitFor(() => expect(engine.composeReviewed).toHaveBeenCalledTimes(1));
     composed.resolve('t-r1');
     await Promise.all([firstReview, secondReview]);
@@ -354,7 +355,7 @@ describe('WorkspaceChangesService', () => {
   it('records nothing when no listed file has changed', async () => {
     await begin(service, 'r1');
     engine.changedFiles.mockResolvedValue([file('a.txt')]);
-    await service.markReviewed('r1', ['other.txt']);
+    await service.markReviewed('r1', [{ placeId: null, path: 'other.txt' }]);
     expect(engine.composeReviewed).not.toHaveBeenCalled();
     expect(service.history(workspaceId).segments[0]!.reviews).toEqual([]);
   });
@@ -364,9 +365,9 @@ describe('WorkspaceChangesService', () => {
     engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
     engine.changedFiles.mockResolvedValue([file('new.txt', { status: 'renamed', oldPath: 'old.txt' }), file('b.bin', { binary: true, additions: null, deletions: null })]);
     const source = sessionSource('r1');
-    await service.fileDiff(source, 'new.txt');
+    await service.fileDiff(source, null, 'new.txt');
     expect(engine.fileDiff).toHaveBeenCalledWith(workspaceId, '/work', 't-base', 't-now', 'new.txt', 'old.txt');
-    expect(await service.fileDiff(source, 'b.bin')).toEqual({ path: 'b.bin', patch: '', binary: true, truncated: false });
+    expect(await service.fileDiff(source, null, 'b.bin')).toEqual({ path: 'b.bin', patch: '', binary: true, truncated: false });
   });
 
   it('lists the changed files once for a summary and the diffs opened right after it', async () => {
@@ -377,21 +378,21 @@ describe('WorkspaceChangesService', () => {
 
     expect((await cached.summary(source)).files).toHaveLength(2);
     const listings = engine.changedFiles.mock.calls.length;
-    await cached.fileDiff(source, 'a.txt');
-    await cached.fileDiff(source, 'b.txt');
+    await cached.fileDiff(source, null, 'a.txt');
+    await cached.fileDiff(source, null, 'b.txt');
 
     expect(engine.changedFiles).toHaveBeenCalledTimes(listings);
     expect(engine.fileDiff).toHaveBeenCalledTimes(2);
 
     now = new Date(now.getTime() + 6_000);
-    await cached.fileDiff(source, 'a.txt');
+    await cached.fileDiff(source, null, 'a.txt');
     expect(engine.changedFiles.mock.calls.length).toBeGreaterThan(listings);
   });
 
   it('refuses a diff while the baseline is still missing', async () => {
     const noGit = createService({ gitAvailable: async () => false });
     await begin(noGit, 'r1');
-    await expect(noGit.fileDiff(sessionSource('r1'), 'a.txt')).rejects.toThrow();
+    await expect(noGit.fileDiff(sessionSource('r1'), null, 'a.txt')).rejects.toThrow();
   });
 
   describe('opening files', () => {
@@ -410,13 +411,13 @@ describe('WorkspaceChangesService', () => {
       await begin(scoped, 'r1');
       const workspaceSource = { kind: 'workspace', workspaceId } as const;
 
-      await expect(scoped.filePath(sessionSource('r1'), 'notes.txt')).resolves.toBe(join(root, 'notes.txt'));
-      await expect(scoped.filePath(workspaceSource, 'sub/deep.txt')).resolves.toBe(join(root, 'sub', 'deep.txt'));
+      await expect(scoped.filePath(sessionSource('r1'), null, 'notes.txt')).resolves.toBe(join(root, 'notes.txt'));
+      await expect(scoped.filePath(workspaceSource, null, 'sub/deep.txt')).resolves.toBe(join(root, 'sub', 'deep.txt'));
       // A file the session deleted still has a path worth copying.
-      await expect(scoped.filePath(workspaceSource, 'gone.txt')).resolves.toBe(join(root, 'gone.txt'));
+      await expect(scoped.filePath(workspaceSource, null, 'gone.txt')).resolves.toBe(join(root, 'gone.txt'));
 
-      await expect(scoped.filePath(workspaceSource, '../escape.txt')).rejects.toThrow();
-      await expect(scoped.filePath(workspaceSource, 'C:/elsewhere/file.txt')).rejects.toThrow();
+      await expect(scoped.filePath(workspaceSource, null, '../escape.txt')).rejects.toThrow();
+      await expect(scoped.filePath(workspaceSource, null, 'C:/elsewhere/file.txt')).rejects.toThrow();
     });
 
     it('tells the full path of a file in a reviewed batch', async () => {
@@ -424,10 +425,10 @@ describe('WorkspaceChangesService', () => {
       await begin(scoped, 'r1');
       engine.snapshot.mockResolvedValue({ kind: 'repository', tree: 't-now', head: 'h1' });
       engine.changedFiles.mockResolvedValue([file('notes.txt')]);
-      await scoped.markReviewed('r1', ['notes.txt']);
+      await scoped.markReviewed('r1', [{ placeId: null, path: 'notes.txt' }]);
       const reviewId = scoped.history(workspaceId).segments[0]?.reviews[0]?.reviewId ?? '';
 
-      await expect(scoped.filePath({ kind: 'review', reviewId }, 'notes.txt'))
+      await expect(scoped.filePath({ kind: 'review', reviewId }, null, 'notes.txt'))
         .resolves.toBe(join(root, 'notes.txt'));
     });
 
@@ -435,8 +436,8 @@ describe('WorkspaceChangesService', () => {
       const openPath = vi.fn(async () => '');
       const scoped = createService({ openPath, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
       await begin(scoped, 'r1');
-      await expect(scoped.open(sessionSource('r1'), '../escape.txt', 'open')).rejects.toThrow();
-      await scoped.open(sessionSource('r1'), 'notes.txt', 'open');
+      await expect(scoped.open(sessionSource('r1'), null, '../escape.txt', 'open')).rejects.toThrow();
+      await scoped.open(sessionSource('r1'), null, 'notes.txt', 'open');
       expect(openPath).toHaveBeenCalledTimes(1);
     });
 
@@ -450,8 +451,8 @@ describe('WorkspaceChangesService', () => {
         const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
         const source = { kind: 'workspace', workspaceId } as const;
 
-        await expect(scoped.open(source, 'linked/secret.txt', 'open')).rejects.toThrow();
-        await expect(scoped.open(source, 'linked/secret.txt', 'reveal')).rejects.toThrow();
+        await expect(scoped.open(source, null, 'linked/secret.txt', 'open')).rejects.toThrow();
+        await expect(scoped.open(source, null, 'linked/secret.txt', 'reveal')).rejects.toThrow();
         expect(openPath).not.toHaveBeenCalled();
         expect(showItemInFolder).not.toHaveBeenCalled();
       } finally {
@@ -470,10 +471,10 @@ describe('WorkspaceChangesService', () => {
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
       const source = { kind: 'workspace', workspaceId } as const;
 
-      expect(await scoped.open(source, 'build.bat', 'open')).toEqual({ outcome: 'revealed' });
-      expect(await scoped.open(source, 'Tool.lnk', 'open')).toEqual({ outcome: 'revealed' });
-      expect(await scoped.open(source, 'tool.py', 'open')).toEqual({ outcome: 'confirm-required' });
-      expect(await scoped.open(source, 'index.ts', 'open')).toEqual({ outcome: 'opened' });
+      expect(await scoped.open(source, null, 'build.bat', 'open')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, null, 'Tool.lnk', 'open')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, null, 'tool.py', 'open')).toEqual({ outcome: 'confirm-required' });
+      expect(await scoped.open(source, null, 'index.ts', 'open')).toEqual({ outcome: 'opened' });
 
       expect(showItemInFolder.mock.calls).toEqual([[join(root, 'build.bat')], [join(root, 'Tool.lnk')]]);
       expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'index.ts'));
@@ -487,16 +488,16 @@ describe('WorkspaceChangesService', () => {
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
       const source = { kind: 'workspace', workspaceId } as const;
 
-      expect(await scoped.open(source, 'tool.py', 'open-anyway')).toEqual({ outcome: 'opened' });
+      expect(await scoped.open(source, null, 'tool.py', 'open-anyway')).toEqual({ outcome: 'opened' });
       expect(openPath).toHaveBeenCalledExactlyOnceWith(join(root, 'tool.py'));
 
-      expect(await scoped.open(source, 'build.bat', 'open-anyway')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, null, 'build.bat', 'open-anyway')).toEqual({ outcome: 'revealed' });
       expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(join(root, 'build.bat'));
       expect(openPath).toHaveBeenCalledTimes(1);
 
-      expect(await scoped.open(source, 'tool.py', 'reveal')).toEqual({ outcome: 'revealed' });
+      expect(await scoped.open(source, null, 'tool.py', 'reveal')).toEqual({ outcome: 'revealed' });
       expect(openPath).toHaveBeenCalledTimes(1);
-      await expect(scoped.open(source, 'gone.py', 'open-anyway')).rejects.toThrow();
+      await expect(scoped.open(source, null, 'gone.py', 'open-anyway')).rejects.toThrow();
     });
 
     it('reveals a harmless-looking link to a file that would run', async (context) => {
@@ -513,7 +514,7 @@ describe('WorkspaceChangesService', () => {
       const showItemInFolder = vi.fn();
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
 
-      await scoped.open({ kind: 'workspace', workspaceId }, 'readme.txt', 'open');
+      await scoped.open({ kind: 'workspace', workspaceId }, null, 'readme.txt', 'open');
 
       expect(openPath).not.toHaveBeenCalled();
       expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync.native(join(root, 'build.bat')));
@@ -528,7 +529,7 @@ describe('WorkspaceChangesService', () => {
       const showItemInFolder = vi.fn();
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
 
-      await scoped.open({ kind: 'workspace', workspaceId }, 'mirror/build.bat', 'open');
+      await scoped.open({ kind: 'workspace', workspaceId }, null, 'mirror/build.bat', 'open');
 
       expect(openPath).not.toHaveBeenCalled();
       expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(realpathSync.native(join(root, 'sub', 'build.bat')));
@@ -540,8 +541,8 @@ describe('WorkspaceChangesService', () => {
       const scoped = createService({ openPath, showItemInFolder, lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
       const source = { kind: 'workspace', workspaceId } as const;
 
-      await expect(scoped.open(source, 'deleted.txt', 'open')).rejects.toThrow();
-      await scoped.open(source, 'deleted.txt', 'reveal');
+      await expect(scoped.open(source, null, 'deleted.txt', 'open')).rejects.toThrow();
+      await scoped.open(source, null, 'deleted.txt', 'reveal');
 
       expect(openPath).not.toHaveBeenCalled();
       expect(showItemInFolder).toHaveBeenCalledExactlyOnceWith(root);
@@ -550,9 +551,9 @@ describe('WorkspaceChangesService', () => {
     it('reveals a file in its folder, and reports a file the system could not open', async () => {
       const showItemInFolder = vi.fn();
       const failing = createService({ showItemInFolder, openPath: async () => 'No application', lookupWorkspace: () => ({ canonicalPath: root, available: true }) });
-      await failing.open({ kind: 'workspace', workspaceId }, 'notes.txt', 'reveal');
+      await failing.open({ kind: 'workspace', workspaceId }, null, 'notes.txt', 'reveal');
       expect(showItemInFolder).toHaveBeenCalledWith(join(root, 'notes.txt'));
-      await expect(failing.open({ kind: 'workspace', workspaceId }, 'notes.txt', 'open')).rejects.toThrow();
+      await expect(failing.open({ kind: 'workspace', workspaceId }, null, 'notes.txt', 'open')).rejects.toThrow();
     });
   });
 

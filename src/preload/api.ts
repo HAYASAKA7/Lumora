@@ -17,6 +17,11 @@ import {
   ChangesFilePathSchema,
   ChangesOpenOutcomeSchema,
   ChangesOpenRequestSchema,
+  ChangesAddPlaceRequestSchema,
+  ChangesPlaceListSchema,
+  ChangesPlaceSuggestionSchema,
+  ChangesPlacesRequestSchema,
+  ChangesRemovePlaceRequestSchema,
   ChangesReviewRequestSchema,
   ChangesSourceSchema,
   ChangesSummarySchema,
@@ -390,26 +395,42 @@ export function createLumoraApi(
       const value = await invoke(IPC_CHANNELS.changesSummaryGet, ChangesSourceSchema.parse(source));
       return ChangesSummarySchema.parse(value);
     },
-    async getChangesFileDiff(source, path) {
-      const request = ChangesFileDiffRequestSchema.parse({ source, path });
+    async getChangesFileDiff(source, placeId, path) {
+      const request = ChangesFileDiffRequestSchema.parse({ source, placeId, path });
       return ChangesFileDiffSchema.parse(await invoke(IPC_CHANNELS.changesFileDiffGet, request));
     },
-    async markChangesReviewed(ownerId, paths) {
-      const request = ChangesReviewRequestSchema.parse({ ownerId, paths: [...paths] });
+    async markChangesReviewed(ownerId, files) {
+      const request = ChangesReviewRequestSchema.parse({ ownerId, files: [...files] });
       return ChangesSummarySchema.parse(await invoke(IPC_CHANNELS.changesReviewMark, request));
     },
     async getChangesHistory(workspaceId) {
       const request = ChangesHistoryRequestSchema.parse({ workspaceId });
       return ChangesHistorySchema.parse(await invoke(IPC_CHANNELS.changesHistoryGet, request));
     },
-    async getChangedFilePath(source, path) {
-      const request = ChangesFilePathRequestSchema.parse({ source, path });
+    async getChangedFilePath(source, placeId, path) {
+      const request = ChangesFilePathRequestSchema.parse({ source, placeId, path });
       const result = ChangesFilePathSchema.parse(await invoke(IPC_CHANNELS.changesFilePathGet, request));
       return result.path;
     },
-    async openChangedFile(source, path, action) {
-      const request = ChangesOpenRequestSchema.parse({ source, path, action });
+    async openChangedFile(source, placeId, path, action) {
+      const request = ChangesOpenRequestSchema.parse({ source, placeId, path, action });
       return ChangesOpenOutcomeSchema.parse(await invoke(IPC_CHANNELS.changesFileOpen, request));
+    },
+    async getChangesPlaces(workspaceId) {
+      const request = ChangesPlacesRequestSchema.parse({ workspaceId });
+      return ChangesPlaceListSchema.parse(await invoke(IPC_CHANNELS.changesPlacesGet, request));
+    },
+    async addChangesPlace(workspaceId, path) {
+      const request = ChangesAddPlaceRequestSchema.parse({ workspaceId, path });
+      return ChangesPlaceListSchema.parse(await invoke(IPC_CHANNELS.changesPlaceAdd, request));
+    },
+    async removeChangesPlace(workspaceId, placeId) {
+      const request = ChangesRemovePlaceRequestSchema.parse({ workspaceId, placeId });
+      return ChangesPlaceListSchema.parse(await invoke(IPC_CHANNELS.changesPlaceRemove, request));
+    },
+    async suggestChangesPlace(workspaceId) {
+      const request = ChangesPlacesRequestSchema.parse({ workspaceId });
+      return ChangesPlaceSuggestionSchema.parse(await invoke(IPC_CHANNELS.changesPlaceSuggest, request));
     },
     async getChangesCounts() {
       return ChangesCountListSchema.parse(await invoke(IPC_CHANNELS.changesCountsGet));

@@ -23,13 +23,13 @@ describe('workspace changes contracts', () => {
 
   it('rejects an unsafe owner id', () => {
     expect(ChangesSourceSchema.safeParse({ kind: 'session', ownerId: '../etc', view: 'session' }).success).toBe(false);
-    expect(ChangesReviewRequestSchema.safeParse({ ownerId: 'a b', paths: ['file.ts'] }).success).toBe(false);
+    expect(ChangesReviewRequestSchema.safeParse({ ownerId: 'a b', files: [{ path: 'file.ts' }] }).success).toBe(false);
   });
 
-  it('rejects a review request without paths', () => {
-    expect(ChangesReviewRequestSchema.safeParse({ ownerId: 'runtime-1', paths: [] }).success).toBe(false);
-    expect(ChangesReviewRequestSchema.parse({ ownerId: 'runtime-1', paths: ['a.ts'] })).toEqual({
-      ownerId: 'runtime-1', paths: ['a.ts']
+  it('rejects a review request without files', () => {
+    expect(ChangesReviewRequestSchema.safeParse({ ownerId: 'runtime-1', files: [] }).success).toBe(false);
+    expect(ChangesReviewRequestSchema.parse({ ownerId: 'runtime-1', files: [{ path: 'a.ts' }] })).toEqual({
+      ownerId: 'runtime-1', files: [{ placeId: null, path: 'a.ts' }]
     });
   });
 

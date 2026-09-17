@@ -1,4 +1,4 @@
-import type { ChangedFile } from '../../shared/changes';
+import type { ChangedFile, ChangedFileEntry } from '../../shared/changes';
 
 export interface NameStatusEntry {
   status: ChangedFile['status'];
@@ -98,7 +98,7 @@ export function parseNumstat(output: Buffer): Map<string, LineCounts> {
 export function mergeChangedFiles(
   entries: readonly NameStatusEntry[],
   counts: ReadonlyMap<string, LineCounts>
-): ChangedFile[] {
+): ChangedFileEntry[] {
   return entries
     .map((entry) => ({
       path: entry.path,

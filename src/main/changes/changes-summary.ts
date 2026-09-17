@@ -1,5 +1,6 @@
 import type {
   ChangedFile,
+  ChangesPlace,
   ChangesSource,
   ChangesSummary,
   ChangesUnavailableReason
@@ -30,10 +31,10 @@ export function unavailableReasonFor(
  * Splits a session's files into those that still differ from HEAD and those
  * whose content now equals a new commit.
  */
-export function splitCommitted(
-  sessionFiles: readonly ChangedFile[],
-  uncommittedFiles: readonly ChangedFile[]
-): { files: ChangedFile[]; committed: ChangedFile[] } {
+export function splitCommitted<Entry extends { path: string }>(
+  sessionFiles: readonly Entry[],
+  uncommittedFiles: readonly { path: string }[]
+): { files: Entry[]; committed: Entry[] } {
   const uncommitted = new Set(uncommittedFiles.map(({ path }) => path));
   return {
     files: sessionFiles.filter(({ path }) => uncommitted.has(path)),
@@ -46,6 +47,8 @@ export interface SummaryContext {
   workspaceId: string;
   baselineLate: boolean;
   sharedWorkspace: boolean;
+  /** Every place the files come from, the workspace first. */
+  places: ChangesPlace[];
 }
 
 export function readySummary(

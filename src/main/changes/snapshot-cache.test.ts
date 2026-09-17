@@ -58,10 +58,22 @@ describe('SnapshotCache', () => {
     expect(snapshot).toHaveBeenCalledTimes(2);
   });
 
+  it('caches each watched folder of a workspace on its own', async () => {
+    const { cache, snapshot } = setup();
+
+    await expect(cache.get('ws-1', '/work/ws-1', false)).resolves.toEqual(snapshotOf('tree-1'));
+    await expect(cache.get('ws-1', '/work/lib', false)).resolves.toEqual(snapshotOf('tree-2'));
+    expect(snapshot).toHaveBeenCalledTimes(2);
+
+    cache.delete('ws-1');
+    await cache.get('ws-1', '/work/lib', false);
+    expect(snapshot).toHaveBeenCalledTimes(3);
+  });
+
   it('reuses a snapshot taken elsewhere, such as a session baseline', async () => {
     const { advance, cache, snapshot } = setup();
 
-    cache.set('ws-1', snapshotOf('baseline'));
+    cache.set('ws-1', '/work/ws-1', snapshotOf('baseline'));
 
     await expect(cache.get('ws-1', '/work/ws-1', false)).resolves.toEqual(snapshotOf('baseline'));
     expect(snapshot).not.toHaveBeenCalled();

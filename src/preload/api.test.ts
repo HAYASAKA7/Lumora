@@ -283,7 +283,8 @@ describe('createLumoraApi', () => {
       unavailableReason: null,
       baselineLate: false,
       sharedWorkspace: false,
-      files: [{ path: 'src/a.ts', oldPath: null, status: 'modified', additions: 2, deletions: 1, binary: false }],
+      places: [{ id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null }],
+      files: [{ placeId: null, path: 'src/a.ts', oldPath: null, status: 'modified', additions: 2, deletions: 1, binary: false }],
       committed: [],
       truncated: false,
       checkedAt: '2026-09-15T01:00:00.000Z'
@@ -309,24 +310,24 @@ describe('createLumoraApi', () => {
     expect(invoke).not.toHaveBeenCalled();
 
     invoke.mockResolvedValueOnce({ path: 'D:\\work\\src\\a.ts' });
-    await expect(api.getChangedFilePath(source, 'src/a.ts')).resolves.toBe('D:\\work\\src\\a.ts');
-    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFilePathGet, { source, path: 'src/a.ts' });
+    await expect(api.getChangedFilePath(source, null, 'src/a.ts')).resolves.toBe('D:\\work\\src\\a.ts');
+    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFilePathGet, { source, placeId: null, path: 'src/a.ts' });
     invoke.mockResolvedValueOnce({ path: '' });
-    await expect(api.getChangedFilePath(source, 'src/a.ts')).rejects.toBeDefined();
+    await expect(api.getChangedFilePath(source, null, 'src/a.ts')).rejects.toBeDefined();
 
     invoke.mockResolvedValueOnce({ outcome: 'revealed' });
-    await expect(api.openChangedFile(source, 'src/a.ts', 'reveal')).resolves.toEqual({ outcome: 'revealed' });
-    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'src/a.ts', action: 'reveal' });
+    await expect(api.openChangedFile(source, null, 'src/a.ts', 'reveal')).resolves.toEqual({ outcome: 'revealed' });
+    expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.changesFileOpen, { source, placeId: null, path: 'src/a.ts', action: 'reveal' });
 
     invoke.mockResolvedValueOnce({ outcome: 'confirm-required' });
-    await expect(api.openChangedFile(source, 'tool.py', 'open')).resolves.toEqual({ outcome: 'confirm-required' });
+    await expect(api.openChangedFile(source, null, 'tool.py', 'open')).resolves.toEqual({ outcome: 'confirm-required' });
     invoke.mockResolvedValueOnce({ outcome: 'opened' });
-    await expect(api.openChangedFile(source, 'tool.py', 'open-anyway')).resolves.toEqual({ outcome: 'opened' });
-    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFileOpen, { source, path: 'tool.py', action: 'open-anyway' });
+    await expect(api.openChangedFile(source, null, 'tool.py', 'open-anyway')).resolves.toEqual({ outcome: 'opened' });
+    expect(invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.changesFileOpen, { source, placeId: null, path: 'tool.py', action: 'open-anyway' });
 
     invoke.mockResolvedValueOnce({ outcome: 'started' });
-    await expect(api.openChangedFile(source, 'src/a.ts', 'open')).rejects.toBeDefined();
-    await expect(api.openChangedFile(source, 'src/a.ts', 'delete' as 'open')).rejects.toBeDefined();
+    await expect(api.openChangedFile(source, null, 'src/a.ts', 'open')).rejects.toBeDefined();
+    await expect(api.openChangedFile(source, null, 'src/a.ts', 'delete' as 'open')).rejects.toBeDefined();
 
     const listener = vi.fn();
     api.onChangesCount(listener);

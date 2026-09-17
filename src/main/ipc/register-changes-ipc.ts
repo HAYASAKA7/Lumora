@@ -8,6 +8,11 @@ import {
   ChangesFilePathSchema,
   ChangesOpenOutcomeSchema,
   ChangesOpenRequestSchema,
+  ChangesAddPlaceRequestSchema,
+  ChangesPlaceListSchema,
+  ChangesPlaceSuggestionSchema,
+  ChangesPlacesRequestSchema,
+  ChangesRemovePlaceRequestSchema,
   ChangesReviewRequestSchema,
   ChangesSourceSchema,
   ChangesSummarySchema,
@@ -17,6 +22,8 @@ import {
   type ChangesFilePath,
   type ChangesHistory,
   type ChangesOpenOutcome,
+  type ChangesPlace,
+  type ChangesPlaceSuggestion,
   type ChangesSummary
 } from '../../shared/contracts';
 import type { WorkspaceChangesService } from '../changes/workspace-changes-service';
@@ -39,6 +46,7 @@ interface RegisterChangesIpcDependencies {
 type ChangesIpcService = Pick<
   WorkspaceChangesService,
   'summary' | 'fileDiff' | 'markReviewed' | 'history' | 'filePath' | 'open' | 'counts'
+  | 'places' | 'addPlace' | 'removePlace' | 'suggestPlace'
 >;
 
 class ChangesIpcError extends Error {
@@ -71,7 +79,11 @@ const NO_CHANGE_TRACKING: ChangesIpcService = {
   history: unavailable,
   filePath: unavailable,
   open: unavailable,
-  counts: () => []
+  counts: () => [],
+  places: () => [],
+  addPlace: unavailable,
+  removePlace: unavailable,
+  suggestPlace: async () => null
 };
 
 export function registerChangesIpc({
@@ -91,7 +103,9 @@ export function registerChangesIpc({
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesFileDiffRequestSchema.parse(value);
-      return ChangesFileDiffSchema.parse(await service.fileDiff(request.source, request.path));
+      return ChangesFileDiffSchema.parse(
+        await service.fileDiff(request.source, request.placeId, request.path)
+      );
     });
   });
 
@@ -99,7 +113,7 @@ export function registerChangesIpc({
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesReviewRequestSchema.parse(value);
-      return ChangesSummarySchema.parse(await service.markReviewed(request.ownerId, request.paths));
+      return ChangesSummarySchema.parse(await service.markReviewed(request.ownerId, request.files));
     });
   });
 
@@ -115,7 +129,9 @@ export function registerChangesIpc({
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesFilePathRequestSchema.parse(value);
-      return ChangesFilePathSchema.parse({ path: await service.filePath(request.source, request.path) });
+      return ChangesFilePathSchema.parse({
+        path: await service.filePath(request.source, request.placeId, request.path)
+      });
     });
   });
 
@@ -123,7 +139,41 @@ export function registerChangesIpc({
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesOpenRequestSchema.parse(value);
-      return ChangesOpenOutcomeSchema.parse(await service.open(request.source, request.path, request.action));
+      return ChangesOpenOutcomeSchema.parse(
+        await service.open(request.source, request.placeId, request.path, request.action)
+      );
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.changesPlacesGet, async (event, value): Promise<ChangesPlace[]> => {
+    authorize(event);
+    return protectedOperation(() => {
+      const request = ChangesPlacesRequestSchema.parse(value);
+      return ChangesPlaceListSchema.parse(service.places(request.workspaceId));
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.changesPlaceAdd, async (event, value): Promise<ChangesPlace[]> => {
+    authorize(event);
+    return protectedOperation(async () => {
+      const request = ChangesAddPlaceRequestSchema.parse(value);
+      return ChangesPlaceListSchema.parse(await service.addPlace(request.workspaceId, request.path));
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.changesPlaceRemove, async (event, value): Promise<ChangesPlace[]> => {
+    authorize(event);
+    return protectedOperation(() => {
+      const request = ChangesRemovePlaceRequestSchema.parse(value);
+      return ChangesPlaceListSchema.parse(service.removePlace(request.workspaceId, request.placeId));
+    });
+  });
+
+  ipc.handle(IPC_CHANNELS.changesPlaceSuggest, async (event, value): Promise<ChangesPlaceSuggestion> => {
+    authorize(event);
+    return protectedOperation(async () => {
+      const request = ChangesPlacesRequestSchema.parse(value);
+      return ChangesPlaceSuggestionSchema.parse(await service.suggestPlace(request.workspaceId));
     });
   });
 
