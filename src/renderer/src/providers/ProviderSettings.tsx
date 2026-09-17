@@ -717,7 +717,7 @@ export function ProviderSettings({
             </div>
           </section>
         </div>,
-        document.body
+        document.querySelector('.app-shell') ?? document.body
       )}
     </section>
   );

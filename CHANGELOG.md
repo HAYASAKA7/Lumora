@@ -16,6 +16,13 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   each provider takes them beside the conversation rather than in it, so they
   are sent straight away and recorded inside the turn under way.
 
+### Fixed
+
+- Dress every dialog in the window's appearance. The dialog behind Home's
+  needs-attention card and both provider details dialogs were rendered outside
+  the appearance root, so the transparency a background picture gives every
+  other surface never reached them and they stayed opaque over it.
+
 ## [0.6.2] - 2026-09-17
 
 ### Fixed

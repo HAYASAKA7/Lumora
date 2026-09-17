@@ -1286,6 +1286,50 @@ describe('CatalogHomeSummary', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('opens what needs attention inside the appearance root', () => {
+    const shell = document.createElement('div');
+    shell.className = 'appearance-root app-shell';
+    document.body.append(shell);
+    try {
+      render(
+        <CatalogHomeSummary
+          onRecover={vi.fn()}
+          onResume={vi.fn()}
+          profiles={[terminalProfile]}
+          providerScan={providerScan}
+          runtimes={[]}
+          status={{
+            state: 'ready',
+            snapshot: {
+              ...catalogSnapshot,
+              diagnostics: [{
+                code: 'CATALOG_SOURCE_INVALID' as const,
+                provider: 'claude' as const,
+                affectedCount: 1,
+                message: 'One source is invalid.',
+                recovery: 'Refresh the catalog.',
+                retryable: true,
+                scannedAt: '2026-07-12T04:00:00.000Z'
+              }]
+            }
+          }}
+        />,
+        TEST_LOCALIZATION_SNAPSHOT,
+        { container: shell }
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show what needs attention' }));
+
+      // The appearance settings are tokens on the shell, so a dialog outside it
+      // stays opaque however the rest of the window is set.
+      expect(shell).toContainElement(
+        screen.getByRole('dialog', { name: 'Needs attention' })
+      );
+    } finally {
+      shell.remove();
+    }
+  });
+
   it('counts agents running in the Unified UI alongside terminal agents', () => {
     render(
       <CatalogHomeSummary

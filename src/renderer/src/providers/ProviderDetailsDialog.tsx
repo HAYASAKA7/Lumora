@@ -185,6 +185,6 @@ export function ProviderDetailsDialog({
         </footer>
       </section>
     </div>,
-    document.body
+    document.querySelector('.app-shell') ?? document.body
   );
 }
