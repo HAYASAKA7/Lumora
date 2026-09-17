@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import type { ChangedFile, ChangesSource, ChangesSummary } from '../../../shared/contracts';
+import type {
+  ChangedFile,
+  ChangesPlace,
+  ChangesPlaceSuggestion,
+  ChangesSource,
+  ChangesSummary
+} from '../../../shared/contracts';
 import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
-import type { ActionMenuItem } from '../ui/ActionMenu';
+import { ActionMenu, type ActionMenuItem } from '../ui/ActionMenu';
 import { useRefreshRequest } from '../keyboard/page-requests';
 import { IconButton } from '../ui/IconButton';
-import { RefreshIcon } from '../ui/icons';
+import { FolderIcon, RefreshIcon } from '../ui/icons';
 import { CHANGES_PAGE_SIZE, ChangesFileGroup } from './ChangesFileGroup';
 import { ChangesOpenConfirm } from './ChangesOpenConfirm';
 import {
@@ -190,6 +196,71 @@ export function ChangesView({
   const committedMenu = useMemo(() => fileMenu.filter((item) => item.id !== 'mark-reviewed'), [fileMenu]);
 
   const listed = value !== null && value.state !== 'unavailable';
+  /**
+   * The files of each watched place, the workspace first. A place with nothing
+   * in it is left out: an empty heading says less than no heading at all.
+   */
+  const placeGroups = useMemo(() => {
+    const places = value?.places ?? [];
+    if (value === null) return [];
+    return places
+      .map((place) => ({ place, files: value.files.filter((file) => file.placeId === place.id) }))
+      .filter(({ files, place }) => files.length > 0 || place.id === null);
+  }, [value]);
+  const [suggestion, setSuggestion] = useState<ChangesPlaceSuggestion>(null);
+  const placeCount = value?.places.length ?? 0;
+  useEffect(() => {
+    if (knownWorkspaceId === null) return undefined;
+    let cancelled = false;
+    api.suggestChangesPlace(knownWorkspaceId).then(
+      (value) => { if (!cancelled) setSuggestion(value); },
+      () => { if (!cancelled) setSuggestion(null); }
+    );
+    return () => { cancelled = true; };
+  }, [api, knownWorkspaceId, placeCount]);
+
+  const placeMenuItems = useMemo<ActionMenuItem<string>[]>(() => [
+    ...(suggestion === null
+      ? []
+      : [{ id: 'repository', label: t('terminal.changes.place-repository', { name: suggestion.name }) }]),
+    { id: 'add', label: t('terminal.changes.place-add') },
+    ...(value?.places ?? [])
+      .filter((place) => place.id !== null)
+      .map((place) => ({
+        id: `remove:${place.id}`,
+        label: t('terminal.changes.place-remove', { name: place.name })
+      }))
+  ], [suggestion, t, value?.places]);
+
+  const choosePlaceAction = (id: string) => {
+    const workspaceId = knownWorkspaceId;
+    if (workspaceId === null) return;
+    const current = latest.current;
+    if (id === 'repository') {
+      attempt(async () => {
+        await current.api.addChangesPlace(workspaceId, suggestion?.path ?? null);
+        await reload();
+      });
+      return;
+    }
+    if (id === 'add') {
+      attempt(async () => {
+        await current.api.addChangesPlace(workspaceId);
+        await reload();
+      });
+      return;
+    }
+    const placeId = id.slice('remove:'.length);
+    attempt(async () => {
+      await current.api.removeChangesPlace(workspaceId, placeId);
+      await reload();
+    });
+  };
+
+  const placeNote = (place: ChangesPlace): string | undefined => {
+    if (place.unavailableReason !== null) return t('terminal.changes.place-unreadable');
+    return place.baselineLate ? t('terminal.changes.place-late') : undefined;
+  };
   const selectedFile = !listed || selected === null
     ? null
     : value.files.find((file) => isSameFile(file, selected)) ??
@@ -219,6 +290,16 @@ export function ChangesView({
               {t('terminal.changes.mark-all-reviewed')}
             </button>
           ) : null}
+          {knownWorkspaceId === null ? null : (
+            <ActionMenu
+              className="changes-places-menu"
+              items={placeMenuItems}
+              label={t('terminal.changes.places')}
+              onSelect={choosePlaceAction}
+            >
+              <FolderIcon />
+            </ActionMenu>
+          )}
           <IconButton
             busy={refreshing}
             busyLabel={t('terminal.changes.refreshing')}
@@ -237,17 +318,20 @@ export function ChangesView({
             {value.files.length === 0 && value.state !== 'capturing' ? (
               <p className="changes-empty">{t(emptyKey(source))}</p>
             ) : null}
-            {value.files.length > 0 ? (
+            {value.files.length > 0 ? placeGroups.map(({ place, files }) => (
               <ChangesFileGroup
-                files={value.files}
+                files={files}
                 handlers={handlers}
-                label={t('terminal.changes.file-list')}
+                heading={placeGroups.length > 1 ? place.name : undefined}
+                key={place.id ?? ''}
+                label={placeGroups.length > 1 ? place.name : t('terminal.changes.file-list')}
                 menuItems={fileMenu}
+                note={placeNote(place)}
                 onShowMore={() => setPages((current) => ({ ...current, files: current.files + CHANGES_PAGE_SIZE }))}
                 selected={selected}
                 visibleCount={pages.files}
               />
-            ) : null}
+            )) : null}
             {value.committed.length > 0 ? (
               <details
                 className="changes-committed"

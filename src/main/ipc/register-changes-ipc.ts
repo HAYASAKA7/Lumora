@@ -41,6 +41,8 @@ interface RegisterChangesIpcDependencies {
   authorize: IpcAuthorizer;
   /** Null where this computer has no change tracking; every request then fails alike. */
   service: ChangesIpcService | null;
+  /** Asks which folder to watch; null when the person closes the chooser. */
+  chooseDirectory(): Promise<string | null>;
 }
 
 type ChangesIpcService = Pick<
@@ -89,6 +91,7 @@ const NO_CHANGE_TRACKING: ChangesIpcService = {
 export function registerChangesIpc({
   ipc,
   authorize,
+  chooseDirectory,
   service: tracking
 }: RegisterChangesIpcDependencies): void {
   const service = tracking ?? NO_CHANGE_TRACKING;
@@ -157,7 +160,11 @@ export function registerChangesIpc({
     authorize(event);
     return protectedOperation(async () => {
       const request = ChangesAddPlaceRequestSchema.parse(value);
-      return ChangesPlaceListSchema.parse(await service.addPlace(request.workspaceId, request.path));
+      const path = request.path ?? await chooseDirectory();
+      if (path === null) {
+        return ChangesPlaceListSchema.parse(service.places(request.workspaceId));
+      }
+      return ChangesPlaceListSchema.parse(await service.addPlace(request.workspaceId, path));
     });
   });
 

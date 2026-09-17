@@ -36,6 +36,7 @@ function createHandlers(
   authorize = vi.fn(() => ({ mode: 'local' }))
 ) {
   const handlers = new Map<string, InvokeHandler>();
+  const chooseDirectory = async (): Promise<string | null> => null;
   registerChangesIpc({
     ipc: {
       handle(channel: string, handler: InvokeHandler) {
@@ -43,6 +44,7 @@ function createHandlers(
       }
     },
     authorize: authorize as never,
+    chooseDirectory,
     service
   });
   return handlers;
@@ -50,6 +52,7 @@ function createHandlers(
 
 function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
   const handlers = new Map<string, InvokeHandler>();
+  const chooseDirectory = vi.fn(async () => 'D:\chosen');
   const service = {
     summary: vi.fn().mockResolvedValue(summary),
     fileDiff: vi.fn().mockResolvedValue({ path: 'src/a.ts', patch: '+a', binary: false, truncated: false }),
@@ -72,6 +75,7 @@ function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
       }
     },
     authorize: authorize as never,
+    chooseDirectory,
     service
   });
   const invoke = (channel: string, ...args: readonly unknown[]) => {
@@ -79,7 +83,7 @@ function createHarness(authorize = vi.fn(() => ({ mode: 'local' }))) {
     if (handler === undefined) throw new Error(`missing ${channel}`);
     return Promise.resolve(handler(trustedEvent, ...args));
   };
-  return { handlers, invoke, service };
+  return { chooseDirectory, handlers, invoke, service };
 }
 
 describe('registerChangesIpc', () => {

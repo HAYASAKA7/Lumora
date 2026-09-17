@@ -152,7 +152,8 @@ export const ChangesPlacesRequestSchema = z.strictObject({
 
 export const ChangesAddPlaceRequestSchema = z.strictObject({
   workspaceId: WorkspaceIdSchema,
-  path: PathSchema
+  /** Left out to ask the person which folder, as the repository offer fills it in. */
+  path: PathSchema.nullable().default(null)
 });
 
 export const ChangesRemovePlaceRequestSchema = z.strictObject({

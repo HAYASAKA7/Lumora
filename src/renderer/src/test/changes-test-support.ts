@@ -16,6 +16,11 @@ import type { ChangesApi } from '../changes/useWorkspaceChanges';
 export const sessionSource: ChangesSource = { kind: 'session', ownerId: 'r1', view: 'session' };
 export const uncommittedSource: ChangesSource = { kind: 'session', ownerId: 'r1', view: 'uncommitted' };
 
+/** The workspace itself, which every summary lists first. */
+export const workspacePlaces = [
+  { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null }
+];
+
 export function changed(path: string, overrides: Partial<ChangedFile> = {}): ChangedFile {
   return { placeId: null, path, oldPath: null, status: 'modified', additions: 3, deletions: 1, binary: false, ...overrides };
 }
@@ -28,7 +33,7 @@ export function summaryFor(source: ChangesSource, overrides: Partial<ChangesSumm
     unavailableReason: null,
     baselineLate: false,
     sharedWorkspace: false,
-    places: [{ id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null }],
+    places: workspacePlaces,
     files: [],
     committed: [],
     truncated: false,
@@ -73,6 +78,10 @@ export function fakeChangesApi(summaries: (source: ChangesSource) => ChangesSumm
       _action: ChangesOpenAction
     ): Promise<ChangesOpenOutcome> => ({ outcome: 'opened' })),
     writeClipboardText: vi.fn(async (_text: string) => undefined),
+    getChangesPlaces: vi.fn(async (_workspaceId: string) => workspacePlaces),
+    addChangesPlace: vi.fn(async (_workspaceId: string, _path?: string | null) => workspacePlaces),
+    removeChangesPlace: vi.fn(async (_workspaceId: string, _placeId: string) => workspacePlaces),
+    suggestChangesPlace: vi.fn(async (_workspaceId: string) => null),
     getChangesHistory: vi.fn(async (_workspaceId: string): Promise<ChangesHistory> => ({ segments: [] })),
     onChangesCount: vi.fn((listener: (count: ChangesCount) => void) => {
       listeners.add(listener);

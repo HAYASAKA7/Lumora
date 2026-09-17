@@ -18,6 +18,10 @@ export type ChangesApi = Pick<
   | 'onChangesCount'
   | 'writeClipboardText'
   | 'getChangesHistory'
+  | 'getChangesPlaces'
+  | 'addChangesPlace'
+  | 'removeChangesPlace'
+  | 'suggestChangesPlace'
 >;
 
 export type Load<T> = { state: 'loading' } | { state: 'ready'; value: T } | { state: 'error' };

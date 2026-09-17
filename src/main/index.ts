@@ -1216,7 +1216,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   registerChangesIpc({
     ipc: ipcMain,
     authorize: authorizeLocalIpc,
-    service: workspaceChanges
+    service: workspaceChanges,
+    chooseDirectory: async () => {
+      const result = await dialog.showOpenDialog({
+        title: 'Choose a folder to watch for changes',
+        properties: ['openDirectory']
+      });
+      return result.canceled || result.filePaths.length !== 1 ? null : result.filePaths[0]!;
+    }
   });
   registerDiagnosticIpc({
     ipc: ipcMain,

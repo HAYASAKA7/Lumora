@@ -420,7 +420,7 @@ export function createLumoraApi(
       const request = ChangesPlacesRequestSchema.parse({ workspaceId });
       return ChangesPlaceListSchema.parse(await invoke(IPC_CHANNELS.changesPlacesGet, request));
     },
-    async addChangesPlace(workspaceId, path) {
+    async addChangesPlace(workspaceId, path = null) {
       const request = ChangesAddPlaceRequestSchema.parse({ workspaceId, path });
       return ChangesPlaceListSchema.parse(await invoke(IPC_CHANNELS.changesPlaceAdd, request));
     },

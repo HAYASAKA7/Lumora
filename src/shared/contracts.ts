@@ -2669,7 +2669,8 @@ export interface LumoraApi {
   ): Promise<ChangesOpenOutcome>;
   /** The folders this workspace's sessions watch, the workspace itself first. */
   getChangesPlaces(workspaceId: string): Promise<ChangesPlace[]>;
-  addChangesPlace(workspaceId: string, path: string): Promise<ChangesPlace[]>;
+  /** Without a path, Lumora asks which folder to watch. */
+  addChangesPlace(workspaceId: string, path?: string | null): Promise<ChangesPlace[]>;
   removeChangesPlace(workspaceId: string, placeId: string): Promise<ChangesPlace[]>;
   /** The repository this workspace sits in, when watching it would add anything. */
   suggestChangesPlace(workspaceId: string): Promise<ChangesPlaceSuggestion>;

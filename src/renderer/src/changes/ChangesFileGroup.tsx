@@ -18,6 +18,10 @@ export const CHANGES_PAGE_SIZE = 300;
 interface ChangesFileGroupProps {
   files: readonly ChangedFile[];
   label: string;
+  /** Names the place these files came from; absent while the workspace is the only one. */
+  heading?: string | undefined;
+  /** What this place says about itself, such as a baseline taken late. */
+  note?: string | undefined;
   visibleCount: number;
   selected: ChangesFileKey | null;
   menuItems: readonly ActionMenuItem<ChangesFileAction>[];
@@ -28,7 +32,9 @@ interface ChangesFileGroupProps {
 export function ChangesFileGroup({
   files,
   handlers,
+  heading,
   label,
+  note,
   menuItems,
   onShowMore,
   selected,
@@ -41,6 +47,12 @@ export function ChangesFileGroup({
 
   return (
     <>
+      {heading === undefined ? null : (
+        <p className="changes-place-heading">
+          <span className="changes-place-name">{heading}</span>
+          {note === undefined ? null : <span className="changes-place-note">{note}</span>}
+        </p>
+      )}
       <ul aria-label={label} className="changes-file-list">
         {visible.map((file) => (
           <ChangesFileRow
