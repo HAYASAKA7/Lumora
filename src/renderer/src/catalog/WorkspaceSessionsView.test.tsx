@@ -400,7 +400,6 @@ describe('WorkspaceSessionsView', () => {
   describe('changes', () => {
     const sessionId = snapshot.sessions[0]!.id;
     const changedFile = {
-      placeId: null,
       path: 'src/app.ts',
       oldPath: null,
       status: 'modified' as const,

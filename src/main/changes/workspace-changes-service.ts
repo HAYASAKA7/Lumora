@@ -1,13 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { basename } from 'node:path';
-
 import type {
-  ChangedFileEntry,
+  ChangedFile,
   ChangesCount,
-  ChangesFileRef,
-  ChangesPlace,
-  ChangesPlaceSuggestion,
   ChangesFileDiff,
   ChangesHistory,
   ChangesOpenAction,
@@ -25,8 +20,7 @@ import { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
 export type SnapshotEngineLike = Pick<
   WorkspaceSnapshotEngine,
-  'snapshot' | 'changedFiles' | 'fileDiff' | 'headTree' | 'repositoryRoot'
-  | 'composeReviewed' | 'removeWorkspace'
+  'snapshot' | 'changedFiles' | 'fileDiff' | 'headTree' | 'composeReviewed' | 'removeWorkspace'
 >;
 
 /** The kind of work a recovered failure interrupted, for diagnostics. */
@@ -58,8 +52,6 @@ export interface BeginInput {
 }
 
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1_000;
-/** Places a workspace can watch besides itself; each one costs a snapshot per refresh. */
-const MAX_PLACES = 3;
 /** The cap the counts IPC schema sets. */
 const MAX_COUNTS = 256;
 const MAX_HISTORY_ENTRIES = 500;
@@ -181,22 +173,18 @@ export class WorkspaceChangesService {
     return this.resolver.summarize(this.resolver.target(source), false);
   }
 
-  async fileDiff(
-    source: ChangesSource,
-    placeId: string | null,
-    path: string
-  ): Promise<ChangesFileDiff> {
-    const resolution = await this.resolver.resolveFile(this.resolver.target(source), placeId, false);
-    if (resolution === null) {
+  async fileDiff(source: ChangesSource, path: string): Promise<ChangesFileDiff> {
+    const resolution = await this.resolver.resolve(this.resolver.target(source), false);
+    if (!resolution.ready) {
       throw new Error('Changes are not available for this source.');
     }
-    const { workspaceId, path: folder, from, to } = resolution;
-    const entries = await this.changedFiles.get(workspaceId, folder, from, to);
+    const { context: { workspaceId }, workspacePath, from, to } = resolution;
+    const entries = await this.changedFiles.get(workspaceId, workspacePath, from, to);
     const entry = entries.find((candidate) => candidate.path === path);
     if (entry?.binary === true) {
       return { path, patch: '', binary: true, truncated: false };
     }
-    const diff = await this.engine.fileDiff(workspaceId, folder, from, to, path, entry?.oldPath ?? null);
+    const diff = await this.engine.fileDiff(workspaceId, workspacePath, from, to, path, entry?.oldPath ?? null);
     return { path, patch: diff.patch, binary: false, truncated: diff.truncated };
   }
 
@@ -204,12 +192,12 @@ export class WorkspaceChangesService {
    * Marks exactly the listed files reviewed. Reviews for one session run one
    * at a time, so each starts from the baseline the one before left.
    */
-  async markReviewed(ownerId: string, files: readonly ChangesFileRef[]): Promise<ChangesSummary> {
-    if (files.length === 0) {
+  async markReviewed(ownerId: string, paths: readonly string[]): Promise<ChangesSummary> {
+    if (paths.length === 0) {
       throw new Error('Choose at least one file to mark reviewed.');
     }
     const previous = this.reviewQueues.get(ownerId) ?? Promise.resolve();
-    const review = previous.then(() => this.reviewNow(ownerId, files));
+    const review = previous.then(() => this.reviewNow(ownerId, paths));
     const settled = review.then(() => undefined, () => undefined);
     this.reviewQueues.set(ownerId, settled);
     void settled.then(() => {
@@ -240,15 +228,15 @@ export class WorkspaceChangesService {
    * Where a changed file sits on this computer, spelled as the workspace does:
    * no link is followed, and a file that has been deleted still has a path.
    */
-  async filePath(source: ChangesSource, placeId: string | null, path: string): Promise<string> {
+  async filePath(source: ChangesSource, path: string): Promise<string> {
     const { context: { workspaceId } } = this.resolver.target(source);
-    const folder = this.resolver.placePath(workspaceId, placeId);
-    if (folder === null) {
+    const workspace = this.options.lookupWorkspace(workspaceId);
+    if (workspace === null) {
       throw new Error('The workspace is not available.');
     }
-    const resolved = WorkspaceSnapshotEngine.resolveInside(folder, path);
+    const resolved = WorkspaceSnapshotEngine.resolveInside(workspace.canonicalPath, path);
     if (resolved === null) {
-      throw new Error('The path is outside the watched folder.');
+      throw new Error('The path is outside the workspace.');
     }
     return resolved;
   }
@@ -258,18 +246,13 @@ export class WorkspaceChangesService {
    * people also read opens only when the caller asks again with open-anyway; a
    * file the system would run or install is never opened.
    */
-  async open(
-    source: ChangesSource,
-    placeId: string | null,
-    path: string,
-    action: ChangesOpenAction
-  ): Promise<ChangesOpenOutcome> {
+  async open(source: ChangesSource, path: string, action: ChangesOpenAction): Promise<ChangesOpenOutcome> {
     const { context: { workspaceId } } = this.resolver.target(source);
-    const folder = this.resolver.placePath(workspaceId, placeId);
-    if (folder === null) {
+    const workspace = this.options.lookupWorkspace(workspaceId);
+    if (workspace === null || !workspace.available) {
       throw new Error('The workspace is not available.');
     }
-    const target = await resolveOpenTarget(folder, path);
+    const target = await resolveOpenTarget(workspace.canonicalPath, path);
     if (!target.exists && action !== 'reveal') {
       throw new Error('The file no longer exists.');
     }
@@ -397,134 +380,13 @@ export class WorkspaceChangesService {
     late: () => boolean
   ): Promise<void> {
     if (await this.isGitAvailable('baseline')) {
-      await Promise.all([
-        this.captureBaseline(segmentId, input, workspacePath, late),
-        this.capturePlaceBaselines(segmentId, input.workspaceId, late)
-      ]);
+      await this.captureBaseline(segmentId, input, workspacePath, late);
       return;
     }
     try {
       this.repository.markUnavailable(segmentId, 'git-missing');
     } catch (error) {
       this.report('baseline', error);
-    }
-  }
-
-  /** Every place the workspace watches starts the session with a baseline of its own. */
-  private async capturePlaceBaselines(
-    segmentId: string,
-    workspaceId: string,
-    late: () => boolean
-  ): Promise<void> {
-    const places = this.repository.listPlaces(workspaceId);
-    await Promise.all(places.map(async (place) => {
-      try {
-        this.repository.createRoot(segmentId, place.id);
-        const snapshot = await this.engine.snapshot(workspaceId, place.path);
-        this.snapshots.set(workspaceId, place.path, snapshot);
-        this.repository.recordRootBaseline(segmentId, place.id, {
-          snapshotKind: snapshot.kind,
-          tree: snapshot.tree,
-          head: snapshot.head,
-          late: late()
-        });
-      } catch (error) {
-        // A place Lumora cannot read says so on its own row, and the session still runs.
-        this.report('baseline', error);
-        try {
-          this.repository.markRootUnavailable(segmentId, place.id, unavailableReasonFor(error, 'snapshot'));
-        } catch (failure) {
-          this.report('baseline', failure);
-        }
-      }
-    }));
-  }
-
-  /**
-   * Starts watching a folder for this workspace, from now on. Every open
-   * session takes its baseline at once, so what it changed there is listed from
-   * this moment rather than pretended about.
-   */
-  async addPlace(workspaceId: string, path: string): Promise<ChangesPlace[]> {
-    if (this.disposed) return this.places(workspaceId);
-    const existing = this.repository.listPlaces(workspaceId);
-    if (existing.length >= MAX_PLACES || existing.some((place) => place.path === path)) {
-      return this.places(workspaceId);
-    }
-    const workspace = this.options.lookupWorkspace(workspaceId);
-    if (workspace === null) return this.places(workspaceId);
-    const id = this.createId();
-    this.repository.addPlace({ id, workspaceId, path, createdAt: this.now() });
-    for (const segment of this.repository.listOpenSegments()) {
-      if (segment.workspaceId !== workspaceId) continue;
-      try {
-        this.repository.createRoot(segment.id, id);
-        const snapshot = await this.engine.snapshot(workspaceId, path);
-        this.snapshots.set(workspaceId, path, snapshot);
-        // Joining mid-session is late by definition: the edits before now are not ours to show.
-        this.repository.recordRootBaseline(segment.id, id, {
-          snapshotKind: snapshot.kind,
-          tree: snapshot.tree,
-          head: snapshot.head,
-          late: true
-        });
-      } catch (error) {
-        this.report('baseline', error);
-        this.repository.markRootUnavailable(segment.id, id, unavailableReasonFor(error, 'snapshot'));
-      }
-      void this.refresh(segment.ownerId);
-    }
-    return this.places(workspaceId);
-  }
-
-  removePlace(workspaceId: string, placeId: string): ChangesPlace[] {
-    if (this.disposed) return [];
-    const place = this.repository.getPlace(placeId);
-    if (place !== null && place.workspaceId === workspaceId) {
-      this.repository.removePlace(placeId);
-      this.snapshots.delete(workspaceId);
-      for (const segment of this.repository.listOpenSegments()) {
-        if (segment.workspaceId === workspaceId) void this.refresh(segment.ownerId);
-      }
-    }
-    return this.places(workspaceId);
-  }
-
-  places(workspaceId: string): ChangesPlace[] {
-    if (this.disposed) return [];
-    const workspace = this.options.lookupWorkspace(workspaceId);
-    const places = this.repository.listPlaces(workspaceId).map<ChangesPlace>((place) => ({
-      id: place.id,
-      name: basename(place.path),
-      path: place.path,
-      baselineLate: false,
-      unavailableReason: null
-    }));
-    if (workspace === null) return places;
-    return [
-      { id: null, name: basename(workspace.canonicalPath), path: workspace.canonicalPath, baselineLate: false, unavailableReason: null },
-      ...places
-    ];
-  }
-
-  /**
-   * The repository a workspace sits inside, when it is not the repository
-   * itself and is not watched already. Offered rather than added: reading a
-   * folder is the person's decision, not the agent's.
-   */
-  async suggestPlace(workspaceId: string): Promise<ChangesPlaceSuggestion> {
-    if (this.disposed) return null;
-    const workspace = this.options.lookupWorkspace(workspaceId);
-    if (workspace === null || !workspace.available) return null;
-    if (this.repository.listPlaces(workspaceId).length >= MAX_PLACES) return null;
-    try {
-      const root = await this.engine.repositoryRoot(workspaceId, workspace.canonicalPath);
-      if (root === null || root === workspace.canonicalPath) return null;
-      if (this.repository.listPlaces(workspaceId).some((place) => place.path === root)) return null;
-      return { path: root, name: basename(root) };
-    } catch (error) {
-      this.report('summary', error);
-      return null;
     }
   }
 
@@ -536,7 +398,7 @@ export class WorkspaceChangesService {
   ): Promise<void> {
     try {
       const snapshot = await this.engine.snapshot(input.workspaceId, workspacePath);
-      this.snapshots.set(input.workspaceId, workspacePath, snapshot);
+      this.snapshots.set(input.workspaceId, snapshot);
       this.repository.recordBaseline(segmentId, {
         snapshotKind: snapshot.kind,
         tree: snapshot.tree,
@@ -586,75 +448,48 @@ export class WorkspaceChangesService {
     }
   }
 
-  private async reviewNow(
-    ownerId: string,
-    files: readonly ChangesFileRef[]
-  ): Promise<ChangesSummary> {
+  private async reviewNow(ownerId: string, paths: readonly string[]): Promise<ChangesSummary> {
     const source: ChangesSource = { kind: 'session', ownerId, view: 'session' };
     const { segment } = this.resolver.target(source);
-    if (segment === null || segment.state !== 'ready') {
+    const workspace = segment === null ? null : this.options.lookupWorkspace(segment.workspaceId);
+    if (segment?.state !== 'ready' || segment.baselineTree === null || workspace === null || !workspace.available) {
       return this.summary(source);
     }
-    // Each place keeps its own baseline, so a batch is recorded against the place it covered.
-    const byPlace = new Map<string | null, string[]>();
-    for (const { placeId, path } of files) {
-      const paths = byPlace.get(placeId) ?? [];
-      paths.push(path);
-      byPlace.set(placeId, paths);
+    const { workspaceId, baselineTree } = segment;
+    const current = await this.snapshots.get(workspaceId, workspace.canonicalPath, true);
+    const files = await this.engine.changedFiles(workspaceId, workspace.canonicalPath, baselineTree, current.tree);
+    const reviewed = await this.reviewedTree(segment, workspace.canonicalPath, current.tree, files, paths);
+    if (reviewed === null) {
+      return this.summary(source);
     }
-    for (const [placeId, paths] of byPlace) {
-      await this.reviewPlace(segment, placeId, paths);
-    }
-    await this.refresh(ownerId);
-    return this.summary(source);
-  }
-
-  private async reviewPlace(
-    segment: ChangeSegment,
-    placeId: string | null,
-    paths: readonly string[]
-  ): Promise<void> {
-    const path = this.resolver.placePath(segment.workspaceId, placeId);
-    const baselineTree = placeId === null
-      ? segment.baselineTree
-      : this.repository.listRoots(segment.id)
-        .find((root) => root.placeId === placeId && root.state === 'ready')?.baselineTree ?? null;
-    if (path === null || baselineTree === null) return;
-    const { workspaceId } = segment;
-    const current = await this.snapshots.get(workspaceId, path, true);
-    const changed = await this.engine.changedFiles(workspaceId, path, baselineTree, current.tree);
-    const reviewed = await this.reviewedTree(
-      workspaceId, path, baselineTree, current.tree, changed, paths
-    );
-    if (reviewed === null) return;
     this.repository.recordReview({
       id: this.createId(),
       segmentId: segment.id,
-      placeId,
       fromTree: baselineTree,
       toTree: reviewed.tree,
       fileCount: reviewed.fileCount,
       reviewedAt: this.now()
     });
+    await this.refresh(ownerId);
+    return this.summary(source);
   }
 
   /** The baseline with the listed files taken from the current tree, or null when none of them changed. */
   private async reviewedTree(
-    workspaceId: string,
+    segment: ChangeSegment,
     workspacePath: string,
-    baselineTree: string,
     currentTree: string,
-    files: readonly ChangedFileEntry[],
+    files: readonly ChangedFile[],
     paths: readonly string[]
   ): Promise<{ tree: string; fileCount: number } | null> {
     const wanted = new Set(paths);
     const chosen = files.filter(({ path }) => wanted.has(path));
-    if (chosen.length === 0) {
+    if (chosen.length === 0 || segment.baselineTree === null) {
       return null;
     }
     const expanded = chosen.flatMap(({ path, oldPath }) => (oldPath === null ? [path] : [path, oldPath]));
     const tree = await this.engine.composeReviewed(
-      workspaceId, workspacePath, baselineTree, currentTree, expanded
+      segment.workspaceId, workspacePath, segment.baselineTree, currentTree, expanded
     );
     return { tree, fileCount: chosen.length };
   }

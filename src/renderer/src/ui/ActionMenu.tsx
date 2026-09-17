@@ -13,7 +13,6 @@ import { createPortal } from 'react-dom';
 import { useEscapeLayer } from './escape-layers';
 
 import { placeMenu } from './menu-placement';
-import { Tooltip } from './Tooltip';
 
 export interface ActionMenuItem<Id extends string> {
   id: Id;
@@ -33,8 +32,6 @@ interface ActionMenuProps<Id extends string> {
   label: string;
   onSelect(id: Id): void;
   className?: string;
-  /** Names the trigger on hover, for a menu opened by a mark rather than a word. */
-  tooltip?: string | undefined;
   disabled?: boolean;
 }
 
@@ -45,8 +42,7 @@ export function ActionMenu<Id extends string>({
   disabled = false,
   items,
   label,
-  onSelect,
-  tooltip
+  onSelect
 }: ActionMenuProps<Id>): ReactNode {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -136,31 +132,27 @@ export function ActionMenu<Id extends string>({
     }
   };
 
-  const trigger = (
-    <button
-      aria-controls={open ? menuId : undefined}
-      aria-expanded={open}
-      aria-haspopup="menu"
-      aria-label={label}
-      className={className}
-      data-lumora-command
-      disabled={disabled || items.length === 0}
-      onClick={() => {
-        setActiveIndex(0);
-        setOpen((current) => !current);
-      }}
-      onKeyDown={handleKeyDown}
-      ref={triggerRef}
-      tabIndex={-1}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-
   return (
     <div className="action-menu" ref={rootRef}>
-      {tooltip === undefined ? trigger : <Tooltip content={tooltip}>{trigger}</Tooltip>}
+      <button
+        aria-controls={open ? menuId : undefined}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={label}
+        className={className}
+        data-lumora-command
+        disabled={disabled || items.length === 0}
+        onClick={() => {
+          setActiveIndex(0);
+          setOpen((current) => !current);
+        }}
+        onKeyDown={handleKeyDown}
+        ref={triggerRef}
+        tabIndex={-1}
+        type="button"
+      >
+        {children}
+      </button>
       {open
         ? createPortal(
             <div

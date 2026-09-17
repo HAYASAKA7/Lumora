@@ -49,7 +49,7 @@ describe('workspace change migration', () => {
 
     runMigrations(opened, CATALOG_MIGRATIONS);
 
-    expect(tables(opened)).toEqual(['workspace_change_place', 'workspace_change_review', 'workspace_change_segment', 'workspace_change_segment_root']);
+    expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
     expect(
       opened.prepare('SELECT id FROM workspace').all()
     ).toEqual([{ id: WORKSPACE_ID }]);
@@ -71,6 +71,24 @@ describe('workspace change migration', () => {
     expect(opened.prepare('SELECT id FROM workspace_change_review').all()).toEqual([]);
   });
 
+  it('clears the tables a removed feature left in a database that ran its migration', () => {
+    const opened = existingDatabase();
+    runMigrations(opened, CATALOG_MIGRATIONS);
+    // A database that ran the version which created these tables keeps them until now.
+    opened.exec(`CREATE TABLE workspace_change_place (
+      id TEXT PRIMARY KEY, execution_target_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+      path TEXT NOT NULL, created_at TEXT NOT NULL
+    ) STRICT`);
+    opened.exec(`CREATE TABLE workspace_change_segment_root (
+      segment_id TEXT NOT NULL, place_id TEXT NOT NULL, state TEXT NOT NULL,
+      PRIMARY KEY (segment_id, place_id)
+    ) STRICT`);
+
+    runMigrations(opened, CATALOG_MIGRATIONS);
+
+    expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
+  });
+
   it('leaves an already migrated database alone and rebuilds a schema that went missing', () => {
     const opened = existingDatabase();
     runMigrations(opened, CATALOG_MIGRATIONS);
@@ -80,15 +98,13 @@ describe('workspace change migration', () => {
 
     expect(opened.prepare('SELECT id FROM workspace_change_segment').all()).toEqual([{ id: 'segment-1' }]);
 
-    opened.exec('DROP TABLE workspace_change_segment_root');
-    opened.exec('DROP TABLE workspace_change_place');
     opened.exec('DROP TABLE workspace_change_review');
     opened.exec('DROP TABLE workspace_change_segment');
     expect(tables(opened)).toEqual([]);
 
     runMigrations(opened, CATALOG_MIGRATIONS);
 
-    expect(tables(opened)).toEqual(['workspace_change_place', 'workspace_change_review', 'workspace_change_segment', 'workspace_change_segment_root']);
+    expect(tables(opened)).toEqual(['workspace_change_review', 'workspace_change_segment']);
     expect(() => insertSegment(opened, 'segment-2', WORKSPACE_ID)).not.toThrow();
   });
 });

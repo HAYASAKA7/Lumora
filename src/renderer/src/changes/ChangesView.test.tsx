@@ -49,11 +49,7 @@ function manyFiles(count: number): ChangesSummary {
 }
 
 function diffWith(overrides: Partial<ChangesFileDiff>) {
-  return async (
-    _source: ChangesSource,
-    _placeId: string | null,
-    path: string
-  ): Promise<ChangesFileDiff> => ({
+  return async (_source: ChangesSource, path: string): Promise<ChangesFileDiff> => ({
     path, patch: '+new', binary: false, truncated: false, ...overrides
   });
 }
@@ -81,7 +77,7 @@ describe('ChangesView', () => {
     expect(selectButton('src/new.ts')).not.toHaveAttribute('aria-current');
     expect(screen.getByText('Loading…')).not.toHaveAttribute('role');
     expect(await screen.findByText('+new')).toBeInTheDocument();
-    expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, null, 'src/login.ts');
+    expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'src/login.ts');
   });
 
   it('marks one file or every listed file reviewed', async () => {
@@ -90,7 +86,7 @@ describe('ChangesView', () => {
     await findFileList();
 
     fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Mark reviewed' }));
-    await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', [{ placeId: null, path: 'src/login.ts' }]));
+    await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', ['src/login.ts']));
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Refresh changes' }));
@@ -98,7 +94,7 @@ describe('ChangesView', () => {
     await findFileList();
     fireEvent.click(screen.getByRole('button', { name: 'Mark all reviewed' }));
     await waitFor(() =>
-      expect(api.markChangesReviewed).toHaveBeenLastCalledWith('r1', [{ placeId: null, path: 'src/login.ts' }, { placeId: null, path: 'src/new.ts' }])
+      expect(api.markChangesReviewed).toHaveBeenLastCalledWith('r1', ['src/login.ts', 'src/new.ts'])
     );
   });
 
@@ -139,13 +135,13 @@ describe('ChangesView', () => {
     await findFileList();
 
     fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Show in folder' }));
-    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, null, 'src/login.ts', 'reveal');
+    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'src/login.ts', 'reveal');
     fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Copy path' }));
     expect(api.writeClipboardText).toHaveBeenCalledWith('src/login.ts');
 
     api.openChangedFile.mockRejectedValueOnce(new Error('blocked'));
     fireEvent.click(within(openFileMenu('src/new.ts')).getByRole('menuitem', { name: 'Open' }));
-    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, null, 'src/new.ts', 'open');
+    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'src/new.ts', 'open');
     expect(await screen.findByRole('alert')).toHaveTextContent(ACTION_FAILED);
 
     // A successful action clears the earlier failure so the copy failure below is its own.
@@ -167,10 +163,10 @@ describe('ChangesView', () => {
     const menu = openFileMenu('docs/readme.md');
     expect(within(menu).queryByRole('menuitem', { name: 'Mark reviewed' })).not.toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Open' }));
-    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, null, 'docs/readme.md', 'open');
+    expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'docs/readme.md', 'open');
 
     fireEvent.click(selectButton('docs/readme.md'));
-    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, null, 'docs/readme.md'));
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'docs/readme.md'));
   });
 
   it('offers no review actions in the uncommitted view', async () => {
@@ -218,7 +214,7 @@ describe('ChangesView', () => {
     fireEvent.keyDown(selectButton('c.ts'), { key: 'Home' });
     expect(selectButton('a.ts')).toHaveAttribute('aria-current', 'true');
     expect(selectButton('a.ts')).toHaveFocus();
-    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(sessionSource, null, 'a.ts'));
+    await waitFor(() => expect(api.getChangesFileDiff).toHaveBeenLastCalledWith(sessionSource, 'a.ts'));
   });
 
   it('keeps one tab stop in a file list', async () => {
@@ -401,7 +397,7 @@ describe('ChangesView', () => {
 
     expect(screen.getByRole('menu', { name: 'File actions' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Mark reviewed' }));
-    await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', [{ placeId: null, path: 'src/login.ts' }]));
+    await waitFor(() => expect(api.markChangesReviewed).toHaveBeenCalledWith('r1', ['src/login.ts']));
   });
 
   it('asks before opening a script and opens it anyway on request', async () => {
@@ -411,14 +407,14 @@ describe('ChangesView', () => {
     await findFileList();
 
     fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Open' }));
-    await waitFor(() => expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, null, 'src/login.ts', 'open'));
+    await waitFor(() => expect(api.openChangedFile).toHaveBeenCalledWith(sessionSource, 'src/login.ts', 'open'));
     const dialog = await screen.findByRole('dialog', { name: 'Open this file?' });
     expect(within(dialog).getByText(/src\/login\.ts/)).toBeInTheDocument();
 
     api.openChangedFile.mockResolvedValue({ outcome: 'opened' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Open anyway' }));
     await waitFor(() =>
-      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, null, 'src/login.ts', 'open-anyway'));
+      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, 'src/login.ts', 'open-anyway'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -439,82 +435,9 @@ describe('ChangesView', () => {
     expect(again).toBeInTheDocument();
     fireEvent.click(within(again).getByRole('button', { name: 'Show in folder' }));
     await waitFor(() =>
-      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, null, 'src/login.ts', 'reveal'));
+      expect(api.openChangedFile).toHaveBeenLastCalledWith(sessionSource, 'src/login.ts', 'reveal'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(dialog).not.toBeInTheDocument();
-  });
-
-  it('groups the list by place once a workspace watches more than itself', async () => {
-    const places = [
-      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
-      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: true, unavailableReason: null }
-    ];
-    const { api } = fakeChangesApi((source) => summaryFor(source, {
-      places,
-      files: [changed('src/login.ts'), changed('index.ts', { placeId: 'p1' })]
-    }));
-    renderView(api);
-
-    expect(await screen.findByRole('list', { name: 'work' })).toBeInTheDocument();
-    const lib = screen.getByRole('list', { name: 'lib' });
-    expect(within(lib).getAllByRole('listitem')).toHaveLength(1);
-    // A place that joined mid-session says so rather than pretending to older history.
-    expect(screen.getByText('watched from here')).toBeInTheDocument();
-  });
-
-  it('asks the file for its place when it opens a diff', async () => {
-    const places = [
-      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
-      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: false, unavailableReason: null }
-    ];
-    const { api } = fakeChangesApi((source) => summaryFor(source, {
-      places,
-      files: [changed('index.ts', { placeId: 'p1' })]
-    }));
-    renderView(api);
-    await screen.findByRole('list', { name: 'lib' });
-
-    fireEvent.click(selectButton('index.ts'));
-
-    await waitFor(() =>
-      expect(api.getChangesFileDiff).toHaveBeenCalledWith(sessionSource, 'p1', 'index.ts'));
-  });
-
-  it('watches the repository it is offered, and stops watching a place', async () => {
-    const places = [
-      { id: null, name: 'work', path: 'D:\work', baselineLate: false, unavailableReason: null },
-      { id: 'p1', name: 'lib', path: 'D:\lib', baselineLate: false, unavailableReason: null }
-    ];
-    const { api } = fakeChangesApi((source) => summaryFor(source, {
-      places,
-      files: [changed('src/login.ts')]
-    }));
-    api.suggestChangesPlace.mockResolvedValue({ path: 'D:\repo', name: 'repo' });
-    renderView(api);
-    await findFileList();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Watched places' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Watch the whole repository (repo)' }));
-    await waitFor(() =>
-      expect(api.addChangesPlace).toHaveBeenCalledWith('ws-1', 'D:\repo'));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Watched places' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Stop watching lib' }));
-    await waitFor(() => expect(api.removeChangesPlace).toHaveBeenCalledWith('ws-1', 'p1'));
-  });
-
-  it('asks which folder to watch when none is offered', async () => {
-    const { api } = fakeChangesApi();
-    renderView(api);
-    await screen.findByRole('list', { name: 'Changed files' });
-
-    const places = screen.getByRole('button', { name: 'Watched places' });
-    // The toolbar's controls are icon buttons, hover name and all.
-    expect(places).toHaveClass('icon-button');
-    fireEvent.click(places);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Add a place to watch' }));
-
-    await waitFor(() => expect(api.addChangesPlace).toHaveBeenCalledWith('ws-1'));
   });
 
   it('copies both the workspace path and the full path of a file', async () => {
@@ -526,7 +449,7 @@ describe('ChangesView', () => {
     await waitFor(() => expect(api.writeClipboardText).toHaveBeenCalledWith('src/login.ts'));
 
     fireEvent.click(within(openFileMenu('src/login.ts')).getByRole('menuitem', { name: 'Copy full path' }));
-    await waitFor(() => expect(api.getChangedFilePath).toHaveBeenCalledWith(sessionSource, null, 'src/login.ts'));
+    await waitFor(() => expect(api.getChangedFilePath).toHaveBeenCalledWith(sessionSource, 'src/login.ts'));
     await waitFor(() => expect(api.writeClipboardText).toHaveBeenLastCalledWith('D:\\work\\src/login.ts'));
   });
 

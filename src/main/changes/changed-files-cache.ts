@@ -1,11 +1,11 @@
-import type { ChangedFileEntry } from '../../shared/changes';
+import type { ChangedFile } from '../../shared/changes';
 import type { WorkspaceSnapshotEngine } from './workspace-snapshot-engine';
 
 type ListChangedFiles = WorkspaceSnapshotEngine['changedFiles'];
 
 interface CachedFiles {
   takenAt: number;
-  files: Promise<ChangedFileEntry[]>;
+  files: Promise<ChangedFile[]>;
 }
 
 /** Tree pairs remembered at once; each open panel and each session view uses one. */
@@ -24,7 +24,7 @@ export class ChangedFilesCache {
     private readonly ttlMs: number
   ) {}
 
-  get(workspaceId: string, workspacePath: string, fromTree: string, toTree: string): Promise<ChangedFileEntry[]> {
+  get(workspaceId: string, workspacePath: string, fromTree: string, toTree: string): Promise<ChangedFile[]> {
     const now = this.clock().getTime();
     const key = `${workspaceId}:${fromTree}:${toTree}`;
     const cached = this.entries.get(key);

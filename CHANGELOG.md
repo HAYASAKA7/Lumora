@@ -7,17 +7,6 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-
-- Watch more than the workspace folder in **Changes**. **Watched places** in the
-  panel toolbar offers **Watch the whole repository** when the workspace sits
-  inside one, takes any folder through **Add a place to watch**, and stops
-  watching a place again. Each place is confirmed for trust the way a workspace
-  is, keeps its own starting point, and is listed under its own heading; a place
-  added mid-session is marked **watched from here**. **This session** now covers
-  every watched place rather than the workspace folder alone, and a folder
-  Lumora cannot read says so without taking the rest of the list down.
-
 ### Fixed
 
 - List a Unified UI session once. A session opened in the Unified UI appeared

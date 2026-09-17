@@ -321,40 +321,13 @@ is closed if you need the space sooner. Your projects are untouched. Lumora
 takes a new starting point the next time a session runs in that workspace, and
 batches already in **History** can no longer be opened.
 
-### Where Lumora looks
-
-Lumora watches the session's workspace folder and nothing above it, so an agent
-that edits a sibling folder or a file in your home directory changes nothing you
-can see here. **Watched places** in the panel toolbar decides what else it looks
-at:
-
-- **Watch the whole repository** appears when the workspace sits inside a git
-  repository. It is the common case: the agent works in a subfolder and touches
-  the rest of the project. It also makes **All uncommitted** agree with what
-  `git status` reports in that repository.
-- **Add a place to watch** asks for any folder and confirms trust for it, the
-  way a workspace is confirmed. Three places beyond the workspace, because each
-  one is another folder read on every refresh.
-- **Stop watching** a place drops what it listed, its starting points and the
-  batches reviewed in it.
-
-A place joined while a session runs is marked **watched from here**: Lumora
-lists what changed from that moment, since it never saw what came before.
-Places belong to the workspace, so later sessions in it watch them too, and the
-file list carries a heading per place once there is more than one.
-
-**This session** covers every watched place, not only the workspace folder,
-because it answers what the session changed rather than where.
-
 ### Limits
 
 Changes are offered for sessions on this computer only; a remote computer's
 sessions have no **Changes** button yet. Git must be installed, and a workspace
 that is not a git repository has **This session** but not **All uncommitted**.
 Lumora does not record who made each change, so a file that you and the agent
-both edited is listed simply as changed. Edits outside every watched place are
-not tracked at all, and a native terminal session cannot tell Lumora it made
-any: nothing here says a folder you have not added stayed untouched.
+both edited is listed simply as changed.
 
 ## Terminal profiles
 

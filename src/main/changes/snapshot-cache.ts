@@ -16,39 +16,26 @@ export class SnapshotCache {
     private readonly ttlMs: number
   ) {}
 
-  /** A workspace can watch more than one folder, so each is cached on its own. */
-  private static key(workspaceId: string, workspacePath: string): string {
-    return JSON.stringify([workspaceId, workspacePath]);
-  }
-
   get(workspaceId: string, workspacePath: string, fresh: boolean): Promise<Snapshot> {
     const now = this.clock().getTime();
-    const key = SnapshotCache.key(workspaceId, workspacePath);
-    const cached = this.entries.get(key);
+    const cached = this.entries.get(workspaceId);
     if (!fresh && cached !== undefined && now - cached.takenAt < this.ttlMs) {
       return cached.snapshot;
     }
     const entry: CachedSnapshot = { takenAt: now, snapshot: this.engine.snapshot(workspaceId, workspacePath) };
-    this.entries.set(key, entry);
+    this.entries.set(workspaceId, entry);
     entry.snapshot.catch(() => {
-      if (this.entries.get(key) === entry) this.entries.delete(key);
+      if (this.entries.get(workspaceId) === entry) this.entries.delete(workspaceId);
     });
     return entry.snapshot;
   }
 
   /** Stores a snapshot taken elsewhere, such as a session's baseline. */
-  set(workspaceId: string, workspacePath: string, snapshot: Snapshot): void {
-    this.entries.set(
-      SnapshotCache.key(workspaceId, workspacePath),
-      { takenAt: this.clock().getTime(), snapshot: Promise.resolve(snapshot) }
-    );
+  set(workspaceId: string, snapshot: Snapshot): void {
+    this.entries.set(workspaceId, { takenAt: this.clock().getTime(), snapshot: Promise.resolve(snapshot) });
   }
 
-  /** Forgets every folder this workspace watches. */
   delete(workspaceId: string): void {
-    const prefix = JSON.stringify([workspaceId]).slice(0, -1);
-    for (const key of [...this.entries.keys()]) {
-      if (key.startsWith(prefix)) this.entries.delete(key);
-    }
+    this.entries.delete(workspaceId);
   }
 }

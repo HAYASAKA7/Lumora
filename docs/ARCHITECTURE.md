@@ -566,16 +566,6 @@ moves the segment's baseline onto it in the same transaction that inserts the
 review, guarded by the tree it started from, so a stale review cannot overwrite
 a newer one. None of this reaches the workspace or its repository.
 
-Migration 23 adds `workspace_change_place` and `workspace_change_segment_root`.
-A place is a folder a workspace watches besides itself, kept per workspace so
-later sessions inherit it, capped at three and confirmed for trust the way a
-workspace is. A segment root is one place's baseline within one session, with
-the same state and reasons a segment carries, so a folder Lumora cannot read
-says so on its own row rather than taking the summary down. A review names the
-place it covered and moves that place's baseline, which is what keeps two
-places holding the same relative path apart. The workspace's own baseline stays
-on the segment, so history written before migration 23 reads unchanged.
-
 A session's baseline races a bounded launch wait of three seconds. The session
 is released as soon as the snapshot is recorded or the wait expires, whichever
 comes first, and looking for git counts toward that wait. A snapshot that lands

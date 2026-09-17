@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import type { ChangedFileEntry } from '../../shared/changes';
+import type { ChangedFile } from '../../shared/changes';
 import { isContainedPath, mergeChangedFiles, parseNameStatus, parseNumstat } from './git-output';
 import { GitCommandError, type RunGit } from './git-runner';
 import {
@@ -77,7 +77,7 @@ export class WorkspaceSnapshotEngine {
     return this.enqueue(workspaceId, async () => (await this.target(workspaceId, workspacePath)).snapshot());
   }
 
-  changedFiles(workspaceId: string, workspacePath: string, fromTree: string, toTree: string): Promise<ChangedFileEntry[]> {
+  changedFiles(workspaceId: string, workspacePath: string, fromTree: string, toTree: string): Promise<ChangedFile[]> {
     return this.enqueue(workspaceId, async () => {
       const target = await this.target(workspaceId, workspacePath);
       const listing = ['--no-ext-diff', '--no-textconv'];
@@ -111,19 +111,6 @@ export class WorkspaceSnapshotEngine {
 
   headTree(workspaceId: string, workspacePath: string): Promise<string | null> {
     return this.enqueue(workspaceId, async () => (await this.target(workspaceId, workspacePath)).headTree());
-  }
-
-  /**
-   * The repository a folder sits in, or null when it is not in one. Read
-   * straight from git so a worktree reports the worktree it belongs to.
-   */
-  repositoryRoot(workspaceId: string, workspacePath: string): Promise<string | null> {
-    return this.enqueue(workspaceId, async () => {
-      const root = await this.git.tryRun(workspacePath, ['rev-parse', '--show-toplevel'], { env: {} });
-      const resolved = root?.trim();
-      if (resolved === undefined || resolved.length === 0) return null;
-      return resolve(resolved);
-    });
   }
 
   /** A tree equal to fromTree except that `paths` take their entries (or absence) from toTree. */
