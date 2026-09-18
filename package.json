@@ -27,7 +27,7 @@
     "test:coverage": "vitest run --coverage",
     "locales:validate": "node scripts/localization/validate-locales.cjs resources/locales",
     "locales:check-strings": "node scripts/localization/check-renderer-strings.cjs",
-    "helper:test": "node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...",
+    "helper:test": "node scripts/helper/test-helper.cjs",
     "helper:ensure": "node scripts/helper/ensure-helper.cjs",
     "helper:build": "node scripts/helper/build-helper.cjs"
   },
