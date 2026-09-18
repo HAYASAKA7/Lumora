@@ -3509,9 +3509,11 @@ describe('App', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Resume session' }))
       .not.toBeInTheDocument();
-    expect(await screen.findByRole('button', {
+    const input = await screen.findByRole('button', {
       name: `${runtime.displayName} terminal input`
-    })).toHaveFocus();
+    });
+    // The terminal takes focus a moment after it appears.
+    await waitFor(() => expect(input).toHaveFocus());
   });
 
   it('starts a recent session directly when requested from the tray', async () => {
@@ -3579,9 +3581,11 @@ describe('App', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Resume session' }))
       .not.toBeInTheDocument();
-    expect(await screen.findByRole('button', {
+    const input = await screen.findByRole('button', {
       name: `${runtime.displayName} terminal input`
-    })).toHaveFocus();
+    });
+    // The terminal takes focus a moment after it appears.
+    await waitFor(() => expect(input).toHaveFocus());
   });
 
   it('opens and completes a native resume from the session catalog', async () => {
