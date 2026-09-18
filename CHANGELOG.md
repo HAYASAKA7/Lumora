@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-09-18
+
 ### Added
 
 - Know when a session finishes or needs you. When a session you aren't watching
@@ -27,6 +29,14 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   those agents start working.
 - Lumora's helper moves to 0.6.0, which carries those hooks' reports, so each
   remote computer asks you to install it once, the next time you connect.
+
+### Fixed
+
+- Open the terminal of a running session from Home straight away. Selecting a
+  session just as Home first showed it running could start the launch flow for
+  it instead of showing the terminal it was already running in, because the
+  page and what a click reads were brought up to date one after the other. They
+  now change together.
 
 ## [0.6.3] - 2026-09-18
 

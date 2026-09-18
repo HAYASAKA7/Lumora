@@ -831,8 +831,8 @@ for you, then working, then an unseen finish or failure.
   a turn runs or after a cancelled one; it is working while a turn runs that
   waits on no one. A terminal's outcome arrives as a runtime `outcome` event
   from main, and its working state as an `activity` event, emitted only when
-  it changes. Each outcome carries a key, the event it
-  came from, so the same outcome read twice is not news.
+  it changes. Each outcome carries a key, the event it came from, so the same
+  outcome read twice is not news.
 - **Tracker.** A session read for the first time is taken as seen whatever it
   shows, since a resumed session arrives with its history. After that a new key
   is news unless the session is watched; a newer outcome replaces an older one,
@@ -860,16 +860,16 @@ for you, then working, then an unseen finish or failure.
   `config.toml` and passed on to be run too; when it cannot be read for certain
   it is left alone. Codex gives hooks a snapshot of the environment that drops
   names like `*TOKEN*`, so the per-runtime value travels as
-  `LUMORA_STATUS_ID`. The hooks run
-  `lumora-helper notify --event <name>`, which writes one line — a per-runtime
-  token and the event name — to a named pipe on Windows or an owner-only unix
-  socket elsewhere, and always exits successfully. Codex's payload, which holds
-  conversation text, is passed to the person's program and never read. Main
-  hears only live tokens. Once a hook has said the agent needs you, its bell is
-  redundant; until then the bell still speaks for what the hooks do not, which
-  covers hooks not yet trusted, apart from a bell right after a hook, which is
-  the same moment. `Interrupt` stops the spinner without a cue. Hooks are taken down with the runtime, and a failure to prepare them
-  never stops a launch.
+  `LUMORA_STATUS_ID`. The hooks run `lumora-helper notify --event <name>`,
+  which writes one line — a per-runtime token and the event name — to a named
+  pipe on Windows or an owner-only unix socket elsewhere, and always exits
+  successfully. Codex's payload, which holds conversation text, is passed to
+  the person's program and never read. Main hears only live tokens. Once a hook
+  has said the agent needs you, its bell is redundant; until then the bell
+  still speaks for what the hooks do not, which covers hooks not yet trusted,
+  apart from a bell right after a hook, which is the same moment. `Interrupt`
+  stops the spinner without a cue. Hooks are taken down with the runtime, and a
+  failure to prepare them never stops a launch.
 
 The dot takes the theme's `--blue`, `--warning` and `--danger`, which a custom
 theme sets from its palette; a style contract keeps literal colours out of its

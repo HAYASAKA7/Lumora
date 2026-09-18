@@ -140,8 +140,11 @@ terminal profiles, sidebar session lists, and shortcuts are covered in the
 
 Lumora groups provider-owned sessions by project, searches across titles and
 workspaces, reports reliable provider token totals, and keeps running and
-recent sessions in separate sidebar lists. Workspaces can be hidden without
-deleting project or provider data.
+recent sessions in separate sidebar lists. A running session you are not
+looking at gets a dot on its tile and tab when it finishes or needs you, with a
+tip and an optional chime, and shows a spinner while its agent works. Claude
+Code and Codex terminals report through hooks added to that launch alone.
+Workspaces can be hidden without deleting project or provider data.
 
 Complete session support includes new-session launch, provider-owned metadata
 discovery, catalog display, and exact native resume. Codex, Claude Code, and
