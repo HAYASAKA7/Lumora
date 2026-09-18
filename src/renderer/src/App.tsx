@@ -988,18 +988,18 @@ function AppContent(): ReactNode {
   /**
    * What is running right now, for the callers that arrive from outside React
    * and may be holding a callback made before the runtimes were known: the
-   * tray, which offers a running session the moment the window opens.
+   * tray, which offers a running session the moment the window opens. It is
+   * kept in step during render, so a click on a session the page already
+   * shows as running never finds the runtime missing.
    */
   const liveBySessionIdRef = useRef({
     runtimes: liveRuntimeBySessionId,
     structured: liveStructuredBySessionId
   });
-  useEffect(() => {
-    liveBySessionIdRef.current = {
-      runtimes: liveRuntimeBySessionId,
-      structured: liveStructuredBySessionId
-    };
-  }, [liveRuntimeBySessionId, liveStructuredBySessionId]);
+  liveBySessionIdRef.current = {
+    runtimes: liveRuntimeBySessionId,
+    structured: liveStructuredBySessionId
+  };
   const runningSessionIds = useMemo(
     () => new Set([
       ...liveRuntimeBySessionId.keys(),
