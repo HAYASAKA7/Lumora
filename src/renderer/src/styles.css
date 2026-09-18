@@ -860,8 +860,6 @@ button {
   overflow: auto;
   padding: var(--page-gutter-block) var(--page-gutter-inline);
   outline: none;
-  /* Keeps a row brought into view by focus clear of a pinned page toolbar. */
-  scroll-padding-top: 104px;
 }
 
 /*
@@ -893,8 +891,8 @@ button {
 
 /*
  * The title fades while it scrolls out of the page. The timeline names its own
- * zero inset because a bare view() takes the page scroll padding and would
- * fade the title before it has moved.
+ * zero inset because a bare view() takes any scroll padding of the page and
+ * would then fade the title before it has moved.
  */
 .page-header {
   max-width: 760px;

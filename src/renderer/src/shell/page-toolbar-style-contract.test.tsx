@@ -40,6 +40,15 @@ describe('page toolbars and the page title', () => {
       .toBe('var(--page-gutter-block) var(--page-gutter-inline)');
   });
 
+  it('never pads the page scroll, which would move the page when the toolbar takes focus', () => {
+    // With scroll padding a focused search in the pinned toolbar counts as out of
+    // view, so the search shortcut, Tab and the Settings arrow keys scrolled the page.
+    const paddings = [...stylesheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selector, body]) => selector!.includes('main-content') && /scroll-padding/.test(body!))
+      .map(([, selector]) => selector!.trim());
+    expect(paddings).toEqual([]);
+  });
+
   it('keeps a pinned toolbar above every layer of the page and under the overlays', () => {
     // The runtime switcher and the status tip start the overlays, then dialogs, menus and tooltips.
     const OVERLAY_LAYER = 70;
@@ -84,7 +93,7 @@ describe('page toolbars and the page title', () => {
   it('fades the title while it scrolls out and keeps it still for less motion', () => {
     const title = rule('.page-header');
 
-    // A bare view() would take the page scroll padding and fade the title at rest.
+    // A bare view() would take any scroll padding of the page and fade the title at rest.
     expect(title.get('animation-timeline')).toBe('view(block 0px)');
     expect(title.get('animation-range')).toBe('exit 0% exit 100%');
     const reduced = [...stylesheet.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)]
