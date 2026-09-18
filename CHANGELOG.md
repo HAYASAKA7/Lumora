@@ -7,6 +7,15 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Keep a page's toolbar in reach. On **Workspaces**, **All sessions**, a
+  workspace page, **Settings** and **Remote computers**, the toolbar stays under
+  the top bar while the page scrolls beneath it, so search, filters, **Back**
+  and the settings categories no longer scroll away. The page title fades as it
+  leaves and the top bar shows the page's name instead. **Remote computers** no
+  longer repeats its title and description under the page's own.
+
 ## [0.6.4] - 2026-09-18
 
 ### Added

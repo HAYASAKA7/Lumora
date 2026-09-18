@@ -277,7 +277,7 @@ export function WorkspaceSessionsView({
       className={`catalog-panel workspace-detail${changes.className}`}
       ref={sectionRef}
     >
-      <div className="workspace-detail-toolbar">
+      <div className="workspace-detail-toolbar page-toolbar">
         <IconButton label={t('catalog.workspaces.back')} onClick={onBack} tabIndex={-1}>
           <BackIcon />
         </IconButton>

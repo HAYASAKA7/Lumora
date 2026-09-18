@@ -171,37 +171,40 @@ export function SettingsView({
 
   return (
     <div className="settings-layout">
-      <div
-        aria-label={t('settings.categories-label')}
-        className="settings-category-tabs"
-        role="tablist"
-      >
-        {SETTINGS_CATEGORIES.map((category) => {
-          const selected = activeCategory === category.id;
-          return (
-            <button
-              aria-controls={`settings-panel-${category.id}`}
-              aria-selected={selected}
-              className="settings-category-tab"
-              id={`settings-tab-${category.id}`}
-              key={category.id}
-              onClick={() => onCategoryChange(category.id)}
-              onKeyDown={(event) => handleTabKeyDown(event, category.id)}
-              ref={(element) => {
-                if (element === null) {
-                  tabRefs.current.delete(category.id);
-                } else {
-                  tabRefs.current.set(category.id, element);
-                }
-              }}
-              role="tab"
-              tabIndex={selected ? 0 : -1}
-              type="button"
-            >
-              {t(category.labelKey)}
-            </button>
-          );
-        })}
+      {/* The tabs scroll sideways, which would clip a backing of their own, so a wrapper pins them. */}
+      <div className="settings-category-bar page-toolbar">
+        <div
+          aria-label={t('settings.categories-label')}
+          className="settings-category-tabs"
+          role="tablist"
+        >
+          {SETTINGS_CATEGORIES.map((category) => {
+            const selected = activeCategory === category.id;
+            return (
+              <button
+                aria-controls={`settings-panel-${category.id}`}
+                aria-selected={selected}
+                className="settings-category-tab"
+                id={`settings-tab-${category.id}`}
+                key={category.id}
+                onClick={() => onCategoryChange(category.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, category.id)}
+                ref={(element) => {
+                  if (element === null) {
+                    tabRefs.current.delete(category.id);
+                  } else {
+                    tabRefs.current.set(category.id, element);
+                  }
+                }}
+                role="tab"
+                tabIndex={selected ? 0 : -1}
+                type="button"
+              >
+                {t(category.labelKey)}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <section

@@ -199,7 +199,7 @@ export function WorkspacesView({
 
   return (
     <section className="catalog-panel" aria-labelledby="workspace-list-title">
-      <div className="session-toolbar">
+      <div className="session-toolbar page-toolbar">
         <label className="search-control">
           <span>{t('catalog.workspaces.search-label')}</span>
           <input
@@ -518,7 +518,7 @@ export function SessionsView({
 
   return (
     <section className="catalog-panel" aria-labelledby="session-list-title">
-      <div className="session-toolbar">
+      <div className="session-toolbar page-toolbar">
         <label className="search-control">
           <span>{t('catalog.sessions.search-label')}</span>
           <input

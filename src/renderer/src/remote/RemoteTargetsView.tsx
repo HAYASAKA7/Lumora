@@ -238,12 +238,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
 
   return (
     <section className="remote-targets-view">
-      <header className="view-header remote-targets-heading">
-        <div>
-          <p className="eyebrow">{t('remote.targets.eyebrow')}</p>
-          <h1>{t('remote.targets.title')}</h1>
-          <p>{t('remote.targets.description')}</p>
-        </div>
+      <div className="remote-targets-toolbar page-toolbar">
         <button
           className="refresh-button"
           onClick={() => {
@@ -254,7 +249,7 @@ export function RemoteTargetsView({ api = window.lumora }: { api?: LumoraApi }) 
         >
           {t('remote.targets.add')}
         </button>
-      </header>
+      </div>
 
       {error !== null && <p className="inline-notice error">{error}</p>}
       {loading ? (

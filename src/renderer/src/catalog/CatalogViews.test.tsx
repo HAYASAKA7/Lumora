@@ -257,6 +257,8 @@ describe('WorkspacesView', () => {
     const search = screen.getByRole('searchbox', {
       name: 'Search workspaces'
     });
+    // The search stays under the top bar while the workspaces scroll.
+    expect(search.closest('.page-toolbar')).not.toBeNull();
 
     fireEvent.change(search, { target: { value: 'ARCHIVED' } });
     expect(
@@ -586,6 +588,8 @@ describe('SessionsView', () => {
     );
 
     expect(screen.getByText('Running')).toBeInTheDocument();
+    // Search and the provider filter stay under the top bar while sessions scroll.
+    expect(screen.getByRole('searchbox').closest('.page-toolbar')).not.toBeNull();
     expect(screen.getByRole('button', {
       name: 'Open running terminal Catalog implementation'
     })).toHaveAttribute('aria-description', 'Open running terminal');

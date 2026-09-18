@@ -52,6 +52,13 @@ Collapse the main sidebar to keep only navigation icons. Session lists then
 disappear and the terminal tab strip becomes the primary session switcher.
 Lumora remembers the sidebar state across application launches.
 
+On a long page, the page title fades as you scroll and the top bar shows the
+page's name instead. A page's toolbar stays under the top bar while the rest
+scrolls beneath it: search and the provider filter on **Workspaces** and **All
+sessions**, **Back** and the workspace actions on a workspace page, the
+categories in **Settings**, and **Add remote computer** on **Remote
+computers**.
+
 ## Workspaces
 
 The Workspaces page groups provider-owned sessions by project directory.

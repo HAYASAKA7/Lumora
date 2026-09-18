@@ -1,5 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { TooltipProvider } from '../ui/Tooltip';
 import { LumoraShell } from './LumoraShell';
@@ -144,5 +144,88 @@ describe('LumoraShell', () => {
     expect(screen.getByRole('button', { name: 'サイドバーを展開' })).toBeVisible();
     expect(screen.getByText('メインコンテンツへ移動')).toBeVisible();
     expect(screen.getByText('エージェントワークスペース管理')).toBeVisible();
+  });
+
+  describe('naming the page in the top bar', () => {
+    let report: ((ratio: number) => void) | undefined;
+    let observedRoot: Element | Document | null | undefined;
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      report = undefined;
+      observedRoot = undefined;
+    });
+
+    function watchTitle(): void {
+      vi.stubGlobal('IntersectionObserver', class {
+        constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          observedRoot = options?.root;
+          report = (ratio) => callback(
+            [{ intersectionRatio: ratio } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver
+          );
+        }
+        observe(): void {}
+        disconnect(): void {}
+      });
+    }
+
+    function renderShell(hidePageHeader = false): void {
+      renderWithLocalization(
+        <TooltipProvider>
+          <LumoraShell
+            activeRouteId="sessions"
+            appearance={{
+              backgroundActive: false,
+              backgroundStyle: undefined,
+              hasSurfaceMosaic: false,
+              shellStyle: undefined,
+              theme: 'lumora'
+            }}
+            hidePageHeader={hidePageHeader}
+            main={<div />}
+            onNavigate={vi.fn()}
+            onToggleSidebar={vi.fn()}
+            pageHeader={{ description: 'Search sessions', eyebrow: 'Session catalog', label: 'All sessions' }}
+            primaryNavigation={{ label: 'Workspace', routes: [] }}
+            sidebarExpanded
+            statusBar={<footer />}
+            topbar={{ context: 'Private by default', kicker: 'Local control plane' }}
+          />
+        </TooltipProvider>
+      );
+    }
+
+    it('names the page once its title has scrolled out of the page and not before', () => {
+      watchTitle();
+      renderShell();
+      const topbar = document.querySelector('.topbar')!;
+      const pageName = topbar.querySelector('.topbar-page-title')!;
+
+      expect(observedRoot).toBe(screen.getByRole('main'));
+      expect(pageName).toHaveTextContent('All sessions');
+      // The page heading stays the one assistive technology reads.
+      expect(pageName).toHaveAttribute('aria-hidden', 'true');
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('All sessions');
+      expect(topbar).toHaveAttribute('data-page-heading', 'shown');
+
+      act(() => report?.(0.1));
+      expect(topbar).toHaveAttribute('data-page-heading', 'away');
+      expect(screen.getByText('Local control plane')).toBeInTheDocument();
+
+      act(() => report?.(0.6));
+      expect(topbar).toHaveAttribute('data-page-heading', 'shown');
+    });
+
+    it('keeps its own text on a page without a title', () => {
+      watchTitle();
+      renderShell(true);
+      const topbar = document.querySelector('.topbar')!;
+
+      expect(topbar).not.toHaveAttribute('data-page-heading');
+      expect(topbar.querySelector('.topbar-page-title')).toBeNull();
+      expect(report).toBeUndefined();
+      expect(screen.getByText('Local control plane')).toBeInTheDocument();
+    });
   });
 });

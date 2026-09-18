@@ -181,6 +181,9 @@ describe('WorkspaceSessionsView', () => {
     expect(
       screen.getByRole('heading', { name: 'Lumora sessions' })
     ).toBeInTheDocument();
+    // Back and the workspace actions stay under the top bar while sessions scroll.
+    expect(screen.getByRole('button', { name: 'Back to workspaces' }).closest('.page-toolbar'))
+      .not.toBeNull();
     expect(screen.getByText('1 session')).toBeInTheDocument();
     expect(screen.getByText('Codex 1')).toBeInTheDocument();
     expect(screen.queryByText('Claude Code 0')).not.toBeInTheDocument();

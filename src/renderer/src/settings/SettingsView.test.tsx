@@ -225,6 +225,8 @@ describe('SettingsView', () => {
   it('changes the visible category when a tab is clicked', () => {
     renderWithLocalization(<Harness />);
 
+    // The categories stay under the top bar while a long category scrolls.
+    expect(screen.getByRole('tablist').closest('.page-toolbar')).not.toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Launch' }));
 
     expect(screen.getByRole('tab', { name: 'Launch' })).toHaveAttribute(

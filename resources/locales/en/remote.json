@@ -1,9 +1,6 @@
 {
   "targets": {
-    "eyebrow": "Remote mode",
-    "title": "Remote computers",
     "subtitle": "Connect Lumora to native agents on another computer.",
-    "description": "Configure SSH access and open an isolated Lumora window for each computer.",
     "add": "Add remote computer",
     "edit": "Edit remote computer",
     "delete-title": "Delete remote computer",

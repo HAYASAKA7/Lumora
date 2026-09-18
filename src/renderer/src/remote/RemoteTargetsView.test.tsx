@@ -52,20 +52,18 @@ describe('RemoteTargetsView', () => {
       formattingLocale: 'ja-JP',
       messages: {
         ...TEST_LOCALIZATION_SNAPSHOT.messages,
-        'remote.targets.title': 'リモートコンピューター',
         'remote.targets.add': 'リモートコンピューターを追加',
         'remote.targets.empty': 'リモートコンピューターはまだありません。'
       }
     });
 
-    expect(await screen.findByRole('heading', {
-      name: 'リモートコンピューター'
-    })).toBeInTheDocument();
+    expect(await screen.findByText('リモートコンピューターはまだありません。'))
+      .toBeInTheDocument();
+    // The page title comes from the shell; the page itself keeps only its toolbar.
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(screen.getByRole('button', {
       name: 'リモートコンピューターを追加'
-    })).toBeInTheDocument();
-    expect(screen.getByText('リモートコンピューターはまだありません。'))
-      .toBeInTheDocument();
+    }).parentElement).toHaveClass('page-toolbar');
   });
   it('updates a remote card from authoritative lifecycle events', async () => {
     let lifecycleListener: ((event: unknown) => void) | undefined;

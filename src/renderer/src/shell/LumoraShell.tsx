@@ -1,13 +1,15 @@
-import type {
-  CSSProperties,
-  ReactNode,
-  Ref
+import {
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type Ref
 } from 'react';
 
 import lumoraBrandMarkUrl from '../../../../resources/icons/lumora/source/lumora-symbol-gradient.svg';
 import type { AppearanceSettings } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { Tooltip } from '../ui/Tooltip';
+import { usePageTitleAway } from './usePageTitleAway';
 
 export type NavigationIconName =
   | 'home'
@@ -196,6 +198,8 @@ export function LumoraShell<RouteId extends string>({
   topbar
 }: LumoraShellProps<RouteId>): ReactNode {
   const { t } = useLocalization();
+  const pageTitleRef = useRef<HTMLElement | null>(null);
+  const pageTitleAway = usePageTitleAway(pageTitleRef, !hidePageHeader);
   const toggleLabel = sidebarExpanded
     ? t('shell.sidebar.collapse')
     : t('shell.sidebar.expand');
@@ -274,10 +278,19 @@ export function LumoraShell<RouteId extends string>({
       </aside>
 
       <div className="workspace-frame">
-        <header className="topbar">
-          <div>
-            <p className="topbar-kicker">{topbar.kicker}</p>
-            <p className="topbar-context">{topbar.context}</p>
+        <header
+          className="topbar"
+          data-page-heading={hidePageHeader ? undefined : pageTitleAway ? 'away' : 'shown'}
+        >
+          <div className="topbar-identity">
+            <div className="topbar-brand">
+              <p className="topbar-kicker">{topbar.kicker}</p>
+              <p className="topbar-context">{topbar.context}</p>
+            </div>
+            {hidePageHeader ? null : (
+              // The page's own heading stays the one assistive technology reads.
+              <p aria-hidden="true" className="topbar-page-title">{pageHeader.label}</p>
+            )}
           </div>
           <div aria-label={t('shell.topbar.session-actions')} className="topbar-actions" role="group">
             {topbar.actions}
@@ -292,7 +305,7 @@ export function LumoraShell<RouteId extends string>({
         >
           {banner}
           {hidePageHeader ? null : (
-            <header className="page-header">
+            <header className="page-header" ref={pageTitleRef}>
               <p className="eyebrow">{pageHeader.eyebrow}</p>
               <h1>{pageHeader.label}</h1>
               <p className="page-description">{pageHeader.description}</p>

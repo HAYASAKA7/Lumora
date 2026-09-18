@@ -814,11 +814,54 @@ button {
   font-size: 0.76rem;
 }
 
+/* The top bar names the page once the page title has scrolled away. */
+.topbar-identity {
+  display: grid;
+  min-width: 0;
+}
+
+.topbar-identity > * {
+  min-width: 0;
+  grid-area: 1 / 1;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.topbar-page-title {
+  align-self: center;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+.topbar[data-page-heading='away'] .topbar-brand {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.topbar[data-page-heading='away'] .topbar-page-title {
+  opacity: 1;
+  transform: none;
+}
+
 .main-content {
+  --page-gutter-block: clamp(28px, 4vw, 54px);
+  --page-gutter-inline: clamp(28px, 4vw, 54px);
+  --page-toolbar-inset: 14px;
+
   min-width: 0;
   overflow: auto;
-  padding: clamp(28px, 4vw, 54px);
+  padding: var(--page-gutter-block) var(--page-gutter-inline);
   outline: none;
+  /* Keeps a row brought into view by focus clear of a pinned page toolbar. */
+  scroll-padding-top: 104px;
 }
 
 /*
@@ -848,9 +891,70 @@ button {
   display: grid;
 }
 
+/*
+ * The title fades while it scrolls out of the page. The timeline names its own
+ * zero inset because a bare view() takes the page scroll padding and would
+ * fade the title before it has moved.
+ */
 .page-header {
   max-width: 760px;
   margin-bottom: 30px;
+  animation: page-title-leave linear both;
+  animation-timeline: view(block 0px);
+  animation-range: exit 0% exit 100%;
+}
+
+@keyframes page-title-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * A page toolbar stays under the top bar while the page scrolls. Chromium pins
+ * a sticky box inside the page padding so the offset lifts it back to the
+ * inset under the top bar. Its backing shows only while the toolbar is pinned
+ * and reaches up to the top bar. It is painted as the top bar is seen: the top
+ * bar surface over the page surface. The top bar surface alone lets rows show
+ * through. The shadows carry the backing out to both edges of the page
+ * whatever card holds the toolbar and add no scrollable overflow. The clip
+ * keeps them to the height of the backing.
+ */
+.page-toolbar {
+  position: sticky;
+  z-index: 3;
+  top: calc(var(--page-toolbar-inset) - var(--page-gutter-block));
+  container-type: scroll-state;
+}
+
+.page-toolbar::before {
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--page-toolbar-inset) * -1) 0 calc(var(--page-toolbar-bleed, 0px) * -1);
+  background: linear-gradient(var(--topbar-surface), var(--topbar-surface)), var(--surface);
+  box-shadow: 0 0 0 100vmax var(--topbar-surface), 0 0 0 100vmax var(--surface);
+  clip-path: inset(0 -100vmax);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+@container scroll-state(stuck: top) {
+  .page-toolbar::before {
+    opacity: 1;
+  }
+}
+
+/* A toolbar without padding and a rule of its own keeps some backing below it. */
+.settings-category-bar,
+.workspace-detail-toolbar {
+  --page-toolbar-bleed: 12px;
+}
+
+/* Over a background picture the backing is see-through so the rows under it blur away. */
+.has-appearance-background .page-toolbar::before {
+  backdrop-filter: blur(18px);
 }
 
 .eyebrow {
@@ -1689,6 +1793,11 @@ button {
 .settings-layout {
   display: grid;
   gap: 18px;
+}
+
+/* Lets the tabs inside scroll sideways rather than widen the page. */
+.settings-category-bar {
+  min-width: 0;
 }
 
 .settings-category-tabs {
@@ -3965,7 +4074,8 @@ button {
   }
 
   .main-content {
-    padding: 28px 20px;
+    --page-gutter-block: 28px;
+    --page-gutter-inline: 20px;
   }
 
   .dashboard-grid {
@@ -4190,7 +4300,8 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lumora-tooltip {
+  .lumora-tooltip,
+  .page-header {
     animation: none;
   }
 
@@ -7155,7 +7266,7 @@ button {
   gap: 20px;
 }
 
-.remote-targets-heading,
+.remote-targets-toolbar,
 .remote-target-card-heading,
 .remote-target-actions,
 .remote-window-header,
@@ -7165,21 +7276,24 @@ button {
   align-items: center;
 }
 
-.remote-targets-heading,
 .remote-target-card-heading,
 .remote-window-header {
   justify-content: space-between;
   gap: 20px;
 }
 
-.remote-targets-heading h2,
+.remote-targets-toolbar {
+  justify-content: flex-end;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
 .remote-target-card h2,
 .remote-window-header h1 {
   margin: 0;
   color: var(--text);
 }
 
-.remote-targets-heading p,
 .remote-target-card p,
 .remote-window-header p {
   margin: 5px 0 0;
@@ -7971,7 +8085,6 @@ button {
 }
 
 @media (max-width: 720px) {
-  .remote-targets-heading,
   .remote-window-header,
   .remote-panel-heading { align-items: stretch; flex-direction: column; }
   .remote-direct-fields,
@@ -8077,9 +8190,10 @@ button {
   grid-row: 2;
 }
 
+/* The panel docks 12px under the pinned page toolbar that useDockedPanelViewport measures. */
 .workspace-detail.has-changes-panel > .changes-panel {
   position: sticky;
-  top: 12px;
+  top: calc(var(--page-toolbar-inset) + var(--page-toolbar-height, 0px) + 12px - var(--page-gutter-block));
   grid-column: 2;
   grid-row: 2;
   width: auto;

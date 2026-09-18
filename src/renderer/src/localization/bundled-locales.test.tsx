@@ -78,7 +78,7 @@ function LocaleSmokeProbe() {
       <span>{t('terminal.actions.stop-terminal')}</span>
       <span>{t('settings.tabs.general')}</span>
       <span>{t('providers.title')}</span>
-      <span>{t('remote.targets.title')}</span>
+      <span>{t('remote.targets.add')}</span>
       <span>{t('transfer.title')}</span>
       <span>{t('errors.general.title')}</span>
       <span>{t('common.actions.cancel')}</span>

@@ -46,6 +46,24 @@ The renderer keeps active terminal components mounted while application routes
 change. This preserves PTY attachments and avoids recreating terminal views on
 ordinary navigation.
 
+Pages scroll inside `.main-content` under a fixed top bar. A page marks its
+toolbar with `page-toolbar`, which is sticky and pinned `--page-toolbar-inset`
+under the top bar. Chromium pins a sticky box inside its scroller's padding, so
+the offset subtracts the page gutter. The toolbar is a `scroll-state` container,
+and its `::before` backing shows only under `scroll-state(stuck: top)`. The
+backing is painted as the top bar is seen: the top bar surface over the page
+surface, since the top bar surface alone is translucent. Two `box-shadow`
+spreads, clipped to its height, carry it to both page edges whatever card holds
+the toolbar, without adding scrollable overflow. Over a background picture it
+blurs what passes beneath. A toolbar that scrolls sideways, such as the Settings
+tabs, is pinned through a wrapper, since its own overflow would clip the
+backing. The page title fades on a `view(block 0px)` timeline: a bare `view()`
+takes the page's `scroll-padding-top`, which keeps focused rows clear of a
+pinned toolbar, and would fade the title at rest. `usePageTitleAway` watches the
+title with an `IntersectionObserver` and swaps the top bar text for the page
+name once a quarter of it or less shows. The docked Changes panel measures the
+pinned toolbar and docks 12px under it.
+
 A renderer-root tooltip provider owns one portal-based hover surface. Tooltip
 placement is clamped to the viewport, uses semantic appearance tokens, and
 supports delayed pointer intent, deliberate keyboard focus, shortcut labels,

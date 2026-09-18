@@ -4,24 +4,35 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useDockedPanelViewport } from './useDockedPanelViewport';
 
-function Harness({ active = true, hostWidth = 1000 }: { active?: boolean; hostWidth?: number }): ReactNode {
+function Harness({ active = true, hostWidth = 1000, toolbar = false }: {
+  active?: boolean;
+  hostWidth?: number;
+  toolbar?: boolean;
+}): ReactNode {
   const hostRef = useRef<HTMLDivElement | null>(null);
   useDockedPanelViewport(hostRef, active);
   return (
     <div className="scroller" data-testid="scroller">
       <div data-host-width={hostWidth} data-testid="host" ref={hostRef}>
+        {toolbar ? <div className="page-toolbar" /> : null}
         <aside className="changes-panel" data-testid="panel" />
       </div>
     </div>
   );
 }
 
-function stubLayout(options: { containerTop: number; containerHeight: number; panelTop: number }) {
+function stubLayout(options: {
+  containerTop: number;
+  containerHeight: number;
+  panelTop: number;
+  toolbarHeight?: number;
+}) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const top = this.classList.contains('scroller')
       ? options.containerTop
       : this.classList.contains('changes-panel') ? options.panelTop : 0;
-    return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) };
+    const height = this.classList.contains('page-toolbar') ? options.toolbarHeight ?? 0 : 0;
+    return { top, bottom: top + height, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON: () => ({}) };
   });
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
     return this.classList.contains('scroller') ? options.containerHeight : 0;
@@ -30,7 +41,8 @@ function stubLayout(options: { containerTop: number; containerHeight: number; pa
     return Number(this.dataset.hostWidth ?? 0);
   });
   vi.spyOn(window, 'getComputedStyle').mockImplementation(((element: Element) => ({
-    overflowY: element.classList.contains('scroller') ? 'auto' : 'visible'
+    overflowY: element.classList.contains('scroller') ? 'auto' : 'visible',
+    getPropertyValue: (name: string) => name === '--page-toolbar-inset' ? '14px' : ''
   })) as typeof window.getComputedStyle);
 }
 
@@ -97,6 +109,22 @@ describe('useDockedPanelViewport', () => {
     expect(height(host)).toBe('576px');
   });
 
+  it('docks the panel under a pinned page toolbar and leaves what it covers out', () => {
+    stubLayout({ containerTop: 60, containerHeight: 800, panelTop: 220, toolbarHeight: 60 });
+    const { getByTestId } = render(<Harness toolbar />);
+    const host = getByTestId('host');
+    // The stylesheet docks the panel 12px under a toolbar pinned 14px down.
+    expect(host.style.getPropertyValue('--page-toolbar-height')).toBe('60px');
+    expect(height(host)).toBe('628px');
+  });
+
+  it('keeps a stacked panel to what shows under a pinned page toolbar', () => {
+    stubLayout({ containerTop: 60, containerHeight: 800, panelTop: 900, toolbarHeight: 60 });
+    const { getByTestId } = render(<Harness hostWidth={600} toolbar />);
+    // 860 at the bottom of the page, less the 134 the pinned toolbar covers and both gaps.
+    expect(height(getByTestId('host'))).toBe('702px');
+  });
+
   it('writes nothing while inactive and clears what it wrote', () => {
     stubLayout({ containerTop: 0, containerHeight: 600, panelTop: 10 });
     const { getByTestId, rerender } = render(<Harness active={false} hostWidth={600} />);
@@ -107,6 +135,7 @@ describe('useDockedPanelViewport', () => {
     expect(height(getByTestId('host'))).not.toBe('');
     rerender(<Harness active={false} hostWidth={600} />);
     expect(height(getByTestId('host'))).toBe('');
+    expect(getByTestId('host').style.getPropertyValue('--page-toolbar-height')).toBe('');
     expect(getByTestId('host').dataset.changesLayout).toBeUndefined();
   });
 });
