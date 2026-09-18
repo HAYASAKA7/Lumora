@@ -64,9 +64,12 @@ backing. The page title fades on a `view(block 0px)` timeline, since a bare
 The page has no scroll padding: with it, a control focused inside the pinned
 toolbar counts as hidden behind it, so the search shortcut, Tab and the Settings
 arrow keys scrolled the page. A focused row needs none, since Chromium brings it
-toward the middle of the page. Another Settings category keeps the page where
-it is, and `keepPageToolbarPinned` moves a page whose toolbar is pinned to where
-it first pins, so the new category starts right under it. `usePageTitleAway` watches the
+toward the middle of the page. Another Settings category, a new search or a
+new provider filter keeps the page where it is, and `keepPageToolbarPinned`
+moves a page whose toolbar is pinned to where it first pins, so the new content
+starts right under it. Settings is at least as tall as the page plus the
+distance the toolbar lifts, so even a short category can keep its categories
+pinned. `usePageTitleAway` watches the
 title with an `IntersectionObserver` and swaps the top bar text for the page
 name once a quarter of it or less shows. The docked Changes panel measures the
 pinned toolbar and docks 12px under it.

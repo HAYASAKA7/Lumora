@@ -14,9 +14,10 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the top bar while the page scrolls beneath it, so search, filters, **Back**
   and the settings categories no longer scroll away. The page title fades as it
   leaves and the top bar shows the page's name instead. The search shortcut
-  puts you in search without moving the list, and another settings category
-  opens under categories that stay pinned rather than back at the top of the
-  page. **Remote computers** no longer repeats its title and description under
+  puts you in search without moving the list, a new search or provider shows
+  its first results right under the search, and another settings category, even
+  a short one, opens under categories that stay pinned rather than back at the
+  top of the page. **Remote computers** no longer repeats its title and description under
   the page's own.
 
 ## [0.6.4] - 2026-09-18

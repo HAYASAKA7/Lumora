@@ -288,6 +288,37 @@ describe('WorkspacesView', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the first results of a new search under the pinned search', () => {
+    render(
+      <main className="main-content">
+        <WorkspacesView
+          isRefreshing={false}
+          onAddWorkspace={vi.fn()}
+          onOpenWorkspace={vi.fn()}
+          onRefresh={vi.fn()}
+          status={{ state: 'ready', snapshot: catalogSnapshot }}
+        />
+      </main>
+    );
+    const main = screen.getByRole('main');
+    const toolbar = screen.getByRole('searchbox', { name: 'Search workspaces' })
+      .closest<HTMLElement>('.page-toolbar')!;
+    // Pinned at 78 while it would rest 300px higher, had it scrolled with the page.
+    vi.spyOn(toolbar, 'getBoundingClientRect').mockImplementation(() => {
+      const top = toolbar.style.position === 'static' ? -222 : 78;
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) };
+    });
+    main.scrollTop = 900;
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search workspaces' }), {
+      target: { value: 'lumora' }
+    });
+
+    // Where the search first pins: the results start right under it.
+    expect(main.scrollTop).toBe(600);
+    vi.restoreAllMocks();
+  });
+
   it('distinguishes filtered workspace results from an empty catalog', () => {
     render(
       <WorkspacesView
@@ -596,6 +627,47 @@ describe('SessionsView', () => {
     expect(screen.getByRole('button', {
       name: 'Resume Untitled session'
     })).toBeInTheDocument();
+  });
+
+  it('shows the first results of a new search or provider under the pinned search', () => {
+    const view = (queryText: string, provider: 'codex' | null) => (
+      <main className="main-content">
+        <SessionsView
+          {...diagnosticProps}
+          isRefreshing={false}
+          onProviderChange={vi.fn()}
+          onRefresh={vi.fn()}
+          onResume={vi.fn()}
+          onSearchChange={vi.fn()}
+          profiles={[terminalProfile]}
+          provider={provider}
+          providerScan={providerScan}
+          queryText={queryText}
+          status={{ state: 'ready', snapshot: catalogSnapshot }}
+        />
+      </main>
+    );
+    const { rerender } = render(view('', null));
+    const main = screen.getByRole('main');
+    const toolbar = screen.getByRole('searchbox').closest<HTMLElement>('.page-toolbar')!;
+    vi.spyOn(toolbar, 'getBoundingClientRect').mockImplementation(() => {
+      const top = toolbar.style.position === 'static' ? -222 : 78;
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) };
+    });
+
+    main.scrollTop = 900;
+    rerender(view('catalog', null));
+    expect(main.scrollTop).toBe(600);
+
+    main.scrollTop = 900;
+    rerender(view('catalog', 'codex'));
+    expect(main.scrollTop).toBe(600);
+
+    // Anything else that renders again leaves the page where it is.
+    main.scrollTop = 900;
+    rerender(view('catalog', 'codex'));
+    expect(main.scrollTop).toBe(900);
+    vi.restoreAllMocks();
   });
 
   it('renders remote session metadata without resume actions', () => {

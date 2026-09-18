@@ -29,6 +29,7 @@ import { ActionMenu } from '../ui/ActionMenu';
 import { useFocusSearchRequest, useRefreshRequest } from '../keyboard/page-requests';
 import { useShortcutLabel } from '../keyboard/ShortcutLabels';
 import { useLocalization } from '../localization/useLocalization';
+import { useKeepPageToolbarPinned } from '../shell/page-toolbar';
 import { useSessionResumeContextMenu } from './useSessionResumeContextMenu';
 
 const WORKSPACE_BATCH_SIZE = 20;
@@ -168,6 +169,8 @@ export function WorkspacesView({
     initialCount: WORKSPACE_BATCH_SIZE,
     batchSize: WORKSPACE_BATCH_SIZE
   });
+  // A new search shows its first results under the pinned search.
+  useKeepPageToolbarPinned(searchRef, normalizedQuery);
 
   if (status.state === 'loading') {
     return (
@@ -481,6 +484,8 @@ export function SessionsView({
     initialCount: SESSION_BATCH_SIZE,
     batchSize: SESSION_BATCH_SIZE
   });
+  // A new search or provider shows its first results under the pinned search.
+  useKeepPageToolbarPinned(searchRef, JSON.stringify([provider, queryText.trim()]));
 
   if (status.state === 'loading') {
     return (
