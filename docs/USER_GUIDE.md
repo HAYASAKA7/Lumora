@@ -217,13 +217,17 @@ How Lumora hears it depends on the session:
 - **Unified UI:** from the session's own events, exactly, spinner included.
 - **Claude Code and Codex in a terminal:** Lumora adds hooks to that one launch.
   Claude Code gets a settings file of its own through `--settings`, loaded on
-  top of yours, so your own hooks keep running. Codex gets a `notify` program
-  for that launch; if you have one of your own, it still runs. Nothing is
-  written to `~/.claude` or `~/.codex`, and a hook tells Lumora only that the
-  agent finished or needs you, never any of the conversation. Claude Code's
-  hooks also say when it starts on a prompt, so it gets the spinner. Codex's
-  `notify` only reports a finished turn, so a Codex terminal gets the dot but
-  no spinner.
+  top of yours, so your own hooks keep running. Codex gets its lifecycle hooks
+  through `-c` for that launch, beside yours, and a `notify` program; if you
+  have a `notify` of your own, it still runs. Nothing is written to
+  `~/.claude` or `~/.codex`, and a hook tells Lumora only that the agent
+  started, finished or needs you, never any of the conversation. Both get the
+  spinner.
+
+  Codex runs a hook only once you have trusted it. The first time, type
+  `/hooks` in a Codex terminal and approve the hooks from Lumora; Lumora's hook
+  command never changes, so they stay trusted. Until then a Codex terminal gets
+  the finished dot, from its `notify`, but no spinner.
 - **Other agents in a terminal:** Lumora listens for a terminal bell or a
   desktop notification the agent prints itself, and takes either as needs you.
   It never guesses from output going quiet, and it shows no spinner, since

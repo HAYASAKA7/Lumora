@@ -849,19 +849,26 @@ for you, then working, then an unseen finish or failure.
   `Notification` hooks. The prompt hook marks the runtime working and starts
   the repeat guard over, so a quick next turn still counts; the helper prints
   nothing there, since Claude Code adds a prompt hook's output to the prompt.
-  Codex gets `-c notify=[…]` in TOML literal strings, which Windows PowerShell
-  passes to a native program intact. Codex's override replaces the person's own
-  `notify`, so it is read from `config.toml` and passed on to be run too; when
-  it cannot be read for certain Codex gets no hook. The hooks run
+  Codex gets `-c features.hooks=true` and `hooks.<Event>` for
+  `UserPromptSubmit`, `Stop`, `PermissionRequest` and `Interrupt`, which Codex
+  merges with the person's own hooks and runs through `cmd.exe /C` or
+  `/bin/sh -lc` once they are trusted in `/hooks`; the command is the same for
+  every launch, so trust lasts. It also gets `-c notify=[…]`, which reports a
+  finished turn before the hooks are trusted. Every value is in TOML literal
+  strings, which Windows PowerShell passes to a native program intact. Codex's
+  `notify` override replaces the person's own, so theirs is read from
+  `config.toml` and passed on to be run too; when it cannot be read for certain
+  it is left alone. Codex gives hooks a snapshot of the environment that drops
+  names like `*TOKEN*`, so the per-runtime value travels as
+  `LUMORA_STATUS_ID`. The hooks run
   `lumora-helper notify --event <name>`, which writes one line — a per-runtime
   token and the event name — to a named pipe on Windows or an owner-only unix
   socket elsewhere, and always exits successfully. Codex's payload, which holds
   conversation text, is passed to the person's program and never read. Main
-  hears only live tokens. Each launch declares which outcomes its hooks report:
-  once Claude Code's have been heard its own bell is redundant, while Codex's
-  `notify` reports only a finished turn, so its bell still speaks for an
-  approval request, apart from a bell right after a hook, which is the same
-  moment. Hooks are taken down with the runtime, and a failure to prepare them
+  hears only live tokens. Once a hook has said the agent needs you, its bell is
+  redundant; until then the bell still speaks for what the hooks do not, which
+  covers hooks not yet trusted, apart from a bell right after a hook, which is
+  the same moment. `Interrupt` stops the spinner without a cue. Hooks are taken down with the runtime, and a failure to prepare them
   never stops a launch.
 
 The dot takes the theme's `--blue`, `--warning` and `--danger`, which a custom

@@ -172,6 +172,8 @@ export interface TerminalRuntime {
   reportOutcome(runtimeId: string, outcome: SessionOutcomeKind): void;
   /** An agent's hook said it started on a prompt. */
   reportWorking(runtimeId: string): void;
+  /** An agent's hook said the person stopped its turn. */
+  reportIdle(runtimeId: string): void;
   shutdown(): Promise<void>;
   close(): void;
 }
@@ -441,6 +443,9 @@ export async function createTerminalRuntime({
     },
     reportWorking(runtimeId) {
       host.reportWorking(runtimeId);
+    },
+    reportIdle(runtimeId) {
+      host.reportIdle(runtimeId);
     },
     subscribe(listener) {
       return host.subscribe(listener);

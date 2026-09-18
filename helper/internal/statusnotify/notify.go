@@ -15,7 +15,7 @@ import (
 
 const (
 	endpointVariable = "LUMORA_STATUS_ENDPOINT"
-	tokenVariable    = "LUMORA_STATUS_TOKEN"
+	tokenVariable    = "LUMORA_STATUS_ID"
 	// The person's own Codex notify program, which Lumora's replaces for the
 	// launch and so has to run as well.
 	chainVariable = "LUMORA_STATUS_CHAIN"
@@ -28,6 +28,7 @@ var knownEvents = map[string]bool{
 	"stop":          true,
 	"notification":  true,
 	"turn-complete": true,
+	"interrupt":     true,
 }
 
 // Dependencies are the outside world the command touches, so tests can replace it.

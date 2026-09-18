@@ -82,6 +82,15 @@ func TestReportsThatTheAgentStartedOnAPrompt(t *testing.T) {
 	}
 }
 
+func TestReportsATurnThePersonStopped(t *testing.T) {
+	f := newFixture()
+	f.stdin = strings.NewReader(`{"hook_event_name":"Interrupt","turn_id":"turn-1"}`)
+	Run([]string{"--event", "interrupt"}, f.deps())
+	if got := f.sent.String(); got != "{\"token\":\"token-1\",\"event\":\"interrupt\"}\n" {
+		t.Fatalf("sent %q", got)
+	}
+}
+
 func TestDropsCodexPayloadAndPassesItToThePersonsOwnProgram(t *testing.T) {
 	f := newFixture()
 	f.env[chainVariable] = `["python3","C:\\Users\\me\\notify.py"]`

@@ -344,9 +344,12 @@ reproducible, include the window size and sidebar state in the issue report.
 - A terminal started through a custom launch command gets no hooks. It is
   marked only if the agent rings the terminal bell or prints a desktop
   notification itself.
-- Codex gets no hook when Lumora cannot read your own `notify` setting in
-  `config.toml` for certain, rather than risk silencing it. Write it as a list of
-  strings on the top level, for example `notify = ["python3", "notify.py"]`.
+- A Codex terminal shows no spinner until you trust Lumora's hooks: type
+  `/hooks` in it and approve the ones from Lumora. They stay trusted afterwards.
+- Lumora leaves your own Codex `notify` alone when it cannot read it in
+  `config.toml` for certain, rather than risk silencing it, so that session
+  reports only through its hooks. Write it as a list of strings on the top
+  level, for example `notify = ["python3", "notify.py"]`.
 - Agents other than Claude Code and Codex are marked only when they print a bell
   or a notification. On Windows the terminal layer may not pass every
   notification sequence through.

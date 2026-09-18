@@ -117,8 +117,10 @@ interface LiveRuntime {
   outputFlushScheduled: boolean;
   /** Hears a bell or a notification the agent prints itself. */
   attention: TerminalAttentionScanner;
-  /** When a hook last reported, which decides whether the agent's own bell still counts. */
+  /** When a hook last reported: a bell right after it is the same moment. */
   hookHeardAt: number | null;
+  /** True once a hook has said the agent needs you, which makes its bell redundant. */
+  hooksAsk: boolean;
   /** Between a prompt its hook reported and the turn's end. */
   working: boolean;
   outcomeSequence: number;
@@ -381,6 +383,7 @@ export class RuntimeHost {
       outputFlushScheduled: false,
       attention: new TerminalAttentionScanner(),
       hookHeardAt: null,
+      hooksAsk: false,
       working: false,
       outcomeSequence: 0,
       lastOutcome: null,
@@ -674,7 +677,10 @@ export class RuntimeHost {
     const live = this.live.get(runtimeId);
     if (live === undefined) return;
     const now = this.clock().getTime();
-    if (source === 'hook') live.hookHeardAt = now;
+    if (source === 'hook') {
+      live.hookHeardAt = now;
+      if (outcome === 'needs_you') live.hooksAsk = true;
+    }
     // Asking for you pauses a turn; finishing or failing ends it.
     if (outcome !== 'needs_you') this.setWorking(runtimeId, live, false);
     if (
@@ -706,6 +712,14 @@ export class RuntimeHost {
     this.setWorking(runtimeId, live, true);
   }
 
+  /** A turn the person stopped themselves ended: no longer working, nothing to say. */
+  reportIdle(runtimeId: string): void {
+    const live = this.live.get(runtimeId);
+    if (live === undefined) return;
+    live.hookHeardAt = this.clock().getTime();
+    this.setWorking(runtimeId, live, false);
+  }
+
   private setWorking(runtimeId: string, live: LiveRuntime, working: boolean): void {
     if (live.working === working) return;
     live.working = working;
@@ -714,13 +728,14 @@ export class RuntimeHost {
 
   /**
    * Whether a hook, rather than the agent's own bell, speaks for a runtime.
-   * Hooks that report asking for you too make the bell redundant once one has
-   * been heard; hooks that report only a finished turn leave it to say the
-   * rest, apart from a bell right after a hook, which is the same moment.
+   * Once a hook has said the agent needs you, the bell is redundant. Until
+   * then it still says what the hooks do not, which covers hooks the agent has
+   * not been allowed to run yet, apart from a bell right after a hook, which is
+   * the same moment.
    */
   private hookSpeaksFor(live: LiveRuntime): boolean {
+    if (live.hooksAsk) return true;
     if (live.hookHeardAt === null) return false;
-    if (live.statusHooks?.covers.includes('needs_you') === true) return true;
     return this.clock().getTime() - live.hookHeardAt < REPEATED_OUTCOME_MS;
   }
 

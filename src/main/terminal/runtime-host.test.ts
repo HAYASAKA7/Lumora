@@ -707,9 +707,7 @@ describe('RuntimeHost', () => {
     const dispose = vi.fn();
     const prepareStatusHooks = vi.fn(async () => ({
       args: ['--settings', '/data/session-status/token.json'],
-      covers: ['finished', 'needs_you'] as const,
-      reportsWorking: true,
-      environment: { LUMORA_STATUS_TOKEN: 'token', LUMORA_STATUS_ENDPOINT: '/run/lumora.sock' },
+      environment: { LUMORA_STATUS_ID: 'token', LUMORA_STATUS_ENDPOINT: '/run/lumora.sock' },
       dispose
     }));
     const { host, pty, spawn } = harness({
@@ -727,7 +725,7 @@ describe('RuntimeHost', () => {
       '--settings', '/data/session-status/token.json', '--resume', 'native-1'
     ]);
     expect(spawned.env).toMatchObject({
-      LUMORA_STATUS_TOKEN: 'token',
+      LUMORA_STATUS_ID: 'token',
       LUMORA_STATUS_ENDPOINT: '/run/lumora.sock',
       PATH: '/usr/local/bin'
     });
@@ -737,14 +735,12 @@ describe('RuntimeHost', () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
-  it('still hears the bell of an agent whose hooks report only a finished turn', async () => {
+  it('still hears the bell until a hook has said the agent needs you, then leaves it to the hook', async () => {
     let now = new Date('2026-07-11T04:00:01.000Z');
     const { host, pty } = harness({
       clock: () => now,
       prepareStatusHooks: vi.fn(async () => ({
         args: ['-c', "notify=['lumora-helper','notify']"],
-        covers: ['finished'] as const,
-        reportsWorking: false,
         environment: {},
         dispose: vi.fn()
       }))
@@ -763,6 +759,29 @@ describe('RuntimeHost', () => {
     now = new Date(now.getTime() + 30_000);
     pty.emitData('approval needed\u0007');
     expect(outcomes()).toEqual(['finished', 'needs_you']);
+
+    // Once a hook itself asks, the bell has nothing left to add.
+    now = new Date(now.getTime() + 30_000);
+    host.reportOutcome(runtime.id, 'needs_you', 'hook');
+    now = new Date(now.getTime() + 30_000);
+    pty.emitData('another bell\u0007');
+    expect(outcomes()).toEqual(['finished', 'needs_you', 'needs_you']);
+  });
+
+  it('stops the spinner without a word when the person stops the turn', async () => {
+    const { host } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    host.reportWorking(runtime.id);
+    host.reportIdle(runtime.id);
+
+    expect(events.filter((event) => event.type === 'activity' || event.type === 'outcome'))
+      .toEqual([
+        { type: 'activity', runtimeId: runtime.id, working: true },
+        { type: 'activity', runtimeId: runtime.id, working: false }
+      ]);
   });
 
   it('says an agent is working from its prompt until the turn ends, and a quick next turn still counts', async () => {
@@ -798,7 +817,7 @@ describe('RuntimeHost', () => {
 
     await expect(host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc')).resolves
       .toMatchObject({ state: 'running' });
-    expect(spawn.mock.calls[0]![0].env).not.toHaveProperty('LUMORA_STATUS_TOKEN');
+    expect(spawn.mock.calls[0]![0].env).not.toHaveProperty('LUMORA_STATUS_ID');
   });
 
   it('bounds output events and the attach snapshot', async () => {

@@ -33,6 +33,7 @@ function endpoint(): string {
 async function started(overrides: Partial<SessionStatusHooksOptions> = {}) {
   const onOutcome = vi.fn();
   const onWorking = vi.fn();
+  const onIdle = vi.fn();
   const options: SessionStatusHooksOptions = {
     platform: process.platform,
     endpoint: endpoint(),
@@ -43,12 +44,13 @@ async function started(overrides: Partial<SessionStatusHooksOptions> = {}) {
     readCodexConfig: async () => null,
     onOutcome,
     onWorking,
+    onIdle,
     createToken: () => TOKEN,
     ...overrides
   };
   hooks = new SessionStatusHooks(options);
   await hooks.start();
-  return { hooks, onOutcome, onWorking, options };
+  return { hooks, onOutcome, onWorking, onIdle, options };
 }
 
 function send(path: string, line: string): Promise<void> {
@@ -74,7 +76,7 @@ describe('SessionStatusHooks', () => {
     expect(launch!.args.join(' ')).not.toContain(TOKEN);
     expect(launch?.environment).toEqual({
       LUMORA_STATUS_ENDPOINT: options.endpoint,
-      LUMORA_STATUS_TOKEN: TOKEN
+      LUMORA_STATUS_ID: TOKEN
     });
     const settings = JSON.parse(await readFile(launch!.args[1]!, 'utf8')) as {
       hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
@@ -84,7 +86,6 @@ describe('SessionStatusHooks', () => {
     expect(stop).not.toContain('\\');
     expect(settings.hooks.Notification![0]!.hooks[0]!.command).toMatch(/--event notification$/);
     expect(settings.hooks.UserPromptSubmit![0]!.hooks[0]!.command).toMatch(/--event prompt-submit$/);
-    expect(launch?.reportsWorking).toBe(true);
 
     await send(options.endpoint, `${JSON.stringify({ token: TOKEN, event: 'stop' })}\n`);
     await vi.waitFor(() => expect(onOutcome).toHaveBeenCalledWith('runtime-1', 'finished'));
@@ -122,8 +123,9 @@ describe('SessionStatusHooks', () => {
     expect(onOutcome).not.toHaveBeenCalled();
   });
 
-  it('overrides Codex notify for the launch and runs the person\'s own too', async () => {
+  it('gives Codex its lifecycle hooks for the launch, and notify with the person\'s own passed on', async () => {
     const { hooks: service } = await started({
+      resolveHelper: async () => '/opt/lumora/helper/lumora-helper',
       readCodexConfig: async () => 'notify = ["python3", "/home/me/notify.py"]\n'
     });
     const launch = await service.prepare({
@@ -133,21 +135,45 @@ describe('SessionStatusHooks', () => {
       environment: {}
     });
 
-    expect(launch?.args[0]).toBe('-c');
-    expect(launch?.args[1]).toMatch(/^notify=\['[^']+lumora-helper(\.exe)?','notify','--event','turn-complete'\]$/);
+    const hook = (event: string, reported: string) =>
+      `hooks.${event}=[{hooks=[{type='command',command='/opt/lumora/helper/lumora-helper notify --event ${reported}'}]}]`;
+    expect(launch?.args).toEqual([
+      '-c', 'features.hooks=true',
+      '-c', hook('UserPromptSubmit', 'prompt-submit'),
+      '-c', hook('Stop', 'stop'),
+      '-c', hook('PermissionRequest', 'notification'),
+      '-c', hook('Interrupt', 'interrupt'),
+      '-c', "notify=['/opt/lumora/helper/lumora-helper','notify','--event','turn-complete']"
+    ]);
+    // Windows PowerShell would drop a double quote on the way to Codex.
+    expect(launch!.args.join(' ')).not.toContain('"');
     expect(launch?.environment.LUMORA_STATUS_CHAIN).toBe('["python3","/home/me/notify.py"]');
   });
 
-  it('leaves Codex alone when the person\'s notify cannot be read for certain', async () => {
+  it('keeps the person\'s Codex notify untouched when it cannot be read for certain', async () => {
     const { hooks: service } = await started({
       readCodexConfig: async () => 'notify = "a string, not a list"\n'
     });
-    expect(await service.prepare({
+    const launch = await service.prepare({
       runtimeId: 'runtime-3',
       provider: 'codex',
       command: null,
       environment: {}
-    })).toBeNull();
+    });
+
+    expect(launch?.args.some((arg) => arg.startsWith('notify='))).toBe(false);
+    expect(launch?.args.some((arg) => arg.startsWith('hooks.Stop='))).toBe(true);
+    expect(launch?.environment).not.toHaveProperty('LUMORA_STATUS_CHAIN');
+  });
+
+  it('hears a turn the person stopped as the agent no longer working', async () => {
+    const { hooks: service, onIdle, onOutcome, options } = await started();
+    await service.prepare({ runtimeId: 'runtime-8', provider: 'codex', command: null, environment: {} });
+
+    await send(options.endpoint, `${JSON.stringify({ token: TOKEN, event: 'interrupt' })}\n`);
+
+    await vi.waitFor(() => expect(onIdle).toHaveBeenCalledWith('runtime-8'));
+    expect(onOutcome).not.toHaveBeenCalled();
   });
 
   it('adds nothing to a custom launch command, another agent, or without the helper', async () => {
@@ -172,6 +198,9 @@ describe('SessionStatusHooks', () => {
     });
     expect(await service.prepare({
       runtimeId: 'runtime-7', provider: 'claude', command: null, environment: {}
+    })).toBeNull();
+    expect(await service.prepare({
+      runtimeId: 'runtime-7', provider: 'codex', command: null, environment: {}
     })).toBeNull();
   });
 });
