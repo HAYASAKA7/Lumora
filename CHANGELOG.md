@@ -7,6 +7,21 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Know when a session finishes or needs you. When a session you aren't watching
+  finishes, stops with an error or waits on an approval or a question, its tile
+  under **Running sessions** and its tab get a dot in your theme's colours, a
+  tip offers to open it, and an optional chime plays. Unified UI sessions report
+  from their own events. Claude Code and Codex terminals report through hooks
+  Lumora adds to that one launch, without touching `~/.claude` or `~/.codex`,
+  and your own Codex `notify` keeps running. Other agents are marked when they
+  ring the terminal bell or print a desktop notification. Each cue can be
+  turned off under **Settings → General → Session status**; the chime starts
+  off.
+- Lumora's helper moves to 0.6.0, which carries those hooks' reports, so each
+  remote computer asks you to install it once, the next time you connect.
+
 ## [0.6.3] - 2026-09-18
 
 ### Changed

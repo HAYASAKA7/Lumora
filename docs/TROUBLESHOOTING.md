@@ -336,6 +336,22 @@ changed, so switching between terminals stays free and shows no resize. Do not
 terminate a running provider solely to refresh the view. If the problem is
 reproducible, include the window size and sidebar state in the issue report.
 
+### No dot appears when a session finishes
+
+- Check **Settings → General → Session status**: each cue has its own switch.
+- A session in front of a focused Lumora window is being watched, so it gets no
+  dot, tip or chime of its own.
+- A terminal started through a custom launch command gets no hooks. It is
+  marked only if the agent rings the terminal bell or prints a desktop
+  notification itself.
+- Codex gets no hook when Lumora cannot read your own `notify` setting in
+  `config.toml` for certain, rather than risk silencing it. Write it as a list of
+  strings on the top level, for example `notify = ["python3", "notify.py"]`.
+- Agents other than Claude Code and Codex are marked only when they print a bell
+  or a notification. On Windows the terminal layer may not pass every
+  notification sequence through.
+- Remote sessions do not report yet.
+
 ### Codex Shift+Enter does not create a new line
 
 **Symptom:** Pressing `Shift+Enter` in a Codex terminal does not insert a

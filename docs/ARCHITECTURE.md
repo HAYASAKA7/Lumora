@@ -814,6 +814,49 @@ target-specific key. Runtime exit notifications update both projections. The
 terminal tab strip is presentation-only hidden while the sidebar is expanded;
 terminal components and PTY attachments stay mounted.
 
+## Session status cues
+
+A session you are not watching can finish, fail or wait on you. The renderer
+keeps one **outcome** per open session and turns a new one into cues: a dot on
+its sidebar tile and tab, a tip, and an optional chime, each behind its own
+General setting. A session is **watched** while it is in front of a focused
+window; watching clears its dot.
+
+- **Outcomes.** A Unified UI session's outcome comes from its events, read from
+  the last turn boundary on: `turn.completed` finished or failed,
+  `approval.requested` and `question.requested` until settled, and nothing while
+  a turn runs or after a cancelled one. A terminal's outcome arrives as a
+  runtime `outcome` event from main. Each outcome carries a key, the event it
+  came from, so the same outcome read twice is not news.
+- **Tracker.** A session read for the first time is taken as seen whatever it
+  shows, since a resumed session arrives with its history. After that a new key
+  is news unless the session is watched; a newer outcome replaces an older one,
+  so a session carries one dot at most.
+- **Terminal output.** `RuntimeHost` scans every PTY chunk, on screen or not, for
+  a bare BEL or an `OSC 9` / `OSC 777;notify` notification. A BEL that ends an
+  OSC string is its ending; `OSC 9;<number>` is ConEmu's family of codes, which
+  Windows Terminal uses for progress and shells for the working directory. The
+  scanner keeps its place across chunks. The same outcome within two seconds is
+  one moment and is dropped.
+- **Launch hooks.** For a local Claude Code or Codex terminal started from the
+  detected executable, `SessionStatusHooks` adds arguments before spawning:
+  Claude Code gets `--settings <file>` with `Stop` and `Notification` hooks,
+  Codex gets `-c notify=[…]` in TOML literal strings, which Windows PowerShell
+  passes to a native program intact. Codex's override replaces the person's own
+  `notify`, so it is read from `config.toml` and passed on to be run too; when
+  it cannot be read for certain Codex gets no hook. The hooks run
+  `lumora-helper notify --event <name>`, which writes one line — a per-runtime
+  token and the event name — to a named pipe on Windows or an owner-only unix
+  socket elsewhere, and always exits successfully. Codex's payload, which holds
+  conversation text, is passed to the person's program and never read. Main
+  hears only live tokens, and a runtime that reported through a hook ignores its
+  own bell from then on. Hooks are taken down with the runtime, and a failure to
+  prepare them never stops a launch.
+
+The dot takes the theme's `--blue`, `--warning` and `--danger`, which a custom
+theme sets from its palette; a style contract keeps literal colours out of its
+rules.
+
 ## Appearance and managed backgrounds
 
 General settings schema version 12 stores built-in or data-only Mod theme
@@ -917,6 +960,7 @@ must not prevent an otherwise valid session from being resumed.
 | `src/main/providers/` | Provider discovery and session-source adapters |
 | `src/main/handoff/` | Temporary cross-agent context lifecycle and cleanup |
 | `src/main/terminal/` | Launch resolution, PTY runtime, recovery, reconciliation |
+| `src/main/status/` | Launch hooks that let an agent report it finished or needs you |
 | `src/main/changes/` | Workspace snapshots, change segments, and reviews |
 | `src/main/remote/` | SSH targets, platform probing, helper install and protocol lifecycle |
 | `src/main/storage/` | SQLite migrations and repositories |
@@ -925,5 +969,6 @@ must not prevent an otherwise valid session from being resumed.
 | `src/renderer/src/catalog/` | Home, workspace, and session views |
 | `src/renderer/src/terminal/` | Terminal workspace and xterm integration |
 | `src/renderer/src/changes/` | Docked changes panel, diffs, and review history |
+| `src/renderer/src/status/` | Session outcomes, the dot, the tip, and the chime |
 | `src/renderer/src/settings/` | Categorized application settings |
 | `src/shared/` | Contracts and provider definitions shared across processes |
