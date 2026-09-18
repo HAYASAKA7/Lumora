@@ -68,6 +68,8 @@ describe('SessionStatusHooks', () => {
     });
 
     expect(launch?.args[0]).toBe('--settings');
+    // The token travels in the environment only, never on the command line.
+    expect(launch!.args.join(' ')).not.toContain(TOKEN);
     expect(launch?.environment).toEqual({
       LUMORA_STATUS_ENDPOINT: options.endpoint,
       LUMORA_STATUS_TOKEN: TOKEN

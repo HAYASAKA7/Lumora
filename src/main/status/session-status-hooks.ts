@@ -110,7 +110,12 @@ export class SessionStatusHooks {
       const command = claudeHookCommand(helper, this.options.platform);
       if (command === null) return null;
       await mkdir(this.options.settingsDirectory, { recursive: true });
-      const settingsPath = join(this.options.settingsDirectory, `${token}.json`);
+      // Named apart from the token: the path is on the command line, where
+      // anyone listing processes can read it.
+      const settingsPath = join(
+        this.options.settingsDirectory,
+        `${randomBytes(12).toString('hex')}.json`
+      );
       await writeFile(settingsPath, JSON.stringify({
         hooks: {
           Stop: [{ hooks: [{ type: 'command', command: `${command} --event stop` }] }],
