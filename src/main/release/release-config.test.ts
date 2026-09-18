@@ -71,8 +71,11 @@ describe('release packaging configuration', () => {
       'npm run helper:build && npm run build && electron-builder'
     );
     expect(packageJson.scripts['helper:test']).toBe(
-      'node scripts/helper/generate-provider-probes.cjs && go -C helper test ./...'
+      'node scripts/helper/test-helper.cjs'
     );
+    // The helper is tested as it is built, without cgo.
+    expect(await readRepoFile('scripts/helper/test-helper.cjs'))
+      .toContain("CGO_ENABLED: '0'");
     expect(packageJson.scripts['helper:build']).toBe(
       'node scripts/helper/build-helper.cjs'
     );
