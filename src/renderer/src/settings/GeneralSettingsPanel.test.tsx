@@ -169,6 +169,36 @@ describe('GeneralSettingsPanel', () => {
     });
   });
 
+  it('offers the session status cues with the sound off, and keeps the other two', () => {
+    const onChange = vi.fn();
+    renderWithLocalization(
+      <GeneralSettingsPanel
+        onChange={onChange}
+        saveError={null}
+        saving={false}
+        settings={DEFAULT_GENERAL_SETTINGS}
+      />
+    );
+
+    const group = screen.getByRole('group', { name: 'Session status' });
+    expect(within(group).getByRole('switch', { name: 'Show a dot on the session' })).toBeChecked();
+    expect(within(group).getByRole('switch', { name: 'Show a tip' })).toBeChecked();
+    const sound = within(group).getByRole('switch', { name: 'Play a sound' });
+    expect(sound).not.toBeChecked();
+
+    fireEvent.click(sound);
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      sessionStatus: { dot: true, tip: true, sound: true }
+    });
+
+    fireEvent.click(within(group).getByRole('switch', { name: 'Show a dot on the session' }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_GENERAL_SETTINGS,
+      sessionStatus: { dot: false, tip: true, sound: false }
+    });
+  });
+
   it('disables the switch while saving and displays an unsuppressible error', () => {
     renderWithLocalization(
       <GeneralSettingsPanel

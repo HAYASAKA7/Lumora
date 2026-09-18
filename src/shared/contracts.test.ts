@@ -1871,7 +1871,7 @@ describe('managed terminal contracts', () => {
 
   it('validates versioned general settings', () => {
     expect(GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS)).toEqual({
-      version: 14,
+      version: 15,
       languagePreference: 'system',
       showInformationalNotices: true,
       showUnavailableWorkspaces: true,
@@ -1888,6 +1888,7 @@ describe('managed terminal contracts', () => {
       crossAgentHandoffRetentionDays: 30,
       unifiedAgentUiEnabled: false,
       enabledProviders: [...PROVIDER_IDS],
+      sessionStatus: { dot: true, tip: true, sound: false },
       appearance: {
         theme: 'lumora',
         themePresetId: null,
@@ -1912,9 +1913,23 @@ describe('managed terminal contracts', () => {
       version: 13
     } as Record<string, unknown>;
     delete versionThirteen.unifiedAgentUiEnabled;
+    delete versionThirteen.sessionStatus;
     expect(parseStoredGeneralSettings(versionThirteen)).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
+    // Version 15 added the session status cues; a version-14 file gains them at their defaults.
+    const versionFourteen = {
+      ...DEFAULT_GENERAL_SETTINGS,
+      version: 14
+    } as Record<string, unknown>;
+    delete versionFourteen.sessionStatus;
+    expect(parseStoredGeneralSettings(versionFourteen)).toEqual(
+      DEFAULT_GENERAL_SETTINGS
+    );
+    expect(parseStoredGeneralSettings({
+      ...DEFAULT_GENERAL_SETTINGS,
+      sessionStatus: { dot: false, tip: true, sound: true }
+    }).sessionStatus).toEqual({ dot: false, tip: true, sound: true });
     /**
      * Settings written before the terminal text size existed must keep working
      * and land on the size the terminal was hardcoded to.
@@ -2097,6 +2112,7 @@ describe('managed terminal contracts', () => {
     } as Record<string, unknown>;
     delete versionTwelve.autoTrustWorkspaces;
     delete versionTwelve.unifiedAgentUiEnabled;
+    delete versionTwelve.sessionStatus;
     expect(parseStoredGeneralSettings(versionTwelve)).toEqual(
       DEFAULT_GENERAL_SETTINGS
     );
@@ -2105,6 +2121,7 @@ describe('managed terminal contracts', () => {
       version: 11,
       appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
     } as Record<string, unknown>;
+    delete versionEleven.sessionStatus;
     delete versionEleven.autoTrustWorkspaces;
     delete versionEleven.unifiedAgentUiEnabled;
     delete (versionEleven.appearance as Record<string, unknown>).themePresetId;
@@ -2120,6 +2137,7 @@ describe('managed terminal contracts', () => {
         surfaceOpacity: 0.71
       }
     } as Record<string, unknown>;
+    delete versionTen.sessionStatus;
     delete versionTen.autoTrustWorkspaces;
     delete versionTen.unifiedAgentUiEnabled;
     delete (versionTen.appearance as Record<string, unknown>).interfaceFontFamily;
@@ -2138,6 +2156,7 @@ describe('managed terminal contracts', () => {
       version: 9,
       appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance }
     } as Record<string, unknown>;
+    delete versionNine.sessionStatus;
     versionNine.version = 9;
     delete versionNine.unifiedAgentUiEnabled;
     delete versionNine.languagePreference;

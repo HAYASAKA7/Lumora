@@ -1,5 +1,6 @@
 import type {
-  GeneralSettings
+  GeneralSettings,
+  SessionStatusSettings
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
@@ -76,6 +77,30 @@ const GENERAL_SETTING_DEFINITIONS = {
   }
 } as const satisfies Record<BooleanGeneralSettingKey, BooleanGeneralSettingDefinition>;
 
+interface SessionStatusSettingDefinition {
+  key: keyof SessionStatusSettings;
+  labelKey: string;
+  descriptionKey: string;
+}
+
+const SESSION_STATUS_DEFINITIONS: readonly SessionStatusSettingDefinition[] = [
+  {
+    key: 'dot',
+    labelKey: 'settings.general.session-status-dot',
+    descriptionKey: 'settings.general.session-status-dot-description'
+  },
+  {
+    key: 'tip',
+    labelKey: 'settings.general.session-status-tip',
+    descriptionKey: 'settings.general.session-status-tip-description'
+  },
+  {
+    key: 'sound',
+    labelKey: 'settings.general.session-status-sound',
+    descriptionKey: 'settings.general.session-status-sound-description'
+  }
+];
+
 export function GeneralSettingsPanel({
   settings,
   saving,
@@ -122,6 +147,39 @@ export function GeneralSettingsPanel({
             onChange={(event) => onChange({
               ...settings,
               [setting.key]: event.currentTarget.checked
+            })}
+            role="switch"
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="settings-switch-track">
+            <span className="settings-switch-thumb" />
+          </span>
+        </span>
+      </label>
+    );
+  };
+
+  const renderSessionStatusSetting = (setting: SessionStatusSettingDefinition) => {
+    const descriptionId = `general-session-status-${setting.key}-description`;
+    const label = t(setting.labelKey);
+    return (
+      <label className="general-setting-row" key={setting.key}>
+        <span className="general-setting-copy">
+          <strong>{label}</strong>
+          <span id={descriptionId}>{t(setting.descriptionKey)}</span>
+        </span>
+        <span className="settings-switch">
+          <input
+            aria-describedby={descriptionId}
+            aria-label={label}
+            checked={settings.sessionStatus[setting.key]}
+            disabled={saving}
+            onChange={(event) => onChange({
+              ...settings,
+              sessionStatus: {
+                ...settings.sessionStatus,
+                [setting.key]: event.currentTarget.checked
+              }
             })}
             role="switch"
             type="checkbox"
@@ -234,6 +292,19 @@ export function GeneralSettingsPanel({
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.autoExpandSidebar)}
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.showInformationalNotices)}
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="general-session-status-title"
+        className="general-setting-group"
+        role="group"
+      >
+        <h3 className="general-setting-group-title" id="general-session-status-title">
+          {t('settings.general.session-status-title')}
+        </h3>
+        <div className="general-setting-group-rows">
+          {SESSION_STATUS_DEFINITIONS.map(renderSessionStatusSetting)}
         </div>
       </section>
 

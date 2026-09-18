@@ -1369,8 +1369,18 @@ export type FontPresetList = z.infer<typeof FontPresetListSchema>;
 export type ThemePreset = z.infer<typeof ThemePresetSchema>;
 export type ThemePresetList = z.infer<typeof ThemePresetListSchema>;
 
+/**
+ * How Lumora tells you a session you are not watching finished or needs you.
+ * Each cue can be turned off on its own; the sound starts off.
+ */
+export const SessionStatusSettingsSchema = z.strictObject({
+  dot: z.boolean(),
+  tip: z.boolean(),
+  sound: z.boolean()
+});
+
 export const GeneralSettingsSchema = z.strictObject({
-  version: z.literal(14),
+  version: z.literal(15),
   languagePreference: LanguagePreferenceSchema,
   showInformationalNotices: z.boolean(),
   showUnavailableWorkspaces: z.boolean(),
@@ -1387,6 +1397,7 @@ export const GeneralSettingsSchema = z.strictObject({
   crossAgentHandoffRetentionDays: z.number().int().min(1).max(365),
   unifiedAgentUiEnabled: z.boolean(),
   enabledProviders: EnabledProviderIdsSchema,
+  sessionStatus: SessionStatusSettingsSchema,
   appearance: AppearanceSettingsSchema
 });
 export const GeneralSettingsChangedSchema = z.null();
@@ -1542,8 +1553,16 @@ export type ApplicationQuitResolution = z.infer<
 
 export type GeneralSettings = z.infer<typeof GeneralSettingsSchema>;
 
+export type SessionStatusSettings = z.infer<typeof SessionStatusSettingsSchema>;
+
+export const DEFAULT_SESSION_STATUS_SETTINGS: SessionStatusSettings = {
+  dot: true,
+  tip: true,
+  sound: false
+};
+
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
-  version: 14,
+  version: 15,
   languagePreference: 'system',
   showInformationalNotices: true,
   showUnavailableWorkspaces: true,
@@ -1560,6 +1579,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   crossAgentHandoffRetentionDays: 30,
   unifiedAgentUiEnabled: false,
   enabledProviders: [...PROVIDER_IDS],
+  sessionStatus: { ...DEFAULT_SESSION_STATUS_SETTINGS },
   appearance: { ...DEFAULT_APPEARANCE_SETTINGS }
 };
 
@@ -1567,7 +1587,22 @@ const VersionElevenAppearanceSettingsSchema = AppearanceSettingsSchema.omit({
   themePresetId: true
 });
 
-const VersionThirteenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+const VersionFourteenGeneralSettingsSchema = GeneralSettingsSchema.omit({
+  version: true,
+  sessionStatus: true
+}).extend({
+  version: z.literal(14)
+});
+
+type VersionFourteenGeneralSettings = z.infer<typeof VersionFourteenGeneralSettingsSchema>;
+
+const { sessionStatus: _sessionStatus, ...DEFAULT_VERSION_FOURTEEN_FIELDS } = DEFAULT_GENERAL_SETTINGS;
+const DEFAULT_VERSION_FOURTEEN_SETTINGS: VersionFourteenGeneralSettings = {
+  ...DEFAULT_VERSION_FOURTEEN_FIELDS,
+  version: 14
+};
+
+const VersionThirteenGeneralSettingsSchema = VersionFourteenGeneralSettingsSchema.omit({
   version: true,
   unifiedAgentUiEnabled: true
 }).extend({
@@ -1697,10 +1732,21 @@ const LegacyGeneralSettingsSchema = z.strictObject({
 export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
   const current = GeneralSettingsSchema.safeParse(value);
   if (current.success) return current.data;
+  // Version 15 added the session status cues; every earlier shape gains them at their defaults.
+  return GeneralSettingsSchema.parse({
+    ...parseVersionFourteenGeneralSettings(value),
+    version: 15,
+    sessionStatus: { ...DEFAULT_SESSION_STATUS_SETTINGS }
+  });
+}
+
+function parseVersionFourteenGeneralSettings(value: unknown): VersionFourteenGeneralSettings {
+  const current = VersionFourteenGeneralSettingsSchema.safeParse(value);
+  if (current.success) return current.data;
 
   const versionThirteen = VersionThirteenGeneralSettingsSchema.safeParse(value);
   if (versionThirteen.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionThirteen.data,
       version: 14,
       unifiedAgentUiEnabled: DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled
@@ -1709,7 +1755,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionTwelve = VersionTwelveGeneralSettingsSchema.safeParse(value);
   if (versionTwelve.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionTwelve.data,
       version: 14,
       autoTrustWorkspaces: false,
@@ -1719,7 +1765,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionEleven = VersionElevenGeneralSettingsSchema.safeParse(value);
   if (versionEleven.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionEleven.data,
       version: 14,
       autoTrustWorkspaces: false,
@@ -1733,7 +1779,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionTen = VersionTenGeneralSettingsSchema.safeParse(value);
   if (versionTen.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionTen.data,
       version: 14,
       autoTrustWorkspaces: false,
@@ -1747,7 +1793,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionNine = VersionNineGeneralSettingsSchema.safeParse(value);
   if (versionNine.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionNine.data,
       version: 14,
       autoTrustWorkspaces: false,
@@ -1762,7 +1808,7 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionEight = VersionEightGeneralSettingsSchema.safeParse(value);
   if (versionEight.success) {
-    return GeneralSettingsSchema.parse({
+    return VersionFourteenGeneralSettingsSchema.parse({
       ...versionEight.data,
       version: 14,
       autoTrustWorkspaces: false,
@@ -1779,8 +1825,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionSeven = VersionSevenGeneralSettingsSchema.safeParse(value);
   if (versionSeven.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionSeven.data,
       version: 14,
       showUnavailableWorkspaces: true,
@@ -1794,8 +1840,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionSix = VersionSixGeneralSettingsSchema.safeParse(value);
   if (versionSix.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionSix.data,
       version: 14,
       remoteWindowCloseBehavior: 'keep_connected',
@@ -1810,8 +1856,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionFive = VersionFiveGeneralSettingsSchema.safeParse(value);
   if (versionFive.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionFive.data,
       version: 14,
       remoteWindowCloseBehavior: 'keep_connected',
@@ -1830,8 +1876,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionFour = VersionFourGeneralSettingsSchema.safeParse(value);
   if (versionFour.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionFour.data,
       version: 14
     });
@@ -1839,8 +1885,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionThree = VersionThreeGeneralSettingsSchema.safeParse(value);
   if (versionThree.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionThree.data,
       version: 14
     });
@@ -1848,8 +1894,8 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const versionTwo = VersionTwoGeneralSettingsSchema.safeParse(value);
   if (versionTwo.success) {
-    return GeneralSettingsSchema.parse({
-      ...DEFAULT_GENERAL_SETTINGS,
+    return VersionFourteenGeneralSettingsSchema.parse({
+      ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
       ...versionTwo.data,
       version: 14
     });
@@ -1857,11 +1903,11 @@ export function parseStoredGeneralSettings(value: unknown): GeneralSettings {
 
   const legacy = LegacyGeneralSettingsSchema.safeParse(value);
   return legacy.success
-    ? GeneralSettingsSchema.parse({
-        ...DEFAULT_GENERAL_SETTINGS,
+    ? VersionFourteenGeneralSettingsSchema.parse({
+        ...DEFAULT_VERSION_FOURTEEN_SETTINGS,
         showInformationalNotices: legacy.data.showInformationalNotices
       })
-    : GeneralSettingsSchema.parse(DEFAULT_GENERAL_SETTINGS);
+    : VersionFourteenGeneralSettingsSchema.parse(DEFAULT_VERSION_FOURTEEN_SETTINGS);
 }
 
 const controlShortcut = (code: string): KeyboardShortcutChord => ({

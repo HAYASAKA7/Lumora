@@ -30,6 +30,7 @@ type GlobalGeneralSettings = Pick<
   | 'warnBeforeRemoteDisconnect'
   | 'crossAgentWorkflowEnabled'
   | 'crossAgentHandoffRetentionDays'
+  | 'sessionStatus'
   | 'appearance'
 >;
 
@@ -67,6 +68,7 @@ function globalProjection(settings: GeneralSettings): GlobalGeneralSettings {
     warnBeforeRemoteDisconnect: settings.warnBeforeRemoteDisconnect,
     crossAgentWorkflowEnabled: settings.crossAgentWorkflowEnabled,
     crossAgentHandoffRetentionDays: settings.crossAgentHandoffRetentionDays,
+    sessionStatus: settings.sessionStatus,
     appearance: settings.appearance
   };
 }
@@ -112,7 +114,11 @@ function mergeStoredSettings(
   return {
     ...fallback,
     ...stored,
-    version: 14,
+    version: 15,
+    sessionStatus: {
+      ...fallback.sessionStatus,
+      ...objectValue(stored.sessionStatus)
+    },
     appearance: {
       ...fallback.appearance,
       ...objectValue(stored.appearance)
@@ -134,7 +140,7 @@ export class GeneralSettingsStorage {
       : DEFAULT_GENERAL_SETTINGS;
     const target = this.readTarget(targetFallback);
     return GeneralSettingsSchema.parse({
-      version: 14,
+      version: 15,
       ...globalProjection(global),
       ...targetProjection(target)
     });

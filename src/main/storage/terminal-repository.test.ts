@@ -425,7 +425,7 @@ describe('TerminalRepository', () => {
     }), timestamp);
 
     expect(repository.getGeneralSettings()).toMatchObject({
-      version: 14,
+      version: 15,
       startMaximized: false,
       autoTrustWorkspaces: false,
       appearance: {
@@ -435,6 +435,22 @@ describe('TerminalRepository', () => {
         terminalFontFamily: null
       }
     });
+  });
+
+  it('gives stored settings the session status cues at their defaults, then keeps your choice', () => {
+    // Stored by version 14, before the cues existed.
+    database.prepare(
+      `INSERT INTO app_preference (key, value_json, updated_at)
+       VALUES ('generalSettings.global.v2', ?, ?)`
+    ).run(JSON.stringify({ startMaximized: false }), timestamp);
+
+    const settings = repository.getGeneralSettings();
+    expect(settings.sessionStatus).toEqual({ dot: true, tip: true, sound: false });
+
+    const chosen = { ...settings, sessionStatus: { dot: true, tip: false, sound: true } };
+    repository.saveGeneralSettings(chosen, timestamp);
+    expect(repository.getGeneralSettings().sessionStatus)
+      .toEqual({ dot: true, tip: false, sound: true });
   });
 
   it('shares the language preference globally without sharing target providers', () => {
