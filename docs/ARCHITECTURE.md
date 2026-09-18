@@ -49,7 +49,9 @@ ordinary navigation.
 Pages scroll inside `.main-content` under a fixed top bar. A page marks its
 toolbar with `page-toolbar`, which is sticky and pinned `--page-toolbar-inset`
 under the top bar. Chromium pins a sticky box inside its scroller's padding, so
-the offset subtracts the page gutter. The toolbar is a `scroll-state` container,
+the offset subtracts the page gutter. Its layer sits above every layer page
+content uses, such as a hovered workspace card, and below the overlays, which
+start at 70; a contract test holds both. The toolbar is a `scroll-state` container,
 and its `::before` backing shows only under `scroll-state(stuck: top)`. The
 backing is painted as the top bar is seen: the top bar surface over the page
 surface, since the top bar surface alone is translucent. Two `box-shadow`

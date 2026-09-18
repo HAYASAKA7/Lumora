@@ -40,6 +40,24 @@ describe('page toolbars and the page title', () => {
       .toBe('var(--page-gutter-block) var(--page-gutter-inline)');
   });
 
+  it('keeps a pinned toolbar above every layer of the page and under the overlays', () => {
+    // The runtime switcher and the status tip start the overlays, then dialogs, menus and tooltips.
+    const OVERLAY_LAYER = 70;
+    const toolbarLayer = Number(rule('.page-toolbar').get('z-index'));
+    const pageLayers = [...stylesheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .flatMap(([, selector, body]) => {
+        const layer = /\bz-index:\s*(-?\d+)/.exec(body!)?.[1];
+        return layer === undefined || selector!.includes('.page-toolbar')
+          ? []
+          : [{ selector: selector!.trim(), layer: Number(layer) }];
+      })
+      .filter(({ layer }) => layer < OVERLAY_LAYER);
+
+    // A hovered workspace card once rose to the toolbar's layer and covered it.
+    expect(pageLayers.filter(({ layer }) => layer >= toolbarLayer)).toEqual([]);
+    expect(toolbarLayer).toBeLessThan(OVERLAY_LAYER);
+  });
+
   it('backs a pinned toolbar with the top bar surface only while it is pinned', () => {
     const backing = rule('.page-toolbar::before');
 

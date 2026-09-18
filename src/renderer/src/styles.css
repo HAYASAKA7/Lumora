@@ -920,9 +920,10 @@ button {
  * whatever card holds the toolbar and add no scrollable overflow. The clip
  * keeps them to the height of the backing.
  */
+/* Above every layer page content uses and below the overlays of the app. */
 .page-toolbar {
   position: sticky;
-  z-index: 3;
+  z-index: 10;
   top: calc(var(--page-toolbar-inset) - var(--page-gutter-block));
   container-type: scroll-state;
 }
