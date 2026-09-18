@@ -10,5 +10,6 @@
   "provider-summary": {"scanning": "正在掃描提供商安裝狀態", "unavailable": "提供商詳細資訊無法使用", "ready": "{total} 個提供商中有 {ready} 個已就緒"},
   "runtime": {"open-terminals": "開啟的終端機", "quit-heading": "結束 Lumora？", "quit-confirm": "結束 Lumora", "quit-cancel": "保持 Lumora 執行", "quit-description": "Lumora 正在管理 {total} 個作用中的{total, plural, one {智慧體} other {智慧體}}（本機 {local} 個，遠端 {remote} 個）。結束會停止這些終端機工作階段。", "suppress-warning": "不再顯示此警告"},
   "destination": {"status": "{route} 狀態", "ready": "基礎功能已就緒", "heading": "{route} 是下一個待連接的檢視", "description": "安全的導覽介面已就緒。提供商和目錄資料將在後續實作中接入。"},
-  "startup": {"preparing": "正在準備 Lumora…", "scanning": "正在掃描工作區和工作階段…", "almost-ready": "即將就緒…", "starting": "Lumora 正在啟動", "final-frame": "Lumora 啟動動畫的最後一幀"}
+  "startup": {"preparing": "正在準備 Lumora…", "scanning": "正在掃描工作區和工作階段…", "almost-ready": "即將就緒…", "starting": "Lumora 正在啟動", "final-frame": "Lumora 啟動動畫的最後一幀"},
+  "session-status": {"finished": "已完成", "failed": "因錯誤停止", "needs-you": "等待你處理", "tip-finished": "{provider} 已完成「{title}」", "tip-failed": "{provider} 在「{title}」中因錯誤停止", "tip-needs-you": "{provider} 在「{title}」中等待你處理", "open": "開啟", "dismiss": "關閉", "tips-label": "工作階段動態"}
 }

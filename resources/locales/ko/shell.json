@@ -10,5 +10,6 @@
   "provider-summary": {"scanning": "제공자 설치 상태 스캔 중", "unavailable": "제공자 정보를 사용할 수 없음", "ready": "제공자 {total}개 중 {ready}개 준비됨"},
   "runtime": {"open-terminals": "열린 터미널", "quit-heading": "Lumora를 종료할까요?", "quit-confirm": "Lumora 종료", "quit-cancel": "Lumora 계속 실행", "quit-description": "Lumora는 {total}개의 활성 {total, plural, one {에이전트} other {에이전트}}(로컬 {local}개, 원격 {remote}개)를 관리하고 있습니다. 종료하면 해당 터미널 세션이 중지됩니다.", "suppress-warning": "이 경고 다시 표시하지 않기"},
   "destination": {"status": "{route} 상태", "ready": "기반 준비 완료", "heading": "{route}은(는) 다음에 연결할 화면입니다", "description": "안전한 탐색 화면이 준비되었습니다. 제공자 및 카탈로그 데이터는 이후 구현에서 연결됩니다."},
-  "startup": {"preparing": "Lumora 준비 중…", "scanning": "워크스페이스와 세션 스캔 중…", "almost-ready": "거의 준비되었습니다…", "starting": "Lumora 시작 중", "final-frame": "Lumora 시작 애니메이션의 마지막 프레임"}
+  "startup": {"preparing": "Lumora 준비 중…", "scanning": "워크스페이스와 세션 스캔 중…", "almost-ready": "거의 준비되었습니다…", "starting": "Lumora 시작 중", "final-frame": "Lumora 시작 애니메이션의 마지막 프레임"},
+  "session-status": {"finished": "완료됨", "failed": "오류로 중지됨", "needs-you": "응답 필요", "tip-finished": "{provider}이(가) “{title}” 작업을 마쳤습니다", "tip-failed": "{provider}이(가) “{title}”에서 오류로 중지되었습니다", "tip-needs-you": "{provider}이(가) “{title}”에서 응답을 기다리고 있습니다", "open": "열기", "dismiss": "닫기", "tips-label": "세션 업데이트"}
 }

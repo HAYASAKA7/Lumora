@@ -8531,3 +8531,114 @@ button {
   outline: 2px solid var(--focus-outline);
   outline-offset: 1px;
 }
+
+/* Session status: the mark a session carries while an outcome waits for you to see it */
+
+.session-status-dot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sidebar-text) 24%, transparent);
+}
+
+.session-status-dot[data-outcome="needs_you"] {
+  background: var(--warning);
+}
+
+.session-status-dot[data-outcome="failed"] {
+  background: var(--danger);
+}
+
+.session-status-dot-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.terminal-tab:has(> .session-status-dot) {
+  padding-right: 26px;
+}
+
+.terminal-tab > .session-status-dot {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+}
+
+.session-status-tip {
+  position: fixed;
+  z-index: 70;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  max-width: min(440px, calc(100vw - 40px));
+  align-items: center;
+  gap: 10px;
+  padding: 9px 9px 9px 14px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: var(--panel-shadow-hover);
+}
+
+.session-status-tip-message {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.session-status-tip-open {
+  flex: none;
+  padding: 4px 10px;
+  color: var(--blue);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.session-status-tip-open:hover {
+  background: var(--blue-soft);
+}
+
+.session-status-tip-dismiss {
+  display: grid;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.session-status-tip-dismiss:hover {
+  color: var(--text);
+  background: var(--sidebar-hover);
+}
+
+.session-status-tip-dismiss svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}

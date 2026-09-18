@@ -3355,6 +3355,79 @@ describe('App', () => {
     expect(getStructuredRuntimeSnapshot).toHaveBeenLastCalledWith(runtime.connectionId);
   });
 
+  it('marks a Unified UI session that finished while you were in another, and opens it from the tip', async () => {
+    const session = (connectionId: string, title: string): StructuredAgentRuntimeSummary => ({
+      connectionId,
+      providerId: 'codex',
+      nativeSessionId: `native-${connectionId}`,
+      catalogSessionId: null,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title,
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-09-18T00:00:00.000Z',
+      updatedAt: '2026-09-18T00:00:00.000Z',
+      error: null
+    });
+    const front = session('status-front', 'Session in front');
+    const behind = session('status-behind', 'Session behind');
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    setSystemInfoResult(undefined, undefined, {
+      listStructuredRuntimes: vi.fn().mockResolvedValue([front, behind]),
+      getStructuredRuntimeSnapshot: vi.fn(async (connectionId: string) => ({
+        runtime: connectionId === front.connectionId ? front : behind,
+        boundary: null,
+        commands: [],
+        events: []
+      })),
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    fireEvent.click(await screen.findByRole('button', { name: /^Session in front/ }));
+    await screen.findByRole('heading', { name: front.title });
+
+    const emit = (sequence: number, kind: 'turn.started' | 'turn.completed', state: 'running' | 'completed') =>
+      eventListener?.({
+        kind,
+        connectionId: behind.connectionId,
+        providerId: behind.providerId,
+        nativeSessionId: behind.nativeSessionId,
+        generation: 1,
+        sequence,
+        eventId: `behind-${sequence}`,
+        parentEventId: null,
+        timestamp: `2026-09-18T00:00:0${sequence}.000Z`,
+        turnId: 'behind-turn',
+        payload: { state, message: null }
+      });
+    act(() => {
+      emit(1, 'turn.started', 'running');
+    });
+    act(() => {
+      emit(2, 'turn.completed', 'completed');
+    });
+
+    const tip = await screen.findByRole('status', { name: 'Session updates' });
+    expect(tip).toHaveTextContent('Codex finished in “Session behind”');
+    // The outcome is part of the tile's name, not only its colour.
+    expect(screen.getByRole('button', { name: /^Session behind.*finished$/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Session in front/ }).querySelector('.session-status-dot')).toBeNull();
+
+    fireEvent.click(within(tip).getByRole('button', { name: 'Open' }));
+
+    expect(await screen.findByRole('heading', { name: behind.title })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Session updates' })).not.toBeInTheDocument();
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: /^Session behind/ }).querySelector('.session-status-dot')
+    ).toBeNull());
+  });
+
   it('opens the existing terminal when Home selects a running session', async () => {
     const runtime = {
       ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa1'),

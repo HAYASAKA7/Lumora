@@ -1379,6 +1379,13 @@ export const SessionStatusSettingsSchema = z.strictObject({
   sound: z.boolean()
 });
 
+/**
+ * How a session you were not watching ended up: its turn finished, it stopped
+ * with an error, or the agent is waiting on you.
+ */
+export const SessionOutcomeKindSchema = z.enum(['finished', 'failed', 'needs_you']);
+export type SessionOutcomeKind = z.infer<typeof SessionOutcomeKindSchema>;
+
 export const GeneralSettingsSchema = z.strictObject({
   version: z.literal(15),
   languagePreference: LanguagePreferenceSchema,

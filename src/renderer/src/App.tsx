@@ -108,6 +108,11 @@ import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { Tooltip, TooltipProvider } from './ui/Tooltip';
 import { useLocalization, type TranslationValues } from './localization/useLocalization';
+import { structuredSessionOutcome } from './status/session-outcome';
+import { SessionStatusTip } from './status/SessionStatusTip';
+import { useSessionStatusCues } from './status/useSessionStatusCues';
+import { useWindowFocused } from './status/useWindowFocused';
+import { providerDefinition } from '../../shared/provider-definitions';
 
 type RouteId =
   | 'home'
@@ -2204,6 +2209,50 @@ function AppContent(): ReactNode {
     structuredRuntimes: liveStructuredSnapshots.map(({ runtime }) => runtime),
     sessions: sidebarCatalogPresentation?.snapshot.sessions ?? []
   }), [liveRuntimes, liveStructuredSnapshots, sidebarCatalogPresentation]);
+
+  // A session counts as watched only while it is in front of a focused window.
+  const windowFocused = useWindowFocused();
+  const frontSessionKey = terminalActive
+    ? activeRuntimeId ?? activeStructuredConnectionId
+    : null;
+  const sessionOutcomes = useMemo(() => new Map(
+    liveStructuredSnapshots.map(({ events, runtime }) => [
+      runtime.connectionId,
+      structuredSessionOutcome(events)
+    ] as const)
+  ), [liveStructuredSnapshots]);
+  const describeSession = useCallback((sessionKey: string) => {
+    const structured = liveStructuredSnapshotsRef.current.find(
+      ({ runtime }) => runtime.connectionId === sessionKey
+    );
+    if (structured !== undefined) {
+      return {
+        provider: providerDefinition(structured.runtime.providerId).displayName,
+        title: structured.runtime.title
+      };
+    }
+    const runtime = liveRuntimesRef.current.find(({ id }) => id === sessionKey);
+    return runtime === undefined
+      ? null
+      : { provider: providerDefinition(runtime.provider).displayName, title: runtime.displayName };
+  }, []);
+  const sessionStatus = useSessionStatusCues({
+    describe: describeSession,
+    outcomes: sessionOutcomes,
+    settings: (generalSettings ?? DEFAULT_GENERAL_SETTINGS).sessionStatus,
+    watchedKey: windowFocused ? frontSessionKey : null
+  });
+  const dismissSessionTip = sessionStatus.dismissTip;
+  const openSessionFromTip = useCallback((sessionKey: string) => {
+    dismissSessionTip();
+    if (liveStructuredSnapshotsRef.current.some(
+      ({ runtime }) => runtime.connectionId === sessionKey
+    )) {
+      activateStructuredRuntime(sessionKey);
+    } else {
+      activateRuntime(sessionKey);
+    }
+  }, [activateRuntime, activateStructuredRuntime, dismissSessionTip]);
   const visibilityCatalogStatus: CatalogViewStatus =
     startupCatalogStatus.state === 'ready' &&
     workspaceVisibilityPolicies === undefined
@@ -2334,6 +2383,7 @@ function AppContent(): ReactNode {
             preferenceScope="local"
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
+            sessionOutcomes={sessionStatus.dots}
             structuredRunning={liveStructuredSnapshots.map(
               ({ runtime }) => runtime
             )}
@@ -2610,6 +2660,7 @@ function AppContent(): ReactNode {
                 }
                 previews={launchPreviews}
                 runtimes={openRuntimes}
+                sessionOutcomes={sessionStatus.dots}
                 showTabBar={!sidebarExpanded}
                 backgroundOpacity={
                   appearanceBackgroundActive ? appearance.terminalOpacity : 1
@@ -2648,6 +2699,7 @@ function AppContent(): ReactNode {
                   onReconnect={(connectionId) => {
                     void reconnectStructuredRuntime(connectionId);
                   }}
+                  sessionOutcomes={sessionStatus.dots}
                   showTabBar={!sidebarExpanded}
                   snapshots={structuredSnapshots}
                   visible={structuredTerminalActive}
@@ -2772,6 +2824,11 @@ function AppContent(): ReactNode {
       ) : null}
           </>
         }
+      />
+      <SessionStatusTip
+        onDismiss={dismissSessionTip}
+        onOpen={openSessionFromTip}
+        tip={sessionStatus.tip}
       />
       <StartupOverlay
         onDismissed={dismissStartupPresentation}

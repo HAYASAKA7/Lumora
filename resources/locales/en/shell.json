@@ -105,5 +105,16 @@
     "almost-ready": "Almost ready…",
     "starting": "Lumora is starting",
     "final-frame": "Lumora startup final frame"
+  },
+  "session-status": {
+    "finished": "finished",
+    "failed": "stopped with an error",
+    "needs-you": "needs you",
+    "tip-finished": "{provider} finished in “{title}”",
+    "tip-failed": "{provider} stopped with an error in “{title}”",
+    "tip-needs-you": "{provider} needs you in “{title}”",
+    "open": "Open",
+    "dismiss": "Dismiss",
+    "tips-label": "Session updates"
   }
 }

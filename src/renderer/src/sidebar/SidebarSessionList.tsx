@@ -6,12 +6,17 @@ import {
   type UIEvent
 } from 'react';
 
-import type { RuntimeSummary, SessionSummary } from '../../../shared/contracts';
+import type {
+  RuntimeSummary,
+  SessionOutcomeKind,
+  SessionSummary
+} from '../../../shared/contracts';
 import type { StructuredAgentRuntimeSummary } from '../../../shared/agent/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { useProgressiveList } from '../catalog/progressive-list';
 import { useSessionResumeContextMenu } from '../catalog/useSessionResumeContextMenu';
 import { useLocalization } from '../localization/useLocalization';
+import { SessionStatusDot } from '../status/SessionStatusDot';
 import { OverflowTooltip } from '../ui/Tooltip';
 import {
   readSidebarSessionSections,
@@ -34,6 +39,8 @@ interface SidebarSessionListProps {
   recent: readonly SessionSummary[];
   running: readonly RuntimeSummary[];
   structuredRunning?: readonly StructuredAgentRuntimeSummary[];
+  /** Outcomes waiting to be seen, by runtime id or connection id. */
+  sessionOutcomes?: ReadonlyMap<string, SessionOutcomeKind>;
 }
 
 type ScrollingSection = 'running' | 'recent';
@@ -83,6 +90,7 @@ export function SidebarSessionList({
   preferenceScope,
   recent,
   running,
+  sessionOutcomes,
   structuredRunning = []
 }: SidebarSessionListProps): ReactNode {
   const { t } = useLocalization();
@@ -186,6 +194,7 @@ export function SidebarSessionList({
                     </OverflowTooltip>
                     <small>{providerDefinition(runtime.provider).displayName}</small>
                   </span>
+                  <SessionStatusDot kind={sessionOutcomes?.get(runtime.id)} />
                 </button>
               ))}
               {structuredRunning.map((runtime) => (
@@ -214,6 +223,7 @@ export function SidebarSessionList({
                       {providerDefinition(runtime.providerId).displayName}
                     </small>
                   </span>
+                  <SessionStatusDot kind={sessionOutcomes?.get(runtime.connectionId)} />
                 </button>
               ))}
             </div>

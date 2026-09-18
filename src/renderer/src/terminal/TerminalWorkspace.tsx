@@ -12,6 +12,7 @@ import type {
   LumoraApi,
   RuntimeState,
   RuntimeSummary,
+  SessionOutcomeKind,
   SystemInfo,
   WorkspaceSummary
 } from '../../../shared/contracts';
@@ -19,6 +20,7 @@ import { ManagedTerminal } from './ManagedTerminal';
 import { TerminalDetailsDialog } from './TerminalDetailsDialog';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { RegionErrorBoundary } from '../errors/RegionErrorBoundary';
+import { SessionStatusDot } from '../status/SessionStatusDot';
 import { OverflowTooltip } from '../ui/Tooltip';
 import { useLocalization } from '../localization/useLocalization';
 import { DEFAULT_TERMINAL_FONT_STACK } from '../appearance/font-family';
@@ -43,6 +45,8 @@ interface TerminalWorkspaceProps {
   backgroundOpacity?: number;
   /** Changed file counts by runtime id. */
   changeCounts?: ReadonlyMap<string, number>;
+  /** Outcomes waiting to be seen, by runtime id. */
+  sessionOutcomes?: ReadonlyMap<string, SessionOutcomeKind>;
   /** Offers the docked changes panel; local sessions only. */
   changesEnabled?: boolean;
   fontFamily?: string;
@@ -76,6 +80,7 @@ export function TerminalWorkspace({
   api = window.lumora,
   backgroundOpacity = 1,
   changeCounts,
+  sessionOutcomes,
   changesEnabled = false,
   fontFamily = DEFAULT_TERMINAL_FONT_STACK,
   fontSize = DEFAULT_TERMINAL_FONT_SIZE,
@@ -335,6 +340,7 @@ export function TerminalWorkspace({
                 {t(runtimeStateMessageKeys[item.state])}
                 {item.id === runtime.id ? null : changeCountSuffix(t, changeCount(item.id))}
               </small>
+              <SessionStatusDot kind={sessionOutcomes?.get(item.id)} />
             </button>
           );
         })}
