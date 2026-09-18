@@ -144,7 +144,9 @@ recent sessions in separate sidebar lists. A running session you are not
 looking at gets a dot on its tile and tab when it finishes or needs you, with a
 tip and an optional chime, and shows a spinner while its agent works. Claude
 Code and Codex terminals report through hooks added to that launch alone.
-Workspaces can be hidden without deleting project or provider data.
+On long pages, search, filters and the settings categories stay pinned under
+the top bar while the list scrolls beneath them. Workspaces can be hidden
+without deleting project or provider data.
 
 Complete session support includes new-session launch, provider-owned metadata
 discovery, catalog display, and exact native resume. Codex, Claude Code, and

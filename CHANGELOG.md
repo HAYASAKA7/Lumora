@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-18
+
 ### Changed
 
 - Keep a page's toolbar in reach. On **Workspaces**, **All sessions**, a
@@ -17,8 +19,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   puts you in search without moving the list, a new search or provider shows
   its first results right under the search, and another settings category, even
   a short one, opens under categories that stay pinned rather than back at the
-  top of the page. **Remote computers** no longer repeats its title and description under
-  the page's own.
+  top of the page. **Remote computers** no longer repeats its title and
+  description under the page's own.
 
 ## [0.6.4] - 2026-09-18
 
