@@ -148,9 +148,10 @@ provider integrations. It supports streamed Markdown, provider commands and
 models, tool activity, approvals, file changes, cancellation, progressive
 history, and session details when the provider exposes them. A message can
 carry images and point the agent at files on disk. You can answer an agent's
-questions, switch how it works with the **Mode** picker, and keep writing
-while it works: a message goes into the running turn or waits for it to end,
-depending on the agent.
+questions, and switch how it works with the **Mode** picker or change its
+model, also while it is working. You can keep writing while it works too: a
+message goes into the running turn or waits for it to end, depending on the
+agent.
 
 See the complete [Unified UI guide](UNIFIED_UI.md).
 

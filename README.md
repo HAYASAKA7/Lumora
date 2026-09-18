@@ -122,7 +122,8 @@ Depending on the provider, it can show streamed Markdown, commands, models,
 tool and process activity, approvals, file changes, cancellation, progressively
 loaded history, tokens, and account limits. A message can carry images and
 point the agent at files on disk. You can answer an agent's questions, switch
-its mode, and keep writing while it works. Every route is capability checked.
+its mode or model without waiting for the turn to end, and keep writing while
+it works. Every route is capability checked.
 Unavailable or failed integrations fall back to the existing native terminal.
 
 Select a session normally to resume it directly. If the session already runs

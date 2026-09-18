@@ -7,6 +7,8 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-18
+
 ### Changed
 
 - Change the mode and the model while the agent works. Both pickers were held

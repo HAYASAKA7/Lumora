@@ -851,6 +851,11 @@ transparent rendering enabled over a DOM-owned terminal tint, so changing
 terminal opacity exposes the managed background without fading terminal text,
 recreating the terminal, or interrupting the PTY. In-app dialog backdrops,
 dialog shells, and the runtime switcher share the surface and mosaic controls.
+They can only because every portal renders into the app shell, which is the
+appearance root: the opacity tiers are tokens on that element, and a dialog
+portalled to the document body would resolve the opaque defaults instead. A
+contract test fails the build when a portal reaches the body other than as the
+fallback for a window without a shell.
 The renderer derives recessed, normal, raised, popup, and popup-raised opacity
 tiers from the selected surface opacity, then applies them through centralized
 semantic background tokens. Popup tiers retain a readability floor even when
