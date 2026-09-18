@@ -151,6 +151,7 @@ function harness(options: {
   persistedRuntimes?: readonly RuntimeSummary[];
   sessionGuard?: StructuredSessionGuard;
   clock?: () => Date;
+  prepareStatusHooks?: ConstructorParameters<typeof RuntimeHost>[0]['prepareStatusHooks'];
 } = {}) {
   const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
@@ -220,6 +221,9 @@ function harness(options: {
       ? {}
       : { sessionGuard: options.sessionGuard }),
     ...(options.remote ? { resolveInvocation } : {}),
+    ...(options.prepareStatusHooks === undefined
+      ? {}
+      : { prepareStatusHooks: options.prepareStatusHooks }),
     clock: options.clock ?? (() => new Date('2026-07-11T04:00:01.000Z')),
     createRuntimeId: () => {
       const suffix = runtimeIdCount === 0 ? 'abc' : 'abd';
@@ -697,6 +701,50 @@ describe('RuntimeHost', () => {
       sequence: 1,
       outcome: 'finished'
     }]);
+  });
+
+  it('starts the agent with its status hooks ahead of its own arguments, and takes them down on exit', async () => {
+    const dispose = vi.fn();
+    const prepareStatusHooks = vi.fn(async () => ({
+      args: ['--settings', '/data/session-status/token.json'],
+      environment: { LUMORA_STATUS_TOKEN: 'token', LUMORA_STATUS_ENDPOINT: '/run/lumora.sock' },
+      dispose
+    }));
+    const { host, pty, spawn } = harness({
+      launch: { ...launchSpec, provider: 'claude', args: ['--resume', 'native-1'] },
+      prepareStatusHooks
+    });
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    expect(prepareStatusHooks).toHaveBeenCalledWith({
+      runtimeId: runtime.id,
+      spec: expect.objectContaining({ provider: 'claude' })
+    });
+    const spawned = spawn.mock.calls[0]![0];
+    expect(spawned.args.slice(-4)).toEqual([
+      '--settings', '/data/session-status/token.json', '--resume', 'native-1'
+    ]);
+    expect(spawned.env).toMatchObject({
+      LUMORA_STATUS_TOKEN: 'token',
+      LUMORA_STATUS_ENDPOINT: '/run/lumora.sock',
+      PATH: '/usr/local/bin'
+    });
+    expect(dispose).not.toHaveBeenCalled();
+
+    pty.emitExit(0);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('starts the agent without hooks when they cannot be prepared', async () => {
+    const { host, spawn } = harness({
+      prepareStatusHooks: vi.fn(async () => {
+        throw new Error('the helper is missing');
+      })
+    });
+
+    await expect(host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc')).resolves
+      .toMatchObject({ state: 'running' });
+    expect(spawn.mock.calls[0]![0].env).not.toHaveProperty('LUMORA_STATUS_TOKEN');
   });
 
   it('bounds output events and the attach snapshot', async () => {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, statfs, writeFile as writeTextFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -135,6 +136,7 @@ import {
   createTerminalRuntime,
   type TerminalRuntime
 } from './terminal/terminal-runtime';
+import { SessionStatusHooks } from './status/session-status-hooks';
 import {
   createSessionTransferRuntime,
   type SessionTransferRuntime
@@ -334,6 +336,7 @@ const startupPresentation = createStartupPresentationController();
 let mainWindow: BrowserWindow | null = null;
 let catalogRuntime: CatalogRuntime | null = null;
 let terminalRuntime: TerminalRuntime | null = null;
+let sessionStatusHooks: SessionStatusHooks | null = null;
 let structuredAgentRuntime: StructuredAgentRuntimeHost | null = null;
 let localizationService: LocalizationService | null = null;
 let transferRuntime: SessionTransferRuntime | null = null;
@@ -939,9 +942,49 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     begin: (input: Parameters<typeof workspaceChanges.begin>[0]) => workspaceChanges.begin(input),
     end: (ownerId: string) => workspaceChanges.end(ownerId)
   };
+  // Hooks a launched Claude Code or Codex uses to say it finished or needs you.
+  const statusSettingsDirectory = join(app.getPath('userData'), 'session-status');
+  const statusHooks = new SessionStatusHooks({
+    platform,
+    endpoint: platform === 'win32'
+      ? `\\\\.\\pipe\\lumora-status-${randomUUID()}`
+      : join(tmpdir(), `lumora-status-${randomUUID().slice(0, 8)}.sock`),
+    settingsDirectory: statusSettingsDirectory,
+    resolveHelper: async () => helperArchitecture === null
+      ? null
+      : (await resolveRemoteHelperArtifact({
+        bundleRoot: helperBundleRoot(),
+        platform,
+        architecture: helperArchitecture
+      })).absolutePath,
+    readCodexConfig: async (environment) => {
+      const codexHome = environment.CODEX_HOME ??
+        applicationEnvironment.CODEX_HOME ??
+        join(homedir(), '.codex');
+      try {
+        return await readFile(join(codexHome, 'config.toml'), 'utf8');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw error;
+      }
+    },
+    onOutcome: (runtimeId, outcome) => terminalRuntime?.reportOutcome(runtimeId, outcome)
+  });
+  // Settings files left by a Lumora that did not get to clean up.
+  await rm(statusSettingsDirectory, { recursive: true, force: true }).catch(() => undefined);
+  sessionStatusHooks = await statusHooks.start().then(() => statusHooks, () => null);
+  const startedStatusHooks = sessionStatusHooks;
   terminalRuntime = await createTerminalRuntime({
     databasePath: join(app.getPath('userData'), 'lumora.db'),
     executionTargetId: LOCAL_EXECUTION_TARGET_ID,
+    ...(startedStatusHooks === null ? {} : {
+      prepareStatusHooks: ({ runtimeId, spec }) => startedStatusHooks.prepare({
+        runtimeId,
+        provider: spec.provider,
+        command: spec.command,
+        environment: spec.environment
+      })
+    }),
     handoffRootDirectory: join(app.getPath('userData'), 'handoffs'),
     platform,
     env: applicationEnvironment,
@@ -1797,6 +1840,8 @@ app.on('will-quit', () => {
   trayController = null;
   unsubscribeTerminalEvents?.();
   unsubscribeTerminalEvents = null;
+  void sessionStatusHooks?.close();
+  sessionStatusHooks = null;
   unsubscribeStructuredAgentEvents?.();
   unsubscribeStructuredAgentEvents = null;
   void structuredAgentRuntime?.shutdown();

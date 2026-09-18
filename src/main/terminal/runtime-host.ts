@@ -23,6 +23,7 @@ import type { LaunchSpec } from './launch-service';
 import type { ReconciliationRequest } from './new-session-reconciler';
 import { TerminalOutputBuffer } from './output-buffer';
 import { TerminalAttentionScanner } from './terminal-attention';
+import type { StatusHookLaunch } from '../status/session-status-hooks';
 import {
   StructuredSessionGuard,
   StructuredSessionGuardError
@@ -92,6 +93,14 @@ interface RuntimeHostDependencies {
     sessionId: string | null;
   }): Promise<void>;
   endWorkspaceChanges?(ownerId: string): void;
+  /**
+   * Local only: hooks added to one launch so its agent can say it finished or
+   * needs you. Null when the agent has none; a failure here never stops the launch.
+   */
+  prepareStatusHooks?(input: {
+    runtimeId: string;
+    spec: LaunchSpec;
+  }): Promise<StatusHookLaunch | null>;
   platform: SystemInfo['platform'];
   clock?: () => Date;
   createRuntimeId?: () => string;
@@ -112,6 +121,8 @@ interface LiveRuntime {
   hooked: boolean;
   outcomeSequence: number;
   lastOutcome: { kind: SessionOutcomeKind; at: number } | null;
+  /** Taken down when the runtime ends. */
+  statusHooks: StatusHookLaunch | null;
   subscriptions: Disposable[];
   exit: Promise<RuntimeSummary>;
   resolveExit(runtime: RuntimeSummary): void;
@@ -312,9 +323,14 @@ export class RuntimeHost {
         : undefined
     );
 
+    const statusHooks = await this.prepareStatusHooks(runtimeId, spec);
     let process: PtyProcess;
     try {
-      const invocation = this.resolveInvocation(spec);
+      const invocation = this.resolveInvocation(statusHooks === null ? spec : {
+        ...spec,
+        args: [...statusHooks.args, ...spec.args],
+        environment: { ...spec.environment, ...statusHooks.environment }
+      });
       process = await this.dependencies.spawn({
         ...invocation,
         cwd: spec.workingDirectory,
@@ -336,6 +352,7 @@ export class RuntimeHost {
         errorCode: 'PTY_SPAWN_FAILED'
       });
       this.persistAndEmit(failed);
+      statusHooks?.dispose();
       this.sessionGuard.release(runtimeId);
       this.endWorkspaceChanges(runtimeId);
       throw new TerminalRuntimeError('PTY_SPAWN_FAILED');
@@ -364,6 +381,7 @@ export class RuntimeHost {
       hooked: false,
       outcomeSequence: 0,
       lastOutcome: null,
+      statusHooks,
       subscriptions: [],
       exit,
       resolveExit,
@@ -714,6 +732,7 @@ export class RuntimeHost {
       subscription.dispose();
     }
     this.live.delete(runtimeId);
+    live.statusHooks?.dispose();
     this.sessionGuard.release(runtimeId);
     this.endWorkspaceChanges(runtimeId);
     const runtime = RuntimeSummarySchema.parse({
@@ -730,6 +749,19 @@ export class RuntimeHost {
     });
     this.persistAndEmit(runtime);
     live.resolveExit(runtime);
+  }
+
+  private async prepareStatusHooks(
+    runtimeId: string,
+    spec: LaunchSpec
+  ): Promise<StatusHookLaunch | null> {
+    if (this.dependencies.prepareStatusHooks === undefined) return null;
+    try {
+      return await this.dependencies.prepareStatusHooks({ runtimeId, spec });
+    } catch {
+      // The agent starts without them, and its own bell still counts.
+      return null;
+    }
   }
 
   private async beginWorkspaceChanges(runtimeId: string, spec: LaunchSpec): Promise<void> {

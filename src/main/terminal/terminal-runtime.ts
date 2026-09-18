@@ -26,6 +26,7 @@ import {
   type RuntimeResizeRequest,
   type RuntimeSummary,
   type RuntimeWriteRequest,
+  type SessionOutcomeKind,
   type StructuredAgentLaunchRequest,
   type StructuredProviderPreference,
   type SystemInfo,
@@ -40,6 +41,7 @@ import { StructuredProviderPreferenceRepository } from '../storage/structured-pr
 import type { SessionCatalogRegistry } from '../providers/session-catalog-adapter';
 import { providerDefinition } from '../../shared/provider-definitions';
 import { LaunchService, type LaunchSpec, type ProviderLookup } from './launch-service';
+import type { StatusHookLaunch } from '../status/session-status-hooks';
 import { NewSessionReconciler } from './new-session-reconciler';
 import { spawnPty } from './pty-adapter';
 import { detectTerminalProfiles } from './profile-detector';
@@ -123,6 +125,11 @@ interface CreateTerminalRuntimeOptions {
     }): Promise<void>;
     end(ownerId: string): void;
   };
+  /** Local only: hooks that let a launched agent say it finished or needs you. */
+  prepareStatusHooks?(input: {
+    runtimeId: string;
+    spec: LaunchSpec;
+  }): Promise<StatusHookLaunch | null>;
 }
 
 export interface TerminalRuntime {
@@ -161,6 +168,8 @@ export interface TerminalRuntime {
   resizeRuntime(input: RuntimeResizeRequest): void;
   terminateRuntime(runtimeId: string): Promise<RuntimeSummary>;
   subscribe(listener: (event: RuntimeEvent) => void): () => void;
+  /** What an agent's hook said: it finished, or it needs you. */
+  reportOutcome(runtimeId: string, outcome: SessionOutcomeKind): void;
   shutdown(): Promise<void>;
   close(): void;
 }
@@ -181,7 +190,8 @@ export async function createTerminalRuntime({
   createProfileId = () => randomBytes(32).toString('hex'),
   spawn = spawnPty,
   sessionGuard,
-  workspaceChanges
+  workspaceChanges,
+  prepareStatusHooks
 }: CreateTerminalRuntimeOptions): Promise<TerminalRuntime> {
   const database = new DatabaseSync(databasePath);
   try {
@@ -303,7 +313,8 @@ export async function createTerminalRuntime({
               catalogSessionId: sessionId
             }),
           endWorkspaceChanges: (ownerId) => workspaceChanges.end(ownerId)
-        })
+        }),
+    ...(prepareStatusHooks === undefined ? {} : { prepareStatusHooks })
   });
   let closed = false;
 
@@ -422,6 +433,9 @@ export async function createTerminalRuntime({
     },
     terminateRuntime(runtimeId) {
       return host.terminate(runtimeId);
+    },
+    reportOutcome(runtimeId, outcome) {
+      host.reportOutcome(runtimeId, outcome, 'hook');
     },
     subscribe(listener) {
       return host.subscribe(listener);
