@@ -820,13 +820,18 @@ A session you are not watching can finish, fail or wait on you. The renderer
 keeps one **outcome** per open session and turns a new one into cues: a dot on
 its sidebar tile and tab, a tip, and an optional chime, each behind its own
 General setting. A session is **watched** while it is in front of a focused
-window; watching clears its dot.
+window; watching clears its dot. The same slot shows a spinner while a
+session's agent is **working**, for every session: it is state rather than
+news. `sessionIndicator` gives the slot one thing at a time: an unseen request
+for you, then working, then an unseen finish or failure.
 
 - **Outcomes.** A Unified UI session's outcome comes from its events, read from
   the last turn boundary on: `turn.completed` finished or failed,
   `approval.requested` and `question.requested` until settled, and nothing while
-  a turn runs or after a cancelled one. A terminal's outcome arrives as a
-  runtime `outcome` event from main. Each outcome carries a key, the event it
+  a turn runs or after a cancelled one; it is working while a turn runs that
+  waits on no one. A terminal's outcome arrives as a runtime `outcome` event
+  from main, and its working state as an `activity` event, emitted only when
+  it changes. Each outcome carries a key, the event it
   came from, so the same outcome read twice is not news.
 - **Tracker.** A session read for the first time is taken as seen whatever it
   shows, since a resumed session arrives with its history. After that a new key
@@ -840,7 +845,10 @@ window; watching clears its dot.
   one moment and is dropped.
 - **Launch hooks.** For a local Claude Code or Codex terminal started from the
   detected executable, `SessionStatusHooks` adds arguments before spawning:
-  Claude Code gets `--settings <file>` with `Stop` and `Notification` hooks,
+  Claude Code gets `--settings <file>` with `UserPromptSubmit`, `Stop` and
+  `Notification` hooks. The prompt hook marks the runtime working and starts
+  the repeat guard over, so a quick next turn still counts; the helper prints
+  nothing there, since Claude Code adds a prompt hook's output to the prompt.
   Codex gets `-c notify=[…]` in TOML literal strings, which Windows PowerShell
   passes to a native program intact. Codex's override replaces the person's own
   `notify`, so it is read from `config.toml` and passed on to be run too; when

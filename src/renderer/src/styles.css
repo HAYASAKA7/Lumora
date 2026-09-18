@@ -8532,12 +8532,13 @@ button {
   outline-offset: 1px;
 }
 
-/* Session status: the mark a session carries while an outcome waits for you to see it */
+/* Session status: a spinner while the agent works and a dot for an outcome not yet seen */
 
 .session-status-dot {
   position: relative;
   display: inline-block;
   flex: none;
+  box-sizing: border-box;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -8545,12 +8546,36 @@ button {
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sidebar-text) 24%, transparent);
 }
 
-.session-status-dot[data-outcome="needs_you"] {
+.session-status-dot[data-status="needs_you"] {
   background: var(--warning);
 }
 
-.session-status-dot[data-outcome="failed"] {
+.session-status-dot[data-status="failed"] {
   background: var(--danger);
+}
+
+.session-status-dot[data-status="working"] {
+  width: 10px;
+  height: 10px;
+  margin: -1px;
+  background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--blue) 26%, transparent);
+  border-top-color: var(--blue);
+  box-shadow: none;
+  animation: session-status-spin 0.9s linear infinite;
+}
+
+@keyframes session-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-status-dot[data-status="working"] {
+    border-color: var(--blue);
+    animation: none;
+  }
 }
 
 .session-status-dot-label {

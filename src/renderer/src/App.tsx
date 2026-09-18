@@ -108,7 +108,7 @@ import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { Tooltip, TooltipProvider } from './ui/Tooltip';
 import { useLocalization, type TranslationValues } from './localization/useLocalization';
-import { structuredSessionOutcome, type SessionOutcome } from './status/session-outcome';
+import { structuredSessionState, type SessionOutcome } from './status/session-outcome';
 import { SessionStatusTip } from './status/SessionStatusTip';
 import { useSessionStatusCues } from './status/useSessionStatusCues';
 import { useWindowFocused } from './status/useWindowFocused';
@@ -400,6 +400,10 @@ function AppContent(): ReactNode {
   const [terminalOutcomes, setTerminalOutcomes] = useState<
     ReadonlyMap<string, SessionOutcome>
   >(() => new Map());
+  /** The terminals whose agent said, through a hook, that it is at work. */
+  const [terminalWorking, setTerminalWorking] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   const [structuredSnapshots, setStructuredSnapshots] = useState<
     StructuredAgentRuntimeSnapshot[]
   >([]);
@@ -1105,6 +1109,16 @@ function AppContent(): ReactNode {
         }));
         return;
       }
+      if (event.type === 'activity') {
+        setTerminalWorking((current) => {
+          if (current.has(event.runtimeId) === event.working) return current;
+          const next = new Set(current);
+          if (event.working) next.add(event.runtimeId);
+          else next.delete(event.runtimeId);
+          return next;
+        });
+        return;
+      }
       if (event.type !== 'state') {
         return;
       }
@@ -1116,6 +1130,12 @@ function AppContent(): ReactNode {
         setTerminalOutcomes((current) => {
           if (!current.has(event.runtimeId)) return current;
           const next = new Map(current);
+          next.delete(event.runtimeId);
+          return next;
+        });
+        setTerminalWorking((current) => {
+          if (!current.has(event.runtimeId)) return current;
+          const next = new Set(current);
           next.delete(event.runtimeId);
           return next;
         });
@@ -2232,13 +2252,17 @@ function AppContent(): ReactNode {
   const frontSessionKey = terminalActive
     ? activeRuntimeId ?? activeStructuredConnectionId
     : null;
+  const structuredStates = useMemo(() => liveStructuredSnapshots.map(
+    ({ events, runtime }) => [runtime.connectionId, structuredSessionState(events)] as const
+  ), [liveStructuredSnapshots]);
   const sessionOutcomes = useMemo(() => new Map<string, SessionOutcome | null>([
     ...liveRuntimes.map(({ id }) => [id, terminalOutcomes.get(id) ?? null] as const),
-    ...liveStructuredSnapshots.map(({ events, runtime }) => [
-      runtime.connectionId,
-      structuredSessionOutcome(events)
-    ] as const)
-  ]), [liveRuntimes, liveStructuredSnapshots, terminalOutcomes]);
+    ...structuredStates.map(([connectionId, state]) => [connectionId, state.outcome] as const)
+  ]), [liveRuntimes, structuredStates, terminalOutcomes]);
+  const sessionWorking = useMemo(() => new Set([
+    ...liveRuntimes.flatMap(({ id }) => terminalWorking.has(id) ? [id] : []),
+    ...structuredStates.flatMap(([connectionId, state]) => state.working ? [connectionId] : [])
+  ]), [liveRuntimes, structuredStates, terminalWorking]);
   const describeSession = useCallback((sessionKey: string) => {
     const structured = liveStructuredSnapshotsRef.current.find(
       ({ runtime }) => runtime.connectionId === sessionKey
@@ -2258,7 +2282,8 @@ function AppContent(): ReactNode {
     describe: describeSession,
     outcomes: sessionOutcomes,
     settings: (generalSettings ?? DEFAULT_GENERAL_SETTINGS).sessionStatus,
-    watchedKey: windowFocused ? frontSessionKey : null
+    watchedKey: windowFocused ? frontSessionKey : null,
+    working: sessionWorking
   });
   const dismissSessionTip = sessionStatus.dismissTip;
   const openSessionFromTip = useCallback((sessionKey: string) => {
@@ -2401,7 +2426,7 @@ function AppContent(): ReactNode {
             preferenceScope="local"
             recent={sidebarSessions.recent}
             running={sidebarSessions.running}
-            sessionOutcomes={sessionStatus.dots}
+            sessionIndicators={sessionStatus.indicators}
             structuredRunning={liveStructuredSnapshots.map(
               ({ runtime }) => runtime
             )}
@@ -2678,7 +2703,7 @@ function AppContent(): ReactNode {
                 }
                 previews={launchPreviews}
                 runtimes={openRuntimes}
-                sessionOutcomes={sessionStatus.dots}
+                sessionIndicators={sessionStatus.indicators}
                 showTabBar={!sidebarExpanded}
                 backgroundOpacity={
                   appearanceBackgroundActive ? appearance.terminalOpacity : 1
@@ -2717,7 +2742,7 @@ function AppContent(): ReactNode {
                   onReconnect={(connectionId) => {
                     void reconnectStructuredRuntime(connectionId);
                   }}
-                  sessionOutcomes={sessionStatus.dots}
+                  sessionIndicators={sessionStatus.indicators}
                   showTabBar={!sidebarExpanded}
                   snapshots={structuredSnapshots}
                   visible={structuredTerminalActive}

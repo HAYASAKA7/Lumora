@@ -3484,6 +3484,85 @@ describe('App', () => {
     ).toBeNull());
   });
 
+  it('spins on a session while its agent works, the one in front included', async () => {
+    const structured: StructuredAgentRuntimeSummary = {
+      connectionId: 'spinner-structured',
+      providerId: 'codex',
+      nativeSessionId: 'native-spinner',
+      catalogSessionId: null,
+      workspaceId: readyCatalog.workspaces[0]!.id,
+      title: 'Unified session at work',
+      state: 'ready',
+      generation: 1,
+      createdAt: '2026-09-18T00:00:00.000Z',
+      updatedAt: '2026-09-18T00:00:00.000Z',
+      error: null
+    };
+    const terminal = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-1234567890f7', 'claude'),
+      displayName: 'Claude terminal at work'
+    };
+    let eventListener: ((event: StructuredAgentEvent) => void) | undefined;
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([terminal]),
+      attachRuntime: vi.fn(async () => ({ runtime: terminal, snapshot: '', outputSequence: 0 })),
+      onRuntimeEvent: vi.fn((listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      }),
+      listStructuredRuntimes: vi.fn().mockResolvedValue([structured]),
+      getStructuredRuntimeSnapshot: vi.fn().mockResolvedValue({
+        runtime: structured,
+        boundary: null,
+        commands: [],
+        events: []
+      }),
+      onStructuredAgentEvent: (listener) => {
+        eventListener = listener;
+        return () => undefined;
+      }
+    });
+    renderWithLocalization(<App />);
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    const running = await screen.findByRole('region', { name: 'Running sessions' });
+    fireEvent.click(await within(running).findByRole('button', { name: /^Unified session at work/ }));
+    await screen.findByRole('heading', { name: structured.title });
+
+    act(() => {
+      eventListener?.({
+        kind: 'turn.started',
+        connectionId: structured.connectionId,
+        providerId: structured.providerId,
+        nativeSessionId: structured.nativeSessionId,
+        generation: 1,
+        sequence: 1,
+        eventId: 'spinner-1',
+        parentEventId: null,
+        timestamp: '2026-09-18T00:00:01.000Z',
+        turnId: 'spinner-turn',
+        payload: { state: 'running', message: null }
+      });
+      emitRuntime({ type: 'activity', runtimeId: terminal.id, working: true });
+    });
+
+    // The session in front works too, and says so; a spinner is state, not news.
+    expect(await within(running).findByRole('button', { name: /^Unified session at work.*working$/ }))
+      .toBeInTheDocument();
+    expect(within(running).getByRole('button', { name: /^Claude terminal at work.*working$/ }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Session updates' })).not.toBeInTheDocument();
+
+    act(() => {
+      emitRuntime({ type: 'activity', runtimeId: terminal.id, working: false });
+    });
+    await waitFor(() => expect(
+      within(running).getByRole('button', { name: /^Claude terminal at work/ }).querySelector('.session-status-dot')
+    ).toBeNull());
+  });
+
   it('opens the existing terminal when Home selects a running session', async () => {
     const runtime = {
       ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa1'),

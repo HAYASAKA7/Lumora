@@ -15,7 +15,6 @@ import {
 
 import type {
   LumoraApi,
-  SessionOutcomeKind,
   StructuredAgentApprovalDecision,
   StructuredAgentRuntimeSnapshot
 } from '../../../shared/contracts';
@@ -25,6 +24,7 @@ import {
 } from '../../../shared/contracts';
 import { providerDefinition } from '../../../shared/provider-definitions';
 import { SessionStatusDot } from '../status/SessionStatusDot';
+import type { SessionIndicator } from '../status/session-outcome';
 import { OverflowTooltip, Tooltip } from '../ui/Tooltip';
 import { ActionMenu } from '../ui/ActionMenu';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -56,8 +56,8 @@ interface StructuredAgentWorkspaceProps {
   activeConnectionId: string;
   /** Changed file counts by connection id. */
   changeCounts?: ReadonlyMap<string, number>;
-  /** Outcomes waiting to be seen, by connection id. */
-  sessionOutcomes?: ReadonlyMap<string, SessionOutcomeKind>;
+  /** What each session's status slot shows, by connection id. */
+  sessionIndicators?: ReadonlyMap<string, SessionIndicator>;
   /** Offers the docked changes panel; local sessions only. */
   changesEnabled?: boolean;
   focusRequestKey?: number;
@@ -142,7 +142,7 @@ export function StructuredAgentWorkspace({
   api = window.lumora,
   activeConnectionId,
   changeCounts,
-  sessionOutcomes,
+  sessionIndicators,
   changesEnabled = false,
   focusRequestKey = 0,
   snapshots,
@@ -828,7 +828,7 @@ export function StructuredAgentWorkspace({
                 ? null
                 : changeCountSuffix(t, changeCount(item.runtime.connectionId))}
             </small>
-            <SessionStatusDot kind={sessionOutcomes?.get(item.runtime.connectionId)} />
+            <SessionStatusDot status={sessionIndicators?.get(item.runtime.connectionId)} />
           </button>
         ))}
       </div>

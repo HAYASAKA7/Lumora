@@ -73,6 +73,15 @@ func TestReportsTheEventAndNothingElse(t *testing.T) {
 	}
 }
 
+func TestReportsThatTheAgentStartedOnAPrompt(t *testing.T) {
+	f := newFixture()
+	f.stdin = strings.NewReader(`{"hook_event_name":"UserPromptSubmit","prompt":"private words"}`)
+	Run([]string{"--event", "prompt-submit"}, f.deps())
+	if got := f.sent.String(); got != "{\"token\":\"token-1\",\"event\":\"prompt-submit\"}\n" {
+		t.Fatalf("sent %q", got)
+	}
+}
+
 func TestDropsCodexPayloadAndPassesItToThePersonsOwnProgram(t *testing.T) {
 	f := newFixture()
 	f.env[chainVariable] = `["python3","C:\\Users\\me\\notify.py"]`

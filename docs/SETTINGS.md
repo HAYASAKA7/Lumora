@@ -27,11 +27,12 @@ Full-exit and remote disconnect-and-close warnings use separate switches.
 Cross-agent handoff is off by default; its retention value controls temporary
 managed-copy cleanup when the feature is enabled.
 
-**Session status** decides what Lumora does when a session you aren't watching
-finishes, fails or needs you: show a dot on the session (on), show a tip you
-can click to open it (on), and play a short chime (off). The dot has no colour
-of its own: it takes your theme's accent, warning and danger colours, so a
-theme you add recolours it. See
+**Session status** decides what Lumora shows about its sessions: status on the
+session (on), which is a spinner while its agent works and a dot when a session
+you aren't watching finishes, fails or needs you; a tip you can click to open
+that session (on); and a short chime (off). Neither the spinner nor the dot has
+a colour of its own: they take your theme's accent, warning and danger colours,
+so a theme you add recolours them. See
 [When a session finishes or needs you](USER_GUIDE.md#when-a-session-finishes-or-needs-you).
 
 ## Appearance

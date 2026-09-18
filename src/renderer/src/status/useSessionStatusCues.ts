@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { SessionOutcomeKind, SessionStatusSettings } from '../../../shared/contracts';
+import type { SessionStatusSettings } from '../../../shared/contracts';
 import { playSessionChime } from './chime';
 import { createOutcomeTracker, trackOutcomes } from './outcome-tracker';
-import type { SessionOutcome } from './session-outcome';
+import {
+  sessionIndicator,
+  type SessionIndicator,
+  type SessionOutcome
+} from './session-outcome';
 import type { SessionTip } from './SessionStatusTip';
 
-const NO_DOTS: ReadonlyMap<string, SessionOutcomeKind> = new Map();
+const NO_INDICATORS: ReadonlyMap<string, SessionIndicator> = new Map();
 
 export interface SessionDescription {
   provider: string;
@@ -16,6 +20,8 @@ export interface SessionDescription {
 interface SessionStatusCuesOptions {
   /** Each open session's outcome right now, by session key; null while it works. */
   outcomes: ReadonlyMap<string, SessionOutcome | null>;
+  /** The sessions whose agent is at work, as far as their agent says. */
+  working: ReadonlySet<string>;
   /** The session in front of a focused window, or null. */
   watchedKey: string | null;
   settings: SessionStatusSettings;
@@ -23,18 +29,21 @@ interface SessionStatusCuesOptions {
 }
 
 /**
- * Turns outcomes into cues: a dot for each session with an outcome you have
- * not seen, and a tip and a chime when one arrives. Each cue follows its own
- * setting; the dots are still tracked while hidden, so turning them back on
- * shows what is waiting.
+ * Turns outcomes into cues: the status slot on each session's tile and tab,
+ * and a tip and a chime when an outcome arrives for a session you are not
+ * watching. The slot shows a spinner while the agent works and a dot for an
+ * outcome you have not seen. Each cue follows its own setting; outcomes are
+ * still tracked while the slot is hidden, so turning it back on shows what is
+ * waiting.
  */
 export function useSessionStatusCues({
   describe,
   outcomes,
   settings,
-  watchedKey
+  watchedKey,
+  working
 }: SessionStatusCuesOptions): {
-  dots: ReadonlyMap<string, SessionOutcomeKind>;
+  indicators: ReadonlyMap<string, SessionIndicator>;
   tip: SessionTip | null;
   dismissTip(): void;
 } {
@@ -75,8 +84,18 @@ export function useSessionStatusCues({
 
   const dismissTip = useCallback(() => setTip(null), []);
 
+  const indicators = useMemo(() => {
+    if (!settings.dot) return NO_INDICATORS;
+    const shown = new Map<string, SessionIndicator>();
+    for (const sessionKey of new Set([...unseen.keys(), ...working])) {
+      const indicator = sessionIndicator(unseen.get(sessionKey), working.has(sessionKey));
+      if (indicator !== undefined) shown.set(sessionKey, indicator);
+    }
+    return shown;
+  }, [settings.dot, unseen, working]);
+
   return {
-    dots: settings.dot ? unseen : NO_DOTS,
+    indicators,
     tip: settings.tip ? tip : null,
     dismissTip
   };

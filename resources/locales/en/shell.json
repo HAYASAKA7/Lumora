@@ -110,6 +110,7 @@
     "finished": "finished",
     "failed": "stopped with an error",
     "needs-you": "needs you",
+    "working": "working",
     "tip-finished": "{provider} finished in “{title}”",
     "tip-failed": "{provider} stopped with an error in “{title}”",
     "tip-needs-you": "{provider} needs you in “{title}”",

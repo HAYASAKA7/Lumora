@@ -119,6 +119,8 @@ interface LiveRuntime {
   attention: TerminalAttentionScanner;
   /** When a hook last reported, which decides whether the agent's own bell still counts. */
   hookHeardAt: number | null;
+  /** Between a prompt its hook reported and the turn's end. */
+  working: boolean;
   outcomeSequence: number;
   lastOutcome: { kind: SessionOutcomeKind; at: number } | null;
   /** Taken down when the runtime ends. */
@@ -379,6 +381,7 @@ export class RuntimeHost {
       outputFlushScheduled: false,
       attention: new TerminalAttentionScanner(),
       hookHeardAt: null,
+      working: false,
       outcomeSequence: 0,
       lastOutcome: null,
       statusHooks,
@@ -672,6 +675,8 @@ export class RuntimeHost {
     if (live === undefined) return;
     const now = this.clock().getTime();
     if (source === 'hook') live.hookHeardAt = now;
+    // Asking for you pauses a turn; finishing or failing ends it.
+    if (outcome !== 'needs_you') this.setWorking(runtimeId, live, false);
     if (
       live.lastOutcome !== null &&
       live.lastOutcome.kind === outcome &&
@@ -687,6 +692,24 @@ export class RuntimeHost {
       sequence: live.outcomeSequence,
       outcome
     });
+  }
+
+  /**
+   * The agent started on a prompt, as its hook said. Whatever it says next is
+   * about this new turn, so the repeat guard starts over.
+   */
+  reportWorking(runtimeId: string): void {
+    const live = this.live.get(runtimeId);
+    if (live === undefined) return;
+    live.hookHeardAt = this.clock().getTime();
+    live.lastOutcome = null;
+    this.setWorking(runtimeId, live, true);
+  }
+
+  private setWorking(runtimeId: string, live: LiveRuntime, working: boolean): void {
+    if (live.working === working) return;
+    live.working = working;
+    this.emit({ type: 'activity', runtimeId, working });
   }
 
   /**

@@ -14,12 +14,12 @@ const CONNECTION_TIMEOUT_MS = 2_000;
 
 const HookMessageSchema = z.strictObject({
   token: z.string().regex(/^[a-f0-9]{64}$/),
-  event: z.enum(['stop', 'notification', 'turn-complete'])
+  event: z.enum(['prompt-submit', 'stop', 'notification', 'turn-complete'])
 });
 
-type HookEvent = z.infer<typeof HookMessageSchema>['event'];
+type OutcomeEvent = Exclude<z.infer<typeof HookMessageSchema>['event'], 'prompt-submit'>;
 
-const OUTCOME_BY_EVENT: Readonly<Record<HookEvent, SessionOutcomeKind>> = {
+const OUTCOME_BY_EVENT: Readonly<Record<OutcomeEvent, SessionOutcomeKind>> = {
   stop: 'finished',
   notification: 'needs_you',
   'turn-complete': 'finished'
@@ -31,6 +31,8 @@ export interface StatusHookLaunch {
   args: readonly string[];
   /** The outcomes these hooks report; the agent's own bell still speaks for the rest. */
   covers: readonly SessionOutcomeKind[];
+  /** Whether the hooks also say when the agent starts working. */
+  reportsWorking: boolean;
   environment: Readonly<Record<string, string>>;
   dispose(): void;
 }
@@ -46,6 +48,8 @@ export interface SessionStatusHooksOptions {
   /** The text of Codex's `config.toml` for this launch, or null when there is none. */
   readCodexConfig(environment: Readonly<Record<string, string | undefined>>): Promise<string | null>;
   onOutcome(runtimeId: string, outcome: SessionOutcomeKind): void;
+  /** The agent started on a prompt: it is working until it finishes. */
+  onWorking(runtimeId: string): void;
   createToken?(): string;
 }
 
@@ -120,6 +124,7 @@ export class SessionStatusHooks {
       );
       await writeFile(settingsPath, JSON.stringify({
         hooks: {
+          UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${command} --event prompt-submit` }] }],
           Stop: [{ hooks: [{ type: 'command', command: `${command} --event stop` }] }],
           Notification: [{ hooks: [{ type: 'command', command: `${command} --event notification` }] }]
         }
@@ -128,6 +133,7 @@ export class SessionStatusHooks {
       return {
         args: ['--settings', settingsPath],
         covers: ['finished', 'needs_you'],
+        reportsWorking: true,
         environment,
         dispose: () => {
           this.runtimeByToken.delete(token);
@@ -149,6 +155,7 @@ export class SessionStatusHooks {
       args: ['-c', `notify=['${helper}','notify','--event','turn-complete']`],
       // Codex's notify reports a finished turn only; asking for approval is its bell's to say.
       covers: ['finished'],
+      reportsWorking: false,
       environment,
       dispose: () => {
         this.runtimeByToken.delete(token);
@@ -200,6 +207,10 @@ export class SessionStatusHooks {
     if (!message.success) return;
     const runtimeId = this.runtimeByToken.get(message.data.token);
     if (runtimeId === undefined) return;
+    if (message.data.event === 'prompt-submit') {
+      this.options.onWorking(runtimeId);
+      return;
+    }
     this.options.onOutcome(runtimeId, OUTCOME_BY_EVENT[message.data.event]);
   }
 }

@@ -1,6 +1,8 @@
 // Package statusnotify lets an agent that Lumora launched say, from inside the
-// agent's own hook, that it finished or needs the person. It sends Lumora an
-// event name over a local endpoint and nothing else: no transcript, no message.
+// agent's own hook, that it started working, finished, or needs the person. It
+// sends Lumora an event name over a local endpoint and nothing else: no
+// transcript, no message. It prints nothing either, since Claude Code adds what
+// a prompt hook prints to the prompt.
 package statusnotify
 
 import (
@@ -22,6 +24,7 @@ const (
 )
 
 var knownEvents = map[string]bool{
+	"prompt-submit": true,
 	"stop":          true,
 	"notification":  true,
 	"turn-complete": true,

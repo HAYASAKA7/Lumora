@@ -69,7 +69,7 @@ export function SessionStatusTip({
       onPointerLeave={startClock}
       role="status"
     >
-      <span aria-hidden="true" className="session-status-dot" data-outcome={tip.kind} />
+      <span aria-hidden="true" className="session-status-dot" data-status={tip.kind} />
       <p className="session-status-tip-message">
         {t(MESSAGE_KEYS[tip.kind], { provider: tip.provider, title: tip.title })}
       </p>

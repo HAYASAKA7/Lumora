@@ -199,23 +199,35 @@ you, Lumora marks it:
   its own after a few seconds unless the pointer is over it;
 - a short **chime**, off until you turn it on.
 
+While an agent works, the same place on its tile and tab shows a **spinner**
+in your theme's accent, for every session, the one in front included: it says
+what is happening, not what you missed. The place holds one thing at a time. A
+request for you that you haven't seen comes first, then the spinner, then a
+finish or failure you haven't seen. With reduced motion turned on in your
+system, the spinner holds still.
+
 A session counts as watched only while it is the one in front **and** the
 Lumora window has focus, so a session left open while you work in another app
 still gets its dot. A turn you cancelled yourself gives no cue. Each cue has
-its own switch under **Settings → General → Session status**.
+its own switch under **Settings → General → Session status**; the first one
+covers both the spinner and the dot.
 
 How Lumora hears it depends on the session:
 
-- **Unified UI:** from the session's own events, exactly.
+- **Unified UI:** from the session's own events, exactly, spinner included.
 - **Claude Code and Codex in a terminal:** Lumora adds hooks to that one launch.
   Claude Code gets a settings file of its own through `--settings`, loaded on
   top of yours, so your own hooks keep running. Codex gets a `notify` program
   for that launch; if you have one of your own, it still runs. Nothing is
   written to `~/.claude` or `~/.codex`, and a hook tells Lumora only that the
-  agent finished or needs you, never any of the conversation.
+  agent finished or needs you, never any of the conversation. Claude Code's
+  hooks also say when it starts on a prompt, so it gets the spinner. Codex's
+  `notify` only reports a finished turn, so a Codex terminal gets the dot but
+  no spinner.
 - **Other agents in a terminal:** Lumora listens for a terminal bell or a
   desktop notification the agent prints itself, and takes either as needs you.
-  It never guesses from output going quiet.
+  It never guesses from output going quiet, and it shows no spinner, since
+  nothing says when these agents start working.
 
 Hooks are added only when Lumora starts the provider it detected. A session
 started through a custom launch command relies on the agent's own bell or

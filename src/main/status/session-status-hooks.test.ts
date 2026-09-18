@@ -32,6 +32,7 @@ function endpoint(): string {
 
 async function started(overrides: Partial<SessionStatusHooksOptions> = {}) {
   const onOutcome = vi.fn();
+  const onWorking = vi.fn();
   const options: SessionStatusHooksOptions = {
     platform: process.platform,
     endpoint: endpoint(),
@@ -41,12 +42,13 @@ async function started(overrides: Partial<SessionStatusHooksOptions> = {}) {
       : '/Applications/Lumora.app/Contents/Resources/helper/macos-arm64/lumora-helper',
     readCodexConfig: async () => null,
     onOutcome,
+    onWorking,
     createToken: () => TOKEN,
     ...overrides
   };
   hooks = new SessionStatusHooks(options);
   await hooks.start();
-  return { hooks, onOutcome, options };
+  return { hooks, onOutcome, onWorking, options };
 }
 
 function send(path: string, line: string): Promise<void> {
@@ -81,6 +83,8 @@ describe('SessionStatusHooks', () => {
     expect(stop).toMatch(/^"[^"]+lumora-helper(\.exe)?" notify --event stop$/);
     expect(stop).not.toContain('\\');
     expect(settings.hooks.Notification![0]!.hooks[0]!.command).toMatch(/--event notification$/);
+    expect(settings.hooks.UserPromptSubmit![0]!.hooks[0]!.command).toMatch(/--event prompt-submit$/);
+    expect(launch?.reportsWorking).toBe(true);
 
     await send(options.endpoint, `${JSON.stringify({ token: TOKEN, event: 'stop' })}\n`);
     await vi.waitFor(() => expect(onOutcome).toHaveBeenCalledWith('runtime-1', 'finished'));
@@ -92,6 +96,16 @@ describe('SessionStatusHooks', () => {
     onOutcome.mockClear();
     await send(options.endpoint, `${JSON.stringify({ token: TOKEN, event: 'stop' })}\n`);
     await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onOutcome).not.toHaveBeenCalled();
+  });
+
+  it('hears the agent start on a prompt', async () => {
+    const { hooks: service, onOutcome, onWorking, options } = await started();
+    await service.prepare({ runtimeId: 'runtime-9', provider: 'claude', command: null, environment: {} });
+
+    await send(options.endpoint, `${JSON.stringify({ token: TOKEN, event: 'prompt-submit' })}\n`);
+
+    await vi.waitFor(() => expect(onWorking).toHaveBeenCalledWith('runtime-9'));
     expect(onOutcome).not.toHaveBeenCalled();
   });
 

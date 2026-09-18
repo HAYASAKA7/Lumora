@@ -170,6 +170,8 @@ export interface TerminalRuntime {
   subscribe(listener: (event: RuntimeEvent) => void): () => void;
   /** What an agent's hook said: it finished, or it needs you. */
   reportOutcome(runtimeId: string, outcome: SessionOutcomeKind): void;
+  /** An agent's hook said it started on a prompt. */
+  reportWorking(runtimeId: string): void;
   shutdown(): Promise<void>;
   close(): void;
 }
@@ -436,6 +438,9 @@ export async function createTerminalRuntime({
     },
     reportOutcome(runtimeId, outcome) {
       host.reportOutcome(runtimeId, outcome, 'hook');
+    },
+    reportWorking(runtimeId) {
+      host.reportWorking(runtimeId);
     },
     subscribe(listener) {
       return host.subscribe(listener);

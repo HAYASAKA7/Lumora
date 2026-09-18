@@ -11,5 +11,5 @@
   "runtime": {"open-terminals": "打开的终端", "quit-heading": "退出 Lumora？", "quit-confirm": "退出 Lumora", "quit-cancel": "保持 Lumora 运行", "quit-description": "Lumora 正在管理 {total} 个活动{total, plural, one {智能体} other {智能体}}（本地 {local} 个，远程 {remote} 个）。退出会停止这些终端会话。", "suppress-warning": "不再显示此警告"},
   "destination": {"status": "{route} 状态", "ready": "基础功能已就绪", "heading": "{route} 是下一个待连接的视图", "description": "安全的导航界面已就绪。提供商和目录数据将在后续实现中接入。"},
   "startup": {"preparing": "正在准备 Lumora…", "scanning": "正在扫描工作区和会话…", "almost-ready": "即将就绪…", "starting": "Lumora 正在启动", "final-frame": "Lumora 启动动画的最后一帧"},
-  "session-status": {"finished": "已完成", "failed": "因错误停止", "needs-you": "等待你处理", "tip-finished": "{provider} 已完成“{title}”", "tip-failed": "{provider} 在“{title}”中因错误停止", "tip-needs-you": "{provider} 在“{title}”中等待你处理", "open": "打开", "dismiss": "关闭", "tips-label": "会话动态"}
+  "session-status": {"finished": "已完成", "failed": "因错误停止", "needs-you": "等待你处理", "working": "工作中", "tip-finished": "{provider} 已完成“{title}”", "tip-failed": "{provider} 在“{title}”中因错误停止", "tip-needs-you": "{provider} 在“{title}”中等待你处理", "open": "打开", "dismiss": "关闭", "tips-label": "会话动态"}
 }

@@ -11,5 +11,5 @@
   "runtime": {"open-terminals": "開いているターミナル", "quit-heading": "Lumora を終了しますか？", "quit-confirm": "Lumora を終了", "quit-cancel": "Lumora を開いたままにする", "quit-description": "Lumora は {total} 個のアクティブな{total, plural, one {エージェント} other {エージェント}}（ローカル {local}、リモート {remote}）を管理しています。終了すると、これらのターミナルセッションは停止します。", "suppress-warning": "今後この警告を表示しない"},
   "destination": {"status": "{route} の状態", "ready": "基盤の準備が完了しました", "heading": "{route} は次に接続されるビューです", "description": "安全なナビゲーション画面の準備が完了しました。プロバイダーとカタログのデータは今後の実装で接続されます。"},
   "startup": {"preparing": "Lumora を準備中…", "scanning": "ワークスペースとセッションをスキャン中…", "almost-ready": "まもなく準備が完了します…", "starting": "Lumora を起動中", "final-frame": "Lumora 起動アニメーションの最終フレーム"},
-  "session-status": {"finished": "完了", "failed": "エラーで停止", "needs-you": "応答待ち", "tip-finished": "{provider} が「{title}」を完了しました", "tip-failed": "{provider} が「{title}」でエラーにより停止しました", "tip-needs-you": "{provider} が「{title}」で応答を待っています", "open": "開く", "dismiss": "閉じる", "tips-label": "セッションの更新"}
+  "session-status": {"finished": "完了", "failed": "エラーで停止", "needs-you": "応答待ち", "working": "作業中", "tip-finished": "{provider} が「{title}」を完了しました", "tip-failed": "{provider} が「{title}」でエラーにより停止しました", "tip-needs-you": "{provider} が「{title}」で応答を待っています", "open": "開く", "dismiss": "閉じる", "tips-label": "セッションの更新"}
 }

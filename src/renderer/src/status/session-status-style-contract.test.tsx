@@ -30,12 +30,26 @@ describe('the session status dot and the theme', () => {
     expect(literals.map(({ selector }) => selector)).toEqual([]);
   });
 
-  it('takes the accent for finished, warning for needs you and danger for failed', () => {
-    const background = (selector: string) =>
-      dotRules().find((rule) => rule.selector === selector)?.body.match(/background:\s*([^;]+);/)?.[1];
+  it('takes the accent for finished and working, warning for needs you and danger for failed', () => {
+    const declaration = (selector: string, property: string) =>
+      dotRules().find((rule) => rule.selector === selector)?.body
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${property}:`))
+        ?.slice(property.length + 1)
+        .trim();
 
-    expect(background('.session-status-dot')).toBe('var(--blue)');
-    expect(background('.session-status-dot[data-outcome="needs_you"]')).toBe('var(--warning)');
-    expect(background('.session-status-dot[data-outcome="failed"]')).toBe('var(--danger)');
+    expect(declaration('.session-status-dot', 'background')).toBe('var(--blue)');
+    expect(declaration('.session-status-dot[data-status="needs_you"]', 'background')).toBe('var(--warning)');
+    expect(declaration('.session-status-dot[data-status="failed"]', 'background')).toBe('var(--danger)');
+    expect(declaration('.session-status-dot[data-status="working"]', 'border-top-color')).toBe('var(--blue)');
+  });
+
+  it('keeps the spinner still for someone who asked for less motion', () => {
+    const reduced = stylesheet.match(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.session-status-dot\[data-status="working"\]\s*\{([^}]*)\}/
+    )?.[1];
+
+    expect(reduced).toMatch(/animation:\s*none/);
   });
 });

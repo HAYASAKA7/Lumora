@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { StructuredAgentEvent } from '../../../shared/contracts';
-import { structuredSessionOutcome } from './session-outcome';
+import {
+  sessionIndicator,
+  structuredSessionOutcome,
+  structuredSessionState
+} from './session-outcome';
 
 let sequence = 0;
 
@@ -29,6 +33,16 @@ function event(
 const started = (turnId = 'turn-1') => event('turn.started', { state: 'running', message: null }, turnId);
 const completed = (state: 'completed' | 'failed' | 'cancelled', turnId = 'turn-1') =>
   event('turn.completed', { state, message: null }, turnId);
+
+describe('sessionIndicator', () => {
+  it('puts a request for you first, then work in progress, then a finish or failure', () => {
+    expect(sessionIndicator('needs_you', true)).toBe('needs_you');
+    expect(sessionIndicator('finished', true)).toBe('working');
+    expect(sessionIndicator('failed', false)).toBe('failed');
+    expect(sessionIndicator(undefined, true)).toBe('working');
+    expect(sessionIndicator(undefined, false)).toBeUndefined();
+  });
+});
 
 describe('structuredSessionOutcome', () => {
   it('has no outcome while a turn runs, or before any turn', () => {
@@ -78,6 +92,20 @@ describe('structuredSessionOutcome', () => {
       completed('completed'),
       started('turn-2')
     ])).toBeNull();
+  });
+
+  it('is working while a turn runs, and not while it waits on you or after it ends', () => {
+    const approval = event('approval.requested', { approvalId: 'approval-2' });
+    expect(structuredSessionState([]).working).toBe(false);
+    expect(structuredSessionState([started()]).working).toBe(true);
+    expect(structuredSessionState([started(), approval]).working).toBe(false);
+    expect(structuredSessionState([
+      started(),
+      approval,
+      event('approval.resolved', { approvalId: 'approval-2', decision: 'allow_once' })
+    ]).working).toBe(true);
+    expect(structuredSessionState([started(), completed('completed')]).working).toBe(false);
+    expect(structuredSessionState([started(), completed('cancelled')]).working).toBe(false);
   });
 
   it('reads only the latest turn, however long the history before it', () => {

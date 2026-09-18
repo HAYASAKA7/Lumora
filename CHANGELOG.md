@@ -19,6 +19,11 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ring the terminal bell or print a desktop notification. Each cue can be
   turned off under **Settings → General → Session status**; the chime starts
   off.
+- See which sessions are at work. The same place on a session's tile and tab
+  shows a spinner in your theme's accent while its agent works, for Unified UI
+  sessions and Claude Code terminals, whose hooks say when a prompt starts. A
+  request for you that you haven't seen still comes first. Codex and other
+  terminals show no spinner, since nothing says when they start working.
 - Lumora's helper moves to 0.6.0, which carries those hooks' reports, so each
   remote computer asks you to install it once, the next time you connect.
 

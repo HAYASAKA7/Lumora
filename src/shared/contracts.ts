@@ -2394,6 +2394,12 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
     /** Counts up per runtime, so one outcome is never taken for the next. */
     sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     outcome: SessionOutcomeKindSchema
+  }),
+  z.strictObject({
+    /** The agent started on a prompt, or stopped working on one, as its hooks said. */
+    type: z.literal('activity'),
+    runtimeId: RuntimeIdSchema,
+    working: z.boolean()
   })
 ]);
 

@@ -968,7 +968,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         throw error;
       }
     },
-    onOutcome: (runtimeId, outcome) => terminalRuntime?.reportOutcome(runtimeId, outcome)
+    onOutcome: (runtimeId, outcome) => terminalRuntime?.reportOutcome(runtimeId, outcome),
+    onWorking: (runtimeId) => terminalRuntime?.reportWorking(runtimeId)
   });
   // Settings files left by a Lumora that did not get to clean up.
   await rm(statusSettingsDirectory, { recursive: true, force: true }).catch(() => undefined);

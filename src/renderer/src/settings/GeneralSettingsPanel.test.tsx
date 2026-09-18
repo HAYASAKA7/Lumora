@@ -181,7 +181,7 @@ describe('GeneralSettingsPanel', () => {
     );
 
     const group = screen.getByRole('group', { name: 'Session status' });
-    expect(within(group).getByRole('switch', { name: 'Show a dot on the session' })).toBeChecked();
+    expect(within(group).getByRole('switch', { name: 'Show status on the session' })).toBeChecked();
     expect(within(group).getByRole('switch', { name: 'Show a tip' })).toBeChecked();
     const sound = within(group).getByRole('switch', { name: 'Play a sound' });
     expect(sound).not.toBeChecked();
@@ -192,7 +192,7 @@ describe('GeneralSettingsPanel', () => {
       sessionStatus: { dot: true, tip: true, sound: true }
     });
 
-    fireEvent.click(within(group).getByRole('switch', { name: 'Show a dot on the session' }));
+    fireEvent.click(within(group).getByRole('switch', { name: 'Show status on the session' }));
     expect(onChange).toHaveBeenLastCalledWith({
       ...DEFAULT_GENERAL_SETTINGS,
       sessionStatus: { dot: false, tip: true, sound: false }

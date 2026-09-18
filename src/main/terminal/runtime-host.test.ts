@@ -708,6 +708,7 @@ describe('RuntimeHost', () => {
     const prepareStatusHooks = vi.fn(async () => ({
       args: ['--settings', '/data/session-status/token.json'],
       covers: ['finished', 'needs_you'] as const,
+      reportsWorking: true,
       environment: { LUMORA_STATUS_TOKEN: 'token', LUMORA_STATUS_ENDPOINT: '/run/lumora.sock' },
       dispose
     }));
@@ -743,6 +744,7 @@ describe('RuntimeHost', () => {
       prepareStatusHooks: vi.fn(async () => ({
         args: ['-c', "notify=['lumora-helper','notify']"],
         covers: ['finished'] as const,
+        reportsWorking: false,
         environment: {},
         dispose: vi.fn()
       }))
@@ -761,6 +763,30 @@ describe('RuntimeHost', () => {
     now = new Date(now.getTime() + 30_000);
     pty.emitData('approval needed\u0007');
     expect(outcomes()).toEqual(['finished', 'needs_you']);
+  });
+
+  it('says an agent is working from its prompt until the turn ends, and a quick next turn still counts', async () => {
+    const { host } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    const seen = () => events
+      .filter((event) => event.type === 'activity' || event.type === 'outcome')
+      .map((event) => event.type === 'activity'
+        ? (event.working ? 'working' : 'idle')
+        : event.type === 'outcome' ? event.outcome : null);
+
+    host.reportWorking(runtime.id);
+    host.reportWorking(runtime.id);
+    host.reportOutcome(runtime.id, 'needs_you', 'hook');
+    host.reportOutcome(runtime.id, 'finished', 'hook');
+    // Same clock: a second turn right after the first is still its own moment.
+    host.reportWorking(runtime.id);
+    host.reportOutcome(runtime.id, 'finished', 'hook');
+
+    expect(seen()).toEqual([
+      'working', 'needs_you', 'idle', 'finished', 'working', 'idle', 'finished'
+    ]);
   });
 
   it('starts the agent without hooks when they cannot be prepared', async () => {
