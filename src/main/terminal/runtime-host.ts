@@ -117,8 +117,8 @@ interface LiveRuntime {
   outputFlushScheduled: boolean;
   /** Hears a bell or a notification the agent prints itself. */
   attention: TerminalAttentionScanner;
-  /** True once the agent reports through a hook, which is then the only word taken. */
-  hooked: boolean;
+  /** When a hook last reported, which decides whether the agent's own bell still counts. */
+  hookHeardAt: number | null;
   outcomeSequence: number;
   lastOutcome: { kind: SessionOutcomeKind; at: number } | null;
   /** Taken down when the runtime ends. */
@@ -378,7 +378,7 @@ export class RuntimeHost {
       outputSequence: 0,
       outputFlushScheduled: false,
       attention: new TerminalAttentionScanner(),
-      hooked: false,
+      hookHeardAt: null,
       outcomeSequence: 0,
       lastOutcome: null,
       statusHooks,
@@ -650,7 +650,9 @@ export class RuntimeHost {
       return;
     }
     live.output.append(data);
-    if (!live.hooked && live.attention.scan(data)) this.reportOutcome(runtimeId, 'needs_you');
+    if (live.attention.scan(data) && !this.hookSpeaksFor(live)) {
+      this.reportOutcome(runtimeId, 'needs_you');
+    }
     if (live.outputFlushScheduled) return;
     live.outputFlushScheduled = true;
     this.scheduleOutputFlush(() => {
@@ -668,8 +670,8 @@ export class RuntimeHost {
   reportOutcome(runtimeId: string, outcome: SessionOutcomeKind, source: 'output' | 'hook' = 'output'): void {
     const live = this.live.get(runtimeId);
     if (live === undefined) return;
-    if (source === 'hook') live.hooked = true;
     const now = this.clock().getTime();
+    if (source === 'hook') live.hookHeardAt = now;
     if (
       live.lastOutcome !== null &&
       live.lastOutcome.kind === outcome &&
@@ -685,6 +687,18 @@ export class RuntimeHost {
       sequence: live.outcomeSequence,
       outcome
     });
+  }
+
+  /**
+   * Whether a hook, rather than the agent's own bell, speaks for a runtime.
+   * Hooks that report asking for you too make the bell redundant once one has
+   * been heard; hooks that report only a finished turn leave it to say the
+   * rest, apart from a bell right after a hook, which is the same moment.
+   */
+  private hookSpeaksFor(live: LiveRuntime): boolean {
+    if (live.hookHeardAt === null) return false;
+    if (live.statusHooks?.covers.includes('needs_you') === true) return true;
+    return this.clock().getTime() - live.hookHeardAt < REPEATED_OUTCOME_MS;
   }
 
   private flushOutput(runtimeId: string, live: LiveRuntime): void {

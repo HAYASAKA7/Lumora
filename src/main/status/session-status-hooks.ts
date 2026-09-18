@@ -29,6 +29,8 @@ const OUTCOME_BY_EVENT: Readonly<Record<HookEvent, SessionOutcomeKind>> = {
 export interface StatusHookLaunch {
   /** Placed before the provider's own arguments. */
   args: readonly string[];
+  /** The outcomes these hooks report; the agent's own bell still speaks for the rest. */
+  covers: readonly SessionOutcomeKind[];
   environment: Readonly<Record<string, string>>;
   dispose(): void;
 }
@@ -125,6 +127,7 @@ export class SessionStatusHooks {
       this.runtimeByToken.set(token, input.runtimeId);
       return {
         args: ['--settings', settingsPath],
+        covers: ['finished', 'needs_you'],
         environment,
         dispose: () => {
           this.runtimeByToken.delete(token);
@@ -144,6 +147,8 @@ export class SessionStatusHooks {
     this.runtimeByToken.set(token, input.runtimeId);
     return {
       args: ['-c', `notify=['${helper}','notify','--event','turn-complete']`],
+      // Codex's notify reports a finished turn only; asking for approval is its bell's to say.
+      covers: ['finished'],
       environment,
       dispose: () => {
         this.runtimeByToken.delete(token);

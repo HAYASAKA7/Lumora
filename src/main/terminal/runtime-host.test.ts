@@ -707,6 +707,7 @@ describe('RuntimeHost', () => {
     const dispose = vi.fn();
     const prepareStatusHooks = vi.fn(async () => ({
       args: ['--settings', '/data/session-status/token.json'],
+      covers: ['finished', 'needs_you'] as const,
       environment: { LUMORA_STATUS_TOKEN: 'token', LUMORA_STATUS_ENDPOINT: '/run/lumora.sock' },
       dispose
     }));
@@ -733,6 +734,33 @@ describe('RuntimeHost', () => {
 
     pty.emitExit(0);
     expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('still hears the bell of an agent whose hooks report only a finished turn', async () => {
+    let now = new Date('2026-07-11T04:00:01.000Z');
+    const { host, pty } = harness({
+      clock: () => now,
+      prepareStatusHooks: vi.fn(async () => ({
+        args: ['-c', "notify=['lumora-helper','notify']"],
+        covers: ['finished'] as const,
+        environment: {},
+        dispose: vi.fn()
+      }))
+    });
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    const outcomes = () => events.filter((event) => event.type === 'outcome')
+      .map((event) => event.type === 'outcome' ? event.outcome : null);
+
+    host.reportOutcome(runtime.id, 'finished', 'hook');
+    pty.emitData('the turn-end bell\u0007');
+    expect(outcomes()).toEqual(['finished']);
+
+    // Later, Codex rings to ask for approval, which its notify does not report.
+    now = new Date(now.getTime() + 30_000);
+    pty.emitData('approval needed\u0007');
+    expect(outcomes()).toEqual(['finished', 'needs_you']);
   });
 
   it('starts the agent without hooks when they cannot be prepared', async () => {

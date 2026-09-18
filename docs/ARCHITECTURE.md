@@ -849,9 +849,12 @@ window; watching clears its dot.
   token and the event name — to a named pipe on Windows or an owner-only unix
   socket elsewhere, and always exits successfully. Codex's payload, which holds
   conversation text, is passed to the person's program and never read. Main
-  hears only live tokens, and a runtime that reported through a hook ignores its
-  own bell from then on. Hooks are taken down with the runtime, and a failure to
-  prepare them never stops a launch.
+  hears only live tokens. Each launch declares which outcomes its hooks report:
+  once Claude Code's have been heard its own bell is redundant, while Codex's
+  `notify` reports only a finished turn, so its bell still speaks for an
+  approval request, apart from a bell right after a hook, which is the same
+  moment. Hooks are taken down with the runtime, and a failure to prepare them
+  never stops a launch.
 
 The dot takes the theme's `--blue`, `--warning` and `--danger`, which a custom
 theme sets from its palette; a style contract keeps literal colours out of its
