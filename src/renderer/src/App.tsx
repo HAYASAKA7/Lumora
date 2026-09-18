@@ -108,7 +108,7 @@ import { moveRuntimeTab } from './terminal/runtime-tab-order';
 import { indexLiveSessionRuntimes } from './terminal/live-session-runtime';
 import { Tooltip, TooltipProvider } from './ui/Tooltip';
 import { useLocalization, type TranslationValues } from './localization/useLocalization';
-import { structuredSessionOutcome } from './status/session-outcome';
+import { structuredSessionOutcome, type SessionOutcome } from './status/session-outcome';
 import { SessionStatusTip } from './status/SessionStatusTip';
 import { useSessionStatusCues } from './status/useSessionStatusCues';
 import { useWindowFocused } from './status/useWindowFocused';
@@ -396,6 +396,10 @@ function AppContent(): ReactNode {
   const changeCounts = useChangeCounts(window.lumora);
   const [openRuntimeIds, setOpenRuntimeIds] = useState<string[]>([]);
   const [activeRuntimeId, setActiveRuntimeId] = useState<string | null>(null);
+  /** The last outcome each terminal reported, through a hook or its own bell. */
+  const [terminalOutcomes, setTerminalOutcomes] = useState<
+    ReadonlyMap<string, SessionOutcome>
+  >(() => new Map());
   const [structuredSnapshots, setStructuredSnapshots] = useState<
     StructuredAgentRuntimeSnapshot[]
   >([]);
@@ -1094,6 +1098,13 @@ function AppContent(): ReactNode {
       }
     );
     const unsubscribe = window.lumora.onRuntimeEvent((event) => {
+      if (event.type === 'outcome') {
+        setTerminalOutcomes((current) => new Map(current).set(event.runtimeId, {
+          kind: event.outcome,
+          key: `${event.runtimeId}:${event.sequence}`
+        }));
+        return;
+      }
       if (event.type !== 'state') {
         return;
       }
@@ -1102,6 +1113,12 @@ function AppContent(): ReactNode {
         event.runtime.state === 'completed' ||
         event.runtime.state === 'failed'
       ) {
+        setTerminalOutcomes((current) => {
+          if (!current.has(event.runtimeId)) return current;
+          const next = new Map(current);
+          next.delete(event.runtimeId);
+          return next;
+        });
         closeRuntimeTab(event.runtimeId);
         scheduleAfterExit();
       }
@@ -2215,12 +2232,13 @@ function AppContent(): ReactNode {
   const frontSessionKey = terminalActive
     ? activeRuntimeId ?? activeStructuredConnectionId
     : null;
-  const sessionOutcomes = useMemo(() => new Map(
-    liveStructuredSnapshots.map(({ events, runtime }) => [
+  const sessionOutcomes = useMemo(() => new Map<string, SessionOutcome | null>([
+    ...liveRuntimes.map(({ id }) => [id, terminalOutcomes.get(id) ?? null] as const),
+    ...liveStructuredSnapshots.map(({ events, runtime }) => [
       runtime.connectionId,
       structuredSessionOutcome(events)
     ] as const)
-  ), [liveStructuredSnapshots]);
+  ]), [liveRuntimes, liveStructuredSnapshots, terminalOutcomes]);
   const describeSession = useCallback((sessionKey: string) => {
     const structured = liveStructuredSnapshotsRef.current.find(
       ({ runtime }) => runtime.connectionId === sessionKey

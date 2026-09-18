@@ -12,6 +12,7 @@ import {
   type RuntimeResizeRequest,
   type RuntimeSummary,
   type RuntimeWriteRequest,
+  type SessionOutcomeKind,
   type SystemInfo
 } from '../../shared/contracts';
 import { resolvePtyInvocation } from '../platform/pty-invocation';
@@ -21,12 +22,15 @@ import type {
 import type { LaunchSpec } from './launch-service';
 import type { ReconciliationRequest } from './new-session-reconciler';
 import { TerminalOutputBuffer } from './output-buffer';
+import { TerminalAttentionScanner } from './terminal-attention';
 import {
   StructuredSessionGuard,
   StructuredSessionGuardError
 } from '../agent/runtime/structured-session-guard';
 
 const MAX_EVENT_CHARS = 65_536;
+/** How long the same outcome repeated counts as the same moment. */
+const REPEATED_OUTCOME_MS = 2_000;
 const MAX_SNAPSHOT_CHARS = 1_048_576;
 const FIRST_INTERRUPT_GRACE_MS = 2_000;
 const SECOND_INTERRUPT_GRACE_MS = 7_000;
@@ -102,6 +106,12 @@ interface LiveRuntime {
   output: TerminalOutputBuffer;
   outputSequence: number;
   outputFlushScheduled: boolean;
+  /** Hears a bell or a notification the agent prints itself. */
+  attention: TerminalAttentionScanner;
+  /** True once the agent reports through a hook, which is then the only word taken. */
+  hooked: boolean;
+  outcomeSequence: number;
+  lastOutcome: { kind: SessionOutcomeKind; at: number } | null;
   subscriptions: Disposable[];
   exit: Promise<RuntimeSummary>;
   resolveExit(runtime: RuntimeSummary): void;
@@ -350,6 +360,10 @@ export class RuntimeHost {
       ),
       outputSequence: 0,
       outputFlushScheduled: false,
+      attention: new TerminalAttentionScanner(),
+      hooked: false,
+      outcomeSequence: 0,
+      lastOutcome: null,
       subscriptions: [],
       exit,
       resolveExit,
@@ -618,12 +632,40 @@ export class RuntimeHost {
       return;
     }
     live.output.append(data);
+    if (!live.hooked && live.attention.scan(data)) this.reportOutcome(runtimeId, 'needs_you');
     if (live.outputFlushScheduled) return;
     live.outputFlushScheduled = true;
     this.scheduleOutputFlush(() => {
       if (this.live.get(runtimeId) === live) {
         this.flushOutput(runtimeId, live);
       }
+    });
+  }
+
+  /**
+   * Tells the renderer a session finished or needs you. The same outcome again
+   * within two seconds is one moment said twice, a bell and a notification
+   * together for instance, and is dropped.
+   */
+  reportOutcome(runtimeId: string, outcome: SessionOutcomeKind, source: 'output' | 'hook' = 'output'): void {
+    const live = this.live.get(runtimeId);
+    if (live === undefined) return;
+    if (source === 'hook') live.hooked = true;
+    const now = this.clock().getTime();
+    if (
+      live.lastOutcome !== null &&
+      live.lastOutcome.kind === outcome &&
+      now - live.lastOutcome.at < REPEATED_OUTCOME_MS
+    ) {
+      return;
+    }
+    live.lastOutcome = { kind: outcome, at: now };
+    live.outcomeSequence += 1;
+    this.emit({
+      type: 'outcome',
+      runtimeId,
+      sequence: live.outcomeSequence,
+      outcome
     });
   }
 

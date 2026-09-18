@@ -2386,6 +2386,14 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
     type: z.literal('state'),
     runtimeId: RuntimeIdSchema,
     runtime: RuntimeSummarySchema
+  }),
+  z.strictObject({
+    /** The session finished or needs you, as its agent said so. */
+    type: z.literal('outcome'),
+    runtimeId: RuntimeIdSchema,
+    /** Counts up per runtime, so one outcome is never taken for the next. */
+    sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    outcome: SessionOutcomeKindSchema
   })
 ]);
 

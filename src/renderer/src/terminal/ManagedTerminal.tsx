@@ -471,7 +471,7 @@ export function ManagedTerminal({
           if (event.type === 'output') {
             if (attached) writeOutput(event);
             else pendingOutput.push(event);
-          } else {
+          } else if (event.type === 'state') {
             if (!isRuntimeLive(event.runtime)) {
               observedRuntimeEnded = true;
               acceptingInputRef.current = false;

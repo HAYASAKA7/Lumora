@@ -82,6 +82,8 @@ describe('appearance style contract', () => {
     const intentionalNonSurfaceTokens = new Set([
       'accent-hover',
       'blue',
+      // The session status dot marks a failed session in the theme's danger colour.
+      'danger',
       'drag-accent',
       'green',
       'line',

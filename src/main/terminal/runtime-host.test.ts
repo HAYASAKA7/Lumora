@@ -150,6 +150,7 @@ function harness(options: {
   spawnGate?: Promise<PtyProcess>;
   persistedRuntimes?: readonly RuntimeSummary[];
   sessionGuard?: StructuredSessionGuard;
+  clock?: () => Date;
 } = {}) {
   const pty = new FakePty(options.remote ? null : 4321);
   const ptys = [pty];
@@ -219,7 +220,7 @@ function harness(options: {
       ? {}
       : { sessionGuard: options.sessionGuard }),
     ...(options.remote ? { resolveInvocation } : {}),
-    clock: () => new Date('2026-07-11T04:00:01.000Z'),
+    clock: options.clock ?? (() => new Date('2026-07-11T04:00:01.000Z')),
     createRuntimeId: () => {
       const suffix = runtimeIdCount === 0 ? 'abc' : 'abd';
       runtimeIdCount += 1;
@@ -649,6 +650,53 @@ describe('RuntimeHost', () => {
         data: 'resume history ready'
       })
     ]);
+  });
+
+  it('reports a bell or a notification the agent prints, once for each moment', async () => {
+    let now = new Date('2026-07-11T04:00:01.000Z');
+    const { host, pty } = harness({ clock: () => now });
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+    const outcomes = () => events.filter((event) => event.type === 'outcome');
+
+    // Taskbar progress is printed the whole time an agent works; it asks for nothing.
+    pty.emitData('working\u001b]9;4;1;40\u0007');
+    expect(outcomes()).toEqual([]);
+
+    // A bell and a notification together are one moment said twice.
+    pty.emitData('done\u0007');
+    pty.emitData('\u001b]9;Codex finished\u0007');
+    expect(outcomes()).toEqual([{
+      type: 'outcome',
+      runtimeId: runtime.id,
+      sequence: 1,
+      outcome: 'needs_you'
+    }]);
+
+    now = new Date(now.getTime() + 5_000);
+    pty.emitData('\u0007');
+    expect(outcomes()).toEqual([
+      expect.objectContaining({ sequence: 1 }),
+      expect.objectContaining({ sequence: 2, outcome: 'needs_you' })
+    ]);
+  });
+
+  it('takes only the hook at its word once an agent reports through one', async () => {
+    const { host, pty } = harness();
+    const events: RuntimeEvent[] = [];
+    host.subscribe((event) => events.push(event));
+    const runtime = await host.start('0198f8b6-18f3-7ca0-9f0f-123456789abc');
+
+    host.reportOutcome(runtime.id, 'finished', 'hook');
+    pty.emitData('the agent rang too\u0007');
+
+    expect(events.filter((event) => event.type === 'outcome')).toEqual([{
+      type: 'outcome',
+      runtimeId: runtime.id,
+      sequence: 1,
+      outcome: 'finished'
+    }]);
   });
 
   it('bounds output events and the attach snapshot', async () => {

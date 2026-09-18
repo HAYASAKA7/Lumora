@@ -3428,6 +3428,62 @@ describe('App', () => {
     ).toBeNull());
   });
 
+  it('marks a terminal whose agent asked for you while you were in another, and not the one in front', async () => {
+    const front = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-1234567890f1'),
+      displayName: 'Terminal in front'
+    };
+    const behind = {
+      ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-1234567890f2', 'claude'),
+      displayName: 'Terminal behind'
+    };
+    let emitRuntime!: (event: RuntimeEvent) => void;
+    setSystemInfoResult(undefined, undefined, {
+      listRuntimes: vi.fn().mockResolvedValue([front, behind]),
+      attachRuntime: vi.fn(async (runtimeId: string) => ({
+        runtime: [front, behind].find((item) => item.id === runtimeId)!,
+        snapshot: '',
+        outputSequence: 0
+      })),
+      onRuntimeEvent: vi.fn((listener: (event: RuntimeEvent) => void) => {
+        emitRuntime = listener;
+        return () => undefined;
+      })
+    });
+    renderWithLocalization(<App />);
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open terminals' }));
+    expect(screen.getByRole('tab', { hidden: true, name: /Terminal in front/ }))
+      .toHaveAttribute('aria-selected', 'true');
+
+    act(() => {
+      emitRuntime({ type: 'outcome', runtimeId: front.id, sequence: 1, outcome: 'finished' });
+    });
+    act(() => {
+      emitRuntime({ type: 'outcome', runtimeId: behind.id, sequence: 1, outcome: 'needs_you' });
+    });
+
+    const tip = await screen.findByRole('status', { name: 'Session updates' });
+    expect(tip).toHaveTextContent(/needs you in “Terminal behind”/);
+    const running = screen.getByRole('region', { name: 'Running sessions' });
+    expect(within(running).getByRole('button', { name: /^Terminal behind.*needs you$/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { hidden: true, name: /Terminal behind.*needs you/ }))
+      .toBeInTheDocument();
+    // The terminal you were looking at gets no dot for its own outcome.
+    expect(within(running).getByRole('button', { name: /^Terminal in front/ }).querySelector('.session-status-dot'))
+      .toBeNull();
+
+    fireEvent.click(within(tip).getByRole('button', { name: 'Open' }));
+
+    expect(screen.getByRole('tab', { hidden: true, name: /Terminal behind/ }))
+      .toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(
+      within(running).getByRole('button', { name: /^Terminal behind/ }).querySelector('.session-status-dot')
+    ).toBeNull());
+  });
+
   it('opens the existing terminal when Home selects a running session', async () => {
     const runtime = {
       ...runningRuntime('0198f8b6-18f3-7ca0-9f0f-123456789aa1'),
