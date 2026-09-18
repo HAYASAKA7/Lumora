@@ -86,6 +86,7 @@ import {
   NavigationIcon as Icon,
   type NavigationIconName
 } from './shell/LumoraShell';
+import { keepPageToolbarPinned } from './shell/page-toolbar';
 import { StartupOverlay } from './startup/StartupOverlay';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { NewSessionDialog } from './terminal/NewSessionDialog';
@@ -589,7 +590,14 @@ function AppContent(): ReactNode {
     if (mainContentRef.current !== null) {
       mainContentRef.current.scrollTop = 0;
     }
-  }, [activeRouteId, activeRuntimeId, selectedWorkspaceId, settingsCategory]);
+  }, [activeRouteId, activeRuntimeId, selectedWorkspaceId]);
+
+  // Another settings category keeps the page where it was, and pinned
+  // categories stay pinned over the start of the new one. It runs before the
+  // reset above, which still wins when the page itself changes too.
+  useLayoutEffect(() => {
+    if (mainContentRef.current !== null) keepPageToolbarPinned(mainContentRef.current);
+  }, [settingsCategory]);
 
   const refreshProviders = useCallback(async (
     options?: { fresh?: boolean }

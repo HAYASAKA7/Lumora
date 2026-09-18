@@ -1518,17 +1518,38 @@ describe('App', () => {
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('resets Settings scroll when its category changes', async () => {
+  it('keeps Settings where it was when its category changes and the categories rest in the page', async () => {
     renderWithLocalization(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const main = document.getElementById('main-content');
     expect(main).not.toBeNull();
     if (main === null) throw new Error('main content missing');
-    main.scrollTop = 480;
+    main.scrollTop = 80;
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Launch' }));
 
-    await waitFor(() => expect(main.scrollTop).toBe(0));
+    expect(await screen.findByRole('tab', { name: 'Launch', selected: true })).toBeInTheDocument();
+    expect(main.scrollTop).toBe(80);
+  });
+
+  it('keeps pinned Settings categories pinned over the start of another category', async () => {
+    renderWithLocalization(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const main = document.getElementById('main-content');
+    if (main === null) throw new Error('main content missing');
+    const tabs = (await screen.findByRole('tablist')).closest<HTMLElement>('.page-toolbar')!;
+    // Pinned at 78 while it would rest 300px higher, had it scrolled with the page.
+    vi.spyOn(tabs, 'getBoundingClientRect').mockImplementation(() => {
+      const top = tabs.style.position === 'static' ? -222 : 78;
+      return { top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) };
+    });
+    main.scrollTop = 900;
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Launch' }));
+
+    expect(await screen.findByRole('tab', { name: 'Launch', selected: true })).toBeInTheDocument();
+    // Where the categories first pin, not the top of the page.
+    expect(main.scrollTop).toBe(600);
   });
 
   it('closes the active terminal tab when its runtime completes', async () => {

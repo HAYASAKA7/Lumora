@@ -59,9 +59,14 @@ spreads, clipped to its height, carry it to both page edges whatever card holds
 the toolbar, without adding scrollable overflow. Over a background picture it
 blurs what passes beneath. A toolbar that scrolls sideways, such as the Settings
 tabs, is pinned through a wrapper, since its own overflow would clip the
-backing. The page title fades on a `view(block 0px)` timeline: a bare `view()`
-takes the page's `scroll-padding-top`, which keeps focused rows clear of a
-pinned toolbar, and would fade the title at rest. `usePageTitleAway` watches the
+backing. The page title fades on a `view(block 0px)` timeline, since a bare
+`view()` would take any scroll padding of the page and fade the title at rest.
+The page has no scroll padding: with it, a control focused inside the pinned
+toolbar counts as hidden behind it, so the search shortcut, Tab and the Settings
+arrow keys scrolled the page. A focused row needs none, since Chromium brings it
+toward the middle of the page. Another Settings category keeps the page where
+it is, and `keepPageToolbarPinned` moves a page whose toolbar is pinned to where
+it first pins, so the new category starts right under it. `usePageTitleAway` watches the
 title with an `IntersectionObserver` and swaps the top bar text for the page
 name once a quarter of it or less shows. The docked Changes panel measures the
 pinned toolbar and docks 12px under it.
