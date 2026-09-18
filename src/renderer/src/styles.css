@@ -1789,8 +1789,15 @@ button {
   margin-top: 12px;
 }
 
+/*
+ * Tall enough that the category tabs can always pin: a short category would
+ * otherwise end the page before that point and another category would open
+ * back at the page title.
+ */
 .settings-layout {
   display: grid;
+  min-height: calc(100% + var(--page-gutter-block) - var(--page-toolbar-inset));
+  align-content: start;
   gap: 18px;
 }
 

@@ -49,6 +49,17 @@ describe('page toolbars and the page title', () => {
     expect(paddings).toEqual([]);
   });
 
+  it('leaves Settings room to pin its categories however short the category', () => {
+    // A short category once ended the page before the categories could pin, so
+    // another category opened back at the page title.
+    const layout = rule('.settings-layout');
+
+    expect(layout.get('min-height'))
+      .toBe('calc(100% + var(--page-gutter-block) - var(--page-toolbar-inset))');
+    // Extra height stays below the content instead of stretching the tabs.
+    expect(layout.get('align-content')).toBe('start');
+  });
+
   it('keeps a pinned toolbar above every layer of the page and under the overlays', () => {
     // The runtime switcher and the status tip start the overlays, then dialogs, menus and tooltips.
     const OVERLAY_LAYER = 70;
