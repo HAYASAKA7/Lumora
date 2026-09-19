@@ -13,6 +13,7 @@ import type {
 } from '../../../shared/contracts';
 import { PROVIDER_DEFINITIONS } from '../../../shared/provider-definitions';
 import { SelectMenu } from '../ui/SelectMenu';
+import { settingMarker } from './settings-search';
 import { useLocalization } from '../localization/useLocalization';
 
 type CommandMode = 'inherit' | 'detected' | 'custom';
@@ -278,7 +279,11 @@ export function LaunchSettingsPanel({
       {loading ? (
         <div className="catalog-state" role="status">{t('settings.launch.loading')}</div>
       ) : (
-        <div className="launch-settings-editor">
+        // One layered editor: its scope, profile and commands only make sense together.
+        <div
+          className="launch-settings-editor"
+          {...settingMarker('settings.launch.title', 'settings.launch.description')}
+        >
           <div className="launch-settings-scope">
             <div className="select-field">
               <span>{t('settings.launch.scope')}</span>

@@ -6,6 +6,7 @@ import {
   type LumoraApi
 } from '../../../shared/contracts';
 import { AppearanceSettingsPanel } from './AppearanceSettingsPanel';
+import { SettingsSearchingContext } from './settings-search';
 import { renderWithLocalization } from '../test/render-with-localization';
 
 const render = renderWithLocalization;
@@ -522,5 +523,56 @@ describe('AppearanceSettingsPanel', () => {
 
     expect(screen.getAllByRole('radio').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /Color theme/ })).toBeNull();
+  });
+
+  it('opens every section while Settings is searching and marks what differs from its default', () => {
+    const stored = new Map<string, string>([[
+      'lumora.ui.settings.appearance.v1',
+      JSON.stringify({
+        themePacksExpanded: false,
+        conversationExpanded: false,
+        typographyExpanded: false,
+        backgroundExpanded: false
+      })
+    ]]);
+    const preferenceHost = {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => { stored.set(key, value); }
+      }
+    };
+    const panel = (searching: boolean) => (
+      <SettingsSearchingContext.Provider value={searching}>
+        <AppearanceSettingsPanel
+          background={{ available: false, revision: null }}
+          backgroundBusy={false}
+          backgroundError={null}
+          onChange={vi.fn()}
+          onChooseBackground={vi.fn()}
+          onRemoveBackground={vi.fn()}
+          preferenceHost={preferenceHost}
+          saveError={null}
+          saving={false}
+          settings={{
+            ...DEFAULT_GENERAL_SETTINGS,
+            appearance: { ...DEFAULT_GENERAL_SETTINGS.appearance, theme: 'dark', terminalFontSize: 15 }
+          }}
+        />
+      </SettingsSearchingContext.Provider>
+    );
+    const view = render(panel(false));
+    // Collapsed sections render none of their settings.
+    expect(screen.queryByRole('slider', { name: 'Terminal text size' })).not.toBeInTheDocument();
+
+    view.rerender(panel(true));
+
+    expect(screen.getByRole('slider', { name: 'Terminal text size' })).toBeInTheDocument();
+    expect([...document.querySelectorAll<HTMLElement>('[data-setting-modified]')]
+      .map((row) => row.dataset.setting)).toEqual([
+      'settings.appearance.color-theme',
+      'settings.appearance.terminal-font-size'
+    ]);
+    // Opening for a search does not change what was chosen.
+    expect(stored.get('lumora.ui.settings.appearance.v1')).toContain('"typographyExpanded":false');
   });
 });

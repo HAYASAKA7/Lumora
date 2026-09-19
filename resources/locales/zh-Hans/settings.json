@@ -227,7 +227,7 @@
     "refresh": "刷新",
     "refresh-description": "刷新前台的页面或面板。",
     "focus-search": "聚焦搜索框",
-    "focus-search-description": "将光标移动到工作区和所有会话页面的搜索框。",
+    "focus-search-description": "将光标移动到工作区、所有会话和设置页面的搜索框。",
     "open-home": "前往主页",
     "open-home-description": "打开主页。",
     "open-workspaces": "前往工作区",
@@ -421,5 +421,16 @@
     "open-release": "打开发布页面",
     "open-project": "打开 GitHub 项目",
     "open-error": "Lumora 无法打开此页面。请检查默认浏览器后重试。"
+  },
+  "search": {
+    "label": "搜索设置",
+    "placeholder": "搜索设置",
+    "modified": "已修改",
+    "modified-label": "仅显示已从默认值更改的设置",
+    "clear": "清除搜索",
+    "no-results": "没有与“{query}”匹配的设置。",
+    "no-modified": "没有从默认值更改的设置。",
+    "no-modified-results": "没有与“{query}”匹配的已修改设置。",
+    "tab-count": "{category}，{count, plural, other {# 项匹配}}"
   }
 }

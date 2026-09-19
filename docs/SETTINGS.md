@@ -8,6 +8,26 @@ Provider selection, launch values, workspace visibility and trust, terminal
 state, and remote credentials remain isolated to the relevant local or remote
 target.
 
+## Search settings
+
+Type in **Search settings**, before the category tabs, to find a setting in
+any category. Settings then shows only what matches, each category under its
+own heading, and you change a setting right there. Each tab shows how many
+matches its category has, and choosing a tab brings its matches forward. Clear
+the search to return to the category you were in.
+
+A search finds a setting by its name or description in your language or in
+English, by what it is set to, such as a theme or a folder, by a provider's
+name, and by a shortcut's keys: `ctrl+f` finds the shortcut set to
+`Ctrl + F`. Every word you type has to match.
+
+**Modified**, beside the box, shows only the settings you changed from their
+defaults. Typing `@modified` does the same and combines with words, so
+`@modified theme` shows the changed settings about themes.
+
+`Ctrl+F` puts the cursor in the box while Settings is open. `Escape` clears the
+search, and a second `Escape` leaves the box.
+
 ## General
 
 General controls language, startup and window behavior, sidebar behavior,

@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import type {
   ThemePresetList
 } from '../../../shared/contracts';
 import {
+  DEFAULT_APPEARANCE_SETTINGS,
   MAXIMUM_TERMINAL_FONT_SIZE,
   MINIMUM_TERMINAL_FONT_SIZE
 } from '../../../shared/contracts';
@@ -32,6 +34,12 @@ import {
   resolveInterfaceFontFamily,
   resolveTerminalFontFamily
 } from '../appearance/font-family';
+import { SettingBlock } from './SettingBlock';
+import {
+  SettingsSearchingContext,
+  settingGroupMarker,
+  settingMarker
+} from './settings-search';
 
 interface AppearanceSettingsPanelProps {
   active?: boolean;
@@ -78,13 +86,15 @@ function defaultUserMessageColor(theme: AppearanceSettings['theme']): string {
 /**
  * Collapses one Appearance section to its heading. The controls stay inline
  * when open, so a live preview still shows through behind the settings page -
- * the reason these are sections rather than dialogs.
+ * the reason these are sections rather than dialogs. A search in Settings
+ * opens every section, since a collapsed one renders none of its settings.
  */
 function CollapsibleSection({
   children,
   description,
   eyebrow,
-  expanded,
+  expanded: chosenExpanded,
+  groupKey,
   onToggle,
   summary,
   heading,
@@ -94,17 +104,22 @@ function CollapsibleSection({
   description: string;
   eyebrow: string;
   expanded: boolean;
+  /** The heading's message key, which search finds the section's settings by. */
+  groupKey: string;
   onToggle(): void;
   summary: string;
   heading: string;
   headingId: string;
 }): ReactNode {
   const { t } = useLocalization();
+  const searching = useContext(SettingsSearchingContext);
+  const expanded = chosenExpanded || searching;
   return (
     <section
       aria-labelledby={headingId}
       className="appearance-background-section"
       data-expanded={expanded}
+      {...settingGroupMarker(groupKey)}
     >
       <div className="appearance-section-heading">
         <button
@@ -182,6 +197,9 @@ export function AppearanceSettingsPanel({
       appearance: { ...settings.appearance, ...next }
     });
   };
+  /** Whether a setting differs from its default, for the Modified filter in search. */
+  const changed = (key: keyof typeof DEFAULT_APPEARANCE_SETTINGS) =>
+    settings.appearance[key] !== DEFAULT_APPEARANCE_SETTINGS[key];
 
   useEffect(() => {
     setInterfaceFontDraft(settings.appearance.interfaceFontFamily ?? '');
@@ -245,7 +263,15 @@ export function AppearanceSettingsPanel({
         </div>
       </header>
 
-      <fieldset className="appearance-theme-options" disabled={saving}>
+      <fieldset
+        className="appearance-theme-options"
+        disabled={saving}
+        {...settingMarker(
+          'settings.appearance.color-theme',
+          undefined,
+          settings.appearance.theme !== DEFAULT_APPEARANCE_SETTINGS.theme
+        )}
+      >
         <legend>{t('settings.appearance.color-theme')}</legend>
         {THEME_OPTIONS.map((option) => (
           <label className="appearance-theme-option" key={option.id}>
@@ -274,9 +300,16 @@ export function AppearanceSettingsPanel({
         expanded={sections.themePacksExpanded}
         onToggle={() => toggleSection('themePacksExpanded')}
         summary={settings.appearance.themePresetId ?? t('settings.appearance.theme-pack-none')}
+        groupKey="settings.appearance.theme-packs-title"
         heading={t('settings.appearance.theme-packs-title')}
         headingId="appearance-theme-packs-title"
-      >        <div className="appearance-theme-pack-control">
+      >
+        <SettingBlock
+          description="settings.appearance.theme-packs-description"
+          modified={settings.appearance.themePresetId !== DEFAULT_APPEARANCE_SETTINGS.themePresetId}
+          setting="settings.appearance.theme-pack"
+        >
+        <div className="appearance-theme-pack-control">
           <div className="appearance-select-control">
             <span>{t('settings.appearance.theme-pack')}</span>
             <SelectMenu
@@ -372,6 +405,7 @@ export function AppearanceSettingsPanel({
             <RefreshIcon />
           </IconButton>
         </div>
+        </SettingBlock>
         {themePresets.rejectedCount > 0 ? (
           <p className="general-setting-error" role="status">
             {t('settings.appearance.theme-packs-rejected', {
@@ -393,7 +427,14 @@ export function AppearanceSettingsPanel({
         ) : null}
       </CollapsibleSection>
 
-      <label className="general-setting-card">
+      <label
+        className="general-setting-card"
+        {...settingMarker(
+          'settings.appearance.light-terminal',
+          'settings.appearance.light-terminal-description',
+          changed('lightTerminalInLightMode')
+        )}
+      >
         <span className="general-setting-copy">
           <strong>{t('settings.appearance.light-terminal')}</strong>
           <span id="appearance-light-terminal-description">
@@ -424,9 +465,16 @@ export function AppearanceSettingsPanel({
         expanded={sections.conversationExpanded}
         onToggle={() => toggleSection('conversationExpanded')}
         summary={settings.appearance.userMessageColor ?? t('settings.appearance.color-default')}
+        groupKey="settings.appearance.conversation-title"
         heading={t('settings.appearance.conversation-title')}
         headingId="appearance-conversation-title"
-      >        <div className="appearance-color-control">
+      >
+        <SettingBlock
+          description="settings.appearance.user-message-color-description"
+          modified={changed('userMessageColor')}
+          setting="settings.appearance.user-message-color"
+        >
+        <div className="appearance-color-control">
           <label>
             <span>
               <strong>{t('settings.appearance.user-message-color')}</strong>
@@ -455,6 +503,7 @@ export function AppearanceSettingsPanel({
             {t('settings.appearance.use-theme-message-color')}
           </button>
         </div>
+        </SettingBlock>
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -463,9 +512,16 @@ export function AppearanceSettingsPanel({
         expanded={sections.typographyExpanded}
         onToggle={() => toggleSection('typographyExpanded')}
         summary={`${settings.appearance.terminalFontSize} px`}
+        groupKey="settings.appearance.typography-title"
         heading={t('settings.appearance.typography-title')}
         headingId="appearance-typography-title"
-      >        <div className="appearance-font-grid">
+      >
+        <div className="appearance-font-grid">
+          <SettingBlock
+            description="settings.appearance.interface-font-description"
+            modified={changed('interfaceFontFamily')}
+            setting="settings.appearance.interface-font"
+          >
           <FontFamilyEditor
             description={t('settings.appearance.interface-font-description')}
             disabled={saving}
@@ -485,6 +541,12 @@ export function AppearanceSettingsPanel({
             resetDisabled={settings.appearance.interfaceFontFamily === null}
             resetLabel={t('settings.appearance.reset-interface-font')}
           />
+          </SettingBlock>
+          <SettingBlock
+            description="settings.appearance.terminal-font-description"
+            modified={changed('terminalFontFamily')}
+            setting="settings.appearance.terminal-font"
+          >
           <FontFamilyEditor
             description={t('settings.appearance.terminal-font-description')}
             disabled={saving}
@@ -504,8 +566,13 @@ export function AppearanceSettingsPanel({
             resetDisabled={settings.appearance.terminalFontFamily === null}
             resetLabel={t('settings.appearance.reset-terminal-font')}
           />
+          </SettingBlock>
         </div>
         <div className="appearance-control-grid">
+          <SettingBlock
+            modified={changed('terminalFontSize')}
+            setting="settings.appearance.terminal-font-size"
+          >
           <AppearanceRange
             disabled={saving}
             label={t('settings.appearance.terminal-font-size')}
@@ -515,8 +582,12 @@ export function AppearanceSettingsPanel({
             suffix=" px"
             value={settings.appearance.terminalFontSize}
           />
+          </SettingBlock>
         </div>
-        <div className="appearance-font-presets">
+        <div
+          className="appearance-font-presets"
+          {...settingMarker('settings.appearance.font-preset')}
+        >
           <div className="appearance-select-control">
             <span>{t('settings.appearance.font-preset')}</span>
             <SelectMenu
@@ -588,10 +659,17 @@ export function AppearanceSettingsPanel({
         summary={t(background.available
           ? 'settings.appearance.background-on'
           : 'settings.appearance.background-off')}
+        groupKey="settings.appearance.background-title"
         heading={t('settings.appearance.background-title')}
         headingId="appearance-background-title"
       >
-        <div className="appearance-background-actions">
+        <div
+          className="appearance-background-actions"
+          {...settingMarker(
+            'settings.appearance.choose-image',
+            'settings.appearance.background-description'
+          )}
+        >
             <button
               className="secondary-button"
               disabled={backgroundBusy}
@@ -612,7 +690,14 @@ export function AppearanceSettingsPanel({
             ) : null}
           </div>
 
-        <label className="general-setting-card">
+        <label
+          className="general-setting-card"
+          {...settingMarker(
+            'settings.appearance.show-background',
+            'settings.appearance.show-background-description',
+            changed('backgroundEnabled')
+          )}
+        >
           <span className="general-setting-copy">
             <strong>{t('settings.appearance.show-background')}</strong>
             <span id="appearance-background-enabled-description">
@@ -638,6 +723,10 @@ export function AppearanceSettingsPanel({
         </label>
 
         <div className="appearance-control-grid">
+          <SettingBlock
+            modified={changed('backgroundOpacity')}
+            setting="settings.appearance.image-opacity"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.image-opacity')}
@@ -647,6 +736,11 @@ export function AppearanceSettingsPanel({
             suffix="%"
             value={Math.round(settings.appearance.backgroundOpacity * 100)}
           />
+          </SettingBlock>
+          <SettingBlock
+            modified={changed('backgroundBrightness')}
+            setting="settings.appearance.image-brightness"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.image-brightness')}
@@ -656,6 +750,11 @@ export function AppearanceSettingsPanel({
             suffix="%"
             value={Math.round(settings.appearance.backgroundBrightness * 100)}
           />
+          </SettingBlock>
+          <SettingBlock
+            modified={changed('backgroundBlur')}
+            setting="settings.appearance.image-blur"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.image-blur')}
@@ -665,6 +764,11 @@ export function AppearanceSettingsPanel({
             suffix=" px"
             value={settings.appearance.backgroundBlur}
           />
+          </SettingBlock>
+          <SettingBlock
+            modified={changed('surfaceMosaic')}
+            setting="settings.appearance.surface-mosaic"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.surface-mosaic')}
@@ -674,6 +778,11 @@ export function AppearanceSettingsPanel({
             suffix=" px"
             value={settings.appearance.surfaceMosaic}
           />
+          </SettingBlock>
+          <SettingBlock
+            modified={changed('surfaceOpacity')}
+            setting="settings.appearance.surface-opacity"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.surface-opacity')}
@@ -683,6 +792,11 @@ export function AppearanceSettingsPanel({
             suffix="%"
             value={Math.round(settings.appearance.surfaceOpacity * 100)}
           />
+          </SettingBlock>
+          <SettingBlock
+            modified={changed('terminalOpacity')}
+            setting="settings.appearance.terminal-opacity"
+          >
           <AppearanceRange
             disabled={saving || !background.available}
             label={t('settings.appearance.terminal-opacity')}
@@ -692,7 +806,11 @@ export function AppearanceSettingsPanel({
             suffix="%"
             value={Math.round(settings.appearance.terminalOpacity * 100)}
           />
-          <div className="appearance-select-control">
+          </SettingBlock>
+          <div
+            className="appearance-select-control"
+            {...settingMarker('settings.appearance.image-fit', undefined, changed('backgroundFit'))}
+          >
             <span>{t('settings.appearance.image-fit')}</span>
             <SelectMenu
               disabled={saving || !background.available}
@@ -708,7 +826,10 @@ export function AppearanceSettingsPanel({
               value={settings.appearance.backgroundFit}
             />
           </div>
-          <div className="appearance-select-control">
+          <div
+            className="appearance-select-control"
+            {...settingMarker('settings.appearance.image-position', undefined, changed('backgroundPosition'))}
+          >
             <span>{t('settings.appearance.image-position')}</span>
             <SelectMenu
               disabled={saving || !background.available}

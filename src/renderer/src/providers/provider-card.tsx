@@ -43,6 +43,7 @@ export function ProviderCard({
   onUpdate,
   installing,
   installError,
+  marker,
   saving,
   updateError,
   updating
@@ -64,6 +65,8 @@ export function ProviderCard({
   onUpdate(): void;
   installing: boolean;
   installError: string | null;
+  /** What Settings search finds this card by. */
+  marker?: Record<string, string | undefined>;
   saving: boolean;
   updateError: string | null;
   updating: boolean;
@@ -81,7 +84,7 @@ export function ProviderCard({
     : null;
 
   return (
-    <article className={`provider-card provider-card-${installation.state}`}>
+    <article className={`provider-card provider-card-${installation.state}`} {...marker}>
       <header className="provider-card-header">
         <div>
           <h4>{installation.displayName}</h4>

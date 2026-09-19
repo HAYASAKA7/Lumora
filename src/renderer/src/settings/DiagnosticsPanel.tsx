@@ -13,6 +13,7 @@ import { DiagnosticsDetailsDialog } from './DiagnosticsDetailsDialog';
 import { DiagnosticsEventsDialog } from './DiagnosticsEventsDialog';
 import { formatBytes } from './diagnostic-format';
 import { useDiagnosticResources } from './use-diagnostic-sampling';
+import { settingGroupMarker, settingMarker } from './settings-search';
 
 type DiagnosticApi = Pick<
   LumoraApi,
@@ -30,6 +31,8 @@ type DiagnosticApi = Pick<
 interface DiagnosticsPanelProps {
   active: boolean;
   api?: DiagnosticApi;
+  /** A search in Settings needs the storage rows, not the live sampling. */
+  searching?: boolean;
 }
 
 /** The page lists the newest few; Event details holds every event the summary carries. */
@@ -42,7 +45,8 @@ type DiagnosticStatus =
 
 export function DiagnosticsPanel({
   active,
-  api = window.lumora
+  api = window.lumora,
+  searching = false
 }: DiagnosticsPanelProps) {
   const { formatNumber, t } = useLocalization();
   const [status, setStatus] = useState<DiagnosticStatus>({ state: 'idle' });
@@ -81,8 +85,17 @@ export function DiagnosticsPanel({
       return;
     }
 
-    let cancelled = false;
     void refresh();
+
+    return () => {
+      refreshGeneration.current += 1;
+    };
+  }, [active, api, refresh]);
+
+  const storageWanted = active || searching;
+  useEffect(() => {
+    if (!storageWanted) return undefined;
+    let cancelled = false;
     void api.getDiagnosticStorageSettings().then(
       (settings) => {
         if (!cancelled) setStorage(settings);
@@ -91,12 +104,10 @@ export function DiagnosticsPanel({
         if (!cancelled) setStorageError(true);
       }
     );
-
     return () => {
       cancelled = true;
-      refreshGeneration.current += 1;
     };
-  }, [active, api, refresh]);
+  }, [api, storageWanted]);
 
   useRefreshRequest(active && status.state !== 'loading', () => void refresh());
 
@@ -137,7 +148,10 @@ export function DiagnosticsPanel({
 
   return (
     <div className="diagnostics-panel">
-      <header className="diagnostics-panel-header">
+      <header
+        className="diagnostics-panel-header"
+        {...settingMarker('settings.diagnostics.title', 'settings.diagnostics.description')}
+      >
         <div>
           <p className="card-label">{t('settings.diagnostics.eyebrow')}</p>
           <h2>{t('settings.diagnostics.title')}</h2>
@@ -223,6 +237,7 @@ export function DiagnosticsPanel({
         <section
           aria-labelledby="diagnostic-storage-title"
           className="diagnostics-storage"
+          {...settingGroupMarker('settings.diagnostics.storage-locations')}
         >
           <div className="diagnostics-events-heading">
             <div>
@@ -243,7 +258,14 @@ export function DiagnosticsPanel({
             </div>
           ) : null}
 
-          <div className="diagnostics-storage-row">
+          <div
+            className="diagnostics-storage-row"
+            {...settingMarker(
+              'settings.diagnostics.journal-storage',
+              'settings.diagnostics.journal-description',
+              !storage.journalUsesDefault
+            )}
+          >
             <div className="diagnostics-storage-copy">
               <strong>{t('settings.diagnostics.journal-storage')}</strong>
               <code aria-label={t('settings.diagnostics.journal-folder', { path:
@@ -281,7 +303,14 @@ export function DiagnosticsPanel({
             </div>
           </div>
 
-          <div className="diagnostics-storage-row">
+          <div
+            className="diagnostics-storage-row"
+            {...settingMarker(
+              'settings.diagnostics.export-destination',
+              'settings.diagnostics.export-description',
+              !storage.exportUsesDefault
+            )}
+          >
             <div className="diagnostics-storage-copy">
               <strong>{t('settings.diagnostics.export-destination')}</strong>
               <code aria-label={t('settings.diagnostics.export-folder', { path: storage.effectiveExportDirectory })}>
@@ -317,7 +346,11 @@ export function DiagnosticsPanel({
 
       {summary !== null ? (
         <>
-          <section className="diagnostics-events" aria-labelledby="diagnostic-events-title">
+          <section
+            className="diagnostics-events"
+            aria-labelledby="diagnostic-events-title"
+            {...settingMarker('settings.diagnostics.recent-events')}
+          >
             <div className="diagnostics-events-heading">
               <div>
                 <p className="card-label">{t('settings.diagnostics.bounded-journal')}</p>

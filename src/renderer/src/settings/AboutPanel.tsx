@@ -8,6 +8,7 @@ import type {
   RemoteTargetSummary
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { settingMarker } from './settings-search';
 
 type AboutApi = Pick<
   LumoraApi,
@@ -70,7 +71,10 @@ export function AboutPanel({
 
   return (
     <div className="about-panel">
-      <section className="about-identity-card">
+      <section
+        className="about-identity-card"
+        {...settingMarker('settings.about.application', 'settings.about.description')}
+      >
         <img alt="" className="about-logo" src={lumoraBrandMarkUrl} />
         <div>
           <p className="card-label">{t('settings.about.application')}</p>
@@ -88,9 +92,9 @@ export function AboutPanel({
       <section className="about-facts-card">
         <header><div><p className="card-label">{t('settings.about.installed-application')}</p><h3>{t('settings.about.system-information')}</h3></div></header>
         <dl className="about-facts">
-          <div><dt>{t('settings.about.version')}</dt><dd>{about?.system.appVersion ?? t('common.states.unavailable')}</dd></div>
-          <div><dt>{t('settings.about.developer')}</dt><dd>{about?.developer ?? 'HAYASAKA7'}</dd></div>
-          <div><dt>{t('settings.about.local-system')}</dt><dd>{about === null ? t('common.states.unavailable') : `${platformName(about.system.platform)} · ${about.system.arch}`}</dd></div>
+          <div {...settingMarker('settings.about.version')}><dt>{t('settings.about.version')}</dt><dd>{about?.system.appVersion ?? t('common.states.unavailable')}</dd></div>
+          <div {...settingMarker('settings.about.developer')}><dt>{t('settings.about.developer')}</dt><dd>{about?.developer ?? 'HAYASAKA7'}</dd></div>
+          <div {...settingMarker('settings.about.local-system')}><dt>{t('settings.about.local-system')}</dt><dd>{about === null ? t('common.states.unavailable') : `${platformName(about.system.platform)} · ${about.system.arch}`}</dd></div>
         </dl>
       </section>
 
@@ -106,7 +110,11 @@ export function AboutPanel({
       )}
 
       {release?.state === 'update_available' && (
-        <section className="about-update-card" aria-label={t('settings.about.update-label')}>
+        <section
+          className="about-update-card"
+          aria-label={t('settings.about.update-label')}
+          {...settingMarker('settings.about.update-label')}
+        >
           <header>
             <div><p className="card-label">{t('settings.about.update-label')}</p><h3>{release.release.version}</h3></div>
             <button

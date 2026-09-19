@@ -215,4 +215,21 @@ describe('KeyboardShortcutsPanel', () => {
     );
     expect(onChange).toHaveBeenCalledTimes(1);
   });
+
+  it('marks each shortcut for search and says which differ from their defaults', async () => {
+    window.lumora.getKeyboardSettings = vi.fn().mockResolvedValue({
+      ...DEFAULT_KEYBOARD_SETTINGS,
+      focusSearch: { code: 'KeyK', control: true, alt: false, shift: false, meta: false }
+    });
+    render(<KeyboardShortcutsPanel platform="win32" />);
+
+    await screen.findByRole('button', { name: 'Record focus search shortcut' });
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-setting]')];
+    expect(rows.length).toBeGreaterThan(10);
+    expect(rows.filter((row) => row.hasAttribute('data-setting-modified'))
+      .map((row) => row.dataset.setting)).toEqual(['settings.shortcuts.focus-search']);
+    // Save and Reset stay with the shortcuts a search shows.
+    expect(screen.getByRole('button', { name: 'Save shortcut' }).parentElement)
+      .toHaveAttribute('data-setting-companion');
+  });
 });

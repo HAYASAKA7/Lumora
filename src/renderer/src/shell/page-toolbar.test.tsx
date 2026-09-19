@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { keepPageToolbarPinned } from './page-toolbar';
+import { keepPageToolbarPinned, scrollUnderPageToolbar } from './page-toolbar';
 
 /** A page scrolled to `scrollTop` whose toolbar is drawn at `drawnTop` and would rest at `restingTop`. */
 function page(options: { scrollTop: number; drawnTop: number; restingTop: number; toolbar?: boolean }): HTMLElement {
@@ -48,5 +48,28 @@ describe('keepPageToolbarPinned', () => {
     keepPageToolbarPinned(main);
 
     expect(main.scrollTop).toBe(40);
+  });
+});
+
+describe('scrollUnderPageToolbar', () => {
+  it('brings a target to just under where the toolbar pins', () => {
+    const main = page({ scrollTop: 100, drawnTop: 180, restingTop: 180 });
+    const toolbar = main.querySelector<HTMLElement>('.page-toolbar')!;
+    vi.spyOn(toolbar, 'getBoundingClientRect').mockReturnValue(
+      { top: 180, bottom: 240, left: 0, right: 0, width: 0, height: 60, x: 0, y: 180, toJSON: () => ({}) }
+    );
+    vi.spyOn(main, 'getBoundingClientRect').mockReturnValue(
+      { top: 64, bottom: 700, left: 0, right: 0, width: 0, height: 636, x: 0, y: 64, toJSON: () => ({}) }
+    );
+    main.style.setProperty('--page-toolbar-inset', '14px');
+    const target = document.createElement('section');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(
+      { top: 900, bottom: 1000, left: 0, right: 0, width: 0, height: 100, x: 0, y: 900, toJSON: () => ({}) }
+    );
+
+    scrollUnderPageToolbar(main, target, 12);
+
+    // The target lands 12px under a toolbar pinned at 64 + 14 and 60 tall.
+    expect(main.scrollTop).toBe(100 + 900 - (64 + 14 + 60) - 12);
   });
 });

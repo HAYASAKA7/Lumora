@@ -1,13 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
-import type {
-  GeneralSettings,
-  LumoraApi,
-  WorkspaceSummary,
-  WorkspaceTrustDecision
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  type GeneralSettings,
+  type LumoraApi,
+  type WorkspaceSummary,
+  type WorkspaceTrustDecision
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { settingGroupMarker, settingMarker } from './settings-search';
 
 type WorkspaceTrustApi = Pick<
   LumoraApi,
@@ -95,12 +97,20 @@ export function WorkspaceTrustPanel({
         aria-labelledby="workspace-auto-trust-title"
         className="general-setting-group workspace-auto-trust"
         role="group"
+        {...settingGroupMarker('settings.security.auto-trust-group')}
       >
         <h3 className="general-setting-group-title" id="workspace-auto-trust-title">
           {t('settings.security.auto-trust-group')}
         </h3>
         <div className="general-setting-group-rows">
-          <label className="general-setting-row">
+          <label
+            className="general-setting-row"
+            {...settingMarker(
+              'settings.security.auto-trust-label',
+              'settings.security.auto-trust-description',
+              settings.autoTrustWorkspaces !== DEFAULT_GENERAL_SETTINGS.autoTrustWorkspaces
+            )}
+          >
             <span className="general-setting-copy">
               <strong>{t('settings.security.auto-trust-label')}</strong>
               <span id="workspace-auto-trust-description">
@@ -150,7 +160,7 @@ export function WorkspaceTrustPanel({
             const label = workspace?.displayName ?? t('settings.security.not-in-catalog');
             const revoking = revokingId === decision.workspaceId;
             return (
-              <li key={decision.workspaceId}>
+              <li key={decision.workspaceId} {...settingMarker('settings.security.title')}>
                 <div>
                   <strong>{label}</strong>
                   <code>{decision.canonicalPath}</code>

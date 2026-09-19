@@ -1801,12 +1801,60 @@ button {
   gap: 18px;
 }
 
-/* Lets the tabs inside scroll sideways rather than widen the page. */
+/* Search takes its own row above the tabs and the tabs scroll sideways rather than widen the page. */
 .settings-category-bar {
+  display: grid;
   min-width: 0;
+  gap: 10px;
+}
+
+.settings-search {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-search-input {
+  min-width: 0;
+  min-height: 38px;
+  flex: 1 1 auto;
+  padding: 8px 11px;
+  color: var(--text);
+  background: var(--control-surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.settings-search-modified {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.settings-search-modified:hover {
+  color: var(--text);
+}
+
+.settings-search-modified[aria-pressed='true'] {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: var(--blue);
 }
 
 .settings-category-tabs {
+  min-width: 0;
+  scrollbar-width: thin;
   display: flex;
   gap: 4px;
   overflow-x: auto;
@@ -1847,6 +1895,76 @@ button {
 
 .settings-category-panel[hidden] {
   display: none;
+}
+
+.settings-category-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  color: inherit;
+  background: var(--surface-subtle);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* A category without results stays reachable but steps back. */
+.settings-category-tab[data-search-empty] {
+  opacity: 0.45;
+}
+
+.settings-search-category {
+  margin: 4px 0 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.settings-search-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  color: var(--text-muted);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.settings-search-empty p {
+  margin: 0;
+}
+
+/* The parts of one setting that sit apart in the layout match and count as one. */
+.setting-block {
+  display: contents;
+}
+
+/*
+ * While searching a category shows only its matching settings: a row that
+ * misses hides and so does anything that is not a setting and holds none
+ * that match. What belongs with the rows and the panel messages stay.
+ */
+[data-search-miss] {
+  display: none !important;
+}
+
+.settings-layout[data-settings-searching] .settings-category-panel :not(
+  [data-setting],
+  [data-setting] *,
+  [data-setting-companion],
+  [data-setting-companion] *,
+  [role='alert'],
+  [role='alert'] *,
+  .settings-search-category,
+  :has([data-setting]:not([data-search-miss]))
+) {
+  display: none !important;
 }
 
 .about-panel {

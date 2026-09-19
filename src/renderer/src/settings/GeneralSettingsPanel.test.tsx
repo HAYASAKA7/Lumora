@@ -300,4 +300,32 @@ describe('GeneralSettingsPanel', () => {
     expect(screen.getByRole('option', { name: '日本語' })).toBeVisible();
     expect(screen.queryByRole('option', { name: /System default|英語|English\s+—/ })).not.toBeInTheDocument();
   });
+
+  it('marks each setting for search and says which differ from their defaults', () => {
+    renderWithLocalization(
+      <GeneralSettingsPanel
+        onChange={vi.fn()}
+        saveError={null}
+        saving={false}
+        settings={{
+          ...DEFAULT_GENERAL_SETTINGS,
+          startMaximized: false,
+          windowCloseBehavior: 'hide_to_tray',
+          sessionStatus: { ...DEFAULT_GENERAL_SETTINGS.sessionStatus, sound: true }
+        }}
+      />
+    );
+
+    const marked = [...document.querySelectorAll<HTMLElement>('[data-setting]')];
+    expect(marked.map((row) => row.dataset.setting)).toContain('settings.general.language-title');
+    expect(marked).toHaveLength(16);
+    expect(marked.filter((row) => row.hasAttribute('data-setting-modified'))
+      .map((row) => row.dataset.setting)).toEqual([
+      'settings.general.start-maximized',
+      'settings.general.close-behavior',
+      'settings.general.session-status-sound'
+    ]);
+    expect(screen.getByRole('group', { name: 'Window behavior' }))
+      .toHaveAttribute('data-setting-group', 'settings.general.startup-title');
+  });
 });

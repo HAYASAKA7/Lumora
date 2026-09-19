@@ -6,6 +6,7 @@ import type {
   ModsSettings
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
+import { settingGroupMarker, settingMarker } from './settings-search';
 import { IconButton } from '../ui/IconButton';
 import { FolderIcon, RefreshIcon } from '../ui/icons';
 
@@ -102,12 +103,19 @@ export function ModsSettingsPanel({
       {settings === null ? (
         <p role="status">{t('settings.mods.loading')}</p>
       ) : (
-        <section className="general-setting-group" aria-labelledby="mods-root-title">
+        <section
+          className="general-setting-group"
+          aria-labelledby="mods-root-title"
+          {...settingGroupMarker('settings.mods.root-title')}
+        >
           <h3 className="general-setting-group-title" id="mods-root-title">
             {t('settings.mods.root-title')}
           </h3>
           <div className="general-setting-group-rows">
-            <div className="general-setting-row general-setting-row-control mods-setting-row">
+            <div
+              className="general-setting-row general-setting-row-control mods-setting-row"
+              {...settingMarker('settings.mods.root-label', 'settings.mods.default-description', !settings.usesDefault)}
+            >
               <span className="general-setting-copy">
                 <strong>{t('settings.mods.root-label')}</strong>
                 <code className="mods-path">{settings.rootPath}</code>
@@ -152,7 +160,10 @@ export function ModsSettingsPanel({
                 </IconButton>
               </div>
             </div>
-            <div className="general-setting-row general-setting-row-control mods-setting-row">
+            <div
+              className="general-setting-row general-setting-row-control mods-setting-row"
+              {...settingMarker('settings.mods.theme-packs', 'settings.mods.theme-packs-description')}
+            >
               <span className="general-setting-copy">
                 <strong>{t('settings.mods.theme-packs')}</strong>
                 <code className="mods-path">{settings.themesPath}</code>
@@ -172,7 +183,10 @@ export function ModsSettingsPanel({
                 </IconButton>
               </div>
             </div>
-            <div className="general-setting-row general-setting-row-control mods-setting-row">
+            <div
+              className="general-setting-row general-setting-row-control mods-setting-row"
+              {...settingMarker('settings.mods.font-presets', 'settings.mods.font-presets-description')}
+            >
               <span className="general-setting-copy">
                 <strong>{t('settings.mods.font-presets')}</strong>
                 <code className="mods-path">{settings.fontsPath}</code>
@@ -192,7 +206,10 @@ export function ModsSettingsPanel({
                 </IconButton>
               </div>
             </div>
-            <div className="general-setting-row general-setting-row-control mods-setting-row">
+            <div
+              className="general-setting-row general-setting-row-control mods-setting-row"
+              {...settingMarker('settings.mods.language-packs', 'settings.mods.language-packs-description')}
+            >
               <span className="general-setting-copy">
                 <strong>{t('settings.mods.language-packs')}</strong>
                 <code className="mods-path">{settings.localesPath}</code>

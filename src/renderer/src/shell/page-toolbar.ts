@@ -21,6 +21,20 @@ export function keepPageToolbarPinned(page: HTMLElement): void {
 }
 
 /**
+ * Scrolls `target` to just under the page toolbar, where the toolbar is once
+ * pinned: the page's pinned inset plus the toolbar, then `gap`.
+ */
+export function scrollUnderPageToolbar(page: HTMLElement, target: HTMLElement, gap: number): void {
+  const toolbar = page.querySelector<HTMLElement>('.page-toolbar');
+  const style = page.ownerDocument.defaultView?.getComputedStyle(page);
+  const inset = Number.parseFloat(style?.getPropertyValue?.('--page-toolbar-inset') ?? '');
+  const pinnedBottom = page.getBoundingClientRect().top +
+    (Number.isFinite(inset) ? inset : 0) +
+    (toolbar?.getBoundingClientRect().height ?? 0);
+  page.scrollTop += target.getBoundingClientRect().top - pinnedBottom - gap;
+}
+
+/**
  * Brings the page back to the start of what its toolbar filters each time
  * `key` changes, such as a new search, so the first results show right under a
  * pinned toolbar instead of scrolled away above it.

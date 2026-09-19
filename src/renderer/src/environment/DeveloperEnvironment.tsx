@@ -8,6 +8,7 @@ import { OverflowTooltip } from '../ui/Tooltip';
 import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { useLocalization, type TranslationValues } from '../localization/useLocalization';
+import { settingMarker } from '../settings/settings-search';
 
 export type DeveloperEnvironmentStatus =
   | { state: 'loading' }
@@ -160,7 +161,10 @@ function DeveloperToolCard({
 }): ReactNode {
   const { t } = useLocalization();
   return (
-    <article className={`developer-tool-card developer-tool-${tool.state}`}>
+    <article
+      className={`developer-tool-card developer-tool-${tool.state}`}
+      {...settingMarker('providers.environment.tools-title', 'providers.environment.tools-description')}
+    >
       <header>
         <h3>{displayName}</h3>
         <span className={`developer-tool-state developer-tool-state-${tool.state}`}>

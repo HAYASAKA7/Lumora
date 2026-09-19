@@ -227,7 +227,7 @@
     "refresh": "Refresh",
     "refresh-description": "Refresh the page or panel in front.",
     "focus-search": "Focus search",
-    "focus-search-description": "Put the cursor in the search field on Workspaces and All Sessions.",
+    "focus-search-description": "Put the cursor in the search field on Workspaces, All Sessions and Settings.",
     "open-home": "Go to Home",
     "open-home-description": "Open the Home page.",
     "open-workspaces": "Go to Workspaces",
@@ -421,5 +421,16 @@
     "open-release": "Open release page",
     "open-project": "Open GitHub project",
     "open-error": "Lumora could not open this page. Check your default browser and try again."
+  },
+  "search": {
+    "label": "Search settings",
+    "placeholder": "Search settings",
+    "modified": "Modified",
+    "modified-label": "Show only settings changed from their defaults",
+    "clear": "Clear search",
+    "no-results": "No settings match “{query}”.",
+    "no-modified": "No settings are changed from their defaults.",
+    "no-modified-results": "No changed settings match “{query}”.",
+    "tab-count": "{category}, {count, plural, one {# match} other {# matches}}"
   }
 }

@@ -13,6 +13,7 @@ import { SessionExportDialog } from './SessionExportDialog';
 import { SessionTransferDialog } from './SessionTransferDialog';
 import { SessionTransferExportSelection } from './SessionTransferExportSelection';
 import { useLocalization, type TranslationValues } from '../localization/useLocalization';
+import { settingMarker } from '../settings/settings-search';
 
 interface SessionTransferPanelProps {
   active: boolean;
@@ -157,7 +158,10 @@ export function SessionTransferPanel({
           />
         ) : (
           <>
-            <header className="transfer-panel-header">
+            <header
+              className="transfer-panel-header"
+              {...settingMarker('transfer.title', 'transfer.overview.description')}
+            >
               <div>
                 <p className="card-label">{t('transfer.overview.eyebrow')}</p>
                 <h2>{t('transfer.title')}</h2>
@@ -196,7 +200,10 @@ export function SessionTransferPanel({
 
             {loadState === 'ready' ? (
               <div className="transfer-panel-sections">
-                <section aria-labelledby="transfer-capabilities-title">
+                <section
+                  aria-labelledby="transfer-capabilities-title"
+                  {...settingMarker('transfer.overview.provider-support')}
+                >
                   <div className="transfer-section-heading">
                     <div>
                       <h3 id="transfer-capabilities-title">{t('transfer.overview.provider-support')}</h3>
@@ -244,7 +251,10 @@ export function SessionTransferPanel({
                   </div>
                 </section>
 
-                <section aria-labelledby="transfer-history-title">
+                <section
+                  aria-labelledby="transfer-history-title"
+                  {...settingMarker('transfer.overview.recent', 'transfer.overview.recent-description')}
+                >
                   <div className="transfer-section-heading">
                     <div>
                       <h3 id="transfer-history-title">{t('transfer.overview.recent')}</h3>
@@ -285,6 +295,10 @@ export function SessionTransferPanel({
                 <section
                   aria-labelledby="transfer-guide-title"
                   className="transfer-guidance"
+                  {...settingMarker(
+                    'transfer.overview.before-importing',
+                    'transfer.overview.before-description'
+                  )}
                 >
                   <h3 id="transfer-guide-title">{t('transfer.overview.before-importing')}</h3>
                   <p>{t('transfer.overview.before-description')}</p>

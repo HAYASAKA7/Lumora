@@ -7,6 +7,16 @@ and Lumora uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Search Settings. Type in the box before the category tabs to find a setting
+  in any category, and change it right in the results: each category shows its
+  matches under its own heading and its tab counts them. A search finds a
+  setting by its name or description in your language or in English, by what
+  it is set to, by a provider's name, or by a shortcut's keys. **Modified**, or
+  `@modified` in the box, shows only what you changed from the defaults.
+  `Ctrl+F` puts the cursor in the box, and `Escape` clears it.
+
 ## [0.6.5] - 2026-09-18
 
 ### Changed

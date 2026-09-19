@@ -2609,6 +2609,7 @@ function AppContent(): ReactNode {
               />
             ) : activeRoute.id === 'settings' ? (
               <SettingsView
+                shortcutsActive={!terminalActive}
                 activeCategory={settingsCategory}
                 appearanceBackground={appearanceBackground}
                 appearanceBackgroundBusy={appearanceBackgroundBusy}

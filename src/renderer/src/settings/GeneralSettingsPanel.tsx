@@ -1,9 +1,11 @@
-import type {
-  GeneralSettings,
-  SessionStatusSettings
+import {
+  DEFAULT_GENERAL_SETTINGS,
+  type GeneralSettings,
+  type SessionStatusSettings
 } from '../../../shared/contracts';
 import { useLocalization } from '../localization/useLocalization';
 import { SelectMenu } from '../ui/SelectMenu';
+import { settingGroupMarker, settingMarker } from './settings-search';
 
 interface GeneralSettingsPanelProps {
   settings: GeneralSettings;
@@ -133,7 +135,15 @@ export function GeneralSettingsPanel({
     const descriptionId = `general-${setting.key}-description`;
     const label = t(setting.labelKey);
     return (
-      <label className="general-setting-row" key={setting.key}>
+      <label
+        className="general-setting-row"
+        key={setting.key}
+        {...settingMarker(
+          setting.labelKey,
+          setting.descriptionKey,
+          settings[setting.key] !== DEFAULT_GENERAL_SETTINGS[setting.key]
+        )}
+      >
         <span className="general-setting-copy">
           <strong>{label}</strong>
           <span id={descriptionId}>{t(setting.descriptionKey)}</span>
@@ -163,7 +173,16 @@ export function GeneralSettingsPanel({
     const descriptionId = `general-session-status-${setting.key}-description`;
     const label = t(setting.labelKey);
     return (
-      <label className="general-setting-row" key={setting.key}>
+      <label
+        className="general-setting-row"
+        key={setting.key}
+        {...settingMarker(
+          setting.labelKey,
+          setting.descriptionKey,
+          settings.sessionStatus[setting.key] !==
+            DEFAULT_GENERAL_SETTINGS.sessionStatus[setting.key]
+        )}
+      >
         <span className="general-setting-copy">
           <strong>{label}</strong>
           <span id={descriptionId}>{t(setting.descriptionKey)}</span>
@@ -209,12 +228,20 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-language-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.language-title')}
       >
         <h3 className="general-setting-group-title" id="general-language-title">
           {t('settings.general.language-title')}
         </h3>
         <div className="general-setting-group-rows">
-          <div className="general-setting-row general-setting-row-control">
+          <div
+            className="general-setting-row general-setting-row-control"
+            {...settingMarker(
+              'settings.general.language-title',
+              'settings.general.language-description',
+              settings.languagePreference !== DEFAULT_GENERAL_SETTINGS.languagePreference
+            )}
+          >
             <span className="general-setting-copy">
               <strong>{t('settings.general.language-title')}</strong>
               <span id="general-language-description">
@@ -244,13 +271,21 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-window-behavior-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.startup-title')}
       >
         <h3 className="general-setting-group-title" id="general-window-behavior-title">
           {t('settings.general.startup-title')}
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.startMaximized)}
-          <label className="general-setting-row">
+          <label
+            className="general-setting-row"
+            {...settingMarker(
+              'settings.general.close-behavior',
+              'settings.general.close-behavior-description',
+              settings.windowCloseBehavior !== DEFAULT_GENERAL_SETTINGS.windowCloseBehavior
+            )}
+          >
             <span className="general-setting-copy">
               <strong>{t('settings.general.close-behavior')}</strong>
               <span id="general-window-close-description">
@@ -285,6 +320,7 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-sidebar-notices-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.notices-title')}
       >
         <h3 className="general-setting-group-title" id="general-sidebar-notices-title">
           {t('settings.general.notices-title')}
@@ -299,6 +335,7 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-session-status-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.session-status-title')}
       >
         <h3 className="general-setting-group-title" id="general-session-status-title">
           {t('settings.general.session-status-title')}
@@ -312,6 +349,7 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-catalog-visibility-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.workspace-visibility-title')}
       >
         <h3 className="general-setting-group-title" id="general-catalog-visibility-title">
           {t('settings.general.workspace-visibility-title')}
@@ -326,6 +364,7 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-provider-maintenance-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.provider-maintenance-title')}
       >
         <h3
           className="general-setting-group-title"
@@ -344,12 +383,21 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-remote-behavior-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.remote-title')}
       >
         <h3 className="general-setting-group-title" id="general-remote-behavior-title">
           {t('settings.general.remote-title')}
         </h3>
         <div className="general-setting-group-rows">
-          <label className="general-setting-row">
+          <label
+            className="general-setting-row"
+            {...settingMarker(
+              'settings.general.remote-disconnect',
+              'settings.general.remote-disconnect-description',
+              settings.remoteWindowCloseBehavior !==
+                DEFAULT_GENERAL_SETTINGS.remoteWindowCloseBehavior
+            )}
+          >
             <span className="general-setting-copy">
               <strong>{t('settings.general.remote-disconnect')}</strong>
               <span id="general-remote-window-close-description">
@@ -384,6 +432,7 @@ export function GeneralSettingsPanel({
         aria-labelledby="general-cross-agent-handoff-title"
         className="general-setting-group"
         role="group"
+        {...settingGroupMarker('settings.general.cross-agent-title')}
       >
         <h3
           className="general-setting-group-title"
@@ -393,7 +442,15 @@ export function GeneralSettingsPanel({
         </h3>
         <div className="general-setting-group-rows">
           {renderBooleanSetting(GENERAL_SETTING_DEFINITIONS.crossAgentWorkflowEnabled)}
-          <div className="general-setting-row general-setting-row-control">
+          <div
+            className="general-setting-row general-setting-row-control"
+            {...settingMarker(
+              'settings.general.retention-days',
+              'settings.general.retention-description',
+              settings.crossAgentHandoffRetentionDays !==
+                DEFAULT_GENERAL_SETTINGS.crossAgentHandoffRetentionDays
+            )}
+          >
             <span className="general-setting-copy">
               <strong>{t('settings.general.retention-days')}</strong>
               <span id="general-handoff-retention-description">

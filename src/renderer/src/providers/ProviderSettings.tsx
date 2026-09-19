@@ -31,6 +31,7 @@ import { IconButton } from '../ui/IconButton';
 import { RefreshIcon } from '../ui/icons';
 import { useLocalization } from '../localization/useLocalization';
 import { useEscapeLayer } from '../ui/escape-layers';
+import { settingGroupMarker, settingMarker } from '../settings/settings-search';
 
 export type ProviderScanStatus =
   | { state: 'loading' }
@@ -394,6 +395,12 @@ export function ProviderSettings({
       installation={installation}
       installing={installingProviders.has(installation.provider)}
       key={installation.provider}
+      marker={settingMarker(
+        'providers.settings.installations',
+        undefined,
+        // Every provider is on by default.
+        !generalSettings.enabledProviders.includes(installation.provider)
+      )}
       release={
         updatesStatus.state === 'ready'
           ? updatesStatus.check.providers.find(
@@ -526,6 +533,7 @@ export function ProviderSettings({
             <section
               aria-labelledby="installed-providers-title"
               className="provider-group"
+              {...settingGroupMarker('providers.settings.installed')}
             >
               <h3 id="installed-providers-title">{t('providers.settings.installed')}</h3>
               <div className="provider-grid">
@@ -539,6 +547,7 @@ export function ProviderSettings({
             <section
               aria-labelledby="available-providers-title"
               className="provider-group"
+              {...settingGroupMarker('providers.settings.available')}
             >
               <h3 id="available-providers-title">{t('providers.settings.available')}</h3>
               <div className="provider-grid">
@@ -563,6 +572,11 @@ export function ProviderSettings({
         <section
           aria-labelledby="structured-provider-title"
           className="provider-selection-panel structured-provider-panel"
+          {...settingMarker(
+            'providers.settings.unified-title',
+            'providers.settings.unified-description',
+            generalSettings.unifiedAgentUiEnabled !== DEFAULT_GENERAL_SETTINGS.unifiedAgentUiEnabled
+          )}
         >
           <div className="structured-provider-heading">
             <div>

@@ -903,6 +903,39 @@ The dot takes the theme's `--blue`, `--warning` and `--danger`, which a custom
 theme sets from its palette; a style contract keeps literal colours out of its
 rules.
 
+## Settings search
+
+Search in Settings filters the real controls in place. No registry lists the
+settings: each row carries markers and `SettingsView` matches them in one pass
+over the rendered page (`src/renderer/src/settings/settings-search.ts`).
+
+- **Markers.** `data-setting` holds a row's label key, which also finds its
+  English text, and `data-setting-description` its description key.
+  `data-setting-modified` marks a value that differs from its `DEFAULT_*`
+  setting. `data-setting-group` holds a group's title key, so a search for the
+  title finds every row in it. `SettingBlock` wraps the separate parts of one
+  setting in a `display: contents` box so they match and count as one, and
+  `data-setting-companion` keeps something like a Save button with its panel's
+  results.
+- **Matching.** Every word must appear in a row's text: what it renders, the
+  values of its text fields, its translated and English label and
+  description, and its group title. The English text comes from the English
+  packs bundled for search, since the renderer receives only the active
+  language. A term with `+` also compares without spaces or `+`, so `ctrl+f`
+  finds `Ctrl + F`. `@modified` keeps only marked rows and stays in step with
+  the Modified toggle.
+- **Hiding.** The pass sets `data-search-miss`, which React never renders, on
+  rows that miss, and counts matches by category for the tabs. The stylesheet
+  does the rest: while searching, anything in a category that is not a
+  setting, a companion or an alert and holds no match is hidden, and a
+  category with no match stays hidden. A `MutationObserver` matches rows that
+  load or change while a search is on.
+- **Panels that load on request.** A search activates Appearance, Mods and
+  Transfer so their rows exist, opens every collapsed Appearance section
+  through `SettingsSearchingContext`, and loads only Diagnostics' storage
+  rows, leaving its live sampling to the tab. About is not woken, since it
+  checks for releases.
+
 ## Appearance and managed backgrounds
 
 General settings schema version 12 stores built-in or data-only Mod theme

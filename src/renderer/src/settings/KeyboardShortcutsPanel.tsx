@@ -17,6 +17,7 @@ import {
   shortcutConflictMessage
 } from '../keyboard/shortcut';
 import { useLocalization } from '../localization/useLocalization';
+import { settingMarker } from './settings-search';
 
 type ShortcutSettingKey = Exclude<keyof KeyboardSettings, 'version'>;
 
@@ -264,7 +265,16 @@ export function KeyboardShortcutsPanel({
         <>
           <div className="keyboard-shortcut-list">
             {SHORTCUT_ROWS.map((row) => (
-              <div className="keyboard-shortcut-row" key={row.key}>
+              <div
+                className="keyboard-shortcut-row"
+                key={row.key}
+                {...settingMarker(
+                  row.labelKey,
+                  row.descriptionKey,
+                  settings !== null &&
+                    !chordsMatch(settings[row.key], DEFAULT_KEYBOARD_SETTINGS[row.key])
+                )}
+              >
                 <div>
                   <strong>{t(row.labelKey)}</strong>
                   <p>{t(row.descriptionKey)}</p>
@@ -289,7 +299,7 @@ export function KeyboardShortcutsPanel({
               </div>
             ))}
           </div>
-          <div className="keyboard-shortcut-actions">
+          <div className="keyboard-shortcut-actions" data-setting-companion="">
             <button
               className="secondary-button"
               disabled={saving || recording !== null}

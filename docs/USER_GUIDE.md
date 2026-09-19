@@ -413,7 +413,7 @@ Lumora intentionally does not use browser-style `Tab` or `Shift+Tab` navigation.
 | `Ctrl+Shift+G` | Show or hide changes for the session or workspace page in front |
 | `Ctrl+Shift+M` | Maximize or restore the changes panel in front |
 | `Ctrl+Shift+R` | Refresh the page or panel in front |
-| `Ctrl+F` | Put the cursor in the search field on Workspaces and All Sessions |
+| `Ctrl+F` | Put the cursor in the search field on Workspaces, All Sessions and Settings |
 | `Escape` | Close the dialog, menu, or panel in front |
 | `Ctrl+1` | Open Home |
 | `Ctrl+2` | Open Workspaces |
@@ -423,7 +423,7 @@ Lumora intentionally does not use browser-style `Tab` or `Shift+Tab` navigation.
 | `Ctrl+,` | Open Settings |
 
 A shortcut nobody can answer does nothing and is passed on: `Ctrl+F` reaches
-the agent in a session, because only Workspaces and All Sessions search, and
+the agent in a session, because only Workspaces, All Sessions and Settings search, and
 `Ctrl+Shift+M` does nothing with no changes panel open. `Escape` always answers
 the layer in front, so a menu opened inside a dialog closes on its own first.
 
