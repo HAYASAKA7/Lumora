@@ -196,10 +196,12 @@ skips duplicate native sessions instead of overwriting them. See
 ## Settings and customization
 
 Settings are divided into General, Appearance, Mods, Providers, Environment,
-Launch, Security, Keyboard, Transfer, Diagnostics, and About. Lumora supports
-five built-in languages, installed interface and terminal fonts, managed image
-backgrounds, built-in themes, and bounded data-only locale, font, and Theme
-Mods.
+Launch, Security, Keyboard, Transfer, Diagnostics, and About. Search finds a
+setting in any of them, in your language or in English, and shows it with its
+real control; **Modified** shows only what you changed from the defaults.
+Lumora supports five built-in languages, installed interface and terminal
+fonts, managed image backgrounds, built-in themes, and bounded data-only
+locale, font, and Theme Mods.
 
 Open **Settings > Diagnostics** to review live Lumora-owned process metrics,
 every process behind Lumora and its agents, recent lifecycle health, local
